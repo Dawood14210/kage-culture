@@ -96,7 +96,22 @@ async function removeImage(url) {
 // AUTH MIDDLEWARE
 // ----------------------------------------------------------------
 function requireAuth(req, res, next) {
-  if (req.session && req.session.adminId) {
+  // Try session first, then parse cookie directly
+  let adminId = req.session && req.session.adminId;
+  if (!adminId) {
+    // Parse cookie manually as fallback
+    const cookies = (req.headers.cookie || '').split(';').map(c => c.trim());
+    const sessionCookie = cookies.find(c => c.startsWith('kage.session='));
+    if (sessionCookie) {
+      try {
+        const parts = sessionCookie.split('=')[1].split('.');
+        const data = JSON.parse(Buffer.from(parts[0], 'base64').toString());
+        adminId = data.adminId;
+      } catch (e) { /* invalid cookie */ }
+    }
+  }
+  if (adminId) {
+    req.adminId = adminId;
     next();
   } else {
     res.status(401).json({ error: 'Unauthorized. Please log in.' });
@@ -155,6 +170,10 @@ app.post('/api/admin/login', async (req, res) => {
       return res.status(401).json({ error: 'Invalid credentials.' });
     }
     req.session.adminId = admin.id;
+    // Force cookie to be set even if cookie-session middleware doesn't
+    const cookieVal = Buffer.from(JSON.stringify({ adminId: admin.id })).toString('base64');
+    const sig = require('crypto').createHmac('sha256', process.env.SESSION_SECRET || 'kage-culture-secret-key-change-in-production').update(cookieVal).digest('base64');
+    res.setHeader('Set-Cookie', `kage.session=${cookieVal}.${sig}; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400`);
     res.json({ success: true, admin: { email: admin.email } });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -165,7 +184,7 @@ app.post('/api/admin/login', async (req, res) => {
 // CHECK AUTH / LOGOUT
 // ----------------------------------------------------------------
 app.get('/api/admin/me', requireAuth, async (req, res) => {
-  const admin = await db.prepare('SELECT id, email, created_at FROM admin WHERE id = ?').get(req.session.adminId);
+  const admin = await db.prepare('SELECT id, email, created_at FROM admin WHERE id = ?').get(req.adminId);
   res.json({ admin });
 });
 
