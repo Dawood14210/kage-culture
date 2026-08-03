@@ -814,17 +814,14 @@ const serverReady = startServer().catch(err => {
 // Export for Vercel (@vercel/node builder). Wait for DB init + seeding to
 // finish before handling requests — otherwise a cold-start request could
 // hit the database before it is ready.
-module.exports = (req, res) => {
-  serverReady.then(
-    () => app(req, res),
-    (err) => {
-      console.error('Server not ready:', err);
-      res.status(500).json({ error: 'Server not ready yet. Please retry.' });
-    }
-  ).catch((err) => {
-    console.error('Request handler error:', err);
+module.exports = async (req, res) => {
+  try {
+    await serverReady;
+    return app(req, res);
+  } catch (err) {
+    console.error('Server not ready:', err.message);
     if (!res.headersSent) {
-      res.status(500).json({ error: 'Internal server error' });
+      return res.status(500).json({ error: 'Server not ready yet. Please retry.' });
     }
-  });
+  }
 };
