@@ -1,0 +1,1536 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>KAGE Admin</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body {
+      font-family: 'Archivo', sans-serif;
+      background: #F5F5F5;
+      color: #0A0A0A;
+      min-height:100vh;
+    }
+    .container { max-width:1100px; margin:0 auto; padding:1rem; }
+
+    /* Login */
+    .login-page {
+      display:flex; align-items:center; justify-content:center;
+      min-height:100vh; padding:1rem;
+    }
+    .login-card {
+      background:#FFF; padding:2.5rem; max-width:400px; width:100%;
+      box-shadow:0 2px 20px rgba(0,0,0,0.06);
+    }
+    .login-card h1 {
+      font-family:'Anton',sans-serif; font-size:1.5rem;
+      letter-spacing:0.08em; text-transform:uppercase;
+      margin-bottom:0.3rem;
+    }
+    .login-card p { color:#6B6560; font-size:0.85rem; margin-bottom:1.5rem; }
+    .login-card .error { color:#E8232F; font-size:0.8rem; margin-bottom:0.8rem; display:none; }
+    .login-card label { font-size:0.75rem; font-weight:600; display:block; margin-bottom:0.3rem; }
+    .login-card input {
+      width:100%; padding:0.7rem; border:1px solid #E5E5E5;
+      font-family:'Archivo',sans-serif; font-size:0.9rem;
+      margin-bottom:1rem; outline:none; min-height:44px;
+    }
+    .login-card input:focus { border-color:#E8232F; }
+    .login-card button {
+      width:100%; padding:0.8rem; background:#E8232F; color:#FFF;
+      border:none; font-family:'Archivo',sans-serif; font-size:0.85rem;
+      font-weight:600; text-transform:uppercase; letter-spacing:0.06em;
+      cursor:pointer; min-height:44px; transition:background 0.2s;
+    }
+    .login-card button:hover { background:#B91C24; }
+    .login-card button:disabled { opacity:0.5; cursor:not-allowed; }
+
+    /* Dashboard */
+    .dashboard { display:none; }
+    .dash-header {
+      background:#FFF; border-bottom:1px solid #E5E5E5;
+      padding:0.8rem 1rem; position:sticky; top:0; z-index:100;
+      display:flex; justify-content:space-between; align-items:center;
+    }
+    .dash-header h2 {
+      font-family:'Anton',sans-serif; font-size:1.1rem;
+      letter-spacing:0.08em;
+    }
+    .dash-header .header-right { display:flex; align-items:center; gap:1rem; }
+    .dash-header .admin-email { font-size:0.75rem; color:#6B6560; }
+    .dash-header .logout-btn {
+      background:none; border:1px solid #E5E5E5;
+      padding:0.4rem 0.8rem; font-size:0.7rem; font-weight:600;
+      text-transform:uppercase; cursor:pointer; min-height:44px;
+      color:#6B6560; transition:all 0.2s;
+    }
+    .dash-header .logout-btn:hover { border-color:#E8232F; color:#E8232F; }
+
+    .dash-content { padding:1rem; max-width:1100px; margin:0 auto; }
+
+    /* Tabs */
+    .tabs {
+      display:flex; gap:0; border-bottom:1px solid #E5E5E5;
+      margin-bottom:1.5rem;
+    }
+    .tab {
+      padding:0.7rem 1.2rem; font-size:0.75rem; font-weight:600;
+      text-transform:uppercase; cursor:pointer; border-bottom:2px solid transparent;
+      color:#6B6560; transition:all 0.2s; min-height:44px;
+      display:flex; align-items:center; background:none; border-top:none;
+      border-left:none; border-right:none;
+    }
+    .tab:hover { color:#0A0A0A; }
+    .tab.active { color:#E8232F; border-bottom-color:#E8232F; }
+    .tab-content { display:none; }
+    .tab-content.active { display:block; }
+
+    /* Add Product Form */
+    .form-grid {
+      display:grid; grid-template-columns:1fr 1fr; gap:1rem;
+      background:#FFF; padding:1.5rem; border:1px solid #E5E5E5;
+    }
+    .form-grid .full-width { grid-column:1 / -1; }
+    .form-grid label {
+      font-size:0.7rem; font-weight:600; display:block;
+      margin-bottom:0.3rem; text-transform:uppercase;
+    }
+    .form-grid input, .form-grid select, .form-grid textarea {
+      width:100%; padding:0.6rem; border:1px solid #E5E5E5;
+      font-family:'Archivo',sans-serif; font-size:0.85rem;
+      outline:none; min-height:44px; background:#FFF;
+    }
+    .form-grid input:focus, .form-grid select:focus, .form-grid textarea:focus { border-color:#E8232F; }
+    .form-grid textarea { min-height:80px; resize:vertical; }
+    .form-grid .checkbox-group {
+      display:flex; gap:0.5rem; flex-wrap:wrap;
+    }
+    .form-grid .checkbox-group label {
+      display:flex; align-items:center; gap:0.3rem;
+      font-size:0.8rem; font-weight:400; text-transform:none;
+      min-height:44px; cursor:pointer;
+    }
+    .form-grid .checkbox-group input { width:18px; height:18px; min-height:auto; }
+
+    .form-grid .upload-area {
+      border:2px dashed #E5E5E5; padding:1.5rem; text-align:center;
+      cursor:pointer; transition:all 0.2s; min-height:100px;
+      display:flex; flex-direction:column; align-items:center; justify-content:center;
+    }
+    .form-grid .upload-area:hover { border-color:#E8232F; background:#FFF5F5; }
+    .form-grid .upload-area.has-image { border-color:#4CAF50; }
+    .form-grid .upload-area img { max-width:100%; max-height:120px; margin-bottom:0.5rem; }
+    .form-grid .upload-area .hint { font-size:0.75rem; color:#6B6560; }
+    .form-grid .upload-area input[type="file"] { display:none; }
+
+    .form-actions {
+      grid-column:1 / -1;
+      display:flex; gap:0.8rem; margin-top:0.5rem;
+    }
+    .form-actions button {
+      padding:0.7rem 1.5rem; font-size:0.8rem; font-weight:600;
+      text-transform:uppercase; letter-spacing:0.06em;
+      cursor:pointer; min-height:44px; transition:all 0.2s;
+    }
+    .btn-primary {
+      background:#E8232F; color:#FFF; border:none;
+    }
+    .btn-primary:hover { background:#B91C24; }
+    .btn-secondary {
+      background:transparent; color:#6B6560; border:1px solid #E5E5E5;
+    }
+    .btn-secondary:hover { border-color:#0A0A0A; color:#0A0A0A; }
+
+    .form-success {
+      display:none; background:#E8F5E9; color:#2E7D32;
+      padding:0.8rem; font-size:0.85rem; margin-bottom:1rem;
+      grid-column:1 / -1;
+    }
+    .form-error {
+      display:none; background:#FFEBEE; color:#C62828;
+      padding:0.8rem; font-size:0.85rem; margin-bottom:1rem;
+      grid-column:1 / -1;
+    }
+
+    /* Product List */
+    .product-list { background:#FFF; border:1px solid #E5E5E5; }
+    .product-row {
+      display:grid;
+      grid-template-columns:60px 1fr 100px 100px 100px auto;
+      gap:0.5rem; align-items:center;
+      padding:0.8rem; border-bottom:1px solid #E5E5E5;
+      font-size:0.8rem;
+    }
+    .product-row.header-row {
+      font-weight:700; font-size:0.65rem; text-transform:uppercase;
+      color:#6B6560; background:#FAFAFA;
+    }
+    .product-row:last-child { border-bottom:none; }
+    .product-row .thumb {
+      width:50px; height:50px; background:#F5F5F5;
+      display:flex; align-items:center; justify-content:center;
+      overflow:hidden;
+    }
+    .product-row .thumb img { width:100%; height:100%; object-fit:contain; }
+    .product-row .p-name { font-weight:600; }
+    .product-row .p-category { font-size:0.7rem; color:#6B6560; }
+    .product-row .p-price { font-weight:600; }
+    .product-row .actions { display:flex; gap:0.3rem; }
+    .product-row .actions button {
+      background:none; border:1px solid #E5E5E5;
+      padding:0.3rem 0.6rem; font-size:0.65rem; cursor:pointer;
+      min-height:36px; transition:all 0.2s;
+    }
+    .product-row .actions button:hover { border-color:#E8232F; color:#E8232F; }
+    .product-row .actions .delete-btn:hover { border-color:#E8232F; color:#E8232F; }
+
+    /* Stock toggle */
+    .stock-toggle {
+      display:flex; align-items:center; gap:0.4rem;
+    }
+    .stock-toggle .toggle-switch {
+      position:relative; width:40px; height:22px;
+      background:#E5E5E5; border-radius:11px; cursor:pointer;
+      transition:background 0.2s; border:none; padding:0;
+    }
+    .stock-toggle .toggle-switch.active { background:#4CAF50; }
+    .stock-toggle .toggle-switch::after {
+      content:''; position:absolute; top:2px; left:2px;
+      width:18px; height:18px; border-radius:50%;
+      background:#FFF; transition:transform 0.2s;
+    }
+    .stock-toggle .toggle-switch.active::after { transform:translateX(18px); }
+    .stock-toggle .stock-label { font-size:0.7rem; color:#6B6560; }
+
+    /* Empty state */
+    .empty-state { text-align:center; padding:2rem; color:#6B6560; font-size:0.9rem; }
+
+    /* Quick Upload */
+    .quick-wrap { max-width:560px; }
+    .quick-title {
+      font-family:'Anton',sans-serif; font-size:1.3rem;
+      letter-spacing:0.06em; text-transform:uppercase; margin-bottom:0.2rem;
+    }
+    .quick-sub { color:#6B6560; font-size:0.8rem; margin-bottom:1.2rem; }
+    .quick-panel {
+      background:#FFF; border:1px solid #E5E5E5; padding:1.5rem;
+    }
+    .quick-panel .field-label {
+      font-size:0.7rem; font-weight:600; display:block;
+      margin-bottom:0.4rem; text-transform:uppercase;
+    }
+    .upload-zone {
+      border:2px dashed #E5E5E5; padding:2rem 1rem; text-align:center;
+      cursor:pointer; transition:all 0.2s; min-height:180px;
+      display:flex; flex-direction:column; align-items:center; justify-content:center;
+      background:#FAFAFA; position:relative;
+    }
+    .upload-zone.dragover { border-color:#E8232F; background:#FFF5F5; }
+    .upload-zone.has-image { border-style:solid; border-color:#4CAF50; background:#FFF; }
+    .upload-zone input[type="file"] { display:none; }
+    .upload-zone .uz-icon {
+      font-size:1.8rem; margin-bottom:0.4rem; color:#0A0A0A;
+    }
+    .upload-zone .uz-main { font-size:0.9rem; font-weight:600; }
+    .upload-zone .uz-hint { font-size:0.75rem; color:#6B6560; margin-top:0.2rem; }
+    .upload-zone .uz-error {
+      color:#C62828; font-size:0.75rem; margin-top:0.5rem; display:none;
+    }
+    .preview-box {
+      display:none; width:100%; margin-top:1rem; flex-direction:column;
+      align-items:center;
+    }
+    .preview-box.show { display:flex; }
+    .preview-box img {
+      max-width:100%; max-height:280px; object-fit:contain;
+      border:1px solid #E5E5E5; background:#F5F5F5;
+    }
+    .preview-meta {
+      font-size:0.7rem; color:#2E7D32; font-weight:600;
+      margin-top:0.5rem; text-align:center;
+    }
+    .preview-actions { display:flex; gap:0.6rem; margin-top:0.7rem; }
+    .preview-actions button {
+      padding:0.5rem 1rem; font-size:0.7rem; font-weight:600;
+      text-transform:uppercase; cursor:pointer; min-height:40px;
+      transition:all 0.2s;
+    }
+    .btn-change {
+      background:transparent; color:#6B6560; border:1px solid #E5E5E5;
+    }
+    .btn-change:hover { border-color:#0A0A0A; color:#0A0A0A; }
+    .price-field {
+      display:flex; align-items:center; border:1px solid #E5E5E5;
+      background:#FFF; margin-top:0.3rem; transition:border-color 0.2s;
+    }
+    .price-field:focus-within { border-color:#E8232F; }
+    .price-field .currency {
+      padding:0 0.9rem; font-size:0.95rem; font-weight:700;
+      color:#0A0A0A; border-right:1px solid #E5E5E5;
+      align-self:stretch; display:flex; align-items:center;
+    }
+    .price-field input {
+      flex:1; border:none; outline:none; padding:0.7rem;
+      font-family:'Archivo',sans-serif; font-size:1rem; font-weight:600;
+      min-height:46px; width:100%;
+    }
+    .price-field input::-webkit-outer-spin-button,
+    .price-field input::-webkit-inner-spin-button { -webkit-appearance:none; margin:0; }
+    .quick-actions { margin-top:1.2rem; }
+    .quick-actions button {
+      width:100%; padding:0.9rem; background:#E8232F; color:#FFF;
+      border:none; font-family:'Archivo',sans-serif; font-size:0.85rem;
+      font-weight:700; text-transform:uppercase; letter-spacing:0.08em;
+      cursor:pointer; min-height:48px; transition:background 0.2s;
+    }
+    .quick-actions button:hover { background:#B91C24; }
+    .quick-actions button:disabled { opacity:0.5; cursor:not-allowed; }
+    .quick-actions button.spinning {
+      display:flex; align-items:center; justify-content:center; gap:0.5rem;
+    }
+    .spinner {
+      width:16px; height:16px; border:2px solid rgba(255,255,255,0.4);
+      border-top-color:#FFF; border-radius:50%;
+      animation:spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform:rotate(360deg); } }
+    .quick-success {
+      display:none; background:#E8F5E9; color:#2E7D32;
+      padding:0.8rem; font-size:0.85rem; font-weight:600; margin-bottom:1rem;
+    }
+    .quick-error {
+      display:none; background:#FFEBEE; color:#C62828;
+      padding:0.8rem; font-size:0.85rem; margin-bottom:1rem;
+    }
+    .live-card {
+      display:none; border:1px solid #E5E5E5; background:#FFF;
+      margin-top:1rem; padding:0.8rem; align-items:center; gap:0.8rem;
+    }
+    .live-card.show { display:flex; }
+    .live-card .lc-thumb {
+      width:56px; height:56px; background:#F5F5F5; flex-shrink:0;
+      display:flex; align-items:center; justify-content:center; overflow:hidden;
+    }
+    .live-card .lc-thumb img { width:100%; height:100%; object-fit:contain; }
+    .live-card .lc-name { font-size:0.8rem; font-weight:600; }
+    .live-card .lc-price { font-size:0.8rem; font-weight:700; margin-top:0.15rem; }
+    .live-card .lc-badge {
+      display:inline-block; margin-top:0.25rem; font-size:0.6rem;
+      font-weight:700; text-transform:uppercase; color:#E8232F;
+      border:1px solid #E8232F; padding:0.1rem 0.35rem; letter-spacing:0.05em;
+    }
+    .live-card .lc-check {
+      margin-left:auto; color:#2E7D32; font-size:1.3rem; font-weight:700;
+    }
+
+    /* Responsive */
+    @media (max-width:768px) {
+      .form-grid { grid-template-columns:1fr; }
+      .product-row {
+        grid-template-columns:40px 1fr;
+        gap:0.3rem; padding:0.6rem;
+      }
+      .product-row .header-row { display:none; }
+      .product-row .p-category { grid-column:2; }
+      .product-row .p-price { grid-column:2; }
+      .product-row .stock-toggle { grid-column:1/-1; justify-content:flex-end; }
+      .product-row .actions { grid-column:1/-1; justify-content:flex-end; }
+      .dash-header { flex-wrap:wrap; gap:0.5rem; }
+      .tabs { overflow-x:auto; }
+      .tab { white-space:nowrap; }
+    }
+
+    /* ---- Simplified Add Product form ---- */
+    #extraFields { display: none; }
+    #extraFields.show { display: contents; }
+    .form-grid .upload-area .uz-icon { font-size: 2rem; margin-bottom: 0.4rem; }
+    .form-grid .upload-area .uz-main { font-size: 0.9rem; font-weight: 600; }
+    .form-grid .upload-area .uz-hint { font-size: 0.75rem; color: #6B6560; margin-top: 0.2rem; }
+    .form-grid .upload-area .uz-error { font-size: 0.75rem; color: #E8232F; margin-top: 0.4rem; display: none; }
+    .form-grid .upload-area.dragover { border-color: #E8232F; background: #FFF5F5; }
+    .form-grid .upload-area .preview-box img { max-height: 240px; }
+    .form-grid .upload-area .btn-change { margin-top: 0.7rem; }
+    #tab-add .live-card { margin-top: 1rem; }
+
+    /* ---- Reports (P&L) tab ---- */
+    #tab-reports {
+      background: #0A0A0A;
+      border: 1px solid #1F1F1F;
+      padding: 1.5rem;
+    }
+    .reports-head {
+      display: flex; justify-content: space-between; align-items: center;
+      flex-wrap: wrap; gap: 0.8rem; margin-bottom: 1.4rem;
+    }
+    .reports-title {
+      font-family: 'Anton', sans-serif; font-size: 1.35rem;
+      letter-spacing: 0.08em; text-transform: uppercase; color: #FFFFFF;
+    }
+    .period-toggle { display: flex; gap: 0.3rem; background: #161616; padding: 0.25rem; border: 1px solid #262626; }
+    .period-btn {
+      background: none; border: none; padding: 0.45rem 1rem;
+      font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.06em; color: #8A8A8A; cursor: pointer;
+      min-height: 34px; transition: all 0.2s; font-family: 'Archivo', sans-serif;
+    }
+    .period-btn:hover { color: #FFFFFF; }
+    .period-btn.active { background: #E8232F; color: #FFFFFF; }
+    .pnl-summary {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-bottom: 1.4rem;
+    }
+    .pnl-card {
+      background: #111111; border: 1px solid #242424;
+      padding: 1.1rem 1.2rem; transition: border-color 0.2s;
+    }
+    .pnl-card:hover { border-color: #3A3A3A; }
+    .pnl-label {
+      font-size: 0.65rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.1em; color: #8A8A8A; margin-bottom: 0.4rem;
+    }
+    .pnl-value {
+      font-family: 'Anton', sans-serif; font-size: 1.6rem; color: #FFFFFF;
+      letter-spacing: 0.02em;
+    }
+    .pnl-sub { font-size: 0.68rem; color: #5E5E5E; margin-top: 0.25rem; }
+    .pnl-card-profit { border-color: rgba(46,230,168,0.35); }
+    .pnl-card-profit .pnl-value { color: #2EE6A8; }
+    .pnl-chart-wrap {
+      position: relative; background: #0D0D0D;
+      border: 1px solid #1F1F1F; padding: 1.2rem 1rem 0.6rem;
+      min-height: 360px;
+    }
+    .pnl-empty {
+      display: none; position: absolute; inset: 0;
+      align-items: center; justify-content: center;
+      color: #6B6560; font-size: 0.85rem; text-align: center; padding: 2rem;
+      background: rgba(13,13,13,0.92);
+    }
+    .pnl-empty.show { display: flex; }
+    @media (max-width: 640px) {
+      .pnl-summary { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <!-- LOGIN PAGE -->
+  <div class="login-page" id="loginPage">
+    <div class="login-card">
+      <h1>KAGE Admin</h1>
+      <p>Sign in to manage products</p>
+      <div class="error" id="loginError"></div>
+      <label for="loginEmail">Email</label>
+      <input type="email" id="loginEmail" placeholder="admin@kage.com" autocomplete="email" />
+      <label for="loginPassword">Password</label>
+      <input type="password" id="loginPassword" placeholder="Enter password" autocomplete="current-password" />
+      <button id="loginBtn" onclick="handleLogin()">Sign In</button>
+    </div>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div class="dashboard" id="dashboard">
+    <div class="dash-header">
+      <h2>KAGE Admin</h2>
+      <div class="header-right">
+        <span class="admin-email" id="adminEmail"></span>
+        <button class="logout-btn" onclick="handleLogout()">Log Out</button>
+      </div>
+    </div>
+
+    <div class="dash-content">
+      <!-- Tabs -->
+      <div class="tabs">
+        <button class="tab active" onclick="switchTab(this, 'upload')">Upload</button>
+        <button class="tab" onclick="switchTab(this, 'products')">Products</button>
+        <button class="tab" onclick="switchTab(this, 'add')">Add Product</button>
+        <button class="tab" onclick="switchTab(this, 'orders')">Orders</button>
+        <button class="tab" onclick="switchTab(this, 'reports')">Reports</button>
+      </div>
+
+      <!-- Quick Upload tab -->
+      <div class="tab-content active" id="tab-upload">
+        <div class="quick-wrap">
+          <div class="quick-title">Quick Upload</div>
+          <p class="quick-sub">Add a product live to the shop with just a photo and a price.</p>
+          <div class="quick-success" id="quickSuccess"></div>
+          <div class="quick-error" id="quickError"></div>
+          <div class="quick-panel">
+            <label class="field-label">Product Image</label>
+            <div class="upload-zone" id="uploadZone" tabindex="0" role="button" aria-label="Choose product image">
+              <input type="file" id="quickImage" accept="image/*" />
+              <div id="uzIdle">
+                <div class="uz-icon">📷</div>
+                <div class="uz-main">Tap to choose a photo</div>
+                <div class="uz-hint">Works from your camera roll or file browser · or drag &amp; drop here</div>
+                <div class="uz-error" id="uzError"></div>
+              </div>
+              <div class="preview-box" id="previewBox">
+                <img id="previewImg" alt="Image preview" />
+                <div class="preview-meta" id="previewMeta"></div>
+                <div class="preview-actions">
+                  <button type="button" class="btn-change" onclick="clearImageSelection()">Choose different</button>
+                </div>
+              </div>
+            </div>
+            <div style="margin-top:1.2rem;">
+              <label class="field-label" for="quickPrice">Price</label>
+              <div class="price-field">
+                <span class="currency">Rs.</span>
+                <input type="number" id="quickPrice" min="1" step="1" placeholder="0" inputmode="numeric" />
+              </div>
+            </div>
+            <div class="quick-actions">
+              <button type="button" id="quickUploadBtn" onclick="handleQuickUpload()">Upload</button>
+            </div>
+            <div class="live-card" id="liveCard">
+              <div class="lc-thumb"><img id="lcImg" alt="" /></div>
+              <div>
+                <div class="lc-name" id="lcName"></div>
+                <div class="lc-price" id="lcPrice"></div>
+                <span class="lc-badge">● Live in shop</span>
+              </div>
+              <span class="lc-check">✓</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Products tab -->
+      <div class="tab-content" id="tab-products">
+        <div class="product-list" id="productList">
+          <div class="product-row header-row">
+            <span></span>
+            <span>Name</span>
+            <span>Price</span>
+            <span>Category</span>
+            <span>Stock</span>
+            <span>Actions</span>
+          </div>
+          <div class="empty-state">Loading products...</div>
+        </div>
+      </div>
+
+      <!-- Add/Edit Product tab -->
+      <div class="tab-content" id="tab-add">
+        <div class="form-success" id="formSuccess">Product saved!</div>
+        <div class="form-error" id="formError"></div>
+        <form class="form-grid" id="productForm" onsubmit="handleSaveProduct(event)">
+          <input type="hidden" id="editId" value="" />
+
+          <!-- 1. Product name -->
+          <div>
+            <label>Product Name *</label>
+            <input type="text" id="prodName" placeholder="e.g. Oni Muscle Tee" required />
+          </div>
+
+          <!-- 2. Picture (file picker + drag & drop, camera roll on phones) -->
+          <div class="full-width">
+            <label>Picture *</label>
+            <div class="upload-area" id="frontUploadArea" tabindex="0" role="button" aria-label="Choose product picture">
+              <input type="file" id="frontInput" accept="image/*" />
+              <div id="frontIdle">
+                <div class="uz-icon">📷</div>
+                <div class="uz-main">Tap to choose a photo</div>
+                <div class="uz-hint">Works from your camera roll or file browser · or drag &amp; drop here</div>
+                <div class="uz-error" id="formImgError"></div>
+              </div>
+              <div class="preview-box" id="frontPreview"></div>
+              <button type="button" class="btn-change" id="formImgChange" style="display:none;">Choose different</button>
+            </div>
+          </div>
+
+          <!-- 3. Price -->
+          <div>
+            <label>Price *</label>
+            <div class="price-field">
+              <span class="currency">Rs.</span>
+              <input type="number" id="prodPrice" step="0.01" min="1" placeholder="0" inputmode="decimal" required />
+            </div>
+          </div>
+
+          <!-- 4. Description -->
+          <div class="full-width">
+            <label>Description</label>
+            <textarea id="prodDesc" placeholder="Short product description" rows="3"></textarea>
+          </div>
+
+          <!-- Advanced fields (shown when editing an existing product) -->
+          <div id="extraFields">
+            <div>
+              <label>Category *</label>
+              <select id="prodCategory" required>
+                <option value="graphic-tees">Graphic Tees</option>
+                <option value="compression">Compression</option>
+                <option value="oversized">Oversized</option>
+              </select>
+            </div>
+            <div>
+              <label>Fit Type</label>
+              <input type="text" id="prodFit" placeholder="e.g. Compression, Regular, Oversized" />
+            </div>
+            <div>
+              <label>Sale Price (optional)</label>
+              <input type="number" id="prodSalePrice" step="0.01" placeholder="Leave empty if no sale" />
+            </div>
+            <div>
+              <label>Unit Cost (COGS)</label>
+              <div class="price-field">
+                <span class="currency">Rs.</span>
+                <input type="number" id="prodUnitCost" step="1" min="0" placeholder="e.g. 545" inputmode="numeric" />
+              </div>
+              <div style="font-size:0.65rem;color:#6B6560;margin-top:0.2rem;">What you pay per piece — drives Profit &amp; Loss in Reports.</div>
+            </div>
+            <div class="full-width">
+              <label>Sizes Available</label>
+              <div class="checkbox-group" id="sizeCheckboxes">
+                <label><input type="checkbox" value="S" checked /> S</label>
+                <label><input type="checkbox" value="M" checked /> M</label>
+                <label><input type="checkbox" value="L" checked /> L</label>
+                <label><input type="checkbox" value="XL" checked /> XL</label>
+                <label><input type="checkbox" value="XXL" checked /> XXL</label>
+              </div>
+            </div>
+            <div>
+              <label>Back Image (optional)</label>
+              <div class="upload-area" id="backUploadArea" onclick="document.getElementById('backInput').click()">
+                <input type="file" id="backInput" accept="image/*" onchange="previewUpload(this, 'backPreview')" />
+                <div id="backPreview"><span class="hint">Tap to upload back view</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-actions">
+            <button type="submit" class="btn-primary" id="saveBtn">Add Product</button>
+            <button type="button" class="btn-secondary" onclick="resetForm()" id="cancelBtn" style="display:none;">Cancel</button>
+          </div>
+        </form>
+
+        <!-- Live card: confirms the product is on the shop right now -->
+        <div class="live-card" id="formLiveCard">
+          <div class="lc-thumb"><img id="formLcImg" alt="" /></div>
+          <div>
+            <div class="lc-name" id="formLcName"></div>
+            <div class="lc-price" id="formLcPrice"></div>
+            <span class="lc-badge">● Live in shop</span>
+          </div>
+          <span class="lc-check">✓</span>
+        </div>
+      </div>
+
+      <!-- Orders tab -->
+      <div class="tab-content" id="tab-orders">
+        <div class="orders-list" id="ordersList">
+          <div class="empty-state">Loading orders...</div>
+        </div>
+      </div>
+
+      <!-- Reports (P&L) tab -->
+      <div class="tab-content" id="tab-reports">
+        <div class="reports-head">
+          <div class="reports-title">Profit &amp; Loss</div>
+          <div class="period-toggle">
+            <button class="period-btn active" data-period="daily" onclick="setPnlPeriod('daily')">Daily</button>
+            <button class="period-btn" data-period="weekly" onclick="setPnlPeriod('weekly')">Weekly</button>
+            <button class="period-btn" data-period="monthly" onclick="setPnlPeriod('monthly')">Monthly</button>
+          </div>
+        </div>
+
+        <div class="pnl-summary">
+          <div class="pnl-card">
+            <div class="pnl-label">Total Revenue</div>
+            <div class="pnl-value" id="pnlRevenue">—</div>
+            <div class="pnl-sub">goods + shipping</div>
+          </div>
+          <div class="pnl-card">
+            <div class="pnl-label">Total Cost (COGS)</div>
+            <div class="pnl-value" id="pnlCost">—</div>
+            <div class="pnl-sub">cost of goods sold</div>
+          </div>
+          <div class="pnl-card pnl-card-profit">
+            <div class="pnl-label">Net Profit</div>
+            <div class="pnl-value" id="pnlProfit">—</div>
+            <div class="pnl-sub" id="pnlProfitSub">revenue − cost</div>
+          </div>
+        </div>
+
+        <div class="pnl-chart-wrap">
+          <canvas id="pnlChart" height="320"></canvas>
+          <div class="pnl-empty" id="pnlEmpty">
+            No orders in this period yet. Place an order on the storefront and it will appear here automatically.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script>
+    // ================================================================
+    // STATE
+    // ================================================================
+    let isLoggedIn = false;
+    let products = [];
+    let currentImageFiles = { front: null, back: null };
+
+    // Escape user-provided text before injecting into innerHTML (prevents stored XSS)
+    function esc(s) {
+      return String(s == null ? '' : s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    // ================================================================
+    // AUTH
+    // ================================================================
+    async function checkAuth() {
+      try {
+        const res = await fetch('/api/admin/me');
+        if (res.ok) {
+          const data = await res.json();
+          isLoggedIn = true;
+          document.getElementById('loginPage').style.display = 'none';
+          document.getElementById('dashboard').style.display = 'block';
+          document.getElementById('adminEmail').textContent = data.admin.email;
+          loadProducts();
+          loadOrders();
+        } else {
+          showLogin();
+        }
+      } catch {
+        showLogin();
+      }
+    }
+
+    function showLogin() {
+      document.getElementById('loginPage').style.display = 'flex';
+      document.getElementById('dashboard').style.display = 'none';
+      isLoggedIn = false;
+    }
+
+    async function handleLogin() {
+      const email = document.getElementById('loginEmail').value.trim();
+      const password = document.getElementById('loginPassword').value;
+      const btn = document.getElementById('loginBtn');
+      const errEl = document.getElementById('loginError');
+
+      if (!email || !password) {
+        errEl.textContent = 'Please enter email and password.';
+        errEl.style.display = 'block';
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = 'Signing in...';
+      errEl.style.display = 'none';
+
+      try {
+        // Try to create admin account on first run
+        await fetch('/api/admin/setup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        }).catch(() => {});
+
+        const res = await fetch('/api/admin/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+
+        if (res.ok) {
+          checkAuth();
+        } else {
+          const data = await res.json();
+          errEl.textContent = data.error || 'Login failed.';
+          errEl.style.display = 'block';
+        }
+      } catch (err) {
+        errEl.textContent = 'Connection error. Make sure the server is running.';
+        errEl.style.display = 'block';
+      }
+
+      btn.disabled = false;
+      btn.textContent = 'Sign In';
+    }
+
+    async function handleLogout() {
+      await fetch('/api/admin/logout', { method: 'POST' });
+      showLogin();
+    }
+
+    // Allow Enter key on login
+    document.getElementById('loginPassword').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') handleLogin();
+    });
+
+    // ================================================================
+    // PRODUCTS
+    // ================================================================
+    async function loadProducts() {
+      try {
+        const res = await fetch('/api/products');
+        products = await res.json();
+        renderProductList();
+      } catch (err) {
+        document.getElementById('productList').innerHTML = '<div class="empty-state">Failed to load products.</div>';
+      }
+    }
+
+    function renderProductList() {
+      const list = document.getElementById('productList');
+      if (products.length === 0) {
+        list.innerHTML = `
+          <div class="product-row header-row">
+            <span></span><span>Name</span><span>Price</span><span>Category</span><span>Stock</span><span>Actions</span>
+          </div>
+          <div class="empty-state">No products yet. Add your first product!</div>
+        `;
+        return;
+      }
+
+      let html = `
+        <div class="product-row header-row">
+          <span></span><span>Name</span><span>Price</span><span>Category</span><span>Stock</span><span>Actions</span>
+        </div>
+      `;
+
+      products.forEach(p => {
+        const thumbSrc = p.front_image || '';
+        const catLabel = { 'compression':'Compression', 'graphic-tees':'Graphic Tees', 'oversized':'Oversized' }[p.category] || p.category;
+        const stockLabel = p.in_stock ? 'In Stock' : 'Sold Out';
+        const stockClass = p.in_stock ? 'active' : '';
+
+        html += `
+          <div class="product-row" data-id="${p.id}">
+            <div class="thumb">
+              ${thumbSrc ? `<img src="${esc(thumbSrc)}" alt="${esc(p.name)}" />` : '—'}
+            </div>
+            <div>
+              <div class="p-name">${esc(p.name)}</div>
+              <div class="p-category">${esc(catLabel)}</div>
+            </div>
+            <div class="p-price">Rs. ${p.sale_price || p.price}</div>
+            <div class="p-category">${esc(catLabel)}</div>
+            <div class="stock-toggle">
+              <button class="toggle-switch ${stockClass}" onclick="toggleStock(${p.id})"></button>
+              <span class="stock-label">${stockLabel}</span>
+            </div>
+            <div class="actions">
+              <button onclick="editProduct(${p.id})">Edit</button>
+              <button class="delete-btn" onclick="deleteProduct(${p.id})">Delete</button>
+            </div>
+          </div>
+        `;
+      });
+
+      list.innerHTML = html;
+    }
+
+    // ================================================================
+    // STOCK TOGGLE
+    // ================================================================
+    async function toggleStock(id) {
+      try {
+        const res = await fetch('/api/products/' + id + '/stock', { method: 'PATCH' });
+        if (res.ok) {
+          const data = await res.json();
+          const p = products.find(x => x.id === id);
+          if (p) p.in_stock = data.in_stock;
+          renderProductList();
+        }
+      } catch (err) {
+        alert('Failed to toggle stock.');
+      }
+    }
+
+    // ================================================================
+    // DELETE PRODUCT
+    // ================================================================
+    async function deleteProduct(id) {
+      if (!confirm('Delete this product? This cannot be undone.')) return;
+      try {
+        const res = await fetch('/api/products/' + id, { method: 'DELETE' });
+        if (res.ok) {
+          products = products.filter(p => p.id !== id);
+          renderProductList();
+        } else {
+          alert('Failed to delete product.');
+        }
+      } catch (err) {
+        alert('Failed to delete product.');
+      }
+    }
+
+    // ================================================================
+    // EDIT PRODUCT (pre-fill form)
+    // ================================================================
+    function editProduct(id) {
+      const p = products.find(x => x.id === id);
+      if (!p) return;
+
+      document.getElementById('editId').value = p.id;
+      document.getElementById('prodName').value = p.name;
+      document.getElementById('prodCategory').value = p.category;
+      document.getElementById('prodFit').value = p.fit || '';
+      document.getElementById('prodPrice').value = p.price;
+      document.getElementById('prodSalePrice').value = p.sale_price || '';
+      document.getElementById('prodUnitCost').value = p.unit_cost || '';
+      document.getElementById('prodDesc').value = p.description || '';
+
+      // Sizes
+      document.querySelectorAll('#sizeCheckboxes input').forEach(cb => {
+        cb.checked = (p.sizes || []).includes(cb.value);
+      });
+
+      // Show the advanced fields when editing
+      document.getElementById('extraFields').classList.add('show');
+
+      // Front image preview (existing image)
+      const frontPreview = document.getElementById('frontPreview');
+      if (p.front_image) {
+        frontPreview.innerHTML = `<img src="${p.front_image}" alt="Front" />`;
+        frontPreview.classList.add('show');
+        document.getElementById('frontUploadArea').classList.add('has-image');
+        document.getElementById('frontIdle').style.display = 'none';
+        document.getElementById('formImgChange').style.display = 'inline-block';
+      }
+
+      if (p.back_image) {
+        document.getElementById('backPreview').innerHTML = `<img src="${p.back_image}" alt="Back" />`;
+        document.getElementById('backUploadArea').classList.add('has-image');
+      }
+
+      document.getElementById('saveBtn').textContent = 'Update Product';
+      document.getElementById('cancelBtn').style.display = 'block';
+      switchTab(document.querySelector('.tab[onclick*="add"]'), 'add');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function resetForm() {
+      document.getElementById('editId').value = '';
+      document.getElementById('productForm').reset();
+      document.getElementById('extraFields').classList.remove('show');
+      document.getElementById('prodCategory').value = 'graphic-tees';
+      document.getElementById('prodFit').value = 'Regular';
+      document.getElementById('prodUnitCost').value = '';
+      document.getElementById('backPreview').innerHTML = '<span class="hint">Tap to upload back view</span>';
+      document.getElementById('backUploadArea').classList.remove('has-image');
+      clearFormImage();
+      document.getElementById('saveBtn').textContent = 'Add Product';
+      document.getElementById('cancelBtn').style.display = 'none';
+      document.getElementById('formSuccess').style.display = 'none';
+      document.getElementById('formError').style.display = 'none';
+      currentImageFiles = { front: null, back: null };
+      // Reset checkboxes
+      document.querySelectorAll('#sizeCheckboxes input').forEach(cb => cb.checked = true);
+    }
+
+    // ================================================================
+    // UPLOAD PREVIEW
+    // ================================================================
+    function previewUpload(input, previewId) {
+      const preview = document.getElementById(previewId);
+      const area = input.closest('.upload-area');
+      if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          preview.innerHTML = `<img src="${e.target.result}" alt="Preview" />`;
+          if (area) area.classList.add('has-image');
+        };
+        reader.readAsDataURL(input.files[0]);
+        // Store file for upload
+        if (previewId === 'frontPreview') currentImageFiles.front = input.files[0];
+        else if (previewId === 'backPreview') currentImageFiles.back = input.files[0];
+      }
+    }
+
+    // Simplified Add form: front-image upload (picker + drag & drop + auto-compress to WebP)
+    let formImageBlob = null;
+
+    async function handleFormFrontImage(file) {
+      const errEl = document.getElementById('formImgError');
+      errEl.style.display = 'none';
+      if (!file || !file.type.startsWith('image/')) {
+        errEl.textContent = 'That file type is not supported. Please choose a photo (JPEG, PNG or WebP).';
+        errEl.style.display = 'block';
+        return;
+      }
+      const idle = document.getElementById('frontIdle');
+      const preview = document.getElementById('frontPreview');
+      const changeBtn = document.getElementById('formImgChange');
+      const area = document.getElementById('frontUploadArea');
+      const meta = document.createElement('div');
+      meta.className = 'preview-meta';
+
+      // Immediate preview of the raw selection
+      const rawUrl = URL.createObjectURL(file);
+      idle.style.display = 'none';
+      preview.innerHTML = `<img src="${rawUrl}" alt="Preview" />`;
+      preview.classList.add('show');
+      preview.appendChild(meta);
+      meta.textContent = 'Optimizing…';
+      changeBtn.style.display = 'inline-block';
+      area.classList.add('has-image');
+
+      try {
+        const optimized = await compressToWebP(file);
+        formImageBlob = optimized.blob;
+        URL.revokeObjectURL(rawUrl);
+        preview.innerHTML = `<img src="${URL.createObjectURL(optimized.blob)}" alt="Preview" />`;
+        preview.classList.add('show');
+        preview.appendChild(meta);
+        const kb = Math.max(1, Math.round(optimized.blob.size / 1024));
+        const type = optimized.blob.type.includes('webp') ? 'WebP' : 'JPEG';
+        meta.textContent = `Optimized · ${optimized.width}px · ${type} · ${kb} KB`;
+      } catch (err) {
+        formImageBlob = null;
+        clearFormImage();
+        errEl.textContent = 'Could not process that image. Please try a different photo.';
+        errEl.style.display = 'block';
+      }
+    }
+
+    function clearFormImage() {
+      formImageBlob = null;
+      currentImageFiles.front = null;
+      const input = document.getElementById('frontInput');
+      if (input) input.value = '';
+      const idle = document.getElementById('frontIdle');
+      const preview = document.getElementById('frontPreview');
+      const changeBtn = document.getElementById('formImgChange');
+      const area = document.getElementById('frontUploadArea');
+      const errEl = document.getElementById('formImgError');
+      if (idle) idle.style.display = 'block';
+      if (preview) { preview.innerHTML = ''; preview.classList.remove('show'); }
+      if (changeBtn) changeBtn.style.display = 'none';
+      if (area) area.classList.remove('has-image');
+      if (errEl) errEl.style.display = 'none';
+    }
+
+    function setupFormFrontUpload() {
+      const area = document.getElementById('frontUploadArea');
+      const input = document.getElementById('frontInput');
+      if (!area || !input) return;
+      area.addEventListener('click', (e) => {
+        if (e.target.closest('.btn-change')) return;
+        input.click();
+      });
+      area.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); input.click(); }
+      });
+      input.addEventListener('change', () => {
+        if (input.files && input.files[0]) handleFormFrontImage(input.files[0]);
+      });
+      ['dragenter', 'dragover'].forEach(ev => {
+        area.addEventListener(ev, (e) => { e.preventDefault(); area.classList.add('dragover'); });
+      });
+      ['dragleave', 'drop'].forEach(ev => {
+        area.addEventListener(ev, (e) => { e.preventDefault(); area.classList.remove('dragover'); });
+      });
+      area.addEventListener('drop', (e) => {
+        const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+        if (f) handleFormFrontImage(f);
+      });
+    }
+
+    // ================================================================
+    // SAVE PRODUCT (Create / Update)
+    // ================================================================
+    async function handleSaveProduct(e) {
+      e.preventDefault();
+      const editId = document.getElementById('editId').value;
+      const successEl = document.getElementById('formSuccess');
+      const errorEl = document.getElementById('formError');
+      const btn = document.getElementById('saveBtn');
+
+      successEl.style.display = 'none';
+      errorEl.style.display = 'none';
+
+      const name = document.getElementById('prodName').value.trim();
+      const price = document.getElementById('prodPrice').value;
+
+      if (!name || !price || isNaN(parseFloat(price)) || parseFloat(price) <= 0) {
+        errorEl.textContent = 'Please fill in the product name and a valid price.';
+        errorEl.style.display = 'block';
+        return;
+      }
+      if (!editId && !formImageBlob) {
+        errorEl.textContent = 'Please add a picture of the product.';
+        errorEl.style.display = 'block';
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append('name', name);
+      formData.append('category', document.getElementById('prodCategory').value || 'graphic-tees');
+      formData.append('fit', document.getElementById('prodFit').value.trim() || 'Regular');
+      formData.append('price', price);
+
+      const salePrice = document.getElementById('prodSalePrice').value;
+      if (salePrice) formData.append('sale_price', salePrice);
+
+      const unitCost = document.getElementById('prodUnitCost').value;
+      if (unitCost) formData.append('unit_cost', unitCost);
+
+      formData.append('description', document.getElementById('prodDesc').value.trim());
+
+      const checkedSizes = [...document.querySelectorAll('#sizeCheckboxes input:checked')].map(cb => cb.value);
+      if (checkedSizes.length) formData.append('sizes', JSON.stringify(checkedSizes));
+
+      // Picture (compressed to WebP client-side) and back image
+      if (formImageBlob) formData.append('front_image', formImageBlob, 'pic-' + Date.now() + '.webp');
+      if (currentImageFiles.back) formData.append('back_image', currentImageFiles.back);
+
+      btn.disabled = true;
+      btn.textContent = editId ? 'Updating…' : 'Adding…';
+
+      try {
+        let res;
+        if (editId) {
+          res = await fetch('/api/products/' + editId, { method: 'PUT', body: formData });
+        } else {
+          res = await fetch('/api/products', { method: 'POST', body: formData });
+        }
+
+        if (res.ok) {
+          const product = await res.json();
+          if (editId) {
+            document.getElementById('formLiveCard').classList.remove('show');
+            successEl.textContent = 'Product updated successfully!';
+          } else {
+            // Live card — confirms the product is on the shop right now
+            document.getElementById('formLcImg').src = product.front_image || '';
+            document.getElementById('formLcName').textContent = product.name;
+            document.getElementById('formLcPrice').textContent = 'Rs. ' + (product.sale_price || product.price);
+            document.getElementById('formLiveCard').classList.add('show');
+            successEl.textContent = 'Product added — it\'s live in the shop.';
+          }
+          resetForm();
+          successEl.style.display = 'block';
+          loadProducts();
+        } else {
+          const data = await res.json();
+          errorEl.textContent = data.error || 'Failed to save product.';
+          errorEl.style.display = 'block';
+        }
+      } catch (err) {
+        errorEl.textContent = 'Connection error. Make sure the server is running.';
+        errorEl.style.display = 'block';
+      }
+
+      btn.disabled = false;
+      btn.textContent = editId ? 'Update Product' : 'Add Product';
+    }
+
+    // ================================================================
+    // QUICK UPLOAD (image + price)
+    // ================================================================
+    let quickImageBlob = null;
+    let quickImageName = '';
+    let quickUploading = false;
+
+    function setupQuickUpload() {
+      const zone = document.getElementById('uploadZone');
+      const input = document.getElementById('quickImage');
+
+      // Tap / click to open file picker
+      zone.addEventListener('click', (e) => {
+        if (e.target.closest('.preview-box')) return; // don't reopen picker from preview UI
+        input.click();
+      });
+      zone.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); input.click(); }
+      });
+      input.addEventListener('change', () => {
+        if (input.files && input.files[0]) handleQuickFile(input.files[0]);
+      });
+
+      // Drag & drop (desktop)
+      ['dragenter', 'dragover'].forEach(ev => {
+        zone.addEventListener(ev, (e) => { e.preventDefault(); zone.classList.add('dragover'); });
+      });
+      ['dragleave', 'drop'].forEach(ev => {
+        zone.addEventListener(ev, (e) => { e.preventDefault(); zone.classList.remove('dragover'); });
+      });
+      zone.addEventListener('drop', (e) => {
+        const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+        if (f) handleQuickFile(f);
+      });
+    }
+
+    async function handleQuickFile(file) {
+      const uzError = document.getElementById('uzError');
+      uzError.style.display = 'none';
+
+      if (!file.type.startsWith('image/')) {
+        uzError.textContent = 'That file type is not supported. Please choose a photo (JPEG, PNG or WebP).';
+        uzError.style.display = 'block';
+        return;
+      }
+
+      quickImageName = file.name;
+
+      // Immediate preview of the raw selection
+      const rawUrl = URL.createObjectURL(file);
+      document.getElementById('previewImg').src = rawUrl;
+      document.getElementById('uzIdle').style.display = 'none';
+      document.getElementById('previewBox').classList.add('show');
+      document.getElementById('previewMeta').textContent = 'Optimizing…';
+
+      try {
+        const optimized = await compressToWebP(file);
+        quickImageBlob = optimized.blob;
+        URL.revokeObjectURL(rawUrl);
+        document.getElementById('previewImg').src = URL.createObjectURL(optimized.blob);
+        const kb = Math.max(1, Math.round(optimized.blob.size / 1024));
+        const type = optimized.blob.type.includes('webp') ? 'WebP' : 'JPEG';
+        document.getElementById('previewMeta').textContent =
+          `Optimized · ${optimized.width}px · ${type} · ${kb} KB`;
+        document.getElementById('uploadZone').classList.add('has-image');
+      } catch (err) {
+        quickImageBlob = null;
+        URL.revokeObjectURL(rawUrl);
+        document.getElementById('uzIdle').style.display = 'block';
+        document.getElementById('previewBox').classList.remove('show');
+        document.getElementById('uploadZone').classList.remove('has-image');
+        uzError.textContent = 'Could not process that image. Please try a different photo.';
+        uzError.style.display = 'block';
+      }
+    }
+
+    // Resize to a max width and re-encode as WebP (canvas-based, no server deps)
+    async function compressToWebP(file, maxWidth = 1200, quality = 0.82) {
+      const img = await loadImageEl(file);
+      if (!img.naturalWidth || !img.naturalHeight) throw new Error('image has no dimensions');
+      const scale = Math.min(1, maxWidth / img.naturalWidth);
+      const w = Math.max(1, Math.round(img.naturalWidth * scale));
+      const h = Math.max(1, Math.round(img.naturalHeight * scale));
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(img, 0, 0, w, h);
+      let blob = await canvasToBlob(canvas, 'image/webp', quality);
+      if (!blob || !blob.type.includes('webp')) {
+        const jpg = await canvasToBlob(canvas, 'image/jpeg', 0.9);
+        if (jpg) return { blob: jpg, width: w };
+        throw new Error('encoding failed');
+      }
+      return { blob, width: w };
+    }
+
+    function loadImageEl(file) {
+      return new Promise((resolve, reject) => {
+        const url = URL.createObjectURL(file);
+        const img = new Image();
+        img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
+        img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('decode failed')); };
+        img.src = url;
+      });
+    }
+
+    function canvasToBlob(canvas, type, quality) {
+      return new Promise((resolve) => {
+        canvas.toBlob((b) => resolve(b), type, quality);
+      });
+    }
+
+    function clearImageSelection() {
+      quickImageBlob = null;
+      quickImageName = '';
+      const img = document.getElementById('previewImg');
+      if (img && img.src.startsWith('blob:')) URL.revokeObjectURL(img.src);
+      document.getElementById('quickImage').value = '';
+      document.getElementById('uzIdle').style.display = 'block';
+      document.getElementById('previewBox').classList.remove('show');
+      document.getElementById('uploadZone').classList.remove('has-image');
+      document.getElementById('uzError').style.display = 'none';
+    }
+
+    function productNameFromFile(filename) {
+      let base = (filename || '').replace(/\.[^.]+$/, '').replace(/[-_]+/g, ' ').trim();
+      if (!base) base = 'New Drop';
+      return base.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ').slice(0, 60) || 'New Drop';
+    }
+
+    async function handleQuickUpload() {
+      if (quickUploading) return;
+      const priceInput = document.getElementById('quickPrice');
+      const price = parseFloat(priceInput.value);
+      const successEl = document.getElementById('quickSuccess');
+      const errorEl = document.getElementById('quickError');
+
+      successEl.style.display = 'none';
+      errorEl.style.display = 'none';
+
+      if (!quickImageBlob) {
+        errorEl.textContent = 'Please choose an image first.';
+        errorEl.style.display = 'block';
+        return;
+      }
+      if (!price || isNaN(price) || price <= 0) {
+        errorEl.textContent = 'Please enter a valid price.';
+        errorEl.style.display = 'block';
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append('name', productNameFromFile(quickImageName));
+      formData.append('category', 'graphic-tees');
+      formData.append('fit', 'Regular');
+      formData.append('price', String(price));
+      formData.append('front_image', quickImageBlob, 'drop-' + Date.now() + '.webp');
+
+      quickUploading = true;
+      const btn = document.getElementById('quickUploadBtn');
+      btn.disabled = true;
+      btn.classList.add('spinning');
+      btn.innerHTML = '<span class="spinner"></span> Uploading…';
+
+      try {
+        const res = await fetch('/api/products', { method: 'POST', body: formData });
+        if (res.ok) {
+          const product = await res.json();
+          successEl.textContent = 'Product added — it\'s now live in the shop.';
+          successEl.style.display = 'block';
+          document.getElementById('lcImg').src = product.front_image;
+          document.getElementById('lcName').textContent = product.name;
+          document.getElementById('lcPrice').textContent = 'Rs. ' + (product.sale_price || product.price);
+          document.getElementById('liveCard').classList.add('show');
+          clearImageSelection();
+          priceInput.value = '';
+          loadProducts(); // keep the Products tab in sync
+        } else {
+          let msg = 'Upload failed. Please try again.';
+          try { const d = await res.json(); if (d.error) msg = d.error; } catch (e) {}
+          errorEl.textContent = msg;
+          errorEl.style.display = 'block';
+        }
+      } catch (err) {
+        errorEl.textContent = 'Connection error. Check your connection and try again.';
+        errorEl.style.display = 'block';
+      } finally {
+        quickUploading = false;
+        btn.disabled = false;
+        btn.classList.remove('spinning');
+        btn.textContent = 'Upload';
+      }
+    }
+
+    // ================================================================
+    // ORDERS
+    // ================================================================
+    async function loadOrders() {
+      try {
+        const res = await fetch('/api/orders');
+        if (!res.ok) return;
+        const orders = await res.json();
+        renderOrderList(orders);
+      } catch (err) {}
+    }
+
+    function renderOrderList(orders) {
+      const list = document.getElementById('ordersList');
+      if (!orders.length) {
+        list.innerHTML = '<div class="empty-state">No orders yet. Orders placed on the storefront will appear here.</div>';
+        return;
+      }
+      let html = `
+        <div class="product-row header-row">
+          <span>Order</span><span>Customer</span><span>Items</span><span>Total</span><span>Payment</span><span>Status</span>
+        </div>
+      `;
+      orders.forEach(o => {
+        const items = o.items || [];
+        const count = items.reduce((s, i) => s + (i.qty || 1), 0);
+        const date = (o.created_at || '').replace('T', ' ').slice(0, 16);
+        const pay = o.payment_method === 'bank' ? 'Bank Transfer' : 'COD';
+        const status = o.status === 'pending' ? 'Pending' : esc(o.status);
+        html += `
+          <div class="product-row">
+            <div>
+              <div class="p-name">${esc(o.order_number)}</div>
+              <div class="p-category">${esc(date)}</div>
+            </div>
+            <div>
+              <div class="p-name">${esc(o.customer_name)}</div>
+              <div class="p-category">${esc(o.phone)}</div>
+            </div>
+            <div class="p-category">${count} item${count === 1 ? '' : 's'}</div>
+            <div class="p-price">Rs. ${o.total}</div>
+            <div class="p-category">${pay}</div>
+            <div class="p-category">${status}</div>
+          </div>
+        `;
+      });
+      list.innerHTML = html;
+    }
+
+    // ================================================================
+    // P&L REPORTS (Chart.js)
+    // ================================================================
+    let pnlChart = null;
+    let pnlPeriod = 'daily';
+
+    function setPnlPeriod(period) {
+      pnlPeriod = period;
+      document.querySelectorAll('.period-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.period === period);
+      });
+      loadPnlStats();
+    }
+
+    function fmtRs(n) {
+      return 'Rs. ' + Number(n || 0).toLocaleString('en-IN');
+    }
+
+    async function loadPnlStats() {
+      const emptyEl = document.getElementById('pnlEmpty');
+      if (emptyEl) emptyEl.classList.remove('show');
+      if (!window.Chart) return;
+      try {
+        const res = await fetch('/api/admin/stats/pnl?period=' + pnlPeriod);
+        if (!res.ok) return;
+        const data = await res.json();
+
+        document.getElementById('pnlRevenue').textContent = fmtRs(data.summary.revenue);
+        document.getElementById('pnlCost').textContent = fmtRs(data.summary.cost);
+        document.getElementById('pnlProfit').textContent = fmtRs(data.summary.profit);
+        const profitEl = document.getElementById('pnlProfit');
+        profitEl.style.color = data.summary.profit >= 0 ? '#2EE6A8' : '#E8232F';
+
+        const hasData = data.revenue.some(v => v !== 0) || data.cost.some(v => v !== 0);
+        if (!hasData) {
+          if (pnlChart) { pnlChart.destroy(); pnlChart = null; }
+          if (emptyEl) emptyEl.classList.add('show');
+          return;
+        }
+
+        const ctx = document.getElementById('pnlChart').getContext('2d');
+        if (pnlChart) pnlChart.destroy();
+
+        pnlChart = new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels: data.labels,
+            datasets: [
+              {
+                label: 'Revenue',
+                data: data.revenue,
+                borderColor: '#FFFFFF',
+                backgroundColor: 'rgba(255,255,255,0.08)',
+                borderWidth: 2,
+                tension: 0.35,
+                pointRadius: 3,
+                pointHoverRadius: 5,
+                fill: true
+              },
+              {
+                label: 'Cost',
+                data: data.cost,
+                borderColor: '#E8232F',
+                backgroundColor: 'rgba(232,35,47,0.10)',
+                borderWidth: 2,
+                tension: 0.35,
+                pointRadius: 3,
+                pointHoverRadius: 5,
+                fill: true
+              },
+              {
+                label: 'Profit',
+                data: data.profit,
+                borderColor: '#2EE6A8',
+                backgroundColor: 'rgba(46,230,168,0.10)',
+                borderWidth: 2.5,
+                tension: 0.35,
+                pointRadius: 3,
+                pointHoverRadius: 5,
+                fill: true
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            animation: { duration: 700, easing: 'easeOutQuart' },
+            plugins: {
+              legend: {
+                position: 'top',
+                labels: {
+                  color: '#C9C9C9',
+                  font: { family: 'Archivo', size: 11, weight: '600' },
+                  usePointStyle: true,
+                  pointStyle: 'line',
+                  padding: 18,
+                  boxWidth: 28
+                }
+              },
+              tooltip: {
+                backgroundColor: '#111111',
+                titleColor: '#FFFFFF',
+                bodyColor: '#D7D7D7',
+                borderColor: '#2A2A2A',
+                borderWidth: 1,
+                padding: 12,
+                displayColors: true,
+                callbacks: {
+                  label: (c) => ' ' + c.dataset.label + ': ' + fmtRs(c.parsed.y)
+                }
+              }
+            },
+            scales: {
+              x: {
+                grid: { color: 'rgba(255,255,255,0.05)' },
+                ticks: { color: '#9A9A9A', font: { family: 'Archivo', size: 10 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 12 }
+              },
+              y: {
+                grid: { color: 'rgba(255,255,255,0.07)' },
+                ticks: {
+                  color: '#9A9A9A',
+                  font: { family: 'Archivo', size: 10 },
+                  callback: (v) => 'Rs. ' + Number(v).toLocaleString('en-IN')
+                }
+              }
+            }
+          }
+        });
+      } catch (err) {
+        // Non-fatal: leave the chart empty rather than breaking the tab
+      }
+    }
+
+    // ================================================================
+    // TABS
+    // ================================================================
+    function switchTab(el, tabName) {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      el.classList.add('active');
+      document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+      document.getElementById('tab-' + tabName).classList.add('active');
+      if (tabName === 'products') loadProducts();
+      if (tabName === 'orders') loadOrders();
+      if (tabName === 'reports') loadPnlStats();
+    }
+
+    // ================================================================
+    // INIT
+    // ================================================================
+    setupQuickUpload();
+    setupFormFrontUpload();
+    checkAuth();
+
+    // Allow Enter to submit login
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !isLoggedIn) handleLogin();
+    });
+  </script>
+</body>
+</html>

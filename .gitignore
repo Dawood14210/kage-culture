@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+
+# Local database (sql.js file DB) — never commit the live data
+kage.db
+kage.db-journal
+kage.db-wal
+kage.db-shm
+
+# Local image uploads
+uploads/
+
+# Logs & temp files
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+
+# Env / secrets
+.env
+.env.local
+.env.*.local
+
+# Vercel local artifacts
+.vercel/
+memdb1
