@@ -1,64 +1,44 @@
 // ================================================================
 // KAGE database layer — dual backend
 // ----------------------------------------------------------------
-// * Local dev (default):      sql.js file database (kage.db)
+// * Local dev (default):      sql.js in-memory (kage.db file optional)
 // * Production (Vercel):      Turso edge SQLite — automatic whenever
-//                              TURSO_DATABASE_URL is set. The local
-//                              file system on serverless is ephemeral,
-//                              so a file DB would reset on every cold
-//                              start; Turso persists forever.
+//                              TURSO_DATABASE_URL is set.
 //
 // Both backends expose the SAME interface used by server.js:
 //   db.prepare(sql).get(...)  -> row object | undefined
 //   db.prepare(sql).all(...)  -> array of row objects
 //   db.prepare(sql).run(...)  -> { lastInsertRowid }
-//   db.get(sql, params) / db.all(sql, params)   (array-style helpers)
+//   db.get(sql, params) / db.all(sql, params)
 //   db.exec(sql) / db.save()
 // All methods return Promises — callers must await.
 // ================================================================
 
-const initSqlJs = require('sql.js');
-const fs = require('fs');
-const path = require('path');
-
-const DB_PATH = path.join(__dirname, 'kage.db');
-
 const USE_TURSO = !!(process.env.TURSO_DATABASE_URL);
 
 // ----------------------------------------------------------------
-// BACKEND: local sql.js
+// BACKEND: local sql.js (in-memory for Vercel, file-based for dev)
 // ----------------------------------------------------------------
 let sqlJsDb = null;
+let sqlJsReady = false;
 
 async function initLocal() {
-  const SQL = await initSqlJs();
   try {
-    if (fs.existsSync(DB_PATH)) {
-      sqlJsDb = new SQL.Database(fs.readFileSync(DB_PATH));
-    } else {
-      sqlJsDb = new SQL.Database();
-    }
-    sqlJsDb.run('PRAGMA journal_mode=WAL');
-  } catch (e) {
-    // If file read fails (e.g. on Vercel), start with in-memory DB
+    const initSqlJs = require('sql.js');
+    const SQL = await initSqlJs();
     sqlJsDb = new SQL.Database();
-    console.warn('Could not load local DB file, using in-memory database:', e.message);
+    sqlJsDb.run('PRAGMA journal_mode=WAL');
+    sqlJsReady = true;
+    console.log('✅ sql.js in-memory database initialized');
+  } catch (e) {
+    console.error('❌ sql.js initialization failed:', e.message);
+    // Create a minimal stub so the server can still start
+    sqlJsDb = null;
+    sqlJsReady = false;
   }
 }
 
-function saveLocal() {
-  if (sqlJsDb) {
-    try {
-      fs.writeFileSync(DB_PATH, Buffer.from(sqlJsDb.export()));
-    } catch (e) {
-      // On Vercel serverless the filesystem may not be writable —
-      // silently ignore so the request can still complete.
-    }
-  }
-}
-
-// Bind parameters onto a statement — supports variadic (run(a, b, c)) and
-// array (run([a, b, c])) styles, and tolerates callers passing no params.
+// Bind parameters onto a statement
 function bindParams(stmt, params) {
   const clean = (params || []).filter(p => p !== undefined);
   if (clean.length === 0) return;
@@ -70,34 +50,50 @@ function bindParams(stmt, params) {
 function localPrepare(sql) {
   return {
     get: (...params) => {
-      const stmt = sqlJsDb.prepare(sql);
-      bindParams(stmt, params);
-      let result;
-      if (stmt.step()) result = stmt.getAsObject();
-      stmt.free();
-      return result || undefined;
+      if (!sqlJsDb) return undefined;
+      try {
+        const stmt = sqlJsDb.prepare(sql);
+        bindParams(stmt, params);
+        let result;
+        if (stmt.step()) result = stmt.getAsObject();
+        stmt.free();
+        return result || undefined;
+      } catch (e) {
+        console.error('DB get error:', e.message);
+        return undefined;
+      }
     },
     all: (...params) => {
-      const stmt = sqlJsDb.prepare(sql);
-      bindParams(stmt, params);
-      const results = [];
-      while (stmt.step()) results.push(stmt.getAsObject());
-      stmt.free();
-      return results;
+      if (!sqlJsDb) return [];
+      try {
+        const stmt = sqlJsDb.prepare(sql);
+        bindParams(stmt, params);
+        const results = [];
+        while (stmt.step()) results.push(stmt.getAsObject());
+        stmt.free();
+        return results;
+      } catch (e) {
+        console.error('DB all error:', e.message);
+        return [];
+      }
     },
     run: (...params) => {
-      const stmt = sqlJsDb.prepare(sql);
-      bindParams(stmt, params);
-      stmt.step();
-      stmt.free();
-      // Capture rowid BEFORE db.export() — exporting resets it to 0 in sql.js
-      const res = sqlJsDb.exec('SELECT last_insert_rowid() as id');
-      let lastId = null;
-      if (res && res.length > 0 && res[0].values && res[0].values.length > 0) {
-        lastId = res[0].values[0][0];
+      if (!sqlJsDb) return { lastInsertRowid: null };
+      try {
+        const stmt = sqlJsDb.prepare(sql);
+        bindParams(stmt, params);
+        stmt.step();
+        stmt.free();
+        const res = sqlJsDb.exec('SELECT last_insert_rowid() as id');
+        let lastId = null;
+        if (res && res.length > 0 && res[0].values && res[0].values.length > 0) {
+          lastId = res[0].values[0][0];
+        }
+        return { lastInsertRowid: lastId };
+      } catch (e) {
+        console.error('DB run error:', e.message);
+        return { lastInsertRowid: null };
       }
-      saveLocal();
-      return { lastInsertRowid: lastId };
     }
   };
 }
@@ -106,7 +102,6 @@ function localPrepare(sql) {
 // BACKEND: Turso (edge SQLite)
 // ----------------------------------------------------------------
 let tursoClient = null;
-let turso = null;
 
 async function initTurso() {
   const { createClient } = require('@libsql/client');
@@ -114,9 +109,9 @@ async function initTurso() {
     url: process.env.TURSO_DATABASE_URL,
     ...(process.env.TURSO_AUTH_TOKEN ? { authToken: process.env.TURSO_AUTH_TOKEN } : {})
   });
+  console.log('✅ Turso client initialized');
 }
 
-// Normalize variadic/array params into an array of positional args
 function toArgs(params) {
   const clean = (params || []).filter(p => p !== undefined);
   if (clean.length === 1 && Array.isArray(clean[0])) return clean[0];
@@ -139,7 +134,6 @@ function tursoPrepare(sql) {
     },
     run: async (...params) => {
       const r = await run(params);
-      // lastInsertRowid comes back as a BigInt — normalize to a number
       const lastId = r.lastInsertRowid != null ? Number(r.lastInsertRowid) : null;
       return { lastInsertRowid: lastId };
     }
@@ -214,39 +208,36 @@ function initDatabase() {
 
 async function doInit() {
   if (USE_TURSO) {
-    turso = {};
-    await initTurso();
-    const exec = async (sql) => { await tursoClient.execute(sql); };
-    await createSchema(exec);
-
-    // Migration: add unit_cost if the products table predates P&L tracking
-    const info = await tursoClient.execute('PRAGMA table_info(products)');
-    const hasUnitCost = info.rows.some(r => r.name === 'unit_cost');
-    if (!hasUnitCost) {
-      await tursoClient.execute('ALTER TABLE products ADD COLUMN unit_cost REAL');
-    }
-  } else {
-    // On Vercel without Turso, fall back to in-memory DB
-    if (process.env.VERCEL && !process.env.TURSO_DATABASE_URL) {
-      console.warn('⚠️  Running on Vercel without Turso — data will NOT persist across deployments.');
-      console.warn('   Set TURSO_DATABASE_URL and TURSO_AUTH_TOKEN in your Vercel env vars.');
-    }
-    await initLocal();
-    const exec = async (sql) => { sqlJsDb.run(sql); saveLocal(); };
-    await createSchema(exec);
-
-    // Migration: add unit_cost (PRAGMA table_info returns rows as arrays here)
     try {
-      const cols = sqlJsDb.exec('PRAGMA table_info(products)');
-      const hasUnitCost = cols && cols[0] && cols[0].values
-        ? cols[0].values.some(v => v[1] === 'unit_cost')
-        : false;
+      await initTurso();
+      const exec = async (sql) => { await tursoClient.execute(sql); };
+      await createSchema(exec);
+
+      // Migration: add unit_cost if missing
+      const info = await tursoClient.execute('PRAGMA table_info(products)');
+      const hasUnitCost = info.rows.some(r => r.name === 'unit_cost');
       if (!hasUnitCost) {
-        sqlJsDb.run('ALTER TABLE products ADD COLUMN unit_cost REAL');
-        saveLocal();
+        await tursoClient.execute('ALTER TABLE products ADD COLUMN unit_cost REAL');
       }
     } catch (e) {
-      console.warn('Migration check skipped:', e.message);
+      console.error('❌ Turso initialization failed:', e.message);
+      // Fall through to local DB
+    }
+  }
+
+  if (!USE_TURSO || !tursoClient) {
+    if (process.env.VERCEL && !process.env.TURSO_DATABASE_URL) {
+      console.warn('⚠️  Running on Vercel without Turso — data will NOT persist.');
+      console.warn('   Set TURSO_DATABASE_URL and TURSO_AUTH_TOKEN in Vercel env vars.');
+    }
+    await initLocal();
+    if (sqlJsReady && sqlJsDb) {
+      try {
+        const exec = async (sql) => { sqlJsDb.run(sql); };
+        await createSchema(exec);
+      } catch (e) {
+        console.error('❌ Schema creation failed:', e.message);
+      }
     }
   }
 }
@@ -259,7 +250,7 @@ async function init() {
 }
 
 function prepare(sql) {
-  return USE_TURSO ? tursoPrepare(sql) : localPrepare(sql);
+  return USE_TURSO && tursoClient ? tursoPrepare(sql) : localPrepare(sql);
 }
 
 async function get(sql, params) {
@@ -273,19 +264,19 @@ async function all(sql, params) {
 }
 
 async function exec(sql) {
-  if (USE_TURSO) {
+  if (USE_TURSO && tursoClient) {
     await tursoClient.execute(sql);
-  } else {
+  } else if (sqlJsDb) {
     sqlJsDb.run(sql);
-    saveLocal();
   }
 }
 
 async function save() {
-  if (!USE_TURSO) saveLocal();
+  // No-op for in-memory / Turso
 }
 
 // Kick off init immediately so the first request doesn't pay the cost.
+// Catch errors so the server can still start.
 init().catch(err => console.error('database init failed:', err));
 
 module.exports = {
