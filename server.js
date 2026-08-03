@@ -817,6 +817,14 @@ const serverReady = startServer().catch(err => {
 module.exports = (req, res) => {
   serverReady.then(
     () => app(req, res),
-    () => res.status(500).json({ error: 'Server not ready yet. Please retry.' })
-  );
+    (err) => {
+      console.error('Server not ready:', err);
+      res.status(500).json({ error: 'Server not ready yet. Please retry.' });
+    }
+  ).catch((err) => {
+    console.error('Request handler error:', err);
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
 };
