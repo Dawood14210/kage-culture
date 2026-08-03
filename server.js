@@ -32,10 +32,16 @@ app.use(cookieSession({
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// Ensure uploads directory exists (local dev path)
+// Ensure uploads directory exists (local dev path only — on Vercel the
+// serverless filesystem is read-only outside /tmp and Blob mode is used,
+// so a throw here would take the whole function down).
 const uploadsDir = path.join(__dirname, 'uploads');
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
+if (!process.env.BLOB_READ_WRITE_TOKEN && !fs.existsSync(uploadsDir)) {
+  try {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+  } catch (e) {
+    // Read-only filesystem (e.g. serverless) — Blob mode handles uploads.
+  }
 }
 
 // Multer — memory storage so files can be forwarded to Vercel Blob
@@ -541,15 +547,15 @@ app.get('/api/admin/stats/pnl', requireAuth, async (req, res) => {
     let bucketedOrders = 0;
     for (const o of orders) {
       const items = JSON.parse(o.items_json || '[]');
-      const cost = await items.reduce(async (accP, it) => {
-        const acc = await accP;
-        if (it.cost) return acc + it.cost;
+      let cost = 0;
+      for (const it of items) {
+        if (it.cost) { cost += it.cost; continue; }
         // Legacy orders (pre-cost-tracking): look up the product's current cost
         const p = it.id ? await db.prepare('SELECT unit_cost, price, sale_price FROM products WHERE id = ?').get(it.id) : null;
         const unit = (p && p.sale_price && p.sale_price < p.price) ? p.sale_price : (p ? p.price : null);
         const unitCost = (p && p.unit_cost && p.unit_cost > 0) ? p.unit_cost : (unit ? Math.round(unit * 0.55) : 0);
-        return acc + unitCost * (it.qty || 1);
-      }, Promise.resolve(0));
+        cost += unitCost * (it.qty || 1);
+      }
       const revenue = o.total;
       const profit = revenue - cost;
       const bk = buckets.find(b => b.key === bucketFor(o.created_at));
@@ -653,12 +659,18 @@ async function seedProducts() {
     VALUES (?, ?, ?, ?, ?, ?, ?, '["S","M","L","XL","XXL"]', ?)
   `);
 
+  // Per-name existence check makes seeding idempotent even if two cold-start
+  // instances race (serverless can boot more than one at a time).
+  let added = 0;
   for (const p of defaults) {
+    const exists = await db.prepare('SELECT id FROM products WHERE name = ?').get(p.name);
+    if (exists) continue;
     await insert.run([p.name, p.category, p.fit, p.price, p.sale || null, p.sale ? 1 : 0, p.desc, p.cost]);
+    added++;
   }
   await db.save();
 
-  console.log('✅ Seeded ' + defaults.length + ' default products');
+  if (added > 0) console.log('✅ Seeded ' + added + ' default products');
 }
 
 // ----------------------------------------------------------------
@@ -719,10 +731,23 @@ async function startServer() {
   }
 }
 
-startServer().catch(err => {
+// Warn loudly if running in production without a real session secret
+if ((process.env.VERCEL || process.env.NODE_ENV === 'production') &&
+    !process.env.SESSION_SECRET) {
+  console.warn('⚠️  SESSION_SECRET is not set — using the fallback secret. Set a strong random value for production.');
+}
+
+const serverReady = startServer().catch(err => {
   console.error('Failed to start server:', err);
-  process.exit(1);
+  throw err;
 });
 
-// Export for Vercel (@vercel/node builder)
-module.exports = app;
+// Export for Vercel (@vercel/node builder). Wait for DB init + seeding to
+// finish before handling requests — otherwise a cold-start request could
+// hit the database before it is ready.
+module.exports = (req, res) => {
+  serverReady.then(
+    () => app(req, res),
+    () => res.status(500).json({ error: 'Server not ready yet. Please retry.' })
+  );
+};
