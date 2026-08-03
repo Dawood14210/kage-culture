@@ -32,17 +32,28 @@ let sqlJsDb = null;
 
 async function initLocal() {
   const SQL = await initSqlJs();
-  if (fs.existsSync(DB_PATH)) {
-    sqlJsDb = new SQL.Database(fs.readFileSync(DB_PATH));
-  } else {
+  try {
+    if (fs.existsSync(DB_PATH)) {
+      sqlJsDb = new SQL.Database(fs.readFileSync(DB_PATH));
+    } else {
+      sqlJsDb = new SQL.Database();
+    }
+    sqlJsDb.run('PRAGMA journal_mode=WAL');
+  } catch (e) {
+    // If file read fails (e.g. on Vercel), start with in-memory DB
     sqlJsDb = new SQL.Database();
+    console.warn('Could not load local DB file, using in-memory database:', e.message);
   }
-  sqlJsDb.run('PRAGMA journal_mode=WAL');
 }
 
 function saveLocal() {
   if (sqlJsDb) {
-    fs.writeFileSync(DB_PATH, Buffer.from(sqlJsDb.export()));
+    try {
+      fs.writeFileSync(DB_PATH, Buffer.from(sqlJsDb.export()));
+    } catch (e) {
+      // On Vercel serverless the filesystem may not be writable —
+      // silently ignore so the request can still complete.
+    }
   }
 }
 
@@ -215,18 +226,27 @@ async function doInit() {
       await tursoClient.execute('ALTER TABLE products ADD COLUMN unit_cost REAL');
     }
   } else {
+    // On Vercel without Turso, fall back to in-memory DB
+    if (process.env.VERCEL && !process.env.TURSO_DATABASE_URL) {
+      console.warn('⚠️  Running on Vercel without Turso — data will NOT persist across deployments.');
+      console.warn('   Set TURSO_DATABASE_URL and TURSO_AUTH_TOKEN in your Vercel env vars.');
+    }
     await initLocal();
     const exec = async (sql) => { sqlJsDb.run(sql); saveLocal(); };
     await createSchema(exec);
 
     // Migration: add unit_cost (PRAGMA table_info returns rows as arrays here)
-    const cols = sqlJsDb.exec('PRAGMA table_info(products)');
-    const hasUnitCost = cols && cols[0] && cols[0].values
-      ? cols[0].values.some(v => v[1] === 'unit_cost')
-      : false;
-    if (!hasUnitCost) {
-      sqlJsDb.run('ALTER TABLE products ADD COLUMN unit_cost REAL');
-      saveLocal();
+    try {
+      const cols = sqlJsDb.exec('PRAGMA table_info(products)');
+      const hasUnitCost = cols && cols[0] && cols[0].values
+        ? cols[0].values.some(v => v[1] === 'unit_cost')
+        : false;
+      if (!hasUnitCost) {
+        sqlJsDb.run('ALTER TABLE products ADD COLUMN unit_cost REAL');
+        saveLocal();
+      }
+    } catch (e) {
+      console.warn('Migration check skipped:', e.message);
     }
   }
 }
