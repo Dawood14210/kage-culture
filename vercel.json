@@ -1,9 +1,15 @@
 {
   "version": 2,
-  "builds": [
-    { "src": "server.js", "use": "@vercel/node" }
-  ],
   "routes": [
+    { "src": "/api/(.*)", "dest": "server.js" },
+    { "src": "/admin(.*)", "dest": "server.js" },
+    { "src": "/(.*\\.(js|css|png|jpg|jpeg|gif|svg|webp|ico|json|woff|woff2|ttf|eot))", "dest": "/public/$1" },
     { "src": "/(.*)", "dest": "server.js" }
-  ]
+  ],
+  "functions": {
+    "server.js": {
+      "maxDuration": 30,
+      "memory": 1024
+    }
+  }
 }
