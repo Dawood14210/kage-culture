@@ -143,7 +143,7 @@ app.post('/api/admin/login', async (req, res) => {
     if (!admin && password.length >= 6) {
       const hash = await bcrypt.hash(password, 12);
       const result = await db.prepare('INSERT INTO admin (email, password_hash) VALUES (?, ?)').run([email, hash]);
-      admin = { id: result.lastInsertRowid, email };
+      admin = { id: result.lastInsertRowid, email, password_hash: hash };
       console.log('✅ Auto-created admin:', email);
     }
 
