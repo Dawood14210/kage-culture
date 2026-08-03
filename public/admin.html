@@ -657,6 +657,7 @@
       <h2>KAGE <span>Admin</span></h2>
       <div class="header-right">
         <span class="admin-email" id="adminEmail"></span>
+        <button class="logout-btn" onclick="openChangePasswordModal()" style="border-color:var(--border);color:var(--text-muted);margin-right:8px;">Change Password</button>
         <button class="logout-btn" onclick="handleLogout()">Log Out</button>
       </div>
     </div>
@@ -1033,6 +1034,60 @@
     async function handleLogout() {
       await fetch('/api/admin/logout', { method: 'POST' });
       showLogin();
+    }
+
+    // ================================================================
+    // CHANGE PASSWORD
+    // ================================================================
+    function openChangePasswordModal() {
+      document.getElementById('changePwModal').style.display = 'flex';
+      document.getElementById('changePwError').style.display = 'none';
+      document.getElementById('currentPw').value = '';
+      document.getElementById('newPw').value = '';
+      document.getElementById('confirmPw').value = '';
+      document.getElementById('currentPw').focus();
+    }
+    function closeChangePasswordModal() {
+      document.getElementById('changePwModal').style.display = 'none';
+    }
+    async function handleChangePassword() {
+      const cur = document.getElementById('currentPw').value;
+      const nw = document.getElementById('newPw').value;
+      const confirm = document.getElementById('confirmPw').value;
+      const errEl = document.getElementById('changePwError');
+      if (!cur || !nw || !confirm) {
+        errEl.textContent = 'All fields are required.';
+        errEl.style.display = 'block';
+        return;
+      }
+      if (nw.length < 6) {
+        errEl.textContent = 'New password must be at least 6 characters.';
+        errEl.style.display = 'block';
+        return;
+      }
+      if (nw !== confirm) {
+        errEl.textContent = 'New passwords do not match.';
+        errEl.style.display = 'block';
+        return;
+      }
+      try {
+        const res = await fetch('/api/admin/change-password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ currentPassword: cur, newPassword: nw })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          closeChangePasswordModal();
+          alert('Password updated successfully!');
+        } else {
+          errEl.textContent = data.error || 'Failed to change password.';
+          errEl.style.display = 'block';
+        }
+      } catch (e) {
+        errEl.textContent = 'Connection error.';
+        errEl.style.display = 'block';
+      }
     }
 
     // Allow Enter key on login
@@ -1860,5 +1915,21 @@
       if (e.key === 'Enter' && !isLoggedIn) handleLogin();
     });
   </script>
+
+  <!-- CHANGE PASSWORD MODAL -->
+  <div id="changePwModal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.7);align-items:center;justify-content:center;">
+    <div style="background:#111;border:1px solid #333;border-radius:12px;padding:2rem;max-width:400px;width:90%;position:relative;">
+      <button onclick="closeChangePasswordModal()" style="position:absolute;top:12px;right:12px;background:none;border:none;color:#999;font-size:1.2rem;cursor:pointer;">✕</button>
+      <h3 style="font-family:'Anton',sans-serif;letter-spacing:0.06em;margin-bottom:1rem;">Change Password</h3>
+      <div id="changePwError" style="color:#E21B23;font-size:0.8rem;margin-bottom:0.8rem;display:none;"></div>
+      <label style="display:block;font-size:0.7rem;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:0.3rem;">Current Password</label>
+      <input type="password" id="currentPw" style="width:100%;padding:0.7rem;border:1px solid #333;border-radius:8px;background:#0A0A0A;color:#F5F5F5;font-size:0.9rem;margin-bottom:0.8rem;" />
+      <label style="display:block;font-size:0.7rem;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:0.3rem;">New Password</label>
+      <input type="password" id="newPw" style="width:100%;padding:0.7rem;border:1px solid #333;border-radius:8px;background:#0A0A0A;color:#F5F5F5;font-size:0.9rem;margin-bottom:0.8rem;" />
+      <label style="display:block;font-size:0.7rem;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:0.3rem;">Confirm New Password</label>
+      <input type="password" id="confirmPw" style="width:100%;padding:0.7rem;border:1px solid #333;border-radius:8px;background:#0A0A0A;color:#F5F5F5;font-size:0.9rem;margin-bottom:1rem;" />
+      <button onclick="handleChangePassword()" style="width:100%;padding:0.8rem;background:#E21B23;color:white;border:none;border-radius:8px;font-weight:700;font-size:0.8rem;letter-spacing:0.08em;text-transform:uppercase;cursor:pointer;">Update Password</button>
+    </div>
+  </div>
 </body>
 </html>

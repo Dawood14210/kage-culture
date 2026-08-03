@@ -194,6 +194,34 @@ app.post('/api/admin/logout', (req, res) => {
 });
 
 // ----------------------------------------------------------------
+// CHANGE PASSWORD (admin only)
+// ----------------------------------------------------------------
+app.post('/api/admin/change-password', requireAuth, async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ error: 'Current and new passwords are required.' });
+    }
+    if (newPassword.length < 6) {
+      return res.status(400).json({ error: 'New password must be at least 6 characters.' });
+    }
+    const admin = await db.prepare('SELECT * FROM admin WHERE id = ?').get(req.adminId);
+    if (!admin) {
+      return res.status(404).json({ error: 'Admin not found.' });
+    }
+    const match = await bcrypt.compare(currentPassword, admin.password_hash);
+    if (!match) {
+      return res.status(401).json({ error: 'Current password is incorrect.' });
+    }
+    const newHash = await bcrypt.hash(newPassword, 12);
+    await db.prepare('UPDATE admin SET password_hash = ? WHERE id = ?').run(newHash, req.adminId);
+    res.json({ success: true, message: 'Password updated successfully.' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ----------------------------------------------------------------
 // CREATE NEW ADMIN (admin only)
 // ----------------------------------------------------------------
 app.post('/api/admin/create', requireAuth, async (req, res) => {
