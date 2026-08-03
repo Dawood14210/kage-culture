@@ -708,7 +708,7 @@ async function syncSeedSalePrices() {
 
 async function seedProducts() {
   const count = await db.prepare('SELECT COUNT(*) as c FROM products').get();
-  if (count.c > 0) return;
+  if (!count || (count.c != null && count.c > 0)) return;
 
   const defaults = [
     { name: 'Shadow Fit', price: 1499, cost: 820, category: 'compression', fit: 'Compression', desc: '4-way stretch muscle-fit compression shirt. Second-skin feel with maximum mobility.' },
@@ -776,14 +776,17 @@ app.use((err, req, res, next) => {
 // START
 // ----------------------------------------------------------------
 async function startServer() {
-  await dbModule.init();
-  db = dbModule;
-  await seedProducts();
-  await backfillUnitCosts();
-  await syncSeedSalePrices();
+  try {
+    await dbModule.init();
+    db = dbModule;
+  } catch (e) {
+    console.error('⚠️  Database init failed:', e.message);
+    db = dbModule;
+  }
+  try { await seedProducts(); } catch (e) { console.error('seedProducts skipped:', e.message); }
+  try { await backfillUnitCosts(); } catch (e) { console.error('backfillUnitCosts skipped:', e.message); }
+  try { await syncSeedSalePrices(); } catch (e) { console.error('syncSeedSalePrices skipped:', e.message); }
 
-  // Local mode: listen on PORT. On Vercel, the exported app is the handler
-  // and this file is never run directly.
   if (!process.env.VERCEL) {
     app.listen(PORT, () => {
       const mode = dbModule.USE_TURSO ? 'Turso (cloud)' : 'sql.js (local file)';
