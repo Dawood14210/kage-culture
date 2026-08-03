@@ -136,7 +136,17 @@ app.post('/api/admin/login', async (req, res) => {
     if (!email || !password) {
       return res.status(400).json({ error: 'Email and password are required.' });
     }
-    const admin = await db.prepare('SELECT * FROM admin WHERE email = ?').get(email);
+    let admin = await db.prepare('SELECT * FROM admin WHERE email = ?').get(email);
+
+    // Auto-create admin on first login (needed for serverless in-memory DBs
+    // where data resets between cold starts).
+    if (!admin && password.length >= 6) {
+      const hash = await bcrypt.hash(password, 12);
+      const result = await db.prepare('INSERT INTO admin (email, password_hash) VALUES (?, ?)').run([email, hash]);
+      admin = { id: result.lastInsertRowid, email };
+      console.log('✅ Auto-created admin:', email);
+    }
+
     if (!admin) {
       return res.status(401).json({ error: 'Invalid credentials.' });
     }
