@@ -700,6 +700,31 @@ app.post('/api/upload', requireAuth, upload.single('image'), async (req, res) =>
 });
 
 // ----------------------------------------------------------------
+// NEWSLETTER (public)
+// ----------------------------------------------------------------
+app.post('/api/newsletter', async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email || typeof email !== 'string') {
+      return res.status(400).json({ error: 'Please provide a valid email address.' });
+    }
+    const clean = email.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean)) {
+      return res.status(400).json({ error: 'Please provide a valid email address.' });
+    }
+    // Check if already subscribed
+    const existing = await db.prepare('SELECT id FROM newsletter_subscribers WHERE email = ?').get(clean);
+    if (existing) {
+      return res.json({ success: true, message: 'You are already subscribed! Welcome back to the clan.' });
+    }
+    await db.prepare('INSERT INTO newsletter_subscribers (email) VALUES (?)').run(clean);
+    res.json({ success: true, message: 'Welcome to the clan! Code KAGE15 unlocked — check your inbox.' });
+  } catch (err) {
+    res.status(500).json({ error: 'Something went wrong. Please try again.' });
+  }
+});
+
+// ----------------------------------------------------------------
 // SEED DEFAULT PRODUCTS (if database is empty)
 // ----------------------------------------------------------------
 async function backfillUnitCosts() {

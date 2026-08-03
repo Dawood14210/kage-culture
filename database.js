@@ -23,8 +23,8 @@ const ON_VERCEL = !!process.env.VERCEL;
 // Pure-JS in-memory store (no WASM required)
 // Used when sql.js fails (e.g. WASM not found on Vercel).
 // ----------------------------------------------------------------
-let memStore = { admin: [], products: [], orders: [] };
-let memAutoId = { admin: 0, products: 0, orders: 0 };
+let memStore = { admin: [], products: [], orders: [], newsletter_subscribers: [] };
+let memAutoId = { admin: 0, products: 0, orders: 0, newsletter_subscribers: 0 };
 
 function memPrepare(sql) {
   const trimmed = sql.trim();
@@ -393,6 +393,13 @@ async function createSchema(exec) {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
+  await exec(`
+    CREATE TABLE IF NOT EXISTS newsletter_subscribers (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      email TEXT UNIQUE NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
 }
 
 // ----------------------------------------------------------------
@@ -416,6 +423,8 @@ async function doInit() {
       const info = await tursoClient.execute('PRAGMA table_info(products)');
       const hasUnitCost = info.rows.some(r => r.name === 'unit_cost');
       if (!hasUnitCost) await tursoClient.execute('ALTER TABLE products ADD COLUMN unit_cost REAL');
+      const hasDrop = info.rows.some(r => r.name === 'drop');
+      if (!hasDrop) await tursoClient.execute("ALTER TABLE products ADD COLUMN drop TEXT DEFAULT ''");
       activeBackend = 'turso';
       return;
     } catch (e) {
