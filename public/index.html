@@ -1045,13 +1045,6 @@
     .nav-links { gap: 1.25rem; }
     .nav-links a.nav-sale { color: var(--accent); font-weight: 700; }
     .nav-links a.active { color: var(--text-primary); }
-    .nav-links a.active::after {
-      content: '';
-      display: block;
-      height: 2px;
-      background: var(--accent);
-      margin-top: 2px;
-    }
 
     .nav-search {
       position: relative;
@@ -1413,6 +1406,201 @@
       text-align: center;
     }
     .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    /* ================================================================
+       SCROLL-REVEAL ANIMATIONS
+       ================================================================ */
+    .reveal {
+      opacity: 0;
+      transform: translateY(30px);
+      transition: opacity 0.7s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+                  transform 0.7s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    }
+    .reveal.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    .reveal-delay-1 { transition-delay: 0.1s; }
+    .reveal-delay-2 { transition-delay: 0.2s; }
+    .reveal-delay-3 { transition-delay: 0.3s; }
+    .reveal-scale {
+      opacity: 0;
+      transform: scale(0.95);
+      transition: opacity 0.6s ease, transform 0.6s ease;
+    }
+    .reveal-scale.visible {
+      opacity: 1;
+      transform: scale(1);
+    }
+
+    /* ================================================================
+       ENHANCED PRODUCT CARD HOVER
+       ================================================================ */
+    .product-card {
+      position: relative;
+    }
+    .product-card-image {
+      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+      transition: box-shadow 0.3s ease, transform 0.3s ease;
+    }
+    .product-card:hover .product-card-image {
+      box-shadow: 0 12px 28px rgba(0,0,0,0.1);
+    }
+    .product-card .quick-add {
+      opacity: 0;
+      transform: translateY(8px);
+      transition: opacity 0.25s ease, transform 0.25s ease, background 0.2s ease, border-color 0.2s ease;
+    }
+    .product-card:hover .quick-add {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    @media (hover: none) {
+      .product-card .quick-add {
+        opacity: 1;
+        transform: none;
+      }
+    }
+
+    /* ================================================================
+       LOADING SKELETON
+       ================================================================ */
+    .skeleton {
+      background: linear-gradient(90deg, var(--bg-card-image) 25%, #EAEAEA 50%, var(--bg-card-image) 75%);
+      background-size: 200% 100%;
+      animation: skeleton-shimmer 1.5s ease-in-out infinite;
+      border-radius: 4px;
+    }
+    @keyframes skeleton-shimmer {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+    .skeleton-card {
+      aspect-ratio: 3/4;
+      width: 100%;
+    }
+    .skeleton-text {
+      height: 14px;
+      margin-top: 8px;
+      width: 70%;
+    }
+    .skeleton-text-sm {
+      height: 10px;
+      margin-top: 6px;
+      width: 40%;
+    }
+
+    /* ================================================================
+       ENHANCED BUTTON PRESS EFFECT
+       ================================================================ */
+    .btn:active,
+    .hero-cta:active,
+    .quick-add:active,
+    .size-btn:active,
+    .qty-btn:active {
+      transform: scale(0.97);
+    }
+    .btn-primary:active {
+      background: var(--accent-hover);
+    }
+
+    /* ================================================================
+       PAGE TRANSITION
+       ================================================================ */
+    .page {
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+    .page.active {
+      opacity: 1;
+    }
+
+    /* ================================================================
+       CATEGORY CARD ENHANCED HOVER
+       ================================================================ */
+    .category-card {
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+    .category-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 16px 40px rgba(0,0,0,0.12);
+      opacity: 1;
+    }
+    .category-card::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, rgba(232,35,47,0.08) 0%, transparent 60%);
+      opacity: 0;
+      transition: opacity 0.3s ease;
+      pointer-events: none;
+    }
+    .category-card:hover::after {
+      opacity: 1;
+    }
+
+    /* ================================================================
+       COLLECTION TILE ENHANCED
+       ================================================================ */
+    .collection-tile {
+      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+    .collection-tile:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 16px 40px rgba(0,0,0,0.12);
+      opacity: 1;
+    }
+
+    /* ================================================================
+       NAV LINK UNDERLINE ANIMATION
+       ================================================================ */
+    .nav-links a {
+      position: relative;
+      overflow: hidden;
+    }
+    .nav-links a::after {
+      content: '';
+      display: block;
+      height: 2px;
+      background: var(--accent);
+      margin-top: 2px;
+      width: 0;
+      transition: width 0.3s ease;
+    }
+    .nav-links a:hover::after {
+      width: 100%;
+    }
+    .nav-links a.active::after {
+      width: 100%;
+    }
+
+    /* ================================================================
+       FOCUS VISIBLE STYLES (accessibility)
+       ================================================================ */
+    .btn:focus-visible,
+    .size-btn:focus-visible,
+    .qty-btn:focus-visible,
+    .nav-links a:focus-visible,
+    .category-card:focus-visible,
+    .product-card:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+
+    /* ================================================================
+       IMAGE LAZY LOAD FADE-IN
+       ================================================================ */
+    .img-lazy {
+      opacity: 0;
+      transition: opacity 0.5s ease;
+    }
+    .img-lazy.loaded {
+      opacity: 1;
+    }
 
     /* ================================================================
        FOOTER SOCIAL + NEWSLETTER
@@ -2210,7 +2398,7 @@
     </section>
 
     <!-- SHOP SECTION -->
-    <section class="shop-section watermark wm-left" id="shopSection">
+    <section class="shop-section watermark wm-left reveal" id="shopSection">
       <div class="container">
         <div class="shop-header">
           <p class="section-label" id="shopEyebrow">Fresh Ink</p>
@@ -2267,7 +2455,7 @@
     <!-- Footer (home) -->
     <footer class="site-footer watermark wm-bottom" style="position:relative;overflow:hidden;">
       <div class="container">
-        <div class="footer-main">
+        <div class="footer-main reveal">
           <div class="footer-col footer-help">
             <h4>Help</h4>
             <ul>
@@ -3571,6 +3759,94 @@
     // Auto-refresh the grid when the tab regains focus (e.g. after an admin upload)
     document.addEventListener('visibilitychange', () => {
       if (!document.hidden) loadProductsFromAPI();
+    });
+
+    // ================================================================
+    // SCROLL-REVEAL ANIMATIONS
+    // ================================================================
+    function initScrollReveal() {
+      const revealEls = document.querySelectorAll('.reveal, .reveal-scale');
+      if (!revealEls.length) return;
+
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('visible');
+            observer.unobserve(entry.target);
+          }
+        });
+      }, { threshold: 0.1, rootMargin: '0px 0px -50px 0px' });
+
+      revealEls.forEach(el => observer.observe(el));
+    }
+
+    // ================================================================
+    // LAZY IMAGE LOADING
+    // ================================================================
+    function initLazyImages() {
+      const imgs = document.querySelectorAll('img[data-src]');
+      if (!imgs.length) return;
+
+      const imgObserver = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            const img = entry.target;
+            img.src = img.dataset.src;
+            img.onload = () => img.classList.add('loaded');
+            img.onerror = () => img.classList.add('loaded'); // show even on error
+            img.removeAttribute('data-src');
+            imgObserver.unobserve(img);
+          }
+        });
+      }, { rootMargin: '200px 0px' });
+
+      imgs.forEach(img => imgObserver.observe(img));
+    }
+
+    // ================================================================
+    // SMOOTH STAGGER ANIMATION FOR PRODUCT CARDS
+    // ================================================================
+    function animateProductGrid() {
+      const cards = document.querySelectorAll('.collection-grid .product-card');
+      cards.forEach((card, i) => {
+        card.style.opacity = '0';
+        card.style.transform = 'translateY(20px)';
+        setTimeout(() => {
+          card.style.transition = 'opacity 0.4s ease, transform 0.4s ease';
+          card.style.opacity = '1';
+          card.style.transform = 'translateY(0)';
+        }, 60 * i);
+      });
+    }
+
+    // Trigger product grid stagger animation on initial load
+    setTimeout(() => animateProductGrid(), 300);
+
+    // ================================================================
+    // HEADER SCROLL EFFECT
+    // ================================================================
+    const siteHeader = document.querySelector('.site-header');
+    if (siteHeader) {
+      let lastScrollY = 0;
+      window.addEventListener('scroll', () => {
+        const y = window.scrollY;
+        if (y > 80) {
+          siteHeader.style.boxShadow = '0 2px 12px rgba(0,0,0,0.06)';
+        } else {
+          siteHeader.style.boxShadow = 'none';
+        }
+        lastScrollY = y;
+      }, { passive: true });
+    }
+
+
+
+    // ================================================================
+    // INITIALIZE ALL ENHANCEMENTS
+    // ================================================================
+    requestAnimationFrame(() => {
+      initScrollReveal();
+      initLazyImages();
     });
   </script>
 

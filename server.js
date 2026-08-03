@@ -165,6 +165,30 @@ app.post('/api/admin/logout', (req, res) => {
 });
 
 // ----------------------------------------------------------------
+// CREATE NEW ADMIN (admin only)
+// ----------------------------------------------------------------
+app.post('/api/admin/create', requireAuth, async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email and password are required.' });
+    }
+    if (password.length < 6) {
+      return res.status(400).json({ error: 'Password must be at least 6 characters.' });
+    }
+    const existing = await db.prepare('SELECT id FROM admin WHERE email = ?').get(email);
+    if (existing) {
+      return res.status(400).json({ error: 'An admin with that email already exists.' });
+    }
+    const hash = await bcrypt.hash(password, 12);
+    await db.prepare('INSERT INTO admin (email, password_hash) VALUES (?, ?)').run(email, hash);
+    res.json({ success: true, message: 'Admin account created.' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ----------------------------------------------------------------
 // PRODUCT CRUD
 // ----------------------------------------------------------------
 
@@ -479,6 +503,51 @@ app.get('/api/orders', requireAuth, async (req, res) => {
     const orders = await db.prepare('SELECT * FROM orders ORDER BY created_at DESC, id DESC').all();
     orders.forEach(o => { o.items = JSON.parse(o.items_json || '[]'); });
     res.json(orders);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PATCH update order status (admin only)
+app.patch('/api/orders/:id/status', requireAuth, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) return res.status(400).json({ error: 'Invalid order ID' });
+    const { status } = req.body;
+    const allowed = ['pending', 'confirmed', 'shipped', 'delivered', 'cancelled'];
+    if (!allowed.includes(status)) {
+      return res.status(400).json({ error: 'Invalid status. Allowed: ' + allowed.join(', ') });
+    }
+    const order = await db.prepare('SELECT * FROM orders WHERE id = ?').get(id);
+    if (!order) return res.status(404).json({ error: 'Order not found' });
+    await db.prepare('UPDATE orders SET status = ? WHERE id = ?').run(status, id);
+    const updated = await db.prepare('SELECT * FROM orders WHERE id = ?').get(id);
+    updated.items = JSON.parse(updated.items_json || '[]');
+    res.json(updated);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ----------------------------------------------------------------
+// DASHBOARD STATS (admin only)
+// ----------------------------------------------------------------
+app.get('/api/admin/stats/dashboard', requireAuth, async (req, res) => {
+  try {
+    const prodCount = (await db.prepare('SELECT COUNT(*) as c FROM products').get()).c;
+    const orderCount = (await db.prepare('SELECT COUNT(*) as c FROM orders').get()).c;
+    const revenue = (await db.prepare('SELECT COALESCE(SUM(total), 0) as s FROM orders').get()).s;
+    const pendingOrders = (await db.prepare("SELECT COUNT(*) as c FROM orders WHERE status = 'pending'").get()).c;
+    const deliveredOrders = (await db.prepare("SELECT COUNT(*) as c FROM orders WHERE status = 'delivered'").get()).c;
+    const outOfStock = (await db.prepare('SELECT COUNT(*) as c FROM products WHERE in_stock = 0').get()).c;
+    res.json({
+      products: prodCount,
+      orders: orderCount,
+      revenue: Math.round(revenue),
+      pendingOrders,
+      deliveredOrders,
+      outOfStock
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
