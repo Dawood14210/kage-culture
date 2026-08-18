@@ -9,36 +9,52 @@
   <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32.png" />
   <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16.png" />
   <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon.png" />
-  <meta name="theme-color" content="#0A0A0A" />
+  <meta name="theme-color" content="#F3F4F6" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <style>
     :root {
-      --bg-dark: #0A0A0A;
-      --bg-card: #111111;
-      --bg-elevated: #1A1A1A;
-      --bg-surface: #161616;
-      --border-dark: #222222;
-      --border-subtle: #1E1E1E;
-      --red: #E8232F;
-      --red-hover: #FF3B45;
-      --red-dark: #B91C24;
-      --red-glow: rgba(232,35,47,0.15);
-      --red-subtle: rgba(232,35,47,0.08);
+      --bg: #F3F4F6;
+      --bg-dark: #F3F4F6;
+      --bg-card: #FFFFFF;
+      --bg-sidebar: #FFFFFF;
+      --bg-elevated: #F9FAFB;
+      --bg-surface: #F3F4F6;
+      --border: #E5E7EB;
+      --border-dark: #E5E7EB;
+      --border-light: #F0F1F3;
+      --border-subtle: #F0F1F3;
+      --accent: #10B981;
+      --accent-hover: #059669;
+      --accent-bg: rgba(16,185,129,0.08);
+      --accent-glow: rgba(16,185,129,0.15);
+      --red: #EF4444;
+      --red-hover: #DC2626;
+      --red-dark: #B91C1C;
+      --red-glow: rgba(239,68,68,0.12);
+      --red-subtle: rgba(239,68,68,0.06);
+      --red-bg: rgba(239,68,68,0.06);
       --white: #FFFFFF;
-      --white-soft: #F0F0F0;
-      --text-primary: #FFFFFF;
-      --text-secondary: #C0C0C0;
-      --text-muted: #7A7A7A;
-      --text-dim: #555555;
-      --green: #2EE6A8;
-      --green-bg: rgba(46,230,168,0.10);
+      --white-soft: #F9FAFB;
+      --text-primary: #111827;
+      --text-secondary: #4B5563;
+      --text-muted: #9CA3AF;
+      --text-dim: #D1D5DB;
+      --green: #10B981;
+      --green-bg: rgba(16,185,129,0.08);
+      --sidebar-width: 240px;
+      --topbar-height: 64px;
+      --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
+      --shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
+      --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.07), 0 2px 4px -1px rgba(0,0,0,0.04);
+      --radius: 12px;
+      --radius-sm: 8px;
     }
     * { margin:0; padding:0; box-sizing:border-box; }
     body {
       font-family: 'Archivo', sans-serif;
-      background: var(--bg-dark);
+      background: var(--bg);
       color: var(--text-primary);
       min-height:100vh;
       -webkit-font-smoothing: antialiased;
@@ -49,24 +65,24 @@
     .login-page {
       display:flex; align-items:center; justify-content:center;
       min-height:100vh; padding:1rem;
-      background: radial-gradient(ellipse at 50% 0%, rgba(232,35,47,0.08) 0%, var(--bg-dark) 60%);
+      background: radial-gradient(ellipse at 50% 0%, rgba(16,185,129,0.06) 0%, var(--bg) 60%);
     }
     .login-card {
       background: var(--bg-card); padding:2.5rem; max-width:420px; width:100%;
       border:1px solid var(--border-dark);
-      box-shadow: 0 0 60px rgba(232,35,47,0.06), 0 2px 20px rgba(0,0,0,0.4);
-      position:relative; overflow:hidden;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.08), 0 1px 4px rgba(0,0,0,0.04);
+      border-radius: var(--radius); position:relative; overflow:hidden;
     }
     .login-card::before {
       content:''; position:absolute; top:0; left:0; right:0; height:2px;
-      background: linear-gradient(90deg, transparent, var(--red), transparent);
+      background: linear-gradient(90deg, transparent, var(--accent), transparent);
     }
     .login-card h1 {
       font-family:'Anton',sans-serif; font-size:1.8rem;
       letter-spacing:0.1em; text-transform:uppercase;
-      margin-bottom:0.3rem; color:var(--white);
+      margin-bottom:0.3rem; color:var(--text-primary);
     }
-    .login-card h1 span { color:var(--red); }
+    .login-card h1 span { color:var(--accent); }
     .login-card p { color:var(--text-muted); font-size:0.85rem; margin-bottom:1.5rem; }
     .login-card .error {
       color:var(--red); font-size:0.8rem; margin-bottom:0.8rem; display:none;
@@ -87,11 +103,11 @@
     }
     .login-card input::placeholder { color:var(--text-dim); }
     .login-card input:focus {
-      border-color:var(--red);
-      box-shadow: 0 0 0 3px var(--red-glow);
+      border-color:var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-glow);
     }
     .login-card button {
-      width:100%; padding:0.8rem; background:var(--red); color:#FFF;
+      width:100%; padding:0.8rem; background:var(--text-primary); color:#FFF;
       border:none; font-family:'Archivo',sans-serif; font-size:0.85rem;
       font-weight:700; text-transform:uppercase; letter-spacing:0.08em;
       cursor:pointer; min-height:48px; transition:all 0.2s;
@@ -101,7 +117,7 @@
       content:''; position:absolute; inset:0;
       background: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, transparent 50%);
     }
-    .login-card button:hover { background:var(--red-hover); transform:translateY(-1px); box-shadow: 0 4px 20px rgba(232,35,47,0.3); }
+    .login-card button:hover { background:#374151; transform:translateY(-1px); box-shadow: 0 4px 20px rgba(0,0,0,0.15); }
     .login-card button:active { transform:translateY(0); }
     .login-card button:disabled { opacity:0.4; cursor:not-allowed; transform:none; }
 
@@ -136,32 +152,14 @@
     .dash-content { padding:1.2rem; max-width:1100px; margin:0 auto; }
 
     /* ===== TABS ===== */
-    .tabs {
-      display:flex; gap:0; border-bottom:1px solid var(--border-dark);
-      margin-bottom:1.5rem; overflow-x:auto;
-    }
-    .tab {
-      padding:0.75rem 1.4rem; font-size:0.72rem; font-weight:600;
-      text-transform:uppercase; cursor:pointer; border-bottom:2px solid transparent;
-      color:var(--text-muted); transition:all 0.25s; min-height:44px;
-      display:flex; align-items:center; background:none; border-top:none;
-      border-left:none; border-right:none; white-space:nowrap;
-      letter-spacing:0.05em; position:relative;
-    }
-    .tab:hover { color:var(--white); background:var(--red-subtle); }
-    .tab.active {
-      color:var(--red); border-bottom-color:var(--red);
-    }
+    .tabs { display:none; }
+    .tab { display:none; }
     .tab-content { display:none; animation: fadeIn 0.3s ease; }
     .tab-content.active { display:block; }
     @keyframes fadeIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
 
     /* ===== FORM GRID ===== */
-    .form-grid {
-      display:grid; grid-template-columns:1fr 1fr; gap:1rem;
-      background: var(--bg-card); padding:1.5rem;
-      border:1px solid var(--border-dark);
-    }
+    .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;background:var(--bg-card);padding:1.5rem;border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-sm);}
     .form-grid .full-width { grid-column:1 / -1; }
     .form-grid label {
       font-size:0.68rem; font-weight:600; display:block;
@@ -178,9 +176,7 @@
     }
     .form-grid select option { background:var(--bg-card); color:var(--white); }
     .form-grid input::placeholder, .form-grid textarea::placeholder { color:var(--text-dim); }
-    .form-grid input:focus, .form-grid select:focus, .form-grid textarea:focus {
-      border-color:var(--red);
-      box-shadow: 0 0 0 3px var(--red-glow);
+    .form-grid input:focus, .form-grid select:focus, .form-grid textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow);}
     }
     .form-grid textarea { min-height:80px; resize:vertical; }
     .form-grid .checkbox-group {
@@ -217,10 +213,8 @@
       text-transform:uppercase; letter-spacing:0.06em;
       cursor:pointer; min-height:44px; transition:all 0.2s;
     }
-    .btn-primary {
-      background:var(--red); color:#FFF; border:none;
-    }
-    .btn-primary:hover { background:var(--red-hover); transform:translateY(-1px); box-shadow: 0 4px 16px rgba(232,35,47,0.25); }
+    .btn-primary{background:var(--text-primary);color:#FFF;border:none;border-radius:var(--radius-sm);}
+    .btn-primary:hover{background:#374151;transform:translateY(-1px);box-shadow:var(--shadow-md);}
     .btn-primary:active { transform:translateY(0); }
     .btn-secondary {
       background:transparent; color:var(--text-muted); border:1px solid var(--border-dark);
@@ -377,17 +371,17 @@
     .price-field input::-webkit-inner-spin-button { -webkit-appearance:none; margin:0; }
     .quick-actions { margin-top:1.2rem; }
     .quick-actions button {
-      width:100%; padding:0.9rem; background:var(--red); color:#FFF;
+      width:100%; padding:0.9rem; background:var(--text-primary); color:#FFF;
       border:none; font-family:'Archivo',sans-serif; font-size:0.85rem;
       font-weight:700; text-transform:uppercase; letter-spacing:0.08em;
       cursor:pointer; min-height:48px; transition:all 0.25s;
-      position:relative; overflow:hidden;
+      position:relative; overflow:hidden; border-radius:var(--radius-sm);
     }
     .quick-actions button::after {
       content:''; position:absolute; inset:0;
       background: linear-gradient(135deg, rgba(255,255,255,0.12) 0%, transparent 60%);
     }
-    .quick-actions button:hover { background:var(--red-hover); transform:translateY(-1px); box-shadow: 0 6px 24px rgba(232,35,47,0.3); }
+    .quick-actions button:hover { background:#374151; transform:translateY(-1px); box-shadow:var(--shadow-md); }
     .quick-actions button:active { transform:translateY(0); }
     .quick-actions button:disabled { opacity:0.4; cursor:not-allowed; transform:none; box-shadow:none; }
     .quick-actions button.spinning {
@@ -438,25 +432,13 @@
       display:grid; grid-template-columns:repeat(4, 1fr); gap:0.8rem;
       margin-bottom:1.5rem;
     }
-    .stat-card {
-      background:var(--bg-card); border:1px solid var(--border-dark);
-      padding:1rem 1.1rem; display:flex; align-items:center; gap:0.8rem;
-      transition: border-color 0.2s, transform 0.2s;
-    }
-    .stat-card:hover { border-color:var(--border-dark); transform:translateY(-2px); }
-    .stat-card-revenue { border-color:rgba(46,230,168,0.2); }
-    .stat-card-revenue:hover { border-color:rgba(46,230,168,0.4); }
-    .stat-icon {
-      font-size:1.6rem; width:40px; height:40px;
-      display:flex; align-items:center; justify-content:center;
-      background:var(--bg-elevated); border:1px solid var(--border-dark);
-      flex-shrink:0;
-    }
+    .stat-card {background:var(--bg-card);border:1px solid var(--border);padding:1.1rem 1.2rem;display:flex;align-items:center;gap:0.8rem;border-radius:var(--radius);box-shadow:var(--shadow-sm);transition:box-shadow 0.2s,transform 0.2s;}
+    .stat-card:hover{box-shadow:var(--shadow);transform:translateY(-2px);}
+    .stat-card-revenue{border-color:rgba(16,185,129,0.2);}
+    .stat-card-revenue:hover{border-color:rgba(16,185,129,0.4);}
+    .stat-icon{font-size:1.5rem;width:44px;height:44px;display:flex;align-items:center;justify-content:center;background:var(--bg-elevated);border-radius:var(--radius-sm);flex-shrink:0;}
     .stat-info { min-width:0; }
-    .stat-value {
-      font-family:'Anton',sans-serif; font-size:1.4rem;
-      color:var(--white); letter-spacing:0.02em; line-height:1.1;
-    }
+    .stat-value{font-family:'Anton',sans-serif;font-size:1.5rem;color:var(--text-primary);letter-spacing:0.02em;line-height:1.1;}
     .stat-card-revenue .stat-value { color:var(--green); }
     .stat-label {
       font-size:0.65rem; font-weight:600; text-transform:uppercase;
@@ -479,11 +461,11 @@
       letter-spacing:0.05em; padding:0.25rem 0.6rem;
       border:1px solid; white-space:nowrap;
     }
-    .status-pending { color:#F0AD4E; border-color:rgba(240,173,78,0.4); background:rgba(240,173,78,0.10); }
-    .status-confirmed { color:#5DADE2; border-color:rgba(93,173,226,0.4); background:rgba(93,173,226,0.10); }
-    .status-shipped { color:var(--white); border-color:rgba(255,255,255,0.3); background:rgba(255,255,255,0.08); }
-    .status-delivered { color:var(--green); border-color:rgba(46,230,168,0.4); background:var(--green-bg); }
-    .status-cancelled { color:var(--red); border-color:rgba(232,35,47,0.4); background:var(--red-subtle); }
+    .status-pending{color:#D97706;border-color:rgba(217,119,6,0.3);background:rgba(251,191,36,0.10);}
+    .status-confirmed{color:#2563EB;border-color:rgba(37,99,235,0.3);background:rgba(59,130,246,0.10);}
+    .status-shipped{color:var(--text-secondary);border-color:rgba(75,85,99,0.3);background:rgba(107,114,128,0.10);}
+    .status-delivered{color:var(--green);border-color:rgba(16,185,129,0.3);background:var(--green-bg);}
+    .status-cancelled{color:var(--red);border-color:rgba(239,68,68,0.3);background:var(--red-subtle);}
 
     .status-dropdown {
       position:relative;
@@ -570,7 +552,7 @@
       min-height: 34px; transition: all 0.2s; font-family: 'Archivo', sans-serif;
     }
     .period-btn:hover { color: var(--white); background: rgba(255,255,255,0.05); }
-    .period-btn.active { background: var(--red); color: #FFFFFF; }
+    .period-btn.active { background: var(--text-primary); color: #FFFFFF; }
     .pnl-summary {
       display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-bottom: 1.4rem;
     }
@@ -590,16 +572,12 @@
     .pnl-sub { font-size: 0.68rem; color: var(--text-dim); margin-top: 0.25rem; }
     .pnl-card-profit { border-color: rgba(46,230,168,0.3); }
     .pnl-card-profit .pnl-value { color: var(--green); }
-    .pnl-chart-wrap {
-      position: relative; background: var(--bg-surface);
-      border: 1px solid var(--border-dark); padding: 1.2rem 1rem 0.6rem;
-      min-height: 360px;
-    }
+    .pnl-chart-wrap{position:relative;background:var(--bg-elevated);border:1px solid var(--border);padding:1.2rem 1rem 0.6rem;min-height:360px;border-radius:var(--radius);}
     .pnl-empty {
       display: none; position: absolute; inset: 0;
       align-items: center; justify-content: center;
       color: var(--text-dim); font-size: 0.85rem; text-align: center; padding: 2rem;
-      background: rgba(10,10,10,0.92);
+      background: rgba(249,250,251,0.92);
     }
     .pnl-empty.show { display: flex; }
     @media (max-width: 640px) {
@@ -620,20 +598,223 @@
     }
 
     /* ===== SELECTION ===== */
-    ::selection { background: var(--red); color: #FFF; }
+    ::selection { background: var(--accent); color: #FFF; }
 
     /* ===== SCROLLBAR ===== */
     ::-webkit-scrollbar { width:6px; height:6px; }
-    ::-webkit-scrollbar-track { background:var(--bg-dark); }
+    ::-webkit-scrollbar-track { background:var(--bg); }
     ::-webkit-scrollbar-thumb { background:var(--border-dark); border-radius:3px; }
     ::-webkit-scrollbar-thumb:hover { background:var(--text-dim); }
 
     /* ===== SUBTLE GLOW on header ===== */
-    .dash-header::after {
-      content:''; position:absolute; bottom:-1px; left:0; right:0; height:1px;
-      background: linear-gradient(90deg, transparent 5%, var(--red) 50%, transparent 95%);
-      opacity:0.3;
+    .dash-header::after{display:none!important;}
+
+    /* ===== SIDEBAR ===== */
+    .sidebar {
+      position:fixed; top:0; left:0; bottom:0; width:var(--sidebar-width);
+      background:var(--bg-sidebar); border-right:1px solid var(--border);
+      display:flex; flex-direction:column; z-index:200; overflow-y:auto;
     }
+    .sidebar-logo {
+      padding:1.2rem 1.5rem; font-family:'Anton',sans-serif;
+      font-size:1.15rem; letter-spacing:0.1em; text-transform:uppercase;
+      border-bottom:1px solid var(--border); color:var(--text-primary);
+    }
+    .sidebar-logo span { color:var(--accent); }
+    .sidebar-nav { flex:1; padding:0.5rem 0; }
+    .sidebar-item {
+      display:flex; align-items:center; gap:0.75rem;
+      padding:0.65rem 1.5rem; font-size:0.82rem; font-weight:500;
+      color:var(--text-secondary); background:none; border:none;
+      width:100%; text-align:left; cursor:pointer; transition:all 0.15s;
+      font-family:'Archivo',sans-serif; min-height:42px;
+    }
+    .sidebar-item:hover { background:var(--bg-elevated); color:var(--text-primary); }
+    .sidebar-item.active {
+      background:var(--text-primary); color:var(--white); font-weight:600;
+      margin:0 0.75rem; border-radius:var(--radius-sm);
+    }
+    .si-icon { font-size:1.05rem; width:22px; text-align:center; flex-shrink:0; }
+    .si-label { white-space:nowrap; }
+    .sidebar-footer {
+      padding:1rem 1.5rem; border-top:1px solid var(--border);
+      display:flex; flex-direction:column; gap:0.4rem;
+    }
+    .sidebar-link {
+      font-size:0.72rem; color:var(--text-muted); background:none; border:none;
+      text-align:left; cursor:pointer; padding:0.25rem 0;
+      font-family:'Archivo',sans-serif; transition:color 0.15s;
+    }
+    .sidebar-link:hover { color:var(--text-primary); }
+    .sidebar-logout { color:var(--red); }
+    .sidebar-logout:hover { color:var(--red-hover); }
+
+    /* ===== MAIN WRAPPER ===== */
+    .main-wrapper {
+      margin-left:var(--sidebar-width); min-height:100vh;
+      display:flex; flex-direction:column;
+    }
+    .top-bar {
+      position:sticky; top:0; z-index:100; height:var(--topbar-height);
+      background:var(--bg-card); border-bottom:1px solid var(--border);
+      display:flex; align-items:center; justify-content:space-between;
+      padding:0 2rem; box-shadow:var(--shadow-sm);
+    }
+    .top-bar-title {
+      font-family:'Anton',sans-serif; font-size:1.25rem;
+      letter-spacing:0.08em; text-transform:uppercase; color:var(--text-primary);
+    }
+    .top-bar-right { display:flex; align-items:center; gap:1rem; }
+    .top-bar-email {
+      font-size:0.72rem; color:var(--text-muted);
+      background:var(--bg-elevated); padding:0.3rem 0.7rem;
+      border:1px solid var(--border); border-radius:var(--radius-sm);
+    }
+    .btn-action {
+      padding:0.5rem 1.2rem; background:var(--text-primary); color:var(--white);
+      border:none; font-family:'Archivo',sans-serif; font-size:0.78rem;
+      font-weight:600; cursor:pointer; border-radius:var(--radius-sm);
+      transition:all 0.2s; min-height:38px; white-space:nowrap;
+    }
+    .btn-action:hover { background:#374151; transform:translateY(-1px); box-shadow:var(--shadow-md); }
+
+    .main-content { flex:1; padding:1.5rem 2rem; }
+    .content-section { display:none; animation: fadeIn 0.25s ease; }
+    .content-section.active { display:block; }
+
+    /* Legacy dash-header hidden */
+    .dash-header { display:none; }
+    .dash-content { display:none; }
+
+    /* Responsive sidebar */
+    @media (max-width:900px) {
+      .sidebar { width:60px; }
+      .sidebar-logo { font-size:0; padding:1rem 0; text-align:center; }
+      .sidebar-logo span { font-size:0; }
+      .si-label { display:none; }
+      .sidebar-item { justify-content:center; padding:0.65rem 0; margin:0 0.3rem; }
+      .sidebar-footer { padding:0.5rem 0; align-items:center; }
+      .sidebar-footer .admin-email { font-size:0; }
+      .sidebar-footer .sidebar-link { font-size:0; }
+      .main-wrapper { margin-left:60px; }
+      .top-bar { padding:0 1rem; }
+      .main-content { padding:1rem; }
+    }
+    @media (max-width:640px) {
+      .sidebar { display:none; }
+      .main-wrapper { margin-left:0; }
+    }
+
+    /* ===== SIDEBAR ===== */
+    .sidebar{position:fixed;top:0;left:0;bottom:0;width:var(--sidebar-width);background:var(--bg-sidebar);border-right:1px solid var(--border);display:flex;flex-direction:column;z-index:200;overflow-y:auto;}
+    .sidebar-logo{padding:1.2rem 1.5rem;font-family:'Anton',sans-serif;font-size:1.15rem;letter-spacing:0.1em;text-transform:uppercase;border-bottom:1px solid var(--border);color:var(--text-primary);}
+    .sidebar-logo span{color:var(--accent);}
+    .sidebar-nav{flex:1;padding:0.5rem 0;}
+    .sidebar-item{display:flex;align-items:center;gap:0.75rem;padding:0.65rem 1.5rem;font-size:0.82rem;font-weight:500;color:var(--text-secondary);background:none;border:none;width:100%;text-align:left;cursor:pointer;transition:all 0.15s;font-family:'Archivo',sans-serif;min-height:42px;}
+    .sidebar-item:hover{background:var(--bg-elevated);color:var(--text-primary);}
+    .sidebar-item.active{background:var(--text-primary);color:var(--white);font-weight:600;margin:0 0.75rem;border-radius:var(--radius-sm);}
+    .si-icon{font-size:1.05rem;width:22px;text-align:center;flex-shrink:0;}
+    .si-label{white-space:nowrap;}
+    .sidebar-footer{padding:1rem 1.5rem;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:0.4rem;}
+    .sidebar-link{font-size:0.72rem;color:var(--text-muted);background:none;border:none;text-align:left;cursor:pointer;padding:0.25rem 0;font-family:'Archivo',sans-serif;transition:color 0.15s;}
+    .sidebar-link:hover{color:var(--text-primary);}
+    .sidebar-logout{color:var(--red);}
+    .sidebar-logout:hover{color:var(--red-hover);}
+    /* ===== MAIN WRAPPER ===== */
+    .main-wrapper{margin-left:var(--sidebar-width);min-height:100vh;display:flex;flex-direction:column;}
+    .top-bar{position:sticky;top:0;z-index:100;height:var(--topbar-height);background:var(--bg-card);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 2rem;box-shadow:var(--shadow-sm);}
+    .top-bar-title{font-family:'Anton',sans-serif;font-size:1.25rem;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-primary);}
+    .top-bar-right{display:flex;align-items:center;gap:1rem;}
+    .top-bar-email{font-size:0.72rem;color:var(--text-muted);background:var(--bg-elevated);padding:0.3rem 0.7rem;border:1px solid var(--border);border-radius:var(--radius-sm);}
+    .btn-action{padding:0.5rem 1.2rem;background:var(--text-primary);color:var(--white);border:none;font-family:'Archivo',sans-serif;font-size:0.78rem;font-weight:600;cursor:pointer;border-radius:var(--radius-sm);transition:all 0.2s;min-height:38px;white-space:nowrap;}
+    .btn-action:hover{background:#374151;transform:translateY(-1px);box-shadow:var(--shadow-md);}
+    .main-content{flex:1;padding:1.5rem 2rem;}
+    .content-section{display:none;animation:fadeIn 0.25s ease;}
+    .content-section.active{display:block;}
+    .dash-header{display:none!important;}
+    .dash-content{display:none!important;}
+    @media(max-width:900px){.sidebar{width:60px;}.sidebar-logo{font-size:0;padding:1rem 0;text-align:center;}.sidebar-logo span{font-size:0;}.si-label{display:none;}.sidebar-item{justify-content:center;padding:0.65rem 0;margin:0 0.3rem;}.sidebar-footer{padding:0.5rem 0;align-items:center;}.sidebar-footer .admin-email{font-size:0;}.sidebar-footer .sidebar-link{font-size:0;}.main-wrapper{margin-left:60px;}.top-bar{padding:0 1rem;}.main-content{padding:1rem;}}
+    @media(max-width:640px){.sidebar{display:none;}.main-wrapper{margin-left:0;}}
+
+    /* Review moderation */
+    .reviews-head-row{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;margin-bottom:1.2rem;}
+    .reviews-toolbar{display:flex;gap:0.4rem;}
+    .reviews-list{display:flex;flex-direction:column;gap:0.8rem;}
+    .review-row{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:1rem 1.1rem;box-shadow:var(--shadow-sm);}
+    .review-top{display:flex;align-items:center;gap:0.8rem;flex-wrap:wrap;margin-bottom:0.5rem;}
+    .review-prod{font-weight:700;color:var(--text-primary);font-size:0.85rem;}
+    .review-stars{color:#f5b301;letter-spacing:2px;font-size:0.9rem;}
+    .review-meta{color:var(--text-muted);font-size:0.72rem;margin-left:auto;}
+    .review-comment{font-size:0.85rem;color:var(--text-secondary);line-height:1.55;margin:0 0 0.7rem;}
+    .review-comment.dim{color:var(--text-dim);}
+    .review-actions{display:flex;gap:0.5rem;}
+    .review-actions button{padding:0.4rem 0.85rem;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--text-secondary);font-size:0.75rem;font-weight:600;cursor:pointer;transition:background 0.15s ease,color 0.15s ease;}
+    .review-actions .approve-btn{border-color:rgba(16,185,129,0.4);color:#059669;}
+    .review-actions .approve-btn:hover{background:rgba(16,185,129,0.10);}
+    .review-actions .reject-btn{border-color:rgba(239,68,68,0.4);color:#DC2626;}
+    .review-actions .reject-btn:hover{background:rgba(239,68,68,0.08);}
+    .review-actions .delete-btn{border-color:var(--border);color:var(--text-muted);}
+    .review-actions .delete-btn:hover{color:var(--text-primary);background:var(--bg-elevated);}
+
+    /* Recent orders */
+    .recent-orders{margin-top:1.5rem;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:1.2rem;box-shadow:var(--shadow-sm);}
+    .recent-orders-title{font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);margin-bottom:0.8rem;}
+    .recent-orders .product-row.header-row span{font-size:0.62rem;}
+    .recent-orders .product-row:not(.header-row){cursor:default;}
+    .recent-orders .product-row:not(.header-row):hover{background:var(--bg-elevated);}
+    .low-stock-card{border-color:rgba(217,119,6,0.25)!important;}
+    .low-stock-card .stat-icon{background:rgba(251,191,36,0.1);}
+    .low-stock-card .stat-value{color:#D97706!important;}
+
+    /* Product filter */
+    .filter-toolbar{display:flex;gap:0.6rem;align-items:center;flex-wrap:wrap;margin-bottom:1rem;padding:0.8rem 1rem;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-sm);}
+    .filter-toolbar input[type=text]{flex:1;min-width:180px;padding:0.5rem 0.8rem;font-size:0.78rem;background:var(--bg-elevated);border:1px solid var(--border);color:var(--text-primary);outline:none;transition:border-color 0.2s;border-radius:var(--radius-sm);}
+    .filter-toolbar input[type=text]:focus{border-color:var(--accent);}
+    .filter-toolbar input[type=text]::placeholder{color:var(--text-muted);}
+    .filter-toolbar select{padding:0.5rem 0.8rem;font-size:0.78rem;background:var(--bg-elevated);border:1px solid var(--border);color:var(--text-primary);cursor:pointer;outline:none;border-radius:var(--radius-sm);}
+    .filter-toolbar select:focus{border-color:var(--accent);}
+    .filter-clear-btn{padding:0.4rem 0.7rem;font-size:0.68rem;font-weight:600;background:transparent;border:1px solid var(--border);color:var(--text-muted);cursor:pointer;text-transform:uppercase;letter-spacing:0.04em;transition:all 0.15s;border-radius:var(--radius-sm);}
+    .filter-clear-btn:hover{border-color:var(--accent);color:var(--accent);}
+
+    /* Stock inline edit */
+    .stock-qty-cell{display:flex;align-items:center;gap:0.4rem;}
+    .stock-qty-display{font-size:0.78rem;font-weight:600;min-width:32px;text-align:center;cursor:pointer;padding:0.2rem 0.4rem;border:1px solid transparent;transition:all 0.15s;border-radius:2px;}
+    .stock-qty-display:hover{border-color:var(--border);background:var(--bg-elevated);}
+    .stock-qty-input{width:52px;padding:0.2rem 0.3rem;font-size:0.78rem;font-weight:600;background:var(--bg-elevated);border:1px solid var(--accent);color:var(--text-primary);text-align:center;outline:none;border-radius:var(--radius-sm);}
+    .stock-qty-save{width:22px;height:22px;display:flex;align-items:center;justify-content:center;background:var(--green-bg);border:1px solid rgba(16,185,129,0.3);color:var(--green);cursor:pointer;font-size:0.7rem;padding:0;transition:all 0.15s;}
+    .stock-qty-save:hover{background:rgba(16,185,129,0.2);}
+    .stock-qty-cancel{width:22px;height:22px;display:flex;align-items:center;justify-content:center;background:var(--red-subtle);border:1px solid rgba(239,68,68,0.3);color:var(--red);cursor:pointer;font-size:0.7rem;padding:0;transition:all 0.15s;}
+    .stock-qty-cancel:hover{background:rgba(239,68,68,0.2);}
+    .restock-btn{font-size:0.62rem;font-weight:700;padding:0.2rem 0.5rem;background:transparent;border:1px solid var(--border);color:var(--text-muted);cursor:pointer;text-transform:uppercase;letter-spacing:0.03em;transition:all 0.15s;white-space:nowrap;border-radius:var(--radius-sm);}
+    .restock-btn:hover{border-color:var(--green);color:var(--green);background:var(--green-bg);}
+    .stock-zero{color:var(--red)!important;}
+    .stock-low{color:#D97706!important;}
+    .stock-ok{color:var(--text-primary);}
+
+    /* Order filter */
+    .order-filter-toolbar{display:flex;gap:0.6rem;align-items:center;flex-wrap:wrap;margin-bottom:1rem;padding:0.8rem 1rem;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-sm);}
+    .order-filter-toolbar select{padding:0.5rem 0.8rem;font-size:0.78rem;background:var(--bg-elevated);border:1px solid var(--border);color:var(--text-primary);cursor:pointer;outline:none;border-radius:var(--radius-sm);}
+    .order-filter-toolbar select:focus{border-color:var(--accent);}
+    .order-filter-toolbar .sort-btn{padding:0.5rem 0.8rem;font-size:0.78rem;font-weight:600;background:var(--bg-elevated);border:1px solid var(--border);color:var(--text-muted);cursor:pointer;transition:all 0.15s;display:flex;align-items:center;gap:0.3rem;border-radius:var(--radius-sm);}
+    .order-filter-toolbar .sort-btn:hover{border-color:var(--accent);color:var(--text-primary);}
+    .order-filter-toolbar .sort-btn.active{border-color:var(--accent);color:var(--accent);}
+
+    /* Sales summary */
+    .sales-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:0.8rem;margin-bottom:1.5rem;}
+    .sales-card{background:var(--bg-card);border:1px solid var(--border);padding:0.9rem 1rem;transition:border-color 0.2s;border-radius:var(--radius);box-shadow:var(--shadow-sm);}
+    .sales-card:hover{box-shadow:var(--shadow);}
+    .sales-card-label{font-size:0.62rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);margin-bottom:0.3rem;}
+    .sales-card-value{font-family:'Anton',sans-serif;font-size:1.3rem;color:var(--green);letter-spacing:0.02em;}
+    .sales-status-row{grid-column:1/-1;background:var(--bg-card);border:1px solid var(--border);padding:0.9rem 1rem;display:flex;flex-wrap:wrap;gap:1.2rem;align-items:center;border-radius:var(--radius);box-shadow:var(--shadow-sm);}
+    .sales-status-row .status-chip{font-size:0.72rem;font-weight:600;display:flex;align-items:center;gap:0.3rem;}
+    .sales-status-row .status-chip .dot{width:8px;height:8px;border-radius:50%;display:inline-block;}
+    .dot-pending{background:#D97706;}.dot-confirmed{background:#2563EB;}.dot-shipped{background:var(--text-muted);}.dot-delivered{background:var(--green);}.dot-cancelled{background:var(--red);}
+    .best-seller-row{grid-column:1/-1;background:var(--bg-card);border:1px solid var(--border);padding:0.9rem 1rem;border-radius:var(--radius);box-shadow:var(--shadow-sm);}
+    .best-seller-label{font-size:0.62rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);margin-bottom:0.3rem;}
+    .best-seller-value{font-size:0.88rem;font-weight:700;color:var(--text-primary);}
+    .best-seller-units{font-size:0.72rem;color:var(--green);font-weight:600;margin-left:0.4rem;}
+    @media(max-width:768px){.sales-summary{grid-template-columns:1fr;}}
+  
   </style>
 </head>
 <body>
@@ -653,16 +834,33 @@
 
   <!-- DASHBOARD -->
   <div class="dashboard" id="dashboard">
-    <div class="dash-header">
-      <h2>KAGE <span>Admin</span></h2>
-      <div class="header-right">
+    <aside class="sidebar">
+      <div class="sidebar-logo">KAGE <span>Admin</span></div>
+      <nav class="sidebar-nav" id="sidebarNav">
+        <button class="sidebar-item active" data-section="dashboard" onclick="switchSection('dashboard')"><span class="si-icon">📊</span><span class="si-label">Dashboard</span></button>
+        <button class="sidebar-item" data-section="products" onclick="switchSection('products')"><span class="si-icon">📦</span><span class="si-label">Products</span></button>
+        <button class="sidebar-item" data-section="upload" onclick="switchSection('upload')"><span class="si-icon">⚡</span><span class="si-label">Quick Upload</span></button>
+        <button class="sidebar-item" data-section="add" onclick="switchSection('add')"><span class="si-icon">➕</span><span class="si-label">Add Product</span></button>
+        <button class="sidebar-item" data-section="orders" onclick="switchSection('orders')"><span class="si-icon">🛒</span><span class="si-label">Orders</span></button>
+        <button class="sidebar-item" data-section="reviews" onclick="switchSection('reviews')"><span class="si-icon">⭐</span><span class="si-label">Reviews</span></button>
+        <button class="sidebar-item" data-section="reports" onclick="switchSection('reports')"><span class="si-icon">📈</span><span class="si-label">Reports</span></button>
+      </nav>
+      <div class="sidebar-footer">
         <span class="admin-email" id="adminEmail"></span>
-        <button class="logout-btn" onclick="openChangePasswordModal()" style="border-color:var(--border);color:var(--text-muted);margin-right:8px;">Change Password</button>
-        <button class="logout-btn" onclick="handleLogout()">Log Out</button>
+        <button class="sidebar-link" onclick="openChangePasswordModal()">Change Password</button>
+        <button class="sidebar-link sidebar-logout" onclick="handleLogout()">Log Out</button>
       </div>
-    </div>
-
-    <div class="dash-content">
+    </aside>
+    <div class="main-wrapper">
+      <header class="top-bar">
+        <h2 class="top-bar-title" id="sectionTitle">Dashboard</h2>
+        <div class="top-bar-right">
+          <span class="top-bar-email" id="adminEmailTop"></span>
+          <button class="btn-action" onclick="switchSection('add')">+ Add Product</button>
+        </div>
+      </header>
+      <main class="main-content">
+      <div class="content-section active" id="section-dashboard">
       <!-- Dashboard Stats -->
       <div class="dash-stats" id="dashStats">
         <div class="stat-card">
@@ -693,19 +891,37 @@
             <div class="stat-label">Pending</div>
           </div>
         </div>
+        <div class="stat-card low-stock-card">
+          <div class="stat-icon">⚠️</div>
+          <div class="stat-info">
+            <div class="stat-value" id="statLowStock">—</div>
+            <div class="stat-label">Low Stock (&lt;5)</div>
+          </div>
+        </div>
       </div>
 
-      <!-- Tabs -->
+      <!-- Recent Orders -->
+      <div class="recent-orders">
+        <div class="recent-orders-title">Recent Orders</div>
+        <div id="recentOrdersList">
+          <div class="empty-state">Loading recent orders...</div>
+        </div>
+      </div>
+      </div>
+
+      </div>
+      <!-- Tabs (hidden) -->
       <div class="tabs">
         <button class="tab active" onclick="switchTab(this, 'upload')">Upload</button>
         <button class="tab" onclick="switchTab(this, 'products')">Products</button>
         <button class="tab" onclick="switchTab(this, 'add')">Add Product</button>
         <button class="tab" onclick="switchTab(this, 'orders')">Orders</button>
+        <button class="tab" onclick="switchTab(this, 'reviews')">Reviews</button>
         <button class="tab" onclick="switchTab(this, 'reports')">Reports</button>
       </div>
 
       <!-- Quick Upload tab -->
-      <div class="tab-content active" id="tab-upload">
+      <div class="tab-content" id="tab-upload">
         <div class="quick-wrap">
           <div class="quick-title">Quick Upload</div>
           <p class="quick-sub">Add a product live to the shop with just a photo and a price.</p>
@@ -754,6 +970,16 @@
 
       <!-- Products tab -->
       <div class="tab-content" id="tab-products">
+        <div class="filter-toolbar">
+          <input type="text" id="productSearch" placeholder="Search products by name..." oninput="filterProducts()" />
+          <select id="productCategoryFilter" onchange="filterProducts()">
+            <option value="">All Categories</option>
+            <option value="compression">Compression</option>
+            <option value="graphic-tees">Graphic Tees</option>
+            <option value="oversized">Oversized</option>
+          </select>
+          <button class="filter-clear-btn" onclick="clearProductFilters()">Clear</button>
+        </div>
         <div class="product-list" id="productList">
           <div class="product-row header-row">
             <span></span>
@@ -837,6 +1063,11 @@
               </div>
               <div style="font-size:0.65rem;color:var(--text-dim);margin-top:0.2rem;">What you pay per piece — drives Profit &amp; Loss in Reports.</div>
             </div>
+            <div>
+              <label>Stock Quantity (units)</label>
+              <input type="number" id="prodStockQty" min="0" step="1" placeholder="e.g. 10 — leave empty if unknown" inputmode="numeric" />
+              <div style="font-size:0.65rem;color:var(--text-dim);margin-top:0.2rem;">Real inventory count. Drives the "Only N left" urgency badges — leave empty until you've counted stock.</div>
+            </div>
             <div class="full-width">
               <label>Sizes Available</label>
               <div class="checkbox-group" id="sizeCheckboxes">
@@ -876,8 +1107,36 @@
 
       <!-- Orders tab -->
       <div class="tab-content" id="tab-orders">
+        <div class="order-filter-toolbar">
+          <select id="orderStatusFilter" onchange="filterOrders()">
+            <option value="">All Status</option>
+            <option value="pending">Pending</option>
+            <option value="confirmed">Confirmed</option>
+            <option value="shipped">Shipped</option>
+            <option value="delivered">Delivered</option>
+            <option value="cancelled">Cancelled</option>
+          </select>
+          <button class="sort-btn active" id="orderSortBtn" onclick="toggleOrderSort()">
+            <span id="orderSortLabel">↓ Newest</span>
+          </button>
+        </div>
         <div class="orders-list" id="ordersList">
           <div class="empty-state">Loading orders...</div>
+        </div>
+      </div>
+
+      <!-- Reviews tab -->
+      <div class="tab-content" id="tab-reviews">
+        <div class="reviews-head-row">
+          <div class="reports-title">Review Moderation</div>
+          <div class="reviews-toolbar">
+            <button class="period-btn active" data-rf="pending" onclick="setReviewFilter('pending')">Pending</button>
+            <button class="period-btn" data-rf="approved" onclick="setReviewFilter('approved')">Approved</button>
+            <button class="period-btn" data-rf="rejected" onclick="setReviewFilter('rejected')">Rejected</button>
+          </div>
+        </div>
+        <div class="reviews-list" id="reviewsList">
+          <div class="empty-state">Open this tab to load reviews.</div>
         </div>
       </div>
 
@@ -889,6 +1148,16 @@
             <button class="period-btn active" data-period="daily" onclick="setPnlPeriod('daily')">Daily</button>
             <button class="period-btn" data-period="weekly" onclick="setPnlPeriod('weekly')">Weekly</button>
             <button class="period-btn" data-period="monthly" onclick="setPnlPeriod('monthly')">Monthly</button>
+          </div>
+        </div>
+
+        <div id="salesSummary">
+          <div class="sales-summary">
+            <div class="sales-card"><div class="sales-card-label">Revenue Today</div><div class="sales-card-value" id="salesRevToday">—</div></div>
+            <div class="sales-card"><div class="sales-card-label">Revenue This Week</div><div class="sales-card-value" id="salesRevWeek">—</div></div>
+            <div class="sales-card"><div class="sales-card-label">Revenue This Month</div><div class="sales-card-value" id="salesRevMonth">—</div></div>
+            <div class="best-seller-row"><div class="best-seller-label">Best-Selling Product</div><div class="best-seller-value" id="salesBestProduct">—</div></div>
+            <div class="sales-status-row" id="salesStatusCounts"></div>
           </div>
         </div>
 
@@ -917,6 +1186,7 @@
           </div>
         </div>
       </div>
+      </main>
     </div>
   </div>
 
@@ -951,6 +1221,32 @@
         document.getElementById('statOrders').textContent = s.orders;
         document.getElementById('statRevenue').textContent = fmtRs(s.revenue);
         document.getElementById('statPending').textContent = s.pendingOrders;
+        // Recent orders
+        const recentList = document.getElementById('recentOrdersList');
+        if (recentList && s.recentOrders) {
+          if (!s.recentOrders.length) {
+            recentList.innerHTML = '<div class="empty-state">No orders yet.</div>';
+          } else {
+            let rhtml = '<div class="product-row header-row"><span>Order</span><span>Customer</span><span>Total</span><span>Status</span><span>Date</span></div>';
+            s.recentOrders.forEach(o => {
+              const st = (o.status || 'pending').toLowerCase();
+              const statusLabel = {pending:'Pending',confirmed:'Confirmed',shipped:'Shipped',delivered:'Delivered',cancelled:'Cancelled'}[st] || st;
+              const date = (o.created_at || '').replace('T', ' ').slice(0, 16);
+              rhtml += '<div class="product-row recent-order-row" style="cursor:pointer;">'
+                + '<div><div class="p-name">' + esc(o.order_number) + '</div></div>'
+                + '<div class="p-category">' + esc(o.customer_name) + '</div>'
+                + '<div class="p-price">Rs. ' + o.total + '</div>'
+                + '<div class="status-cell"><span class="status-badge status-' + st + '">' + statusLabel + '</span></div>'
+                + '<div class="p-category">' + esc(date) + '</div>'
+                + '</div>';
+            });
+            recentList.innerHTML = rhtml;
+            recentList.querySelectorAll('.recent-order-row').forEach(r => r.addEventListener('click', function() { switchSection('orders'); }));
+          }
+        }
+        // Low stock
+        const lowEl = document.getElementById('statLowStock');
+        if (lowEl) lowEl.textContent = s.lowStockCount || 0;
       } catch (err) {}
     }
     // Refresh dashboard stats after product/order changes
@@ -966,8 +1262,11 @@
           const data = await res.json();
           isLoggedIn = true;
           document.getElementById('loginPage').style.display = 'none';
-          document.getElementById('dashboard').style.display = 'block';
+          document.getElementById('dashboard').style.display = 'flex';
           document.getElementById('adminEmail').textContent = data.admin.email;
+          const topEmail = document.getElementById('adminEmailTop');
+          if (topEmail) topEmail.textContent = data.admin.email;
+          switchSection('dashboard');
           loadProducts();
           loadOrders();
           loadDashboardStats();
@@ -1102,15 +1401,16 @@
       try {
         const res = await fetch('/api/products');
         products = await res.json();
-        renderProductList();
+        filterProducts();
       } catch (err) {
         document.getElementById('productList').innerHTML = '<div class="empty-state">Failed to load products.</div>';
       }
     }
 
-    function renderProductList() {
+    function renderProductList(list2) {
+      const arr = list2 || products;
       const list = document.getElementById('productList');
-      if (products.length === 0) {
+      if (arr.length === 0 && products.length === 0) {
         list.innerHTML = `
           <div class="product-row header-row">
             <span></span><span>Name</span><span>Price</span><span>Category</span><span>Stock</span><span>Actions</span>
@@ -1208,6 +1508,7 @@
       document.getElementById('prodPrice').value = p.price;
       document.getElementById('prodSalePrice').value = p.sale_price || '';
       document.getElementById('prodUnitCost').value = p.unit_cost || '';
+      document.getElementById('prodStockQty').value = (p.stock_qty != null && p.stock_qty !== '') ? p.stock_qty : '';
       document.getElementById('prodDesc').value = p.description || '';
 
       // Sizes
@@ -1235,7 +1536,7 @@
 
       document.getElementById('saveBtn').textContent = 'Update Product';
       document.getElementById('cancelBtn').style.display = 'block';
-      switchTab(document.querySelector('.tab[onclick*="add"]'), 'add');
+      switchSection('add');
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
@@ -1246,6 +1547,7 @@
       document.getElementById('prodCategory').value = 'graphic-tees';
       document.getElementById('prodFit').value = 'Regular';
       document.getElementById('prodUnitCost').value = '';
+      document.getElementById('prodStockQty').value = '';
       document.getElementById('backPreview').innerHTML = '          <span class="hint" style="color:var(--text-muted)">Tap to upload back view</span>';
       document.getElementById('backUploadArea').classList.remove('has-image');
       clearFormImage();
@@ -1404,6 +1706,9 @@
 
       const unitCost = document.getElementById('prodUnitCost').value;
       if (unitCost) formData.append('unit_cost', unitCost);
+
+      const stockQty = document.getElementById('prodStockQty').value;
+      if (stockQty !== '' && stockQty != null) formData.append('stock_qty', stockQty);
 
       formData.append('description', document.getElementById('prodDesc').value.trim());
 
@@ -1665,6 +1970,18 @@
       } catch (err) {}
     }
 
+        function filterOrders() {
+      const status = document.getElementById('orderStatusFilter').value;
+      let filtered = allOrders;
+      if (status) filtered = filtered.filter(o => (o.status || 'pending').toLowerCase() === status);
+      filtered.sort((a, b) => { const da = new Date(a.created_at || 0).getTime(); const db = new Date(b.created_at || 0).getTime(); return orderSortAsc ? da - db : db - da; });
+      renderOrderList(filtered);
+    }
+    function toggleOrderSort() {
+      orderSortAsc = !orderSortAsc;
+      document.getElementById('orderSortLabel').textContent = orderSortAsc ? '\u2191 Oldest' : '\u2193 Newest';
+      filterOrders();
+    }
     function renderOrderList(orders) {
       const list = document.getElementById('ordersList');
       if (!orders.length) {
@@ -1755,6 +2072,112 @@
         document.querySelectorAll('.status-dropdown-menu.open').forEach(m => m.classList.remove('open'));
       }
     });
+
+
+    // ================================================================
+    // PRODUCT SEARCH / FILTER
+    // ================================================================
+    function filterProducts() {
+      const q = (document.getElementById('productSearch').value || '').toLowerCase().trim();
+      const cat = document.getElementById('productCategoryFilter').value;
+      let filtered = products;
+      if (q) filtered = filtered.filter(p => p.name.toLowerCase().includes(q));
+      if (cat) filtered = filtered.filter(p => p.category === cat);
+      renderProductList(filtered);
+    }
+    function clearProductFilters() {
+      document.getElementById('productSearch').value = '';
+      document.getElementById('productCategoryFilter').value = '';
+      renderProductList(products);
+    }
+
+    // ================================================================
+    // STOCK INLINE EDIT
+    // ================================================================
+    function startStockEdit(id, span) {
+      const p = products.find(x => x.id === id);
+      if (!p) return;
+      const current = (p.stock_qty != null && p.stock_qty !== '') ? p.stock_qty : '';
+      span.outerHTML = '<div class="stock-qty-cell" data-editing="' + id + '">' +
+        '<input class="stock-qty-input" type="number" min="0" step="1" value="' + current + '" onkeydown="if(event.key===\'Enter\')saveStockEdit(' + id + ');if(event.key===\'Escape\')cancelStockEdit(' + id + ');" autofocus />' +
+        '<button class="stock-qty-save" onclick="saveStockEdit(' + id + ')" title="Save">✓</button>' +
+        '<button class="stock-qty-cancel" onclick="cancelStockEdit(' + id + ')" title="Cancel">✕</button>' +
+        '</div>';
+      document.querySelector('[data-editing="' + id + '"] .stock-qty-input').focus();
+    }
+    async function saveStockEdit(id) {
+      const cell = document.querySelector('[data-editing="' + id + '"]');
+      if (!cell) return;
+      const val = cell.querySelector('.stock-qty-input').value;
+      try {
+        const res = await fetch('/api/products/' + id + '/stock-qty', {
+          method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ stock_qty: val === '' ? 0 : Number(val) })
+        });
+        if (res.ok) { const data = await res.json(); const p = products.find(x => x.id === id); if (p) { p.stock_qty = data.stock_qty; p.in_stock = data.in_stock; } filterProducts(); refreshStatsIfNeeded(); }
+        else { alert('Failed to update stock.'); cancelStockEdit(id); }
+      } catch (e) { alert('Connection error.'); cancelStockEdit(id); }
+    }
+    function cancelStockEdit(id) { filterProducts(); }
+    async function restockProduct(id, addQty) {
+      const p = products.find(x => x.id === id);
+      if (!p) return;
+      const current = (p.stock_qty != null && p.stock_qty !== '') ? Number(p.stock_qty) : 0;
+      try {
+        const res = await fetch('/api/products/' + id + '/stock-qty', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ stock_qty: current + addQty }) });
+        if (res.ok) { const data = await res.json(); p.stock_qty = data.stock_qty; p.in_stock = data.in_stock; filterProducts(); refreshStatsIfNeeded(); }
+      } catch (e) {}
+    }
+
+    // ================================================================
+    // ORDER FILTER + SORT
+    // ================================================================
+    let allOrders = [];
+    let orderSortAsc = false;
+
+    // ================================================================
+    // SALES SUMMARY
+    // ================================================================
+    async function loadSalesSummary() {
+      try {
+        const res = await fetch('/api/admin/stats/sales');
+        if (!res.ok) return;
+        const s = await res.json();
+        document.getElementById('salesRevToday').textContent = fmtRs(s.revenueToday);
+        document.getElementById('salesRevWeek').textContent = fmtRs(s.revenueWeek);
+        document.getElementById('salesRevMonth').textContent = fmtRs(s.revenueMonth);
+        const bs = document.getElementById('salesBestProduct');
+        if (s.bestProduct && s.bestProduct.units > 0) { bs.innerHTML = esc(s.bestProduct.name) + '<span class="best-seller-units">(' + s.bestProduct.units + ' sold)</span>'; } else { bs.textContent = '—'; }
+        const sc = document.getElementById('salesStatusCounts');
+        const statuses = ['pending','confirmed','shipped','delivered','cancelled'];
+        const colors = {pending:'dot-pending',confirmed:'dot-confirmed',shipped:'dot-shipped',delivered:'dot-delivered',cancelled:'dot-cancelled'};
+        const labels = {pending:'Pending',confirmed:'Confirmed',shipped:'Shipped',delivered:'Delivered',cancelled:'Cancelled'};
+        sc.innerHTML = statuses.map(st => { const count = (s.ordersByStatus && s.ordersByStatus[st]) || 0; return '<span class="status-chip"><span class="dot ' + colors[st] + '"></span>' + count + ' ' + labels[st] + '</span>'; }).join('');
+      } catch (err) {}
+    }
+
+    // ================================================================
+    // REVIEW MODERATION
+    // ================================================================
+    let allReviews = [];
+    let reviewFilter = 'pending';
+    function setReviewFilter(f) { reviewFilter = f; document.querySelectorAll('.reviews-toolbar .period-btn').forEach(b => b.classList.toggle('active', b.dataset.rf === f)); renderReviews(); }
+    async function loadReviews() {
+      try {
+        const res = await fetch('/api/reviews/all');
+        if (!res.ok) { document.getElementById('reviewsList').innerHTML = '<div class="empty-state">Failed to load reviews.</div>'; return; }
+        allReviews = await res.json(); renderReviews();
+      } catch (e) { document.getElementById('reviewsList').innerHTML = '<div class="empty-state">Could not load reviews.</div>'; }
+    }
+    function productName(pid) { const p = products.find(x => String(x.id) === String(pid)); return p ? p.name : ('Product #' + pid); }
+    function renderReviews() {
+      const list = document.getElementById('reviewsList'); if (!list) return;
+      const rows = allReviews.filter(r => r.status === reviewFilter);
+      if (!rows.length) { list.innerHTML = '<div class="empty-state">No ' + reviewFilter + ' reviews.</div>'; return; }
+      list.innerHTML = rows.map(r => '<div class="review-row"><div class="review-top"><span class="review-prod">' + esc(productName(r.product_id)) + '</span><span class="review-stars">' + '\u2605'.repeat(Math.max(1, Math.min(5, Number(r.rating) || 0))) + '</span><span class="review-meta">' + esc(r.customer_name || 'Verified Buyer') + ' · ' + esc(r.order_number || '') + '</span></div>' + (r.comment ? '<p class="review-comment">' + esc(r.comment) + '</p>' : '<p class="review-comment dim">(no comment)</p>') + '<div class="review-actions">' + (r.status !== 'approved' ? '<button class="approve-btn" onclick="setReviewStatus(' + r.id + ', \x27approved\x27)">✓ Approve</button>' : '') + (r.status !== 'rejected' ? '<button class="reject-btn" onclick="setReviewStatus(' + r.id + ', \x27rejected\x27)">✕ Reject</button>' : '') + '<button class="delete-btn" onclick="deleteReview(' + r.id + ')">Delete</button></div></div>').join('');
+    }
+    async function setReviewStatus(id, status) { try { const res = await fetch('/api/reviews/' + id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) }); if (res.ok) loadReviews(); } catch (e) {} }
+    async function deleteReview(id) { if (!confirm('Delete this review permanently?')) return; try { const res = await fetch('/api/reviews/' + id, { method: 'DELETE' }); if (res.ok) loadReviews(); } catch (e) {} }
 
     // ================================================================
     // P&L REPORTS (Chart.js)
@@ -1893,15 +2316,24 @@
     // ================================================================
     // TABS
     // ================================================================
-    function switchTab(el, tabName) {
-      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-      el.classList.add('active');
+    const sectionTitles = {dashboard:'Dashboard',products:'Products',upload:'Quick Upload',add:'Add Product',orders:'Orders',reviews:'Reviews',reports:'Reports'};
+    function switchSection(name) {
+      document.querySelectorAll('.sidebar-item').forEach(item => {
+        item.classList.toggle('active', item.dataset.section === name);
+      });
+      const titleEl = document.getElementById('sectionTitle');
+      if (titleEl) titleEl.textContent = sectionTitles[name] || name;
+      const dashSection = document.getElementById('section-dashboard');
+      if (dashSection) dashSection.classList.remove('active');
       document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
-      document.getElementById('tab-' + tabName).classList.add('active');
-      if (tabName === 'products') loadProducts();
-      if (tabName === 'orders') loadOrders();
-      if (tabName === 'reports') loadPnlStats();
+      if (name === 'dashboard') { if (dashSection) dashSection.classList.add('active'); }
+      else { const tabEl = document.getElementById('tab-' + name); if (tabEl) tabEl.classList.add('active'); }
+      if (name === 'products') loadProducts();
+      if (name === 'orders') loadOrders();
+      if (name === 'reports') { loadPnlStats(); loadSalesSummary(); }
+      if (name === 'reviews') loadReviews();
     }
+    function switchTab(el, tabName) { switchSection(tabName); }
 
     // ================================================================
     // INIT
@@ -1917,11 +2349,11 @@
   </script>
 
   <!-- CHANGE PASSWORD MODAL -->
-  <div id="changePwModal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.7);align-items:center;justify-content:center;">
-    <div style="background:#111;border:1px solid #333;border-radius:12px;padding:2rem;max-width:400px;width:90%;position:relative;">
+  <div id="changePwModal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.4);backdrop-filter:blur(4px);align-items:center;justify-content:center;">
+    <div style="background:#FFFFFF;border:1px solid #E5E7EB;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,0.12);padding:2rem;max-width:400px;width:90%;position:relative;">
       <button onclick="closeChangePasswordModal()" style="position:absolute;top:12px;right:12px;background:none;border:none;color:#999;font-size:1.2rem;cursor:pointer;">✕</button>
       <h3 style="font-family:'Anton',sans-serif;letter-spacing:0.06em;margin-bottom:1rem;">Change Password</h3>
-      <div id="changePwError" style="color:#E21B23;font-size:0.8rem;margin-bottom:0.8rem;display:none;"></div>
+      <div id="changePwError" style="color:#EF4444;font-size:0.8rem;margin-bottom:0.8rem;display:none;"></div>
       <label style="display:block;font-size:0.7rem;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:0.3rem;">Current Password</label>
       <input type="password" id="currentPw" style="width:100%;padding:0.7rem;border:1px solid #333;border-radius:8px;background:#0A0A0A;color:#F5F5F5;font-size:0.9rem;margin-bottom:0.8rem;" />
       <label style="display:block;font-size:0.7rem;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:0.3rem;">New Password</label>

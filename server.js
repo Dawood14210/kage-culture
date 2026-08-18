@@ -9,6 +9,7 @@ let db = dbModule;
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const LOW_STOCK_THRESHOLD = 5; // products with stock_qty < this are flagged as low-stock
 
 // ----------------------------------------------------------------
 // MIDDLEWARE
@@ -246,6 +247,159 @@ app.post('/api/admin/create', requireAuth, async (req, res) => {
 });
 
 // ----------------------------------------------------------------
+// CUSTOMER ACCOUNTS
+// ----------------------------------------------------------------
+function requireCustomerAuth(req, res, next) {
+  let customerId = req.session && req.session.customerId;
+  if (!customerId) {
+    const cookies = (req.headers.cookie || '').split(';').map(c => c.trim());
+    const sessionCookie = cookies.find(c => c.startsWith('kage.cust='));
+    if (sessionCookie) {
+      try {
+        const parts = sessionCookie.split('=')[1].split('.');
+        const data = JSON.parse(Buffer.from(parts[0], 'base64').toString());
+        customerId = data.customerId;
+      } catch (e) { /* invalid cookie */ }
+    }
+  }
+  if (customerId) {
+    req.customerId = customerId;
+    next();
+  } else {
+    res.status(401).json({ error: 'Please log in to continue.' });
+  }
+}
+
+// POST customer signup
+app.post('/api/customers/signup', async (req, res) => {
+  try {
+    const { email, password, name } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email and password are required.' });
+    }
+    if (password.length < 6) {
+      return res.status(400).json({ error: 'Password must be at least 6 characters.' });
+    }
+    const clean = email.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean)) {
+      return res.status(400).json({ error: 'Please enter a valid email address.' });
+    }
+    const existing = await db.prepare('SELECT id FROM customers WHERE email = ?').get(clean);
+    if (existing) {
+      return res.status(400).json({ error: 'An account with that email already exists.' });
+    }
+    const hash = await bcrypt.hash(password, 12);
+    const customerName = String(name || '').trim().slice(0, 80);
+    const now = new Date().toISOString().replace('T', ' ').slice(0, 19);
+    const result = await db.prepare('INSERT INTO customers (email, password_hash, name, created_at) VALUES (?, ?, ?, ?)')
+      .run(clean, hash, customerName, now);
+    const customerId = result.lastInsertRowid;
+    req.session.customerId = customerId;
+    const cookieVal = Buffer.from(JSON.stringify({ customerId })).toString('base64');
+    const sig = require('crypto').createHmac('sha256', process.env.SESSION_SECRET || 'kage-culture-secret-key-change-in-production').update(cookieVal).digest('base64');
+    res.setHeader('Set-Cookie', `kage.cust=${cookieVal}.${sig}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000`);
+    res.json({ success: true, customer: { id: customerId, email: clean, name: customerName } });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST customer login
+app.post('/api/customers/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email and password are required.' });
+    }
+    const customer = await db.prepare('SELECT * FROM customers WHERE email = ?').get(email.trim().toLowerCase());
+    if (!customer) {
+      return res.status(401).json({ error: 'Invalid email or password.' });
+    }
+    const match = await bcrypt.compare(password, customer.password_hash);
+    if (!match) {
+      return res.status(401).json({ error: 'Invalid email or password.' });
+    }
+    req.session.customerId = customer.id;
+    const cookieVal = Buffer.from(JSON.stringify({ customerId: customer.id })).toString('base64');
+    const sig = require('crypto').createHmac('sha256', process.env.SESSION_SECRET || 'kage-culture-secret-key-change-in-production').update(cookieVal).digest('base64');
+    res.setHeader('Set-Cookie', `kage.cust=${cookieVal}.${sig}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000`);
+    res.json({ success: true, customer: { id: customer.id, email: customer.email, name: customer.name, phone: customer.phone, address: customer.address, city: customer.city } });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST customer logout
+app.post('/api/customers/logout', (req, res) => {
+  req.session = null;
+  res.setHeader('Set-Cookie', 'kage.cust=; Path=/; HttpOnly; Max-Age=0');
+  res.json({ success: true });
+});
+
+// GET current customer profile
+app.get('/api/customers/me', requireCustomerAuth, async (req, res) => {
+  try {
+    const c = await db.prepare('SELECT id, email, name, phone, address, city, created_at FROM customers WHERE id = ?').get(req.customerId);
+    if (!c) return res.status(404).json({ error: 'Account not found.' });
+    res.json({ customer: c });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT update customer profile
+app.put('/api/customers/me', requireCustomerAuth, async (req, res) => {
+  try {
+    const { name, phone, address, city, currentPassword, newPassword } = req.body;
+    const customer = await db.prepare('SELECT * FROM customers WHERE id = ?').get(req.customerId);
+    if (!customer) return res.status(404).json({ error: 'Account not found.' });
+
+    // Password change
+    if (newPassword) {
+      if (!currentPassword) {
+        return res.status(400).json({ error: 'Current password is required to set a new password.' });
+      }
+      if (newPassword.length < 6) {
+        return res.status(400).json({ error: 'New password must be at least 6 characters.' });
+      }
+      const match = await bcrypt.compare(currentPassword, customer.password_hash);
+      if (!match) {
+        return res.status(401).json({ error: 'Current password is incorrect.' });
+      }
+      const newHash = await bcrypt.hash(newPassword, 12);
+      await db.prepare('UPDATE customers SET password_hash = ? WHERE id = ?').run(newHash, req.customerId);
+    }
+
+    const finalName = name !== undefined ? String(name).trim().slice(0, 80) : customer.name;
+    const finalPhone = phone !== undefined ? String(phone).trim().slice(0, 40) : customer.phone;
+    const finalAddress = address !== undefined ? String(address).trim().slice(0, 300) : customer.address;
+    const finalCity = city !== undefined ? String(city).trim().slice(0, 120) : customer.city;
+    await db.prepare('UPDATE customers SET name=?, phone=?, address=?, city=? WHERE id=?')
+      .run(finalName, finalPhone, finalAddress, finalCity, req.customerId);
+
+    res.json({ success: true, customer: { id: req.customerId, email: customer.email, name: finalName, phone: finalPhone, address: finalAddress, city: finalCity } });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET customer order history
+app.get('/api/customers/orders', requireCustomerAuth, async (req, res) => {
+  try {
+    const customer = await db.prepare('SELECT email, phone FROM customers WHERE id = ?').get(req.customerId);
+    if (!customer) return res.status(404).json({ error: 'Account not found.' });
+    // Match orders by email OR phone (covers orders placed before account creation)
+    const orders = await db.prepare(
+      'SELECT * FROM orders WHERE email = ? OR phone = ? ORDER BY created_at DESC, id DESC'
+    ).all(customer.email, customer.phone);
+    orders.forEach(o => { o.items = JSON.parse(o.items_json || '[]'); });
+    res.json({ orders });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ----------------------------------------------------------------
 // PRODUCT CRUD
 // ----------------------------------------------------------------
 
@@ -253,14 +407,44 @@ app.post('/api/admin/create', requireAuth, async (req, res) => {
 app.get('/api/products', async (req, res) => {
   try {
     const products = await db.prepare('SELECT * FROM products ORDER BY created_at DESC, id DESC').all();
-    const parsed = products.map(p => ({
-      ...p,
-      sizes: JSON.parse(p.sizes || '["S","M","L","XL","XXL"]'),
-      extra_images: JSON.parse(p.extra_images || '[]'),
-      collections: JSON.parse(p.collections || '[]'),
-      on_sale: Boolean(p.on_sale),
-      in_stock: Boolean(p.in_stock)
-    }));
+
+    // Real sold counts — summed from order line items, excluding cancelled orders.
+    // Parameters (not inline literals) keep this working on the in-memory fallback backend.
+    const orders = await db.prepare('SELECT status, items_json FROM orders WHERE status != ?').all('cancelled');
+    const sold = {};
+    for (const o of orders) {
+      let items = [];
+      try { items = JSON.parse(o.items_json || '[]'); } catch (e) { items = []; }
+      for (const it of items) sold[it.id] = (sold[it.id] || 0) + (Number(it.qty) || 1);
+    }
+
+    // Approved-review aggregates (only approved reviews count toward ratings)
+    let reviewRows = [];
+    try { reviewRows = await db.prepare('SELECT product_id, rating FROM reviews WHERE status = ?').all('approved'); } catch (e) { reviewRows = []; }
+    const revAgg = {};
+    for (const r of reviewRows) {
+      const a = revAgg[r.product_id] || (revAgg[r.product_id] = { sum: 0, n: 0 });
+      a.sum += Number(r.rating) || 0;
+      a.n += 1;
+    }
+
+    const parsed = products.map(p => {
+      const agg = revAgg[p.id];
+      const stock = (p.stock_qty != null && p.stock_qty !== '') ? Number(p.stock_qty) : null;
+      return {
+        ...p,
+        sizes: JSON.parse(p.sizes || '["S","M","L","XL","XXL"]'),
+        extra_images: JSON.parse(p.extra_images || '[]'),
+        collections: JSON.parse(p.collections || '[]'),
+        on_sale: Boolean(p.on_sale),
+        in_stock: Boolean(p.in_stock),
+        stock_qty: stock,
+        sold_count: sold[p.id] || 0,
+        order_count: sold[p.id] || 0, // drives Best Sellers on the storefront
+        avg_rating: agg ? Math.round((agg.sum / agg.n) * 10) / 10 : null,
+        review_count: agg ? agg.n : 0
+      };
+    });
     res.json(parsed);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -290,7 +474,7 @@ app.post('/api/products', requireAuth, upload.fields([
   { name: 'extra_images', maxCount: 4 }
 ]), async (req, res) => {
   try {
-    const { name, category, fit, price, sale_price, description, sizes, in_stock } = req.body;
+    const { name, category, fit, price, sale_price, description, sizes, in_stock, stock_qty } = req.body;
     if (!name || !category || !price) {
       return res.status(400).json({ error: 'Name, category, and price are required.' });
     }
@@ -312,17 +496,19 @@ app.post('/api/products', requireAuth, upload.fields([
     const salePriceVal = sale_price || null;
     const onSale = sale_price ? 1 : 0;
     const inStock = in_stock !== undefined ? (in_stock === 'true' || in_stock === true ? 1 : 0) : 1;
+    const stockQty = (stock_qty !== undefined && stock_qty !== '' && stock_qty !== null)
+      ? Math.max(0, Number(stock_qty) || 0) : null;
 
     // New products get an estimated unit cost immediately (55% of list price)
     // so P&L is accurate even before the admin fine-tunes it in the edit form.
     const estCost = Math.max(50, Math.round(parseFloat(price) * 0.55));
 
     const result = await db.prepare(`
-      INSERT INTO products (name, category, fit, price, sale_price, on_sale, description, sizes, front_image, back_image, extra_images, in_stock, unit_cost)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO products (name, category, fit, price, sale_price, on_sale, description, sizes, front_image, back_image, extra_images, in_stock, unit_cost, stock_qty)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(name, category, fit || '', parseFloat(price), salePriceVal, onSale, description || '',
       JSON.stringify(Array.isArray(sizesArr) ? sizesArr : JSON.parse(sizesArr)),
-      frontImage, backImage, JSON.stringify(extraImages), inStock, estCost);
+      frontImage, backImage, JSON.stringify(extraImages), inStock, estCost, stockQty);
 
     const product = await db.prepare('SELECT * FROM products WHERE id = ?').get(result.lastInsertRowid);
     product.sizes = JSON.parse(product.sizes || '[]');
@@ -347,10 +533,10 @@ app.put('/api/products/:id', requireAuth, upload.fields([
     const existing = await db.prepare('SELECT * FROM products WHERE id = ?').get(req.params.id);
     if (!existing) return res.status(404).json({ error: 'Product not found' });
 
-    const { name, category, fit, price, sale_price, description, sizes, in_stock, unit_cost, remove_front, remove_back } = req.body;
+    const { name, category, fit, price, sale_price, description, sizes, in_stock, unit_cost, stock_qty, remove_front, remove_back } = req.body;
 
-    let frontImage = existing.front_image;
-    let backImage = existing.back_image;
+    let frontImage = existing.front_image ?? null;
+    let backImage = existing.back_image ?? null;
 
     if (req.files?.front_image?.[0]) {
       const newUrl = await persistImage(req.files.front_image[0].buffer, req.files.front_image[0].originalname);
@@ -378,7 +564,7 @@ app.put('/api/products/:id', requireAuth, upload.fields([
       }
     }
 
-    const sizesArr = sizes || existing.sizes;
+    const sizesArr = sizes || existing.sizes || JSON.stringify(['S', 'M', 'L', 'XL', 'XXL']);
     const salePriceVal = sale_price !== undefined ? sale_price : existing.sale_price;
     const onSale = sale_price ? 1 : 0;
     const finalName = name || existing.name;
@@ -388,14 +574,19 @@ app.put('/api/products/:id', requireAuth, upload.fields([
     const finalDesc = description !== undefined ? description : existing.description;
     const finalInStock = in_stock !== undefined ? (in_stock === 'true' || in_stock === true ? 1 : 0) : existing.in_stock;
     const finalUnitCost = unit_cost !== undefined && unit_cost !== '' ? Math.max(0, parseFloat(unit_cost) || 0) : existing.unit_cost;
+    const finalStockQty = (stock_qty !== undefined && stock_qty !== '' && stock_qty !== null)
+      ? Math.max(0, Number(stock_qty) || 0) : existing.stock_qty;
 
-    await db.prepare(`
-      UPDATE products SET name=?, category=?, fit=?, price=?, sale_price=?, on_sale=?, description=?, sizes=?, front_image=?, back_image=?, extra_images=?, in_stock=?, unit_cost=?, updated_at=CURRENT_TIMESTAMP
+    // updated_at passed as a parameter — one placeholder per SET column is
+    // required for the in-memory fallback backend.
+    const now = new Date().toISOString().replace('T', ' ').slice(0, 19);
+    const runResult = await db.prepare(`
+      UPDATE products SET name=?, category=?, fit=?, price=?, sale_price=?, on_sale=?, description=?, sizes=?, front_image=?, back_image=?, extra_images=?, in_stock=?, unit_cost=?, stock_qty=?, updated_at=?
       WHERE id=?
     `).run(finalName, finalCategory, finalFit, finalPrice, salePriceVal, onSale, finalDesc,
       JSON.stringify(Array.isArray(sizesArr) ? sizesArr : JSON.parse(sizesArr)),
       frontImage, backImage, JSON.stringify(extraImages),
-      finalInStock, finalUnitCost, req.params.id);
+      finalInStock, finalUnitCost, finalStockQty, now, req.params.id);
 
     const updated = await db.prepare('SELECT * FROM products WHERE id = ?').get(req.params.id);
     updated.sizes = JSON.parse(updated.sizes || '[]');
@@ -436,7 +627,7 @@ app.patch('/api/products/:id/stock', requireAuth, async (req, res) => {
     if (!existing) return res.status(404).json({ error: 'Product not found' });
 
     const newStock = existing.in_stock ? 0 : 1;
-    await db.prepare('UPDATE products SET in_stock = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(newStock, req.params.id);
+    await db.prepare('UPDATE products SET in_stock = ? WHERE id = ?').run(newStock, req.params.id);
     res.json({ success: true, in_stock: Boolean(newStock) });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -469,6 +660,11 @@ app.post('/api/orders', async (req, res) => {
       const size = String(it.size || '').slice(0, 10);
       const p = await db.prepare('SELECT * FROM products WHERE id = ?').get(id);
       if (!p || !p.in_stock) { skipped.push(it); continue; }
+      const stock = (p.stock_qty != null && p.stock_qty !== '') ? Number(p.stock_qty) : null;
+      // Honest inventory: never oversell a known stock count.
+      if (stock != null && qty > stock) {
+        return res.status(400).json({ error: `Only ${stock} ${stock === 1 ? 'unit' : 'units'} of "${p.name}" left in stock. Please reduce the quantity.` });
+      }
       const unit = (p.sale_price && p.sale_price < p.price) ? p.sale_price : p.price;
       const lineTotal = unit * qty;
       const unitCost = (p.unit_cost && p.unit_cost > 0) ? p.unit_cost : Math.round(unit * 0.55);
@@ -481,7 +677,8 @@ app.post('/api/orders', async (req, res) => {
         unit: Math.round(unit),
         total: Math.round(lineTotal),
         cost: Math.round(unitCost) * qty, // COGS snapshot for P&L
-        image: p.front_image || null
+        image: p.front_image || null,
+        stock
       });
     }
     if (skipped.length > 0) {
@@ -491,7 +688,7 @@ app.post('/api/orders', async (req, res) => {
       return res.status(400).json({ error: 'Your cart is empty.' });
     }
 
-    const shipping = subtotal >= 2000 ? 0 : 150;
+    const shipping = 150; // Flat delivery charge (free-shipping threshold removed)
     const total = Math.round(subtotal) + shipping;
 
     // Unique, human-readable order number (random suffix — not guessable)
@@ -500,9 +697,12 @@ app.post('/api/orders', async (req, res) => {
       orderNumber = 'KAGE-' + Math.random().toString(36).replace(/[^a-z0-9]/g, '').slice(2, 10).toUpperCase().padEnd(8, 'Z');
     } while (await db.prepare('SELECT id FROM orders WHERE order_number = ?').get(orderNumber));
 
+    // status + created_at passed explicitly (not via SQL DEFAULTs) so rows look
+    // identical on Turso, sql.js AND the pure-JS in-memory fallback backend.
+    const now = new Date().toISOString().replace('T', ' ').slice(0, 19);
     const result = await db.prepare(`
-      INSERT INTO orders (order_number, customer_name, email, phone, address, city, notes, payment_method, subtotal, shipping, total, items_json)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO orders (order_number, customer_name, email, phone, address, city, notes, payment_method, subtotal, shipping, total, items_json, status, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       orderNumber,
       String(name).slice(0, 120),
@@ -515,8 +715,22 @@ app.post('/api/orders', async (req, res) => {
       Math.round(subtotal),
       shipping,
       total,
-      JSON.stringify(lineItems)
+      JSON.stringify(lineItems),
+      'pending',
+      now
     );
+
+    // Decrement real inventory for each item (skip products with unknown stock).
+    // When a product hits 0 units it is automatically marked out of stock.
+    for (const it of lineItems) {
+      if (it.stock == null) continue;
+      const newStock = Math.max(0, it.stock - it.qty);
+      // One placeholder per SET column — required by the in-memory fallback parser.
+      await db.prepare('UPDATE products SET stock_qty = ? WHERE id = ?').run(newStock, it.id);
+      if (newStock === 0) {
+        await db.prepare('UPDATE products SET in_stock = ? WHERE id = ?').run(0, it.id);
+      }
+    }
 
     const order = await db.prepare('SELECT * FROM orders WHERE id = ?').get(result.lastInsertRowid);
     order.items = JSON.parse(order.items_json || '[]');
@@ -536,6 +750,30 @@ app.post('/api/orders', async (req, res) => {
       status: order.status,
       created_at: order.created_at
     });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET track order (public — order number + phone required, no account needed)
+// Defined BEFORE /api/orders/:orderNumber so 'track' never matches as an order number.
+app.get('/api/orders/track', async (req, res) => {
+  try {
+    const { number, phone } = req.query;
+    if (!number || !phone) {
+      return res.status(400).json({ error: 'Order number and phone are required.' });
+    }
+    // Phone matching is lenient (digits only, last 10) so formatting differences
+    // like "+92-300-1234567" vs "03001234567" still verify.
+    const normPhone = (s) => String(s || '').replace(/\D/g, '').slice(-10);
+    const order = await db.prepare('SELECT * FROM orders WHERE order_number = ?')
+      .get(String(number).trim().toUpperCase());
+    if (!order || normPhone(order.phone) !== normPhone(phone)) {
+      return res.status(404).json({ error: "We couldn't find an order with that number and phone. Please double-check and try again." });
+    }
+    const { email, address, notes, items_json, ...safe } = order;
+    safe.items = JSON.parse(order.items_json || '[]');
+    res.json(safe);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -577,6 +815,19 @@ app.patch('/api/orders/:id/status', requireAuth, async (req, res) => {
     }
     const order = await db.prepare('SELECT * FROM orders WHERE id = ?').get(id);
     if (!order) return res.status(404).json({ error: 'Order not found' });
+
+    // Cancelling an order restores the reserved stock so the units go back on sale.
+    if (status === 'cancelled' && order.status !== 'cancelled') {
+      let items = [];
+      try { items = JSON.parse(order.items_json || '[]'); } catch (e) { items = []; }
+      for (const it of items) {
+        const p = await db.prepare('SELECT id, stock_qty FROM products WHERE id = ?').get(it.id);
+        if (!p || p.stock_qty == null) continue;
+        await db.prepare('UPDATE products SET stock_qty = ?, in_stock = ? WHERE id = ?')
+          .run(Number(p.stock_qty) + (Number(it.qty) || 1), 1, it.id);
+      }
+    }
+
     await db.prepare('UPDATE orders SET status = ? WHERE id = ?').run(status, id);
     const updated = await db.prepare('SELECT * FROM orders WHERE id = ?').get(id);
     updated.items = JSON.parse(updated.items_json || '[]');
@@ -597,13 +848,92 @@ app.get('/api/admin/stats/dashboard', requireAuth, async (req, res) => {
     const pendingOrders = (await db.prepare("SELECT COUNT(*) as c FROM orders WHERE status = 'pending'").get()).c;
     const deliveredOrders = (await db.prepare("SELECT COUNT(*) as c FROM orders WHERE status = 'delivered'").get()).c;
     const outOfStock = (await db.prepare('SELECT COUNT(*) as c FROM products WHERE in_stock = 0').get()).c;
+    const lowStockCount = (await db.prepare('SELECT COUNT(*) as c FROM products WHERE stock_qty IS NOT NULL AND stock_qty > 0 AND stock_qty < ?').get(LOW_STOCK_THRESHOLD)).c;
+    // Last 10 orders, newest first
+    const recentOrders = (await db.prepare('SELECT id, order_number, customer_name, total, status, created_at FROM orders ORDER BY created_at DESC, id DESC LIMIT 10').all());
     res.json({
       products: prodCount,
       orders: orderCount,
       revenue: Math.round(revenue),
       pendingOrders,
       deliveredOrders,
-      outOfStock
+      outOfStock,
+      lowStockCount,
+      lowStockThreshold: LOW_STOCK_THRESHOLD,
+      recentOrders
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PATCH quick-update stock quantity (admin only)
+// ----------------------------------------------------------------
+app.patch('/api/products/:id/stock-qty', requireAuth, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) return res.status(400).json({ error: 'Invalid product ID' });
+    const existing = await db.prepare('SELECT * FROM products WHERE id = ?').get(id);
+    if (!existing) return res.status(404).json({ error: 'Product not found' });
+    const { stock_qty } = req.body;
+    if (stock_qty == null || stock_qty === '' || isNaN(Number(stock_qty))) {
+      return res.status(400).json({ error: 'stock_qty must be a number' });
+    }
+    const qty = Math.max(0, Math.floor(Number(stock_qty)));
+    await db.prepare('UPDATE products SET stock_qty = ?, in_stock = ? WHERE id = ?').run(qty, qty > 0 ? 1 : 0, id);
+    const updated = await db.prepare('SELECT * FROM products WHERE id = ?').get(id);
+    res.json({ success: true, stock_qty: updated.stock_qty, in_stock: Boolean(updated.in_stock) });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ----------------------------------------------------------------
+// SALES SUMMARY (admin only)
+// ----------------------------------------------------------------
+app.get('/api/admin/stats/sales', requireAuth, async (req, res) => {
+  try {
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+    const weekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay()).toISOString();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+
+    const revToday = (await db.prepare('SELECT COALESCE(SUM(total), 0) as s FROM orders WHERE created_at >= ?').get(todayStart)).s;
+    const revWeek = (await db.prepare('SELECT COALESCE(SUM(total), 0) as s FROM orders WHERE created_at >= ?').get(weekStart)).s;
+    const revMonth = (await db.prepare('SELECT COALESCE(SUM(total), 0) as s FROM orders WHERE created_at >= ?').get(monthStart)).s;
+
+    // Order counts by status
+    const statusCounts = (await db.prepare('SELECT status, COUNT(*) as c FROM orders GROUP BY status').all());
+    const byStatus = {};
+    statusCounts.forEach(r => { byStatus[r.status] = r.c; });
+
+    // Best-selling product by units sold
+    const allOrders = (await db.prepare('SELECT items_json FROM orders WHERE status != ?').all('cancelled'));
+    const unitMap = {};
+    for (const o of allOrders) {
+      let items = [];
+      try { items = JSON.parse(o.items_json || '[]'); } catch (e) { items = []; }
+      for (const it of items) {
+        const pid = it.id;
+        unitMap[pid] = (unitMap[pid] || 0) + (Number(it.qty) || 1);
+      }
+    }
+    let bestProduct = null;
+    let bestUnits = 0;
+    for (const [pid, units] of Object.entries(unitMap)) {
+      if (units > bestUnits) {
+        bestUnits = units;
+        const p = await db.prepare('SELECT id, name FROM products WHERE id = ?').get(Number(pid));
+        bestProduct = p ? p.name : ('Product #' + pid);
+      }
+    }
+
+    res.json({
+      revenueToday: Math.round(revToday),
+      revenueWeek: Math.round(revWeek),
+      revenueMonth: Math.round(revMonth),
+      ordersByStatus: byStatus,
+      bestProduct: bestProduct ? { name: bestProduct, units: bestUnits } : null
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -746,9 +1076,146 @@ app.post('/api/newsletter', async (req, res) => {
       return res.json({ success: true, message: 'You are already subscribed! Welcome back to the clan.' });
     }
     await db.prepare('INSERT INTO newsletter_subscribers (email) VALUES (?)').run(clean);
-    res.json({ success: true, message: 'Welcome to the clan! Code KAGE15 unlocked — check your inbox.' });
+    res.json({ success: true, message: 'Welcome to the clan! Stay tuned for restock alerts and early drop access.' });
   } catch (err) {
     res.status(500).json({ error: 'Something went wrong. Please try again.' });
+  }
+});
+
+// ----------------------------------------------------------------
+// COMING SOON NOTIFY-ME (per category)
+// ----------------------------------------------------------------
+
+// POST notify-me — store an email tagged with the category they're waiting for.
+app.post('/api/coming-soon', async (req, res) => {
+  try {
+    const { email, category } = req.body || {};
+    if (!email || typeof email !== 'string') {
+      return res.status(400).json({ error: 'Please provide a valid email address.' });
+    }
+    const clean = email.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean)) {
+      return res.status(400).json({ error: 'Please provide a valid email address.' });
+    }
+    const cat = typeof category === 'string' ? category.trim().toLowerCase() : '';
+    const allowed = ['graphic-tees', 'compression', 'oversized', 'sale'];
+    if (!allowed.includes(cat)) {
+      return res.status(400).json({ error: 'Unknown collection.' });
+    }
+    // Avoid duplicates for the same email + category
+    const existing = await db.prepare('SELECT id FROM coming_soon_signups WHERE email = ? AND category = ?').get(clean, cat);
+    if (existing) {
+      return res.json({ success: true, message: "You're on the list! We'll let you know when this drop lands." });
+    }
+    await db.prepare('INSERT INTO coming_soon_signups (email, category) VALUES (?, ?)').run(clean, cat);
+    res.json({ success: true, message: "You're on the list! We'll let you know when this drop lands." });
+  } catch (err) {
+    res.status(500).json({ error: 'Something went wrong. Please try again.' });
+  }
+});
+
+// ----------------------------------------------------------------
+// REVIEWS & RATINGS
+// ----------------------------------------------------------------
+
+// POST submit a review (public) — must verify a DELIVERED order containing the
+// product, and only one review per order+product. Inserted as 'pending' so the
+// admin can approve it before it appears publicly (anti-fake moderation).
+app.post('/api/reviews', async (req, res) => {
+  try {
+    const { product_id, order_number, phone, rating, comment, name } = req.body;
+    const pid = parseInt(product_id, 10);
+    const rf = parseFloat(rating);
+    const r = Math.round(rf);
+    if (!pid || isNaN(pid)) return res.status(400).json({ error: 'Invalid product.' });
+    if (isNaN(rf) || r < 1 || r > 5) return res.status(400).json({ error: 'Please select a rating from 1 to 5 stars.' });
+    const num = String(order_number || '').trim().toUpperCase();
+    const ph = String(phone || '').trim();
+    if (!num || !ph) {
+      return res.status(400).json({ error: 'Order number and phone are required to verify your purchase.' });
+    }
+
+    const normPhone = (s) => String(s || '').replace(/\D/g, '').slice(-10);
+    const order = await db.prepare('SELECT * FROM orders WHERE order_number = ?').get(num);
+    if (!order || normPhone(order.phone) !== normPhone(ph)) {
+      return res.status(404).json({ error: "We couldn't find an order matching that number and phone." });
+    }
+    if (order.status !== 'delivered') {
+      return res.status(403).json({
+        error: 'Reviews unlock once your order is delivered. Current status: ' + order.status + '.'
+      });
+    }
+    let items = [];
+    try { items = JSON.parse(order.items_json || '[]'); } catch (e) { items = []; }
+    if (!items.some(i => String(i.id) === String(pid))) {
+      return res.status(403).json({ error: "That product wasn't part of this order." });
+    }
+    const dup = await db.prepare('SELECT id FROM reviews WHERE order_number = ? AND product_id = ?').get(num, pid);
+    if (dup) {
+      return res.status(409).json({ error: 'You have already reviewed this product.' });
+    }
+
+    const cleanComment = String(comment || '').trim().slice(0, 1000);
+    const customerName = String(name || '').trim().slice(0, 60) || 'Verified Buyer';
+    const now = new Date().toISOString().replace('T', ' ').slice(0, 19);
+    await db.prepare('INSERT INTO reviews (product_id, order_number, customer_name, rating, comment, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+      .run(pid, num, customerName, r, cleanComment, 'pending', now);
+    res.status(201).json({ success: true, message: 'Thanks for your review! It will appear on the site once approved.' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET approved reviews for a product (public)
+app.get('/api/reviews', async (req, res) => {
+  try {
+    const pid = parseInt(req.query.product_id, 10);
+    if (!pid || isNaN(pid)) return res.json([]);
+    const rows = await db.prepare('SELECT id, customer_name, rating, comment, created_at FROM reviews WHERE product_id = ? AND status = ?')
+      .all(pid, 'approved');
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET all reviews (admin only — moderation queue)
+app.get('/api/reviews/all', requireAuth, async (req, res) => {
+  try {
+    const rows = await db.prepare('SELECT * FROM reviews ORDER BY id DESC').all();
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PATCH review status (admin only — approve / reject)
+app.patch('/api/reviews/:id', requireAuth, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) return res.status(400).json({ error: 'Invalid review ID.' });
+    const { status } = req.body;
+    if (!['approved', 'pending', 'rejected'].includes(status)) {
+      return res.status(400).json({ error: 'Invalid status. Allowed: approved, pending, rejected.' });
+    }
+    const existing = await db.prepare('SELECT id FROM reviews WHERE id = ?').get(id);
+    if (!existing) return res.status(404).json({ error: 'Review not found.' });
+    await db.prepare('UPDATE reviews SET status = ? WHERE id = ?').run(status, id);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE review (admin only)
+app.delete('/api/reviews/:id', requireAuth, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) return res.status(400).json({ error: 'Invalid review ID.' });
+    await db.prepare('DELETE FROM reviews WHERE id = ?').run(id);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -760,7 +1227,7 @@ async function backfillUnitCosts() {
   if (missing.length === 0) return;
   for (const p of missing) {
     const cost = Math.max(50, Math.round(p.price * 0.55));
-    await db.prepare('UPDATE products SET unit_cost = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(cost, p.id);
+    await db.prepare('UPDATE products SET unit_cost = ? WHERE id = ?').run(cost, p.id);
   }
   await db.save();
   console.log('💰 Backfilled unit costs for ' + missing.length + ' product(s)');
@@ -778,7 +1245,7 @@ async function syncSeedSalePrices() {
   for (const s of syncs) {
     const row = await db.prepare('SELECT id FROM products WHERE name = ? AND price = ? AND sale_price IS NULL').get(s.name, s.price);
     if (row) {
-      await db.prepare('UPDATE products SET sale_price = ?, on_sale = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(s.sale, row.id);
+      await db.prepare('UPDATE products SET sale_price = ?, on_sale = ? WHERE id = ?').run(s.sale, 1, row.id);
       changed++;
     }
   }
@@ -792,22 +1259,28 @@ async function seedProducts() {
   const count = await db.prepare('SELECT COUNT(*) as c FROM products').get();
   if (!count || (count.c != null && count.c > 0)) return;
 
+  // Initial stock represents the brand's opening inventory per SKU (units).
+  // A couple of items start intentionally low so the "Only N left" urgency
+  // badge is real from day one; the admin fine-tunes these in the admin panel.
   const defaults = [
-    { name: 'Shadow Fit', price: 1499, cost: 820, category: 'compression', fit: 'Compression', desc: '4-way stretch muscle-fit compression shirt. Second-skin feel with maximum mobility.' },
-    { name: 'Oni Muscle Tee', price: 1599, cost: 875, category: 'compression', fit: 'Compression', desc: 'Sleeveless compression with bold contrast panels. For those who train until the mask drops.' },
-    { name: 'Kage Core Compression', price: 1399, cost: 760, category: 'compression', fit: 'Compression', desc: 'Core compression layer — seamless, breathable, built for combat-level intensity.' },
-    { name: 'Rising Vermillion', price: 999, sale: 799, cost: 545, category: 'graphic-tees', fit: 'Regular', desc: 'Heavyweight 220GSM cotton tee. A gradient sky turned crimson.' },
-    { name: 'Blade Wolf', price: 1149, cost: 620, category: 'graphic-tees', fit: 'Regular', desc: 'Silver ink on black — a lone wolf under a crescent moon.' },
-    { name: 'Neon Fangs', price: 1049, cost: 570, category: 'graphic-tees', fit: 'Regular', desc: 'Electric strike — neon clash across heavyweight cotton.' },
-    { name: 'Shinobi Mark', price: 999, cost: 540, category: 'graphic-tees', fit: 'Regular', desc: 'Minimalist shinobi crest. High-contrast placement on premium cotton.' },
-    { name: 'Drift Oversized', price: 1199, cost: 650, category: 'oversized', fit: 'Oversized', desc: 'Drop-shoulder, relaxed fit — heavyweight cotton.' },
-    { name: 'Wrath Silhouette', price: 1249, sale: 1099, cost: 680, category: 'oversized', fit: 'Oversized', desc: 'Boxy, cropped oversized fit. Built for those who take up space.' },
-    { name: 'Hollow Gaze', price: 1149, cost: 625, category: 'oversized', fit: 'Oversized', desc: 'Extended drop-shoulder with raw hem. Unsettling and calm.' }
+    { name: 'Shadow Fit', price: 1499, cost: 820, stock: 4, category: 'compression', fit: 'Compression', desc: '4-way stretch muscle-fit compression shirt. Second-skin feel with maximum mobility.' },
+    { name: 'Oni Muscle Tee', price: 1599, cost: 875, stock: 8, category: 'compression', fit: 'Compression', desc: 'Sleeveless compression with bold contrast panels. For those who train until the mask drops.' },
+    { name: 'Kage Core Compression', price: 1399, cost: 760, stock: 12, category: 'compression', fit: 'Compression', desc: 'Core compression layer — seamless, breathable, built for combat-level intensity.' },
+    { name: 'Rising Vermillion', price: 999, sale: 799, cost: 545, stock: 3, category: 'graphic-tees', fit: 'Regular', desc: 'Heavyweight 220GSM cotton tee. A gradient sky turned crimson.' },
+    { name: 'Blade Wolf', price: 1149, cost: 620, stock: 10, category: 'graphic-tees', fit: 'Regular', desc: 'Silver ink on black — a lone wolf under a crescent moon.' },
+    { name: 'Neon Fangs', price: 1049, cost: 570, stock: 6, category: 'graphic-tees', fit: 'Regular', desc: 'Electric strike — neon clash across heavyweight cotton.' },
+    { name: 'Shinobi Mark', price: 999, cost: 540, stock: 15, category: 'graphic-tees', fit: 'Regular', desc: 'Minimalist shinobi crest. High-contrast placement on premium cotton.' },
+    { name: 'Drift Oversized', price: 1199, cost: 650, stock: 5, category: 'oversized', fit: 'Oversized', desc: 'Drop-shoulder, relaxed fit — heavyweight cotton.' },
+    { name: 'Wrath Silhouette', price: 1249, sale: 1099, cost: 680, stock: 7, category: 'oversized', fit: 'Oversized', desc: 'Boxy, cropped oversized fit. Built for those who take up space.' },
+    { name: 'Hollow Gaze', price: 1149, cost: 625, stock: 9, category: 'oversized', fit: 'Oversized', desc: 'Extended drop-shoulder with raw hem. Unsettling and calm.' }
   ];
 
+  // Every column is a placeholder (no inline literals, no reliance on SQL
+  // DEFAULTs) so seeding produces identical rows on Turso, sql.js AND the
+  // pure-JS in-memory fallback backend.
   const insert = await db.prepare(`
-    INSERT INTO products (name, category, fit, price, sale_price, on_sale, description, sizes, unit_cost)
-    VALUES (?, ?, ?, ?, ?, ?, ?, '["S","M","L","XL","XXL"]', ?)
+    INSERT INTO products (name, category, fit, price, sale_price, on_sale, description, sizes, unit_cost, stock_qty, in_stock)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   // Per-name existence check makes seeding idempotent even if two cold-start
@@ -816,7 +1289,8 @@ async function seedProducts() {
   for (const p of defaults) {
     const exists = await db.prepare('SELECT id FROM products WHERE name = ?').get(p.name);
     if (exists) continue;
-    await insert.run([p.name, p.category, p.fit, p.price, p.sale || null, p.sale ? 1 : 0, p.desc, p.cost]);
+    await insert.run([p.name, p.category, p.fit, p.price, p.sale || null, p.sale ? 1 : 0, p.desc,
+      JSON.stringify(['S', 'M', 'L', 'XL', 'XXL']), p.cost, p.stock, 1]);
     added++;
   }
   await db.save();

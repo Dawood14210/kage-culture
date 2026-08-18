@@ -23,8 +23,8 @@ const ON_VERCEL = !!process.env.VERCEL;
 // Pure-JS in-memory store (no WASM required)
 // Used when sql.js fails (e.g. WASM not found on Vercel).
 // ----------------------------------------------------------------
-let memStore = { admin: [], products: [], orders: [], newsletter_subscribers: [] };
-let memAutoId = { admin: 0, products: 0, orders: 0, newsletter_subscribers: 0 };
+let memStore = { admin: [], products: [], orders: [], newsletter_subscribers: [], customers: [], coming_soon_signups: [] };
+let memAutoId = { admin: 0, products: 0, orders: 0, newsletter_subscribers: 0, coming_soon_signups: 0 };
 
 function memPrepare(sql) {
   const trimmed = sql.trim();
@@ -43,7 +43,10 @@ function memPrepare(sql) {
         const table = extractTableName(upper);
         const rows = memStore[table] || [];
         const filtered = applyWhere(rows, trimmed, args);
-        return filtered[0] || undefined;
+        // Return a COPY of the row — callers (e.g. response mapping) mutate
+        // the object (sizes = JSON.parse(...)); on sql.js/Turso the row is a
+        // fresh object, so the copy keeps the in-memory store uncorrupted.
+        return filtered.length ? { ...filtered[0] } : undefined;
       }
       if (/^\s*SELECT\s+LAST_INSERT_ROWID/i.test(upper)) {
         return { id: memAutoId._last || 0 };
@@ -60,7 +63,8 @@ function memPrepare(sql) {
         const table = extractTableName(upper);
         if (!table) return [];
         const rows = memStore[table] || [];
-        return applyWhere(rows, trimmed, args);
+        // Copies, not live references — see get() above.
+        return applyWhere(rows, trimmed, args).map(r => ({ ...r }));
       }
       return [];
     },
@@ -370,8 +374,21 @@ async function createSchema(exec) {
       in_stock INTEGER DEFAULT 1,
       collections TEXT DEFAULT '[]',
       unit_cost REAL,
+      stock_qty REAL,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await exec(`
+    CREATE TABLE IF NOT EXISTS reviews (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      product_id INTEGER NOT NULL,
+      order_number TEXT NOT NULL,
+      customer_name TEXT NOT NULL DEFAULT '',
+      rating INTEGER NOT NULL,
+      comment TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'pending',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
   await exec(`
@@ -400,6 +417,26 @@ async function createSchema(exec) {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
+  await exec(`
+    CREATE TABLE IF NOT EXISTS customers (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      email TEXT UNIQUE NOT NULL,
+      password_hash TEXT NOT NULL,
+      name TEXT DEFAULT '',
+      phone TEXT DEFAULT '',
+      address TEXT DEFAULT '',
+      city TEXT DEFAULT '',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await exec(`
+    CREATE TABLE IF NOT EXISTS coming_soon_signups (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      email TEXT NOT NULL,
+      category TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
 }
 
 // ----------------------------------------------------------------
@@ -423,6 +460,8 @@ async function doInit() {
       const info = await tursoClient.execute('PRAGMA table_info(products)');
       const hasUnitCost = info.rows.some(r => r.name === 'unit_cost');
       if (!hasUnitCost) await tursoClient.execute('ALTER TABLE products ADD COLUMN unit_cost REAL');
+      const hasStockQty = info.rows.some(r => r.name === 'stock_qty');
+      if (!hasStockQty) await tursoClient.execute('ALTER TABLE products ADD COLUMN stock_qty REAL');
       const hasDrop = info.rows.some(r => r.name === 'drop');
       if (!hasDrop) await tursoClient.execute("ALTER TABLE products ADD COLUMN drop TEXT DEFAULT ''");
       activeBackend = 'turso';
