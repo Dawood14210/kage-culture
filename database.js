@@ -23,8 +23,8 @@ const ON_VERCEL = !!process.env.VERCEL;
 // Pure-JS in-memory store (no WASM required)
 // Used when sql.js fails (e.g. WASM not found on Vercel).
 // ----------------------------------------------------------------
-let memStore = { admin: [], products: [], orders: [], newsletter_subscribers: [], customers: [], coming_soon_signups: [] };
-let memAutoId = { admin: 0, products: 0, orders: 0, newsletter_subscribers: 0, coming_soon_signups: 0 };
+let memStore = { admin: [], products: [], orders: [], newsletter_subscribers: [], customers: [], coming_soon_signups: [], spin_tickets: [], sticker_collection: [] };
+let memAutoId = { admin: 0, products: 0, orders: 0, newsletter_subscribers: 0, coming_soon_signups: 0, spin_tickets: 0, sticker_collection: 0 };
 
 function memPrepare(sql) {
   const trimmed = sql.trim();
@@ -374,7 +374,7 @@ async function createSchema(exec) {
       in_stock INTEGER DEFAULT 1,
       collections TEXT DEFAULT '[]',
       unit_cost REAL,
-      stock_qty REAL,
+      stock_qty INTEGER,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
@@ -402,6 +402,9 @@ async function createSchema(exec) {
       city TEXT NOT NULL,
       notes TEXT,
       payment_method TEXT NOT NULL,
+      payment_ref TEXT DEFAULT NULL,
+      payment_verified INTEGER DEFAULT 0,
+      cod_confirmed INTEGER DEFAULT 0,
       subtotal REAL NOT NULL,
       shipping REAL NOT NULL,
       total REAL NOT NULL,
@@ -437,6 +440,47 @@ async function createSchema(exec) {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
+  await exec(`
+    CREATE TABLE IF NOT EXISTS spin_tickets (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      email TEXT NOT NULL,
+      spins_remaining INTEGER NOT NULL DEFAULT 0,
+      total_spins_earned INTEGER NOT NULL DEFAULT 0,
+      total_spins_used INTEGER NOT NULL DEFAULT 0,
+      total_shirts INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await exec(`
+    CREATE TABLE IF NOT EXISTS sticker_collection (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      email TEXT NOT NULL,
+      animal TEXT NOT NULL,
+      count INTEGER NOT NULL DEFAULT 1,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await exec(`
+    CREATE TABLE IF NOT EXISTS password_reset_tokens (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_type TEXT NOT NULL,
+      user_id INTEGER NOT NULL,
+      token_hash TEXT NOT NULL,
+      expires_at DATETIME NOT NULL,
+      used INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  // --- Performance indexes ---
+  await exec('CREATE INDEX IF NOT EXISTS idx_orders_email ON orders(email)');
+  await exec('CREATE INDEX IF NOT EXISTS idx_orders_order_number ON orders(order_number)');
+  await exec('CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status)');
+  await exec('CREATE INDEX IF NOT EXISTS idx_reviews_product_id ON reviews(product_id)');
+  await exec('CREATE INDEX IF NOT EXISTS idx_reviews_status ON reviews(status)');
+  await exec('CREATE INDEX IF NOT EXISTS idx_products_category ON products(category)');
+  await exec('CREATE INDEX IF NOT EXISTS idx_customers_email ON customers(email)');
+  await exec('CREATE INDEX IF NOT EXISTS idx_spin_tickets_email ON spin_tickets(email)');
+  await exec('CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_hash ON password_reset_tokens(token_hash)');
 }
 
 // ----------------------------------------------------------------
@@ -457,13 +501,34 @@ async function doInit() {
       await initTurso();
       const exec = async (sql) => { await tursoClient.execute(sql); };
       await createSchema(exec);
+      // Products migrations
       const info = await tursoClient.execute('PRAGMA table_info(products)');
       const hasUnitCost = info.rows.some(r => r.name === 'unit_cost');
       if (!hasUnitCost) await tursoClient.execute('ALTER TABLE products ADD COLUMN unit_cost REAL');
-      const hasStockQty = info.rows.some(r => r.name === 'stock_qty');
-      if (!hasStockQty) await tursoClient.execute('ALTER TABLE products ADD COLUMN stock_qty REAL');
       const hasDrop = info.rows.some(r => r.name === 'drop');
-      if (!hasDrop) await tursoClient.execute("ALTER TABLE products ADD COLUMN drop TEXT DEFAULT ''");
+      if (!hasDrop) await tursoClient.execute("ALTER TABLE products ADD COLUMN [drop] TEXT DEFAULT ''");
+      // Orders migrations
+      const orderInfo = await tursoClient.execute('PRAGMA table_info(orders)');
+      const hasPayRef = orderInfo.rows.some(r => r.name === 'payment_ref');
+      if (!hasPayRef) await tursoClient.execute('ALTER TABLE orders ADD COLUMN payment_ref TEXT DEFAULT NULL');
+      const hasPayVerified = orderInfo.rows.some(r => r.name === 'payment_verified');
+      if (!hasPayVerified) await tursoClient.execute('ALTER TABLE orders ADD COLUMN payment_verified INTEGER DEFAULT 0');
+      const hasCodConfirmed = orderInfo.rows.some(r => r.name === 'cod_confirmed');
+      if (!hasCodConfirmed) await tursoClient.execute('ALTER TABLE orders ADD COLUMN cod_confirmed INTEGER DEFAULT 0');
+      // Spin tickets migration
+      const spinInfo = await tursoClient.execute('PRAGMA table_info(spin_tickets)');
+      const hasTotalShirts = spinInfo.rows.some(r => r.name === 'total_shirts');
+      if (!hasTotalShirts) await tursoClient.execute('ALTER TABLE spin_tickets ADD COLUMN total_shirts INTEGER DEFAULT 0');
+      // Create indexes
+      await tursoClient.execute('CREATE INDEX IF NOT EXISTS idx_orders_email ON orders(email)');
+      await tursoClient.execute('CREATE INDEX IF NOT EXISTS idx_orders_order_number ON orders(order_number)');
+      await tursoClient.execute('CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status)');
+      await tursoClient.execute('CREATE INDEX IF NOT EXISTS idx_reviews_product_id ON reviews(product_id)');
+      await tursoClient.execute('CREATE INDEX IF NOT EXISTS idx_reviews_status ON reviews(status)');
+      await tursoClient.execute('CREATE INDEX IF NOT EXISTS idx_products_category ON products(category)');
+      await tursoClient.execute('CREATE INDEX IF NOT EXISTS idx_customers_email ON customers(email)');
+      await tursoClient.execute('CREATE INDEX IF NOT EXISTS idx_spin_tickets_email ON spin_tickets(email)');
+      await tursoClient.execute('CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_hash ON password_reset_tokens(token_hash)');
       activeBackend = 'turso';
       return;
     } catch (e) {

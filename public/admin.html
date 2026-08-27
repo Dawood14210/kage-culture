@@ -51,6 +51,41 @@
       --radius: 12px;
       --radius-sm: 8px;
     }
+
+    /* ===== DARK MODE ===== */
+    [data-theme="dark"] {
+      --bg: #0F1117;
+      --bg-dark: #0F1117;
+      --bg-card: #1A1D27;
+      --bg-sidebar: #14161F;
+      --bg-elevated: #222633;
+      --bg-surface: #1A1D27;
+      --border: #2A2E3B;
+      --border-dark: #2A2E3B;
+      --border-light: #1E2029;
+      --border-subtle: #1E2029;
+      --accent: #34D399;
+      --accent-hover: #6EE7B7;
+      --accent-bg: rgba(52,211,153,0.1);
+      --accent-glow: rgba(52,211,153,0.2);
+      --red: #F87171;
+      --red-hover: #EF4444;
+      --red-dark: #B91C1C;
+      --red-glow: rgba(248,113,113,0.15);
+      --red-subtle: rgba(248,113,113,0.08);
+      --red-bg: rgba(248,113,113,0.08);
+      --white: #FFFFFF;
+      --white-soft: #F0F1F5;
+      --text-primary: #F0F1F5;
+      --text-secondary: #A1A7B5;
+      --text-muted: #6B7280;
+      --text-dim: #4B5563;
+      --green: #34D399;
+      --green-bg: rgba(52,211,153,0.1);
+      --shadow-sm: 0 1px 2px rgba(0,0,0,0.3);
+      --shadow: 0 1px 3px rgba(0,0,0,0.4), 0 1px 2px rgba(0,0,0,0.3);
+      --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.4), 0 2px 4px -1px rgba(0,0,0,0.3);
+    }
     * { margin:0; padding:0; box-sizing:border-box; }
     body {
       font-family: 'Archivo', sans-serif;
@@ -96,12 +131,12 @@
     .login-card input {
       width:100%; padding:0.75rem 0.9rem;
       border:1px solid var(--border-dark);
-      background: var(--bg-elevated); color:var(--white);
+      background: var(--bg-elevated); color:var(--text-primary);
       font-family:'Archivo',sans-serif; font-size:0.9rem;
       margin-bottom:1rem; outline:none; min-height:44px;
       transition: border-color 0.2s, box-shadow 0.2s;
     }
-    .login-card input::placeholder { color:var(--text-dim); }
+    .login-card input::placeholder { color:var(--text-muted); }
     .login-card input:focus {
       border-color:var(--accent);
       box-shadow: 0 0 0 3px var(--accent-glow);
@@ -169,12 +204,12 @@
     .form-grid input, .form-grid select, .form-grid textarea {
       width:100%; padding:0.65rem 0.8rem;
       border:1px solid var(--border-dark);
-      background: var(--bg-elevated); color:var(--white);
+      background: var(--bg-elevated); color:var(--text-primary);
       font-family:'Archivo',sans-serif; font-size:0.85rem;
       outline:none; min-height:44px;
       transition: border-color 0.2s, box-shadow 0.2s;
     }
-    .form-grid select option { background:var(--bg-card); color:var(--white); }
+    .form-grid select option { background:var(--bg-card); color:var(--text-primary); }
     .form-grid input::placeholder, .form-grid textarea::placeholder { color:var(--text-dim); }
     .form-grid input:focus, .form-grid select:focus, .form-grid textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow);}
     }
@@ -364,7 +399,7 @@
     .price-field input {
       flex:1; border:none; outline:none; padding:0.7rem;
       font-family:'Archivo',sans-serif; font-size:1rem; font-weight:600;
-      min-height:46px; width:100%; color:var(--white); background:transparent;
+      min-height:46px; width:100%; color:var(--text-primary); background:transparent;
     }
     .price-field input::placeholder { color:var(--text-dim); }
     .price-field input::-webkit-outer-spin-button,
@@ -677,6 +712,33 @@
       transition:all 0.2s; min-height:38px; white-space:nowrap;
     }
     .btn-action:hover { background:#374151; transform:translateY(-1px); box-shadow:var(--shadow-md); }
+    .btn-store-link {
+      padding:0.5rem 1rem; font-size:0.78rem; font-weight:600;
+      color:var(--accent); text-decoration:none; border:1px solid var(--accent);
+      border-radius:var(--radius-sm); transition:all 0.2s; white-space:nowrap;
+      display:inline-flex; align-items:center; gap:0.3rem;
+    }
+    .btn-store-link:hover { background:var(--accent-bg); color:var(--accent-hover); transform:translateY(-1px); box-shadow:var(--shadow-md); }
+
+    /* Dark mode toggle */
+    .theme-toggle {
+      display:flex; align-items:center; gap:0.5rem;
+      cursor:pointer; user-select:none; position:relative;
+    }
+    .theme-toggle-track {
+      width:40px; height:22px; border-radius:11px;
+      background:var(--border-dark); position:relative;
+      transition:background 0.25s ease;
+    }
+    [data-theme="dark"] .theme-toggle-track { background:var(--accent); }
+    .theme-toggle-thumb {
+      position:absolute; top:2px; left:2px;
+      width:18px; height:18px; border-radius:50%;
+      background:#FFF; box-shadow:0 1px 3px rgba(0,0,0,0.25);
+      transition:transform 0.25s ease;
+    }
+    [data-theme="dark"] .theme-toggle-thumb { transform:translateX(18px); }
+    .theme-toggle-icon { font-size:0.95rem; line-height:1; }
 
     .main-content { flex:1; padding:1.5rem 2rem; }
     .content-section { display:none; animation: fadeIn 0.25s ease; }
@@ -829,6 +891,7 @@
       <label for="loginPassword">Password</label>
       <input type="password" id="loginPassword" placeholder="Enter password" autocomplete="current-password" />
       <button id="loginBtn" onclick="handleLogin()">Sign In</button>
+      <p style="text-align:center;margin-top:0.8rem;font-size:0.78rem;"><a href="#" onclick="requestPasswordReset('admin')" style="color:var(--accent);text-decoration:none;">Forgot password?</a></p>
     </div>
   </div>
 
@@ -855,6 +918,11 @@
       <header class="top-bar">
         <h2 class="top-bar-title" id="sectionTitle">Dashboard</h2>
         <div class="top-bar-right">
+          <a href="/" class="btn-store-link" title="Open storefront">🏪 View Store</a>
+          <div class="theme-toggle" onclick="toggleTheme()" title="Toggle dark mode">
+            <span class="theme-toggle-icon"></span>
+            <div class="theme-toggle-track"><div class="theme-toggle-thumb"></div></div>
+          </div>
           <span class="top-bar-email" id="adminEmailTop"></span>
           <button class="btn-action" onclick="switchSection('add')">+ Add Product</button>
         </div>
@@ -974,9 +1042,9 @@
           <input type="text" id="productSearch" placeholder="Search products by name..." oninput="filterProducts()" />
           <select id="productCategoryFilter" onchange="filterProducts()">
             <option value="">All Categories</option>
-            <option value="compression">Compression</option>
-            <option value="graphic-tees">Graphic Tees</option>
-            <option value="oversized">Oversized</option>
+            <option value="anime">Anime Shirts</option>
+            <option value="streetwear">Streetwear</option>
+            <option value="goofy-wears">Goofy Wears</option>
           </select>
           <button class="filter-clear-btn" onclick="clearProductFilters()">Clear</button>
         </div>
@@ -1042,9 +1110,9 @@
             <div>
               <label>Category *</label>
               <select id="prodCategory" required>
-                <option value="graphic-tees">Graphic Tees</option>
-                <option value="compression">Compression</option>
-                <option value="oversized">Oversized</option>
+                <option value="anime">Anime Shirts</option>
+                <option value="streetwear">Streetwear</option>
+                <option value="goofy-wears">Goofy Wears</option>
               </select>
             </div>
             <div>
@@ -1069,14 +1137,15 @@
               <div style="font-size:0.65rem;color:var(--text-dim);margin-top:0.2rem;">Real inventory count. Drives the "Only N left" urgency badges — leave empty until you've counted stock.</div>
             </div>
             <div class="full-width">
-              <label>Sizes Available</label>
-              <div class="checkbox-group" id="sizeCheckboxes">
-                <label><input type="checkbox" value="S" checked /> S</label>
-                <label><input type="checkbox" value="M" checked /> M</label>
-                <label><input type="checkbox" value="L" checked /> L</label>
-                <label><input type="checkbox" value="XL" checked /> XL</label>
-                <label><input type="checkbox" value="XXL" checked /> XXL</label>
-              </div>
+              <label>Shirt Size (single piece)</label>
+              <select id="prodSize">
+                <option value="S">S</option>
+                <option value="M">M</option>
+                <option value="L" selected>L</option>
+                <option value="XL">XL</option>
+                <option value="XXL">XXL</option>
+              </select>
+              <div style="font-size:0.65rem;color:var(--text-dim);margin-top:0.2rem;">Each shirt is a unique single piece. The size you select is the size the customer will receive — no size picker on the storefront.</div>
             </div>
             <div>
               <label>Back Image (optional)</label>
@@ -1199,6 +1268,25 @@
     let products = [];
     let currentImageFiles = { front: null, back: null };
 
+    // CSRF token helper
+    function getCsrfToken() {
+      const cookies = document.cookie.split(';').map(c => c.trim());
+      const csrfCookie = cookies.find(c => c.startsWith('kage.csrf='));
+      return csrfCookie ? csrfCookie.split('=')[1] : '';
+    }
+
+    // Monkey-patch fetch to add CSRF token to state-changing requests
+    const _origFetch = window.fetch;
+    window.fetch = function(url, opts) {
+      if (opts && opts.method && ['POST','PUT','PATCH','DELETE'].includes(opts.method.toUpperCase())) {
+        opts.headers = opts.headers || {};
+        if (!opts.headers['X-CSRF-Token'] && !opts.headers['x-csrf-token']) {
+          opts.headers['X-CSRF-Token'] = getCsrfToken();
+        }
+      }
+      return _origFetch.call(this, url, opts);
+    };
+
     // Escape user-provided text before injecting into innerHTML (prevents stored XSS)
     function esc(s) {
       return String(s == null ? '' : s)
@@ -1282,6 +1370,22 @@
       document.getElementById('loginPage').style.display = 'flex';
       document.getElementById('dashboard').style.display = 'none';
       isLoggedIn = false;
+    }
+
+    async function requestPasswordReset(userType) {
+      const email = prompt('Enter your email address:');
+      if (!email) return;
+      try {
+        const res = await fetch('/api/auth/forgot-password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: email.trim(), user_type: userType })
+        });
+        const data = await res.json();
+        alert(data.message || 'Check your email for reset instructions.');
+      } catch (err) {
+        alert('Connection error.');
+      }
     }
 
     async function handleLogin() {
@@ -1428,7 +1532,7 @@
 
       products.forEach(p => {
         const thumbSrc = p.front_image || '';
-        const catLabel = { 'compression':'Compression', 'graphic-tees':'Graphic Tees', 'oversized':'Oversized' }[p.category] || p.category;
+        const catLabel = { 'anime':'Anime Shirts', 'streetwear':'Streetwear', 'goofy-wears':'Goofy Wears' }[p.category] || p.category;
         const stockLabel = p.in_stock ? 'In Stock' : 'Sold Out';
         const stockClass = p.in_stock ? 'active' : '';
 
@@ -1511,10 +1615,9 @@
       document.getElementById('prodStockQty').value = (p.stock_qty != null && p.stock_qty !== '') ? p.stock_qty : '';
       document.getElementById('prodDesc').value = p.description || '';
 
-      // Sizes
-      document.querySelectorAll('#sizeCheckboxes input').forEach(cb => {
-        cb.checked = (p.sizes || []).includes(cb.value);
-      });
+      // Size (single piece)
+      const sz = (p.sizes && p.sizes.length) ? p.sizes[0] : 'L';
+      document.getElementById('prodSize').value = sz;
 
       // Show the advanced fields when editing
       document.getElementById('extraFields').classList.add('show');
@@ -1544,7 +1647,7 @@
       document.getElementById('editId').value = '';
       document.getElementById('productForm').reset();
       document.getElementById('extraFields').classList.remove('show');
-      document.getElementById('prodCategory').value = 'graphic-tees';
+      document.getElementById('prodCategory').value = 'anime';
       document.getElementById('prodFit').value = 'Regular';
       document.getElementById('prodUnitCost').value = '';
       document.getElementById('prodStockQty').value = '';
@@ -1556,8 +1659,8 @@
       document.getElementById('formSuccess').style.display = 'none';
       document.getElementById('formError').style.display = 'none';
       currentImageFiles = { front: null, back: null };
-      // Reset checkboxes
-      document.querySelectorAll('#sizeCheckboxes input').forEach(cb => cb.checked = true);
+      // Reset size
+      document.getElementById('prodSize').value = 'L';
     }
 
     // ================================================================
@@ -1697,7 +1800,7 @@
 
       const formData = new FormData();
       formData.append('name', name);
-      formData.append('category', document.getElementById('prodCategory').value || 'graphic-tees');
+      formData.append('category', document.getElementById('prodCategory').value || 'anime');
       formData.append('fit', document.getElementById('prodFit').value.trim() || 'Regular');
       formData.append('price', price);
 
@@ -1712,8 +1815,8 @@
 
       formData.append('description', document.getElementById('prodDesc').value.trim());
 
-      const checkedSizes = [...document.querySelectorAll('#sizeCheckboxes input:checked')].map(cb => cb.value);
-      if (checkedSizes.length) formData.append('sizes', JSON.stringify(checkedSizes));
+      const singleSize = document.getElementById('prodSize').value || 'L';
+      formData.append('sizes', JSON.stringify([singleSize]));
 
       // Picture (compressed to WebP client-side) and back image
       if (formImageBlob) formData.append('front_image', formImageBlob, 'pic-' + Date.now() + '.webp');
@@ -1916,7 +2019,7 @@
 
       const formData = new FormData();
       formData.append('name', productNameFromFile(quickImageName));
-      formData.append('category', 'graphic-tees');
+      formData.append('category', 'anime');
       formData.append('fit', 'Regular');
       formData.append('price', String(price));
       formData.append('front_image', quickImageBlob, 'drop-' + Date.now() + '.webp');
@@ -1997,9 +2100,11 @@
         const items = o.items || [];
         const count = items.reduce((s, i) => s + (i.qty || 1), 0);
         const date = (o.created_at || '').replace('T', ' ').slice(0, 16);
-        const pay = o.payment_method === 'bank' ? 'Bank Transfer' : 'COD';
+        const pay = o.payment_method === 'bank' ? 'Bank Transfer' : o.payment_method === 'jazzcash' ? 'JazzCash' : 'COD';
         const st = (o.status || 'pending').toLowerCase();
-        const statusLabel = { pending:'Pending', confirmed:'Confirmed', shipped:'Shipped', delivered:'Delivered', cancelled:'Cancelled' }[st] || st;
+        const statusLabel = { pending:'Pending', awaiting_verification:'Awaiting Payment', confirmed:'Confirmed', shipped:'Shipped', delivered:'Delivered', cancelled:'Cancelled' }[st] || st;
+        const payRef = o.payment_ref ? `<div class="p-category" style="font-size:0.65rem;color:var(--accent);">Ref: ${esc(o.payment_ref)}</div>` : '';
+        const codBadge = o.payment_method === 'cod' && o.cod_confirmed ? '<div class="p-category" style="font-size:0.62rem;color:var(--green);">✓ COD Confirmed</div>' : '';
         html += `
           <div class="product-row order-row">
             <div>
@@ -2012,12 +2117,14 @@
             </div>
             <div class="p-category">${count} item${count === 1 ? '' : 's'}</div>
             <div class="p-price">Rs. ${o.total}</div>
-            <div class="p-category">${pay}</div>
+            <div class="p-category">${pay}${payRef}${codBadge}</div>
             <div class="status-cell">
               <span class="status-badge status-${st}">${statusLabel}</span>
               <div class="status-dropdown">
                 <button class="status-dropdown-btn" onclick="toggleStatusDropdown(this)" aria-label="Change status">▾</button>
                 <div class="status-dropdown-menu">
+                  <button onclick="verifyPayment(${o.id}, true)" class="status-opt status-opt-confirmed">✓ Verify Payment</button>
+                  ${o.payment_method === 'cod' ? `<button onclick="codConfirm(${o.id}, true)" class="status-opt status-opt-delivered">💰 COD Confirmed</button>` : ''}
                   <button onclick="updateOrderStatus(${o.id},'confirmed')" class="status-opt status-opt-confirmed">✓ Confirm</button>
                   <button onclick="updateOrderStatus(${o.id},'shipped')" class="status-opt status-opt-shipped">📦 Mark Shipped</button>
                   <button onclick="updateOrderStatus(${o.id},'delivered')" class="status-opt status-opt-delivered">✓ Delivered</button>
@@ -2058,6 +2165,52 @@
         } else {
           const data = await res.json();
           alert(data.error || 'Failed to update status.');
+        }
+      } catch (err) {
+        alert('Connection error.');
+      } finally {
+        updatingOrder = false;
+      }
+    }
+
+    async function verifyPayment(id, verified) {
+      if (updatingOrder) return;
+      updatingOrder = true;
+      document.querySelectorAll('.status-dropdown-menu.open').forEach(m => m.classList.remove('open'));
+      try {
+        const res = await fetch('/api/orders/' + id + '/verify-payment', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': getCsrfToken() },
+          body: JSON.stringify({ verified })
+        });
+        if (res.ok) {
+          loadOrders();
+        } else {
+          const data = await res.json();
+          alert(data.error || 'Failed to verify payment.');
+        }
+      } catch (err) {
+        alert('Connection error.');
+      } finally {
+        updatingOrder = false;
+      }
+    }
+
+    async function codConfirm(id, confirmed) {
+      if (updatingOrder) return;
+      updatingOrder = true;
+      document.querySelectorAll('.status-dropdown-menu.open').forEach(m => m.classList.remove('open'));
+      try {
+        const res = await fetch('/api/orders/' + id + '/cod-confirm', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': getCsrfToken() },
+          body: JSON.stringify({ confirmed })
+        });
+        if (res.ok) {
+          loadOrders();
+        } else {
+          const data = await res.json();
+          alert(data.error || 'Failed to confirm COD.');
         }
       } catch (err) {
         alert('Connection error.');
@@ -2312,6 +2465,34 @@
         // Non-fatal: leave the chart empty rather than breaking the tab
       }
     }
+
+    // ================================================================
+    // DARK MODE TOGGLE
+    // ================================================================
+    function toggleTheme() {
+      const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+      if (isDark) {
+        document.documentElement.removeAttribute('data-theme');
+        localStorage.setItem('kage-admin-theme', 'light');
+      } else {
+        document.documentElement.setAttribute('data-theme', 'dark');
+        localStorage.setItem('kage-admin-theme', 'dark');
+      }
+      updateThemeIcon();
+      const meta = document.querySelector('meta[name="theme-color"]');
+      if (meta) meta.content = isDark ? '#F3F4F6' : '#0F1117';
+    }
+    function updateThemeIcon() {
+      const icon = document.querySelector('.theme-toggle-icon');
+      if (!icon) return;
+      icon.textContent = document.documentElement.getAttribute('data-theme') === 'dark' ? '\u263E' : '\u2600';
+    }
+    // Restore saved theme + icon on load
+    (function() {
+      const saved = localStorage.getItem('kage-admin-theme');
+      if (saved === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
+      document.addEventListener('DOMContentLoaded', updateThemeIcon);
+    })();
 
     // ================================================================
     // TABS

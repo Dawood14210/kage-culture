@@ -1,0 +1,166 @@
+// ================================================================
+// KAGE Culture — Order routes
+// ================================================================
+const express = require('express');
+const config = require('../config');
+const { requireCsrf } = require('../middleware/csrf');
+const { requireAuth, requireCustomerAuth } = require('../middleware/auth');
+const { orderLimiter } = require('../middleware/rateLimit');
+const { sendOrderConfirmation, sendStatusUpdate } = require('../utils/email');
+
+module.exports = function createOrderRoutes(db) {
+  const router = express.Router();
+  const normPhone = (s) => String(s || '').replace(/\D/g, '').slice(-10);
+
+  // POST place order (public)
+  router.post('/api/orders', orderLimiter, requireCsrf, async (req, res) => {
+    try {
+      const { name, email, phone, address, city, notes, payment_method, payment_ref, items } = req.body;
+      if (!name || !email || !phone || !address || !city) return res.status(400).json({ error: 'Name, email, phone, address and city are required.' });
+      if (!items || !Array.isArray(items) || items.length === 0) return res.status(400).json({ error: 'Your cart is empty.' });
+      const method = payment_method === 'bank' ? 'bank' : payment_method === 'jazzcash' ? 'jazzcash' : 'cod';
+      if ((method === 'jazzcash' || method === 'bank') && !payment_ref) return res.status(400).json({ error: 'Payment reference number is required for JazzCash/Bank Transfer.' });
+
+      const lineItems = []; const skipped = []; let subtotal = 0;
+      for (const it of items) {
+        const id = parseInt(it.id, 10); const qty = Math.min(99, Math.max(1, parseInt(it.qty, 10) || 1)); const size = String(it.size || '').slice(0, 10);
+        const p = await db.prepare('SELECT * FROM products WHERE id = ?').get(id);
+        if (!p || !p.in_stock) { skipped.push(it); continue; }
+        const stock = (p.stock_qty != null && p.stock_qty !== '') ? Number(p.stock_qty) : null;
+        if (stock != null && qty > stock) return res.status(400).json({ error: `Only ${stock} ${stock === 1 ? 'unit' : 'units'} of "${p.name}" left in stock. Please reduce the quantity.` });
+        const unit = (p.sale_price && p.sale_price < p.price) ? p.sale_price : p.price; const lineTotal = unit * qty;
+        const unitCost = (p.unit_cost && p.unit_cost > 0) ? p.unit_cost : Math.round(unit * 0.55);
+        subtotal += lineTotal;
+        lineItems.push({ id: p.id, name: p.name, size, qty, unit: Math.round(unit), total: Math.round(lineTotal), cost: Math.round(unitCost) * qty, image: p.front_image || null, stock });
+      }
+      if (skipped.length > 0) return res.status(400).json({ error: 'Some items in your cart are unavailable or out of stock. Please review your cart.' });
+      if (lineItems.length === 0) return res.status(400).json({ error: 'Your cart is empty.' });
+
+      const shipping = config.SHIPPING_COST; const total = Math.round(subtotal) + shipping;
+      let orderNumber;
+      do { orderNumber = 'KAGE-' + Math.random().toString(36).replace(/[^a-z0-9]/g, '').slice(2, 10).toUpperCase().padEnd(8, 'Z'); } while (await db.prepare('SELECT id FROM orders WHERE order_number = ?').get(orderNumber));
+      const now = new Date().toISOString().replace('T', ' ').slice(0, 19);
+      const initialStatus = method === 'cod' ? 'pending' : 'awaiting_verification';
+      const result = await db.prepare('INSERT INTO orders (order_number, customer_name, email, phone, address, city, notes, payment_method, payment_ref, subtotal, shipping, total, items_json, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(orderNumber, String(name).slice(0, 120), String(email).slice(0, 160), String(phone).slice(0, 40), String(address).slice(0, 300), String(city).slice(0, 120), String(notes || '').slice(0, 500), method, String(payment_ref || '').slice(0, 100) || null, Math.round(subtotal), shipping, total, JSON.stringify(lineItems), initialStatus, now);
+
+      for (const it of lineItems) { if (it.stock == null) continue; const newStock = Math.max(0, it.stock - it.qty); await db.prepare('UPDATE products SET stock_qty = ? WHERE id = ?').run(newStock, it.id); if (newStock === 0) await db.prepare('UPDATE products SET in_stock = ? WHERE id = ?').run(0, it.id); }
+
+      const order = await db.prepare('SELECT * FROM orders WHERE id = ?').get(result.lastInsertRowid);
+      order.items = JSON.parse(order.items_json || '[]');
+
+      let totalShirts = 0;
+      try { const allOrders = await db.prepare('SELECT items_json FROM orders WHERE email = ?').all(String(email).toLowerCase()); for (const o of allOrders) { const itms = JSON.parse(o.items_json || '[]'); for (const it of itms) { totalShirts += (it.qty || 0); } } } catch (_) {}
+      const clanEligible = totalShirts >= config.CLAN_THRESHOLD;
+      const alreadyMember = !!(await db.prepare('SELECT id FROM newsletter_subscribers WHERE email = ?').get(String(email).toLowerCase()));
+
+      res.status(201).json({ order_number: order.order_number, customer_name: order.customer_name, email: order.email, phone: order.phone, address: order.address, city: order.city, notes: order.notes, payment_method: order.payment_method, payment_ref: order.payment_ref, subtotal: order.subtotal, shipping: order.shipping, total: order.total, items: order.items, status: order.status, created_at: order.created_at, total_shirts: totalShirts, clan_eligible: clanEligible, clan_member: alreadyMember });
+      sendOrderConfirmation({ ...order, items: order.items }).catch(e => console.error('Order confirmation email failed:', e.message));
+    } catch (err) { res.status(500).json({ error: err.message }); }
+  });
+
+  // GET track order (public)
+  router.get('/api/orders/track', async (req, res) => {
+    try {
+      const { number, phone } = req.query;
+      if (!number || !phone) return res.status(400).json({ error: 'Order number and phone are required.' });
+      const order = await db.prepare('SELECT * FROM orders WHERE order_number = ?').get(String(number).trim().toUpperCase());
+      if (!order || normPhone(order.phone) !== normPhone(phone)) return res.status(404).json({ error: "We couldn't find an order with that number and phone." });
+      const { email, address, notes, items_json, ...safe } = order; safe.items = JSON.parse(order.items_json || '[]'); res.json(safe);
+    } catch (err) { res.status(500).json({ error: err.message }); }
+  });
+
+  // GET single order (public)
+  router.get('/api/orders/:orderNumber', async (req, res) => {
+    try {
+      const order = await db.prepare('SELECT * FROM orders WHERE order_number = ?').get(req.params.orderNumber);
+      if (!order) return res.status(404).json({ error: 'Order not found' });
+      const { email, phone, notes, items_json, ...safe } = order; safe.items = JSON.parse(order.items_json || '[]'); res.json(safe);
+    } catch (err) { res.status(500).json({ error: err.message }); }
+  });
+
+  // GET all orders (admin only) — supports search
+  router.get('/api/orders', requireAuth, async (req, res) => {
+    try {
+      const { search, status } = req.query;
+      let orders;
+      if (search && search.trim()) {
+        const q = '%' + search.trim().toLowerCase() + '%';
+        orders = await db.prepare("SELECT * FROM orders WHERE LOWER(customer_name) LIKE ? OR LOWER(email) LIKE ? OR LOWER(order_number) LIKE ? ORDER BY created_at DESC, id DESC").all(q, q, q);
+      } else if (status && status.trim()) {
+        orders = await db.prepare('SELECT * FROM orders WHERE status = ? ORDER BY created_at DESC, id DESC').all(status.trim());
+      } else {
+        orders = await db.prepare('SELECT * FROM orders ORDER BY created_at DESC, id DESC').all();
+      }
+      orders.forEach(o => { o.items = JSON.parse(o.items_json || '[]'); }); res.json(orders);
+    } catch (err) { res.status(500).json({ error: err.message }); }
+  });
+
+  // GET CSV export (admin only)
+  router.get('/api/orders/export/csv', requireAuth, async (req, res) => {
+    try {
+      const { status } = req.query;
+      let orders = status && status.trim() ? await db.prepare('SELECT * FROM orders WHERE status = ? ORDER BY created_at DESC, id DESC').all(status.trim()) : await db.prepare('SELECT * FROM orders ORDER BY created_at DESC, id DESC').all();
+      const header = 'Order Number,Customer Name,Email,Phone,Address,City,Payment Method,Payment Reference,COD Confirmed,Subtotal,Shipping,Total,Status,Created At\n';
+      const rows = orders.map(o => [o.order_number, `"${String(o.customer_name || '').replace(/"/g, '""')}"`, o.email, o.phone, `"${String(o.address || '').replace(/"/g, '""')}"`, o.city, o.payment_method, o.payment_ref || '', o.cod_confirmed ? 'Yes' : 'No', o.subtotal, o.shipping, o.total, o.status, o.created_at].join(',')).join('\n');
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', `attachment; filename="kage-orders-${new Date().toISOString().slice(0,10)}.csv"`);
+      res.send(header + rows);
+    } catch (err) { res.status(500).json({ error: err.message }); }
+  });
+
+  // PATCH update order status (admin only)
+  router.patch('/api/orders/:id/status', requireCsrf, requireAuth, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id, 10); if (isNaN(id)) return res.status(400).json({ error: 'Invalid order ID' });
+      const { status } = req.body;
+      if (!config.ORDER_STATUSES.includes(status)) return res.status(400).json({ error: 'Invalid status. Allowed: ' + config.ORDER_STATUSES.join(', ') });
+      const order = await db.prepare('SELECT * FROM orders WHERE id = ?').get(id);
+      if (!order) return res.status(404).json({ error: 'Order not found' });
+      if (status === 'cancelled' && order.status !== 'cancelled') {
+        let items = []; try { items = JSON.parse(order.items_json || '[]'); } catch (e) { items = []; }
+        for (const it of items) { const p = await db.prepare('SELECT id, stock_qty FROM products WHERE id = ?').get(it.id); if (!p || p.stock_qty == null) continue; await db.prepare('UPDATE products SET stock_qty = ?, in_stock = ? WHERE id = ?').run(Number(p.stock_qty) + (Number(it.qty) || 1), 1, it.id); }
+      }
+      const oldStatus = order.status;
+      await db.prepare('UPDATE orders SET status = ? WHERE id = ?').run(status, id);
+      const updated = await db.prepare('SELECT * FROM orders WHERE id = ?').get(id);
+      updated.items = JSON.parse(updated.items_json || '[]');
+      if (oldStatus !== status) sendStatusUpdate({ ...updated, items: updated.items }, oldStatus).catch(e => console.error('Status email failed:', e.message));
+      res.json(updated);
+    } catch (err) { res.status(500).json({ error: err.message }); }
+  });
+
+  // PATCH mark payment verified (admin only)
+  router.patch('/api/orders/:id/verify-payment', requireCsrf, requireAuth, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id, 10); if (isNaN(id)) return res.status(400).json({ error: 'Invalid order ID' });
+      const order = await db.prepare('SELECT * FROM orders WHERE id = ?').get(id);
+      if (!order) return res.status(404).json({ error: 'Order not found' });
+      await db.prepare('UPDATE orders SET payment_verified = ? WHERE id = ?').run(req.body.verified !== false ? 1 : 0, id);
+      const updated = await db.prepare('SELECT * FROM orders WHERE id = ?').get(id); updated.items = JSON.parse(updated.items_json || '[]'); res.json(updated);
+    } catch (err) { res.status(500).json({ error: err.message }); }
+  });
+
+  // PATCH confirm COD payment (admin only)
+  router.patch('/api/orders/:id/cod-confirm', requireCsrf, requireAuth, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id, 10); if (isNaN(id)) return res.status(400).json({ error: 'Invalid order ID' });
+      const order = await db.prepare('SELECT * FROM orders WHERE id = ?').get(id);
+      if (!order) return res.status(404).json({ error: 'Order not found' });
+      if (order.payment_method !== 'cod') return res.status(400).json({ error: 'This order is not a COD order.' });
+      await db.prepare('UPDATE orders SET cod_confirmed = ? WHERE id = ?').run(req.body.confirmed !== false ? 1 : 0, id);
+      const updated = await db.prepare('SELECT * FROM orders WHERE id = ?').get(id); updated.items = JSON.parse(updated.items_json || '[]'); res.json(updated);
+    } catch (err) { res.status(500).json({ error: err.message }); }
+  });
+
+  // GET customer order history
+  router.get('/api/customers/orders', requireCustomerAuth, async (req, res) => {
+    try {
+      const customer = await db.prepare('SELECT email, phone FROM customers WHERE id = ?').get(req.customerId);
+      if (!customer) return res.status(404).json({ error: 'Account not found.' });
+      const orders = await db.prepare('SELECT * FROM orders WHERE email = ? OR phone = ? ORDER BY created_at DESC, id DESC').all(customer.email, customer.phone);
+      orders.forEach(o => { o.items = JSON.parse(o.items_json || '[]'); }); res.json({ orders });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+  });
+
+  return router;
+};

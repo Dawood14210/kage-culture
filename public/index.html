@@ -10,11 +10,14 @@
   <meta name="keywords" content="streetwear, anime, graphic tees, oversized, compression, KAGE, culture, Pakistan" />
   <meta name="author" content="KAGE Culture" />
 
+  <!-- Canonical -->
+  <link rel="canonical" href="https://kage-culture.vercel.app" />
+
   <!-- Open Graph -->
   <meta property="og:type" content="website" />
   <meta property="og:title" content="KAGE Culture — Engineered Fit. Original Art." />
   <meta property="og:description" content="Premium streetwear. Anime inspired. Built for everyday." />
-  <meta property="og:image" content="/images/icon-512.png" />
+  <meta property="og:image" content="/images/animal-white-tiger.jpg" />
   <meta property="og:url" content="https://kage-culture.vercel.app" />
   <meta property="og:site_name" content="KAGE Culture" />
 
@@ -22,7 +25,7 @@
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="KAGE Culture — Engineered Fit. Original Art." />
   <meta name="twitter:description" content="Premium streetwear. Anime inspired. Built for everyday." />
-  <meta name="twitter:image" content="/images/icon-512.png" />
+  <meta name="twitter:image" content="/images/animal-white-tiger.jpg" />
 
   <!-- Favicon -->
   <link rel="icon" href="/favicon.ico" sizes="any" />
@@ -33,6 +36,21 @@
   <meta name="theme-color" content="#D9D4C8" />
   <meta name="msapplication-TileColor" content="#4A4433" />
   <meta name="msapplication-TileImage" content="/images/icon-192.png" />
+
+  <!-- JSON-LD Structured Data -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    "name": "KAGE Culture",
+    "url": "https://kage-culture.vercel.app",
+    "logo": "https://kage-culture.vercel.app/images/icon-512.png",
+    "description": "Premium streetwear. Anime inspired. Built for everyday.",
+    "sameAs": [
+      "https://www.instagram.com/kageculture"
+    ]
+  }
+  </script>
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -60,8 +78,8 @@
       --accent-glow: rgba(74,68,51,0.12);
       --text-primary: #1A1815;
       --text-secondary: #3D3931;
-      --text-muted: #7A7468;
-      --text-dim: #9C968A;
+      --text-muted: #5C564C;
+      --text-dim: #504C47;
       --text-gray: #8A8578;
       --font-display: 'Archivo', sans-serif;
       --font-body: 'Archivo', sans-serif;
@@ -91,6 +109,22 @@
 
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
     html { scroll-behavior: smooth; }
+
+    /* Skip-to-content link — hidden until focused via keyboard */
+    .skip-link {
+      position: absolute;
+      top: -40px;
+      left: 0;
+      background: var(--accent, #4A4433);
+      color: #fff;
+      padding: 8px 16px;
+      z-index: 10000;
+      transition: top 0.3s;
+      font-size: 0.85rem;
+      text-decoration: none;
+    }
+    .skip-link:focus { top: 0; }
+
     body {
       background: var(--bg-primary);
       color: var(--text-primary);
@@ -284,7 +318,7 @@
     .nav-links a:hover::after { width: 100%; }
     .nav-links a.active { color: var(--text-primary); }
     .nav-links a.active::after { width: 100%; }
-    .nav-links a.nav-sale { color: var(--accent); font-weight: 700; }
+
 
     .nav-icons { display: flex; align-items: center; gap: var(--spacing-xs); }
     .nav-icon {
@@ -817,77 +851,7 @@
     /* ================================================================
        FLASH DEAL BANNER
        ================================================================ */
-    .section-flash {
-      position: relative;
-      padding: var(--spacing-2xl) 0;
-      overflow: hidden;
-      background: var(--bg-secondary);
-    }      .flash-bg {
-      position: absolute;
-      inset: 0;
-      background: radial-gradient(ellipse at 30% 50%, rgba(74,68,51,0.16) 0%, transparent 60%),
-                  radial-gradient(ellipse at 70% 30%, rgba(74,68,51,0.09) 0%, transparent 50%);
-      pointer-events: none;
-    }
-    .flash-content {
-      position: relative;
-      z-index: 1;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: var(--spacing-lg);
-    }
-    .flash-text { flex: 1; }
-    .flash-label {
-      font-size: 0.65rem;
-      font-weight: 700;
-      letter-spacing: 0.2em;
-      text-transform: uppercase;
-      color: var(--accent);
-      margin-bottom: var(--spacing-sm);
-    }
-    .flash-title {
-      font-family: var(--font-display);
-      font-size: clamp(2rem, 5vw, 3.5rem);
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
-      line-height: 1;
-    }
-    .flash-title span { color: var(--accent); }
-    .flash-countdown {
-      display: flex;
-      gap: var(--spacing-sm);
-      margin-top: var(--spacing-md);
-    }
-    .flash-countdown .countdown-unit {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 0.2rem;
-    }
-    .flash-countdown .countdown-num {
-      font-family: var(--font-display);
-      font-size: 1.8rem;
-      color: var(--text-primary);
-      background: var(--bg-card);
-      width: 56px;
-      height: 56px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      border-radius: var(--radius-sm);
-      border: 1px solid var(--border-color);
-    }
-    .flash-countdown .countdown-label {
-      font-size: 0.55rem;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-      color: var(--text-muted);
-    }
-    @media (max-width: 768px) {
-      .flash-content { flex-direction: column; text-align: center; }
-      .flash-countdown { justify-content: center; }
-    }
+
 
     /* ================================================================
        WHY KAGE — ICON ROW
@@ -1725,7 +1689,6 @@
        NAV SEARCH / SALE LINK / MOBILE SEARCH
        ================================================================ */
     .nav-links { gap: 1.25rem; }
-    .nav-links a.nav-sale { color: var(--accent); font-weight: 700; }
     .nav-links a.active { color: var(--text-primary); }
 
     .nav-search {
@@ -1758,6 +1721,8 @@
       pointer-events: none;
     }
     .mobile-search { display: none; }
+    .mobile-icons-row { display: none; }
+    .mobile-icons-row .nav-icon { min-width: 44px; min-height: 44px; }
     .mobile-search input {
       width: 100%;
       min-height: 44px;
@@ -1805,58 +1770,7 @@
       pointer-events: none;
     }
 
-    /* CTAs — bottom-left */
-    .hero-ctas {
-      position: absolute;
-      bottom: 11%;
-      left: 5%;
-      z-index: 3;
-      display: flex;
-      align-items: center;
-      gap: var(--spacing-lg);
-    }
-    .hero-cta {
-      font-family: var(--font-body);
-      font-weight: 800;
-      font-size: 0.72rem;
-      letter-spacing: 0.14em;
-      text-transform: uppercase;
-      cursor: pointer;
-      min-height: 48px;
-      transition: all var(--transition-med);
-    }
-    .hero-cta-primary {
-      background: var(--text-primary);
-      color: #FFF;
-      border: 2px solid var(--text-primary);
-      padding: 0.95rem 2.4rem;
-      box-shadow: 0 6px 20px rgba(16,16,16,0.18);
-    }
-    .hero-cta-primary:hover {
-      background: #0A0A0A;
-      border-color: #0A0A0A;
-      transform: translateY(-2px);
-      box-shadow: 0 10px 30px rgba(16,16,16,0.26);
-    }
 
-    /* Secondary CTA — clean white text link with arrow */
-    .hero-cta-secondary {
-      background: transparent;
-      border: none;
-      color: #FFF;
-      padding: 0.95rem 0.2rem;
-      border-bottom: 1px solid rgba(255,255,255,0.9);
-      text-shadow: 0 1px 6px rgba(16,15,13,0.45);
-    }
-    .hero-cta-secondary::after {
-      content: '→';
-      margin-left: 0.5rem;
-      transition: transform var(--transition-fast);
-    }
-    .hero-cta-secondary:hover::after {
-      transform: translateX(4px);
-    }
-    .hero-cta:active { transform: scale(0.96); }
 
     /* Discreet admin entry point in the nav — never part of the hero */
     .nav-links a.nav-admin {
@@ -1867,11 +1781,7 @@
     .nav-links a.nav-admin:hover { color: var(--accent); }
     .nav-links a.nav-admin::after { display: none; }
 
-    @media (max-width: 768px) {
-      .hero-ctas { bottom: 6%; left: 4%; gap: var(--spacing-md); }
-      .hero-cta-primary { padding: 0.7rem 1.5rem; font-size: 0.64rem; min-height: 42px; }
-      .hero-cta-secondary { padding: 0.7rem 0.15rem; font-size: 0.64rem; }
-    }
+
 
     /* Admin login modal */
     .admin-login-overlay {
@@ -2318,7 +2228,6 @@
        ENHANCED BUTTON PRESS EFFECT
        ================================================================ */
     .btn:active,
-    .hero-cta:active,
     .quick-add:active,
     .size-btn:active,
     .qty-btn:active {
@@ -2385,7 +2294,13 @@
     .qty-btn:focus-visible,
     .nav-links a:focus-visible,
     .cat-tile:focus-visible,
-    .product-card:focus-visible {
+    .product-card:focus-visible,
+    .nav-icon:focus-visible,
+    .hamburger:focus-visible,
+    input:focus-visible,
+    select:focus-visible,
+    textarea:focus-visible,
+    a:focus-visible {
       outline: 2px solid var(--accent);
       outline-offset: 2px;
     }
@@ -2424,10 +2339,18 @@
       color: var(--text-muted);
       transition: all var(--transition-fast);
     }
-    .social-icon:hover { color: var(--accent); border-color: var(--accent); transform: translateY(-2px); }
+    .social-icon:hover { transform: translateY(-2px); }
     .social-icon svg { width: 18px; height: 18px; fill: currentColor; }
+    .social-instagram { color: #E1306C; border-color: #E1306C; }
+    .social-instagram:hover { background: rgba(225,48,108,0.1); box-shadow: 0 0 12px rgba(225,48,108,0.25); }
+    .social-snapchat { color: #FFFC00; border-color: #FFD000; }
+    .social-snapchat:hover { background: rgba(255,252,0,0.12); box-shadow: 0 0 12px rgba(255,252,0,0.25); }
+    .social-email { color: #4285F4; border-color: #4285F4; }
+    .social-email:hover { background: rgba(66,133,244,0.1); box-shadow: 0 0 12px rgba(66,133,244,0.25); }
+    .social-etsy { color: #F56400; border-color: #F56400; }
+    .social-etsy:hover { background: rgba(245,100,0,0.1); box-shadow: 0 0 12px rgba(245,100,0,0.25); }
     .social-whatsapp { color: #25D366; border-color: #25D366; }
-    .social-whatsapp:hover { color: #128C7E; border-color: #128C7E; background: rgba(37,211,102,0.1); }
+    .social-whatsapp:hover { color: #128C7E; border-color: #128C7E; background: rgba(37,211,102,0.1); box-shadow: 0 0 12px rgba(37,211,102,0.25); }
 
     /* ================================================================
        FLOATING WHATSAPP BUTTON
@@ -2531,9 +2454,11 @@
       }
       .nav-links.open { display: flex; }
       .nav-links a { padding: 12px 0; min-height: 48px; width: 100%; display: flex; align-items: center; font-size: 0.85rem; }
-      .hamburger { display: flex; }
+      .hamburger { display: flex; margin: 0; padding: 10px; border-right: none; order: 2; }
       .nav-search { display: none; }
+      .nav-icons { display: none; }
       .mobile-search { display: block; }
+      .mobile-icons-row { display: flex; align-items: center; gap: var(--spacing-md); padding-top: var(--spacing-md); margin-top: var(--spacing-sm); border-top: 1px solid var(--border-color); justify-content: center; }
       .hero-tile:nth-child(n+4) { display: none; }
 
       .category-strip { grid-template-columns: 1fr; }
@@ -2661,10 +2586,459 @@
     .confirm-next p { font-size: 0.78rem; color: var(--text-muted); margin-bottom: var(--spacing-md); }
     .confirm-next .btn { width: 100%; }
 
+    /* ================================================================
+       KAGE CLAN SPIN-THE-WHEEL POPUP
+       ================================================================ */
+    .clan-popup-overlay {
+      display:none; position:fixed; inset:0; z-index:9999;
+      background:rgba(0,0,0,0.72); backdrop-filter:blur(8px);
+      align-items:center; justify-content:center;
+      padding:1rem;
+      animation: clanFadeIn 0.3s ease;
+    }
+    .clan-popup-overlay.show { display:flex; }
+    @keyframes clanFadeIn { from{opacity:0} to{opacity:1} }
+    .clan-popup {
+      background:var(--bg-panel); border:1px solid var(--border-color);
+      border-radius:20px; max-width:520px; width:100%;
+      padding:2.5rem 2rem; text-align:center; position:relative;
+      animation: clanSlideUp 0.4s cubic-bezier(0.22,1,0.36,1);
+      box-shadow:0 25px 60px rgba(0,0,0,0.3);
+      max-height:90vh; overflow-y:auto;
+    }
+    @keyframes clanSlideUp { from{transform:translateY(40px);opacity:0} to{transform:translateY(0);opacity:1} }
+    .clan-popup-close {
+      position:absolute; top:1rem; right:1rem;
+      width:32px; height:32px; border-radius:50%; border:none;
+      background:rgba(0,0,0,0.06); color:var(--text-muted);
+      font-size:1rem; cursor:pointer; display:flex; align-items:center;
+      justify-content:center; transition:all 0.15s; z-index:2;
+    }
+    .clan-popup-close:hover { background:rgba(0,0,0,0.12); color:var(--text-primary); }
+    .clan-popup-icon {
+      width:80px; height:80px; margin:0 auto 1.2rem;
+      border-radius:50%; background:var(--accent); color:#FFF;
+      display:flex; align-items:center; justify-content:center;
+      font-size:2.2rem; box-shadow:0 8px 24px rgba(74,68,51,0.25);
+    }
+    .clan-popup-title {
+      font-size:1.1rem; font-weight:800; text-transform:uppercase;
+      letter-spacing:0.08em; margin-bottom:0.3rem;
+    }
+    .clan-popup-subtitle {
+      font-size:0.78rem; color:var(--text-muted); margin-bottom:1.2rem;
+    }
+    /* Spin rules section */
+    .spin-rules {
+      text-align:left; margin-bottom:1.5rem;
+    }
+    .spin-rules-title {
+      font-size:0.72rem; font-weight:700; text-transform:uppercase;
+      letter-spacing:0.1em; color:var(--accent); margin-bottom:0.6rem;
+    }
+    .spin-rules p {
+      font-size:0.76rem; color:var(--text-secondary); line-height:1.6;
+      margin-bottom:0.5rem;
+    }
+    .spin-rules p:last-child { margin-bottom:0; }
+    .spin-rules strong { color:var(--text-primary); }
+    /* Spin wheel */
+    .spin-wheel-wrap {
+      margin:1.2rem auto; position:relative; width:280px; height:280px;
+    }
+    .spin-wheel-pointer {
+      position:absolute; top:-12px; left:50%; transform:translateX(-50%);
+      width:0; height:0; z-index:3;
+      border-left:14px solid transparent; border-right:14px solid transparent;
+      border-top:22px solid var(--accent);
+      filter:drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+    }
+    .spin-wheel {
+      width:280px; height:280px; border-radius:50%; position:relative;
+      border:4px solid var(--accent); overflow:hidden;
+      transition: transform 4s cubic-bezier(0.17, 0.67, 0.12, 0.99);
+      box-shadow:0 0 0 8px var(--bg-panel), 0 0 0 10px var(--border-color), 0 10px 40px rgba(0,0,0,0.2);
+    }
+    .spin-wheel.sector {
+      display:block; width:100%; height:100%; position:absolute; top:0; left:0;
+    }
+    .spin-wheel.sector svg { width:100%; height:100%; }
+    .spin-wheel-animal-label {
+      position:absolute; font-size:0.65rem; font-weight:800;
+      text-transform:uppercase; letter-spacing:0.08em;
+      color:#FFF; text-shadow:0 1px 4px rgba(0,0,0,0.5);
+      pointer-events:none;
+    }
+    .spin-center {
+      position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+      width:56px; height:56px; border-radius:50%;
+      background:var(--accent); border:3px solid var(--bg-panel);
+      display:flex; align-items:center; justify-content:center;
+      font-size:1.4rem; z-index:2;
+      box-shadow:0 4px 12px rgba(0,0,0,0.3);
+    }
+    /* Spin button */
+    .spin-btn {
+      display:inline-flex; align-items:center; justify-content:center;
+      gap:0.5rem; padding:0.9rem 2rem; border:none; border-radius:12px;
+      background:var(--accent); color:#FFF; font-size:0.85rem;
+      font-weight:800; letter-spacing:0.06em; text-transform:uppercase;
+      cursor:pointer; transition:all 0.2s; margin-top:1rem;
+    }
+    .spin-btn:hover { transform:translateY(-1px); box-shadow:0 6px 20px rgba(74,68,51,0.3); }
+    .spin-btn:disabled { opacity:0.5; cursor:default; transform:none; box-shadow:none; }
+    .spin-btn.respin {
+      background:transparent; border:2px solid var(--accent); color:var(--accent);
+      margin-left:0.5rem;
+    }
+    .spin-btn.respin:hover { background:var(--accent); color:#FFF; }
+    /* Sticker collection grid */
+    .sticker-grid {
+      display:flex; justify-content:center; gap:1rem;
+      margin:1rem 0; flex-wrap:wrap;
+    }
+    .sticker-slot {
+      width:60px; height:72px; border-radius:12px; text-align:center;
+      border:2px dashed var(--border-color); display:flex; flex-direction:column;
+      align-items:center; justify-content:center; gap:0.2rem;
+      transition:all 0.3s; background:rgba(0,0,0,0.02);
+      opacity:0.45;
+    }
+    .sticker-slot.collected {
+      border-style:solid; border-color:var(--accent);
+      background:rgba(74,68,51,0.06);
+      transform:scale(1.05);
+      box-shadow:0 2px 12px rgba(74,68,51,0.15);
+      opacity:1;
+    }
+    .sticker-slot .sticker-emoji { font-size:1.6rem; line-height:1; }
+    .sticker-slot .sticker-label { font-size:0.55rem; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-muted); }
+    .sticker-slot.collected .sticker-label { color:var(--text-primary); }
+    /* Spin result overlay */
+    .spin-result {
+      display:none; margin-top:1rem; padding:1rem;
+      border-radius:12px; background:rgba(74,68,51,0.06);
+      border:1px solid rgba(74,68,51,0.12);
+      animation:clanSlideUp 0.3s ease;
+    }
+    .spin-result.show { display:block; }
+    .spin-result-animal { font-size:2.5rem; margin-bottom:0.4rem; }
+    .spin-result-text { font-size:0.8rem; font-weight:700; margin-bottom:0.2rem; }
+    .spin-result-sub { font-size:0.72rem; color:var(--text-muted); }
+    /* Progress toward collection */
+    .collection-progress {
+      margin-top:0.8rem; font-size:0.72rem; color:var(--text-muted);
+    }
+    .collection-progress strong { color:var(--accent); }
+    /* Free shirt unlock banner */
+    .free-shirt-banner {
+      margin-top:1rem; padding:0.8rem 1rem; border-radius:10px;
+      background:linear-gradient(135deg, rgba(74,68,51,0.08), rgba(74,68,51,0.15));
+      border:1px solid var(--accent);
+      animation:clanSlideUp 0.4s ease;
+    }
+    .free-shirt-banner p { font-size:0.78rem; font-weight:700; color:var(--accent); margin:0; }
+    .free-shirt-banner span { font-size:0.72rem; color:var(--text-muted); }
+    .spin-msg {
+      margin-top:0.6rem; font-size:0.78rem; font-weight:600;
+    }
+    .spin-msg.success { color:#2E7D32; }
+    .spin-msg.error { color:var(--text-muted); }
+    @media (max-width:540px) {
+      .clan-popup { padding:2rem 1.2rem; margin:0.5rem; }
+      .clan-popup-title { font-size:0.95rem; }
+      .spin-wheel-wrap { width:220px; height:220px; }
+      .spin-wheel { width:220px; height:220px; }
+      .spin-center { width:44px; height:44px; font-size:1.1rem; }
+      .sticker-slot { width:50px; height:60px; }
+      .sticker-slot .sticker-emoji { font-size:1.3rem; }
+    }
+
     @media (max-width: 900px) {
       .checkout-layout { grid-template-columns: 1fr; }
       .checkout-summary { position: static; }
     }
+    /* ================================================================
+       KAGE BRAND SECTIONS (Animals, Clothes, Goofy Wears, Custom Stickers)
+       ================================================================ */
+    .brand-section {
+      padding: var(--spacing-2xl) 0;
+    }
+    .brand-section-header {
+      text-align: center;
+      margin-bottom: var(--spacing-xl);
+    }
+    .brand-section-header .section-label {
+      margin-bottom: var(--spacing-sm);
+    }
+    .brand-section-header h2 {
+      font-family: var(--font-display);
+      font-size: clamp(1.6rem, 4vw, 2.8rem);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      line-height: 1.1;
+      margin-bottom: var(--spacing-sm);
+    }
+    .brand-section-header p {
+      color: var(--text-muted);
+      font-size: 0.95rem;
+      max-width: 600px;
+      margin: 0 auto;
+    }
+    .coming-soon-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.4rem 1rem;
+      border-radius: 20px;
+      background: rgba(74,68,51,0.08);
+      border: 1px dashed var(--accent);
+      color: var(--accent);
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-top: var(--spacing-md);
+    }
+    /* Animal cards */
+    .animals-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1.5rem;
+    }
+    .animal-card {
+      text-align: center;
+      padding: 2rem 1.5rem;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      background: var(--bg-card);
+      transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+      position: relative;
+    }
+    .animal-card:hover {
+      transform: translateY(-4px);
+      box-shadow: var(--shadow-hover);
+    }
+    .animal-card-img {
+      width: 120px;
+      height: 120px;
+      border-radius: 50%;
+      margin: 0 auto 1.2rem;
+      overflow: hidden;
+      border: 3px solid var(--border-color);
+    }
+    .animal-card-img img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .animal-card h3 {
+      font-size: 1rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 0.4rem;
+    }
+    .animal-card .animal-role {
+      font-size: 0.68rem;
+      color: var(--accent);
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 0.6rem;
+    }
+    .animal-card p {
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      line-height: 1.6;
+    }
+    .rarity-badge {
+      display: inline-block;
+      padding: 0.2rem 0.7rem;
+      border-radius: 12px;
+      font-size: 0.6rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-top: 0.5rem;
+    }
+    .rarity-common { background: rgba(59,130,246,0.15); color: #60A5FA; border: 1px solid rgba(59,130,246,0.3); }
+    .rarity-uncommon { background: rgba(34,197,94,0.15); color: #4ADE80; border: 1px solid rgba(34,197,94,0.3); }
+    .rarity-rare { background: rgba(239,68,68,0.15); color: #F87171; border: 1px solid rgba(239,68,68,0.3); }
+    .rarity-mythic { background: rgba(147,51,234,0.15); color: #A78BFA; border: 1px solid rgba(147,51,234,0.4); text-shadow: 0 0 8px rgba(147,51,234,0.3); }
+    /* Product collection cards */
+    .collection-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1.5rem;
+    }
+    .collection-card {
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      background: var(--bg-card);
+      transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+    }
+    .collection-card:hover {
+      transform: translateY(-4px);
+      box-shadow: var(--shadow-hover);
+    }
+    .collection-card-img {
+      width: 100%;
+      aspect-ratio: 1/1.15;
+      background: #1A1815;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 3rem;
+      position: relative;
+      overflow: hidden;
+    }
+    .collection-card-img .kage-portrait {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: center 20%;
+      display: block;
+      filter: contrast(1.05) saturate(0.95);
+      -webkit-mask-image: linear-gradient(to bottom, black 70%, transparent 100%);
+      mask-image: linear-gradient(to bottom, black 70%, transparent 100%);
+    }
+    .collection-card-img::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(180deg, transparent 50%, rgba(26,24,21,0.6) 80%, rgba(26,24,21,0.95) 100%), radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.3) 100%);
+      pointer-events: none;
+    }
+    .collection-card-img .coming-soon-tag {
+      position: absolute;
+      top: 1rem;
+      right: 1rem;
+      padding: 0.3rem 0.7rem;
+      background: var(--accent);
+      color: #FFF;
+      font-size: 0.6rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      border-radius: 4px;
+    }
+    .collection-card-body {
+      padding: 1.2rem;
+    }
+    .collection-card-body h3 {
+      font-size: 1rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: 0.3rem;
+    }
+    .collection-card-body p {
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      line-height: 1.55;
+    }
+    .collection-card-body .card-price {
+      margin-top: 0.8rem;
+      font-size: 0.75rem;
+      color: var(--accent);
+      font-weight: 700;
+    }
+    /* Notify Me inline form */
+    .notify-form {
+      display: flex;
+      gap: 0;
+      margin-top: 0.8rem;
+      width: 100%;
+    }
+    .notify-form input[type=email] {
+      flex: 1;
+      min-width: 0;
+      padding: 0.5rem 0.7rem;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+      font-family: var(--font-body);
+      font-size: 0.75rem;
+      background: var(--bg-panel);
+      color: var(--text-primary);
+      outline: none;
+      transition: border-color var(--transition-fast);
+    }
+    .notify-form input[type=email]:focus { border-color: var(--accent); }
+    .notify-form input[type=email]::placeholder { color: var(--text-dim); }
+    .notify-form button {
+      padding: 0.5rem 0.8rem;
+      border: 1px solid var(--accent);
+      border-left: none;
+      border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+      background: var(--accent);
+      color: #FFF;
+      font-family: var(--font-body);
+      font-size: 0.65rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background var(--transition-fast);
+    }
+    .notify-form button:hover { background: var(--accent-hover); }
+    .notify-form button:disabled { opacity: 0.5; cursor: default; }
+    .notify-success {
+      margin-top: 0.6rem;
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: #2E7D32;
+    }
+    .notify-error {
+      margin-top: 0.6rem;
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+    /* Sticker grid for Goofy & Custom */
+    .sticker-showcase {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 1.2rem;
+    }
+    .sticker-item {
+      text-align: center;
+      padding: 1.5rem 1rem;
+      border: 1px dashed var(--border-color);
+      border-radius: var(--radius-md);
+      background: rgba(0,0,0,0.015);
+      transition: all var(--transition-fast);
+    }
+    .sticker-item:hover {
+      border-color: var(--accent);
+      background: rgba(74,68,51,0.03);
+    }
+    .sticker-item .sticker-icon {
+      font-size: 2.5rem;
+      margin-bottom: 0.5rem;
+    }
+    .sticker-item h4 {
+      font-size: 0.8rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: 0.2rem;
+    }
+    .sticker-item p {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+    }
+    @media (max-width: 900px) {
+      .animals-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 540px) {
+      .animals-grid { grid-template-columns: 1fr; }
+      .animal-card { padding: 1.5rem 1rem; }
+      .animal-card-img { width: 100px; height: 100px; }
+    }
+
     /* ================================================================
        REVIEWS & RATINGS
        ================================================================ */
@@ -2739,11 +3113,19 @@
       padding: calc(104px + var(--spacing-xl)) 0 var(--spacing-2xl);
       background: var(--bg-primary);
       overflow-x: hidden;
+      position: relative;
+    }
+    .about-page::before {
+      content: '';
+      position: absolute;
+      top: 0; right: 0; bottom: 0; left: 0;
+      background: radial-gradient(ellipse at 80% 45%, rgba(196,190,176,0.15) 0%, transparent 60%);
+      pointer-events: none;
     }
     .about-hero-grid {
       display: grid;
-      grid-template-columns: 2fr 3fr;
-      gap: clamp(2rem, 5vw, 5rem);
+      grid-template-columns: 1fr 1.3fr;
+      gap: clamp(2rem, 4vw, 4rem);
       align-items: center;
       max-width: var(--max-width);
       margin: 0 auto;
@@ -2823,21 +3205,20 @@
     .about-hero {
       position: relative;
       width: 100%;
-      aspect-ratio: 4 / 5;
-      overflow: hidden;
-      border-radius: var(--radius-md);
-      background: var(--bg-secondary);
+      overflow: visible;
+      border-radius: 0;
+      background: transparent;
+      margin-left: auto;
     }
     .about-hero picture {
       display: block;
       width: 100%;
-      height: 100%;
+      -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 3%, black 97%, transparent 100%);
+      mask-image: linear-gradient(to bottom, transparent 0%, black 3%, black 97%, transparent 100%);
     }
     .about-hero-img {
       width: 100%;
-      height: 100%;
-      object-fit: cover;
-      object-position: center 30%;
+      height: auto;
       display: block;
     }
     .about-hero-fallback {
@@ -2846,8 +3227,8 @@
       inset: 0;
       align-items: center;
       justify-content: center;
-      background: var(--bg-secondary);
-      border-radius: var(--radius-md);
+      background: transparent;
+      border-radius: 0;
     }
     .about-hero-fallback .about-ring {
       position: absolute;
@@ -2883,12 +3264,13 @@
     }
     @media (max-width: 768px) {
       .about-hero-grid { grid-template-columns: 1fr; gap: var(--spacing-lg); padding: 0 var(--spacing-md); }
-      .about-hero { order: -1; aspect-ratio: 3 / 4; }
+      .about-hero { order: -1; margin: 0 auto; max-width: 400px; }
+      .about-hero picture { -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 2%, black 98%, transparent 100%); mask-image: linear-gradient(to bottom, transparent 0%, black 2%, black 98%, transparent 100%); }
       .about-page { padding: calc(104px + var(--spacing-lg)) 0 var(--spacing-xl); }
     }
     @media (max-width: 480px) {
       .about-hero-grid { padding: 0 var(--spacing-sm); }
-      .about-hero { aspect-ratio: 4 / 5; }
+      .about-hero { max-width: 100%; }
     }
 
     /* ================================================================
@@ -2995,6 +3377,9 @@
 </head>
 <body>
 
+  <!-- Skip to content link for keyboard users -->
+  <a href="#mainContent" class="skip-link">Skip to content</a>
+
   <!-- HEADER -->
   <header class="site-header" id="siteHeader">
     <!-- Top utility bar — olive band -->
@@ -3009,7 +3394,7 @@
     </div>
 
     <div class="container nav-inner">
-      <div class="kage-logo" onclick="navigateTo('home')">
+      <div class="kage-logo" onclick="navigateTo('home')" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();navigateTo('home');}">
         <span class="kanji">影</span>
         <span class="wordmark-wrap">
           <span class="kage">K<span class="accent">A</span>GE</span>
@@ -3017,20 +3402,22 @@
         </span>
       </div>
 
-      <button class="hamburger" id="hamburger" aria-label="Toggle menu">
-        <span></span><span></span><span></span>
-      </button>
-
-      <ul class="nav-links" id="navLinks">
-        <li><a data-nav="about" onclick="navigateTo('about'); closeMenu();">About</a></li>
-        <li><a data-nav="all" onclick="navigateTo('home'); closeMenu();">Home</a></li>
-        <li><a data-nav="graphic-tees" onclick="navigateTo('collection', 'graphic-tees'); closeMenu();">Graphic Tees</a></li>
-        <li><a data-nav="compression" onclick="navigateTo('collection', 'compression'); closeMenu();">Compression</a></li>
-        <li><a data-nav="oversized" onclick="navigateTo('collection', 'oversized'); closeMenu();">Oversized</a></li>
-        <li><a class="nav-sale" data-nav="sale" onclick="navigateTo('collection', 'sale'); closeMenu();">Sale</a></li>
-        <li><a data-nav="tracking" onclick="navigateTo('tracking'); closeMenu();">Track Order</a></li>
+      <ul class="nav-links" id="navLinks" role="menubar" aria-label="Main navigation">
+        <li><a data-nav="about" role="menuitem" onclick="navigateTo('about'); closeMenu();">About</a></li>
+        <li><a data-nav="all" role="menuitem" onclick="navigateTo('home'); closeMenu();">Home</a></li>
+        <li><a data-nav="anime" role="menuitem" onclick="navigateTo('collection', 'anime'); closeMenu();">Anime Shirts</a></li>
+        <li><a data-nav="streetwear" role="menuitem" onclick="navigateTo('collection', 'streetwear'); closeMenu();">Streetwear</a></li>
+        <li><a data-nav="kage-animals" role="menuitem" onclick="navigateTo('kage-animals'); closeMenu();">KAGE Animals</a></li>
+        <li><a data-nav="kage-clothes" role="menuitem" onclick="navigateTo('kage-clothes'); closeMenu();">KAGE Clothes</a></li>
+        <li><a data-nav="custom-stickers" role="menuitem" onclick="navigateTo('custom-stickers'); closeMenu();">Custom Stickers</a></li>
+        <li><a data-nav="tracking" role="menuitem" onclick="navigateTo('tracking'); closeMenu();">Track Order</a></li>
         <li><a class="nav-admin" onclick="openAdminLogin(); closeMenu();" title="Admin">Admin</a></li>
         <li class="mobile-search"><input type="search" id="mobileSearch" placeholder="Search drops…" oninput="onSearchInput(this.value)" /></li>
+        <li class="mobile-icons-row">
+          <button class="nav-icon" onclick="toggleWishlistFilter(); closeMenu();" title="Wishlist" aria-label="Wishlist">♡<span class="badge" id="wishlistCountMobile">0</span></button>
+          <button class="nav-icon" onclick="handleAccountClick(); closeMenu();" title="Account" aria-label="Account">👤</button>
+          <button class="nav-icon" onclick="toggleCart(); closeMenu();" title="Cart" aria-label="Shopping Cart">🛒<span class="badge" id="cartCountMobile">0</span></button>
+        </li>
       </ul>
 
       <div class="nav-search">
@@ -3038,16 +3425,21 @@
         <span class="nav-search-icon">🔍</span>
       </div>
 
+      <button class="hamburger" id="hamburger" aria-label="Toggle menu">
+        <span></span><span></span><span></span>
+      </button>
       <div class="nav-icons">
-        <button class="nav-icon" id="wishlistNav" onclick="toggleWishlistFilter()" title="Wishlist">♡<span class="badge" id="wishlistCount">0</span></button>
-        <button class="nav-icon" id="customerAccountBtn" onclick="handleAccountClick()" title="Account">👤</button>
-        <button class="nav-icon" onclick="toggleCart()" title="Cart">
+        <button class="nav-icon" id="wishlistNav" onclick="toggleWishlistFilter()" title="Wishlist" aria-label="Wishlist">♡<span class="badge" id="wishlistCount">0</span></button>
+        <button class="nav-icon" onclick="openSpinPopupFromNav()" title="KAGE Clan Spin" style="font-size:1.2rem;" aria-label="KAGE Clan Spin">🎰</button>
+        <button class="nav-icon" id="customerAccountBtn" onclick="handleAccountClick()" title="Account" aria-label="Account">👤</button>
+        <button class="nav-icon" onclick="toggleCart()" title="Cart" aria-label="Shopping Cart">
           🛒<span class="badge" id="cartCount">0</span>
         </button>
       </div>
     </div>
   </header>
 
+  <main id="mainContent" aria-label="Main content">
   <!-- HOME PAGE -->
   <div class="page active" id="page-home">
     <!-- HERO — CAMPAIGN IMAGE LAYOUT -->
@@ -3076,10 +3468,7 @@
         <circle cx="1552" cy="640" r="2.8" fill="#1A1815" opacity="0.55" filter="url(#heroSprayFx)" />
       </svg>
 
-      <div class="hero-ctas">
-        <button class="hero-cta hero-cta-primary" onclick="navigateTo('collection', 'new')">Shop New Arrivals</button>
-        <button class="hero-cta hero-cta-secondary" onclick="navigateTo('collection', 'all')">Explore Collection</button>
-      </div>
+
     </section>
 
     <!-- CATEGORY STRIP — olive band with 3 photo tiles -->
@@ -3088,7 +3477,7 @@
         <div class="container">
           <div class="category-strip">
             <a class="cat-tile reveal" onclick="navigateTo('collection', 'oversized')">
-              <span class="cat-thumb"><img src="https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=300&q=80" alt="Men" /></span>
+              <span class="cat-thumb"><img src="https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=300&q=80" alt="Men" loading="lazy" /></span>
               <span class="cat-info">
                 <span class="cat-name">Men</span>
                 <span class="cat-desc">Relaxed, original art fits.</span>
@@ -3096,7 +3485,7 @@
               </span>
             </a>
             <a class="cat-tile reveal" onclick="navigateTo('collection', 'graphic-tees')">
-              <span class="cat-thumb"><img src="https://images.unsplash.com/photo-1576566588028-4147f3842f27?w=300&q=80" alt="Graphic Tees" /></span>
+              <span class="cat-thumb"><img src="https://images.unsplash.com/photo-1576566588028-4147f3842f27?w=300&q=80" alt="Graphic Tees" loading="lazy" /></span>
               <span class="cat-info">
                 <span class="cat-name">Graphic Tees</span>
                 <span class="cat-desc">Original street prints.</span>
@@ -3104,7 +3493,7 @@
               </span>
             </a>
             <a class="cat-tile reveal" onclick="navigateTo('collection', 'oversized')">
-              <span class="cat-thumb"><img src="https://images.unsplash.com/photo-1571455786673-9c9793823c9f?w=300&q=80" alt="Oversized" /></span>
+              <span class="cat-thumb"><img src="https://images.unsplash.com/photo-1571455786673-9c9793823c9f?w=300&q=80" alt="Oversized" loading="lazy" /></span>
               <span class="cat-info">
                 <span class="cat-name">Oversized</span>
                 <span class="cat-desc">Comfort meets cool.</span>
@@ -3194,18 +3583,7 @@
       </div>
     </section>
 
-    <!-- FLASH DEAL BANNER -->
-    <section class="section-flash" id="sectionFlash" style="display:none;">
-      <div class="flash-bg"></div>
-      <div class="container flash-content">
-        <div class="flash-text">
-          <p class="flash-label">Limited Time Offer</p>
-          <h2 class="flash-title">UP TO <span id="flashPercent">20</span>% OFF</h2>
-          <div class="flash-countdown" id="flashCountdown"></div>
-        </div>
-        <button class="hero-cta hero-cta-primary" onclick="navigateTo('collection', 'sale')">Shop Sale</button>
-      </div>
-    </section>
+
 
     <!-- NEWSLETTER -->
     <section class="section-newsletter" id="sectionNewsletter">
@@ -3278,6 +3656,8 @@
     </div>
 
 
+  </main>
+
     <!-- Footer (home) -->
     <footer class="site-footer watermark wm-bottom" style="position:relative;overflow:hidden;">
       <div class="container">
@@ -3297,11 +3677,17 @@
           <div class="footer-social">
             <h4>Follow The Vibe</h4>
             <div class="social-icons">
-              <a class="social-icon" style="opacity:0.35;cursor:default;" aria-label="Instagram — coming soon">
+              <a class="social-icon social-instagram" href="https://instagram.com/kage__culture" target="_blank" rel="noopener" aria-label="Instagram">
                 <svg viewBox="0 0 24 24"><path d="M12 2.2c3.2 0 3.6 0 4.9.1 1.2.1 1.8.2 2.2.4.6.2 1 .5 1.4.9.4.4.7.8.9 1.4.2.4.4 1 .4 2.2.1 1.3.1 1.7.1 4.9s0 3.6-.1 4.9c-.1 1.2-.2 1.8-.4 2.2-.2.6-.5 1-.9 1.4-.4.4-.8.7-1.4.9-.4.2-1 .4-2.2.4-1.3.1-1.7.1-4.9.1s-3.6 0-4.9-.1c-1.2-.1-1.8-.2-2.2-.4-.6-.2-1-.5-1.4-.9-.4-.4-.7-.8-.9-1.4-.2-.4-.4-1-.4-2.2-.1-1.3-.1-1.7-.1-4.9s0-3.6.1-4.9c.1-1.2.2-1.8.4-2.2.2-.6.5-1 .9-1.4.4-.4.8-.7 1.4-.9.4-.2 1-.4 2.2-.4 1.3-.1 1.7-.1 4.9-.1zm0 1.8a4.1 4.1 0 1 0 0 8.2 4.1 4.1 0 0 0 0-8.2zm0 6.4a2.3 2.3 0 1 1 0-4.6 2.3 2.3 0 0 1 0 4.6zm4.9-6.6a1 1 0 1 0 0 2 1 1 0 0 0 0-2z"/></svg>
               </a>
-              <a class="social-icon" style="opacity:0.35;cursor:default;" aria-label="Facebook — coming soon">
-                <svg viewBox="0 0 24 24"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+              <a class="social-icon social-snapchat" href="https://snapchat.com/add/kage_culture" target="_blank" rel="noopener" aria-label="Snapchat">
+                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C9.5 2 8 4 8 6.5V8c-1.5.2-3 1.2-3 3 0 .3 0 .6.1.9-.3.1-.6.3-.6.7 0 .5.5.8 1.2 1 .2.1.4.1.5.2-.1.8-.5 2-1.2 2.8-.5.6-1 1-1.5 1.3-.2.1-.3.3-.1.5.4.3 1.2.4 2 .5.1.4.3 1 .8 1.5.5.5 1.2.8 2 .8h3.2c.8 0 1.5-.3 2-.8.5-.5.7-1.1.8-1.5.8-.1 1.6-.2 2-.5.2-.2.1-.4-.1-.5-.5-.3-1-.7-1.5-1.3-.7-.8-1.1-2-1.2-2.8.1-.1.3-.1.5-.2.7-.2 1.2-.5 1.2-1 0-.4-.3-.6-.6-.7.1-.3.1-.6.1-.9 0-1.8-1.5-2.8-3-3V6.5C16 4 14.5 2 12 2z"/></svg>
+              </a>
+              <a class="social-icon social-email" href="https://mail.google.com/mail/?view=cm&fs=1&to=kageculture01@gmail.com" target="_blank" rel="noopener" aria-label="Email">
+                <svg viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
+              </a>
+              <a class="social-icon social-etsy" href="https://etsy.com/shop/kageinetsy22" target="_blank" rel="noopener" aria-label="Etsy">
+                <svg viewBox="0 0 24 24" fill="currentColor"><text x="12" y="17" text-anchor="middle" font-family="Georgia,serif" font-size="16" font-style="italic" font-weight="bold">E</text></svg>
               </a>
               <a class="social-icon social-whatsapp" href="https://wa.me/923228042633?text=Hi%20Kage%20Culture%2C%20I%20need%20help" target="_blank" rel="noopener" aria-label="WhatsApp">
                 <svg viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
@@ -3322,9 +3708,8 @@
           <span>&copy; 2026 KAGE CULTURE</span>
           <div class="payment-icons">
             <span class="payment-icon">COD</span>
+            <span class="payment-icon">JazzCash</span>
             <span class="payment-icon">Bank Transfer</span>
-            <span class="payment-icon">Visa</span>
-            <span class="payment-icon">MC</span>
           </div>
           <div class="footer-bottom-links">
             <a onclick="navigateTo('privacy')">Privacy</a>
@@ -3357,7 +3742,7 @@
       <div class="checkout-head">
         <p class="section-label">Secure Checkout</p>
         <h2 class="section-title">COMPLETE YOUR ORDER</h2>
-        <span class="checkout-back" onclick="navigateTo('home'); initShop('all')">← Back to shop</span>
+        <span class="checkout-back" onclick="navigateTo('home'); initShop('all')" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();navigateTo('home');initShop('all');}">← Back to shop</span>
       </div>
       <div class="checkout-error" id="checkoutError" style="display:none;"></div>
       <div class="checkout-layout">
@@ -3377,7 +3762,14 @@
           <h3>Payment method</h3>
           <div class="co-payment">
             <label class="co-pay-option"><input type="radio" name="payMethod" value="cod" checked /> <span><strong>Cash on Delivery</strong><small>Pay when your order arrives</small></span></label>
+            <label class="co-pay-option"><input type="radio" name="payMethod" value="jazzcash" /> <span><strong>JazzCash</strong><small>Send payment to 0322-8042633</small></span></label>
             <label class="co-pay-option"><input type="radio" name="payMethod" value="bank" /> <span><strong>Bank Transfer</strong><small>Transfer details emailed after ordering</small></span></label>
+          </div>
+          <div id="paymentRefGroup" style="display:none;margin-top:0.6rem;">
+            <div class="co-field">
+              <label for="coPaymentRef">Payment Reference / Transaction ID *</label>
+              <input type="text" id="coPaymentRef" placeholder="Enter reference number after sending payment" autocomplete="off" />
+            </div>
           </div>
         </div>
 
@@ -3390,7 +3782,7 @@
             <div class="co-grand"><span>Total</span><span id="coTotal">Rs. 0</span></div>
           </div>
           <button class="btn btn-primary co-place" id="coPlaceBtn" onclick="placeOrder()">Place Order</button>
-          <p class="co-safe">Cash on Delivery &amp; Bank Transfer accepted · Flat Rs. 150 delivery charge</p>
+          <p class="co-safe">Cash on Delivery, JazzCash &amp; Bank Transfer accepted</p>
         </aside>
       </div>
     </div>
@@ -3420,6 +3812,79 @@
     </div>
   </div>
 
+  <!-- KAGE CLAN SPIN-THE-WHEEL POPUP -->
+  <div class="clan-popup-overlay" id="clanPopup">
+    <div class="clan-popup">
+      <button class="clan-popup-close" onclick="closeClanPopup()">✕</button>
+      <div class="clan-popup-icon">🎰</div>
+      <div class="clan-popup-title">KAGE Clan Spin the Wheel</div>
+      <div class="clan-popup-subtitle">Every shirt you buy earns you a spin. Collect all 4 animal stickers → unlock a FREE shirt.</div>
+
+      <!-- Rules -->
+      <div class="spin-rules">
+        <div class="spin-rules-title">How It Works</div>
+        <p><strong>1 shirt = 1 free spin.</strong> The more shirts you order, the more spins you get. Each spin lands on one of 4 KAGE animals with a 25% chance each.</p>
+        <p><strong>Collect all 4 animal stickers</strong> → you unlock a <strong>FREE shirt</strong> with that animal printed on it. The KAGE clan decides which shirt you receive — it's a surprise.</p>
+        <p><strong>Don't like a sticker?</strong> Re-spins are coming soon! We're setting up payment verification to make sure every re-spin is paid for securely.</p>
+      </div>
+n      <!-- Sticker collection -->
+      <div class="sticker-grid" id="stickerGrid">
+        <div class="sticker-slot" data-animal="bear"><span class="sticker-emoji">🐻</span><span class="sticker-label">Bear</span></div>
+        <div class="sticker-slot" data-animal="white-tiger"><span class="sticker-emoji">🐯</span><span class="sticker-label">White Tiger</span></div>
+        <div class="sticker-slot" data-animal="black-panther"><span class="sticker-emoji">🐈‍⬛</span><span class="sticker-label">Black Panther</span></div>
+        <div class="sticker-slot" data-animal="white-fox"><span class="sticker-emoji">🦊</span><span class="sticker-label">White Fox</span></div>
+      </div>
+
+      <!-- Spin wheel -->
+      <div class="spin-wheel-wrap" id="spinWheelWrap" style="display:none;">
+        <div class="spin-wheel-pointer"></div>
+        <div class="spin-wheel" id="spinWheel">
+          <svg viewBox="0 0 280 280" class="spin-sector">
+            <!-- Bear (Common 45%) - blue -->
+            <path d="M140,140 L140,4 A136,136 0 0,1 276,140 Z" fill="#3B82F6"/>
+            <!-- Black Panther (Uncommon 25%) - green -->
+            <path d="M140,140 L276,140 A136,136 0 0,1 140,276 Z" fill="#22C55E"/>
+            <!-- White Fox (Rare 20%) - red -->
+            <path d="M140,140 L140,276 A136,136 0 0,1 4,140 Z" fill="#EF4444"/>
+            <!-- White Tiger (Mythic 10%) - dark purple -->
+            <path d="M140,140 L4,140 A136,136 0 0,1 140,4 Z" fill="#9333EA"/>
+            <!-- Inner circle -->
+            <circle cx="140" cy="140" r="28" fill="var(--accent, #4A4433)" stroke="var(--bg-panel, #CFC9BA)" stroke-width="3"/>
+            <!-- Labels with rarity -->
+            <text x="210" y="72" fill="#FFF" font-size="11" font-weight="800" text-anchor="middle" font-family="Archivo,sans-serif">BEAR</text>
+            <text x="210" y="86" fill="rgba(255,255,255,0.6)" font-size="7" font-weight="600" text-anchor="middle" font-family="Archivo,sans-serif">COMMON 45%</text>
+            <text x="210" y="192" fill="#FFF" font-size="9" font-weight="800" text-anchor="middle" font-family="Archivo,sans-serif">BLACK PANTHER</text>
+            <text x="210" y="206" fill="rgba(255,255,255,0.6)" font-size="7" font-weight="600" text-anchor="middle" font-family="Archivo,sans-serif">UNCOMMON 25%</text>
+            <text x="70" y="192" fill="#FFF" font-size="9" font-weight="800" text-anchor="middle" font-family="Archivo,sans-serif">WHITE FOX</text>
+            <text x="70" y="206" fill="rgba(255,255,255,0.6)" font-size="7" font-weight="600" text-anchor="middle" font-family="Archivo,sans-serif">RARE 20%</text>
+            <text x="70" y="72" fill="#FFF" font-size="9" font-weight="800" text-anchor="middle" font-family="Archivo,sans-serif">WHITE TIGER</text>
+            <text x="70" y="86" fill="rgba(255,255,255,0.6)" font-size="7" font-weight="600" text-anchor="middle" font-family="Archivo,sans-serif">MYTHIC 10%</text>
+          </svg>
+          <div class="spin-center">🎰</div>
+        </div>
+      </div>
+n      <!-- Spin result -->
+      <div class="spin-result" id="spinResult">
+        <div class="spin-result-animal" id="spinResultEmoji"></div>
+        <div class="spin-result-text" id="spinResultText"></div>
+        <div class="spin-result-sub" id="spinResultSub"></div>
+      </div>
+      <style>.spin-result-animal img { width:80px; height:80px; border-radius:50%; box-shadow:0 4px 16px rgba(0,0,0,0.2); }</style>
+n      <!-- Free shirt banner -->
+      <div class="free-shirt-banner" id="freeShirtBanner" style="display:none;">
+        <p>🎉 You've collected all 4 animals!</p>
+        <span>You've unlocked a FREE shirt with your favourite animal sticker. The KAGE clan will surprise you with a random design.</span>
+      </div>
+n      <!-- Action buttons -->
+      <div id="clanPopupAction">
+        <button class="spin-btn" id="spinBtn" onclick="executeSpin()">🎰 SPIN THE WHEEL</button>
+        <button class="spin-btn respin" id="respinBtn" style="display:none;" disabled title="Re-spins are temporarily unavailable while we set up payment verification.">Re-Spin — Coming Soon</button>
+      </div>
+      <div class="spin-msg" id="spinMsg"></div>
+      <div class="collection-progress" id="spinProgress"></div>
+    </div>
+  </div>
+
   <!-- PRODUCT DETAIL PAGE -->
   <div class="page" id="page-product">
     <div class="container product-detail-page">
@@ -3433,7 +3898,7 @@
         </div>
 
         <div class="detail-info">
-          <span class="back-link" onclick="navigateTo('collection', currentCollectionFilter)">← Back to collection</span>
+          <span class="back-link" onclick="navigateTo('collection', currentCollectionFilter)" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();navigateTo('collection', currentCollectionFilter);}">← Back to collection</span>
           <h1 id="detailName"></h1>
           <span class="detail-price" id="detailPrice"></span>
           <div class="detail-rating" id="detailRating"></div>
@@ -3441,13 +3906,8 @@
           <p class="detail-desc" id="detailDesc"></p>
           <div>
             <label style="font-size:0.7rem;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;display:block;margin-bottom:0.4rem;">Size</label>
-            <div style="display:flex;gap:0.4rem;flex-wrap:wrap;">
-              <button class="size-btn" data-size="S">S</button>
-              <button class="size-btn" data-size="M">M</button>
-              <button class="size-btn selected" data-size="L">L</button>
-              <button class="size-btn" data-size="XL">XL</button>
-              <button class="size-btn" data-size="XXL">XXL</button>
-            </div>
+            <div id="detailSizeDisplay" style="font-size:0.95rem;font-weight:700;padding:0.5rem 0.8rem;background:rgba(0,0,0,0.03);border:1px solid var(--border-color);display:inline-block;border-radius:8px;">L</div>
+            <div style="font-size:0.7rem;color:var(--text-gray);margin-top:0.3rem;">This is the only size available for this piece.</div>
           </div>
           <div>
             <label style="font-size:0.7rem;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;display:block;margin-bottom:0.4rem;">Quantity</label>
@@ -3467,7 +3927,7 @@
             <div class="tab-content">
               <div class="tab-pane active" id="tab-fabric"><ul><li>100% heavyweight cotton — 220 GSM</li><li>Pre-shrunk fabric, wash cold inside out</li><li>Do not bleach — tumble dry low</li><li>Screen-printed with eco-friendly water-based inks</li></ul></div>
               <div class="tab-pane" id="tab-fit"><ul><li>Compression: 4-way stretch, muscle-hugging fit — size up for relaxed</li><li>Graphic Tees: Regular fit, true to size</li><li>Oversized: Drop-shoulder, relaxed body — size down for regular</li><li>Full size chart available in the Size Guide</li></ul></div>
-              <div class="tab-pane" id="tab-shipping"><ul><li>Flat Rs. 150 delivery charge on all orders</li><li>Dispatch within 48 hours — delivered in 5-7 business days</li><li>Easy returns within 7 days of delivery</li><li>COD, bank transfer, and card payments accepted</li></ul></div>
+              <div class="tab-pane" id="tab-shipping"><ul><li>Dispatch within 48 hours — delivered in 5-7 business days</li><li>Easy returns within 7 days of delivery</li><li>Cash on Delivery (COD), JazzCash, and Bank Transfer accepted</li></ul></div>
             </div>
           </div>
         </div>
@@ -3592,15 +4052,10 @@
           </ul>
           <p style="margin-top: var(--spacing-sm);">And all other major cities via our delivery partners.</p>
 
-          <h3 style="color: var(--text-primary); font-size: 1rem; margin: var(--spacing-lg) 0 var(--spacing-sm);">Shipping Charges</h3>
-          <ul style="list-style: none; padding: 0;">
-            <li style="padding: 0.3rem 0;">• Flat delivery charge of <strong style="color: var(--text-primary);">Rs. 150</strong> on all orders, nationwide</li>
-          </ul>
-
           <h3 style="color: var(--text-primary); font-size: 1rem; margin: var(--spacing-lg) 0 var(--spacing-sm);">Payment Methods</h3>
           <ul style="list-style: none; padding: 0;">
-            <li style="padding: 0.3rem 0;">• Cash on Delivery (COD)</li>
-            <li style="padding: 0.3rem 0;">• Bank Transfer (prepaid)</li>
+            <li style="padding: 0.3rem 0;"><strong style="color: var(--text-primary);">Cash on Delivery (COD)</strong> — pay when your order arrives</li>
+            <li style="padding: 0.3rem 0;"><strong style="color: var(--text-primary);">JazzCash</strong> — send payment to <strong style="color: var(--text-primary);">0322-8042633</strong></li>
           </ul>
         </div>
         <p style="margin-top: var(--spacing-xl);"><a onclick="navigateTo('home')" style="color: var(--accent); cursor: pointer; font-size: 0.85rem;">← Back to Shop</a></p>
@@ -3704,6 +4159,173 @@
       </section>
     </div>
 
+    <!-- ================================================================
+         KAGE ANIMALS PAGE
+         ================================================================ -->
+    <div class="page" id="page-kage-animals">
+      <section class="brand-section">
+        <div class="container">
+          <div class="brand-section-header">
+            <span class="section-label">The Clan</span>
+            <h2>KAGE Animals</h2>
+            <p>Four spirits. Four identities. Each one represents a pillar of the KAGE CULTURE ethos. Collect all four animal stickers by purchasing shirts — earn one spin per shirt ordered.</p>
+            <div class="coming-soon-badge">🎌 Sticker drops live now</div>
+          </div>
+          <div class="animals-grid">
+            <div class="animal-card">
+              <div class="animal-card-img"><picture><source srcset="images/animal-bear.webp" type="image/webp"><img src="images/animal-bear-sm.jpg" alt="Bear" loading="lazy" /></picture></div>
+              <h3>Bear</h3>
+              <div class="animal-role">The Foundation</div>
+              <div class="rarity-badge rarity-common">Common · 45%</div>
+              <p>Unshakable. The bear doesn't move for anyone. Raw power wrapped in patience — only strikes when it matters. Represents the backbone of KAGE: consistency, strength, and the refusal to fold under pressure.</p>
+            </div>
+            <div class="animal-card">
+              <div class="animal-card-img"><picture><source srcset="images/animal-white-tiger.webp" type="image/webp"><img src="images/animal-white-tiger-sm.jpg" alt="White Tiger" loading="lazy" /></picture></div>
+              <h3>White Tiger</h3>
+              <div class="animal-role">The Presence</div>
+              <div class="rarity-badge rarity-mythic">Mythic · 10%</div> <p>Rare and impossible to ignore. The white tiger walks into a room and the energy shifts. Represents KAGE's commitment to standing out — not by being loud, but by being undeniable.</p>
+            </div>
+            <div class="animal-card">
+              <div class="animal-card-img"><picture><source srcset="images/animal-black-panther.webp" type="image/webp"><img src="images/animal-black-panther-sm.jpg" alt="Black Panther" loading="lazy" /></picture></div>
+              <h3>Black Panther</h3>
+              <div class="animal-role">The Silence</div>
+              <div class="rarity-badge rarity-uncommon">Uncommon · 25%</div>
+              <p>Moves in the dark. Strikes before you see it. The panther represents the KAGE mindset — calculated, precise, and always three steps ahead. No wasted energy. No wasted words.</p>
+            </div>
+            <div class="animal-card">
+              <div class="animal-card-img"><picture><source srcset="images/animal-white-fox.webp" type="image/webp"><img src="images/animal-white-fox-sm.jpg" alt="White Fox" loading="lazy" /></picture></div>
+              <h3>White Fox</h3>
+              <div class="animal-role">The Intelligence</div>
+              <div class="rarity-badge rarity-rare">Rare · 20%</div>
+              <p>Outsmarts everything in its path. The fox doesn't fight — it outmanoeuvres. Represents the creative mind behind KAGE: the design, the strategy, and the ability to turn obstacles into opportunities.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- ================================================================
+         KAGE CLOTHES PAGE
+         ================================================================ -->
+    <div class="page" id="page-kage-clothes">
+      <section class="brand-section">
+        <div class="container">
+          <div class="brand-section-header">
+            <span class="section-label">The Collection</span>
+            <h2>KAGE Clothes</h2>
+            <p>Wear the animals. Each shirt features one of the four KAGE spirits — Bear, White Tiger, Black Panther, or White Fox — printed on premium heavyweight cotton. Limited pieces. One size per design.</p>
+            <div class="coming-soon-badge">🔥 Dropping Soon</div>
+          </div>
+          <div class="collection-cards">
+            <div class="collection-card">
+              <div class="collection-card-img">
+                <img class="kage-portrait" src="images/animal-bear.jpg" alt="Bear — The Foundation" />
+                <span class="coming-soon-tag">Coming Soon</span>
+              </div>
+              <div class="collection-card-body">
+                <h3>Bear Series</h3>
+                <p>The Foundation collection. Bold bear prints on heavyweight cotton. Raw power meets streetwear — designed for those who move with weight.</p>
+                <div class="card-price">Est. Rs. 1,499 – 1,899</div>
+                <div class="notify-form"><input type="email" placeholder="Your email" /><button onclick="notifyMe(this,'kage-bear-series')">Notify Me</button></div>
+              </div>
+            </div>
+            <div class="collection-card">
+              <div class="collection-card-img">
+                <img class="kage-portrait" src="images/animal-white-tiger.jpg" alt="White Tiger — The Presence" />
+                <span class="coming-soon-tag">Coming Soon</span>
+              </div>
+              <div class="collection-card-body">
+                <h3>White Tiger Series</h3>
+                <p>The Presence collection. Rare patterns on clean white fabric. Every piece makes a statement without saying a word.</p>
+                <div class="card-price">Est. Rs. 1,499 – 1,899</div>
+                <div class="notify-form"><input type="email" placeholder="Your email" /><button onclick="notifyMe(this,'kage-white-tiger-series')">Notify Me</button></div>
+              </div>
+            </div>
+            <div class="collection-card">
+              <div class="collection-card-img">
+                <img class="kage-portrait" src="images/animal-black-panther.jpg" alt="Black Panther — The Silence" />
+                <span class="coming-soon-tag">Coming Soon</span>
+              </div>
+              <div class="collection-card-body">
+                <h3>Black Panther Series</h3>
+                <p>The Silence collection. Dark-on-dark prints. Stealth mode activated — for those who let their presence speak louder than their volume.</p>
+                <div class="card-price">Est. Rs. 1,499 – 1,899</div>
+                <div class="notify-form"><input type="email" placeholder="Your email" /><button onclick="notifyMe(this,'kage-black-panther-series')">Notify Me</button></div>
+              </div>
+            </div>
+            <div class="collection-card">
+              <div class="collection-card-img">
+                <img class="kage-portrait" src="images/animal-white-fox.jpg" alt="White Fox — The Intelligence" />
+                <span class="coming-soon-tag">Coming Soon</span>
+              </div>
+              <div class="collection-card-body">
+                <h3>White Fox Series</h3>
+                <p>The Intelligence collection. Clean, sharp designs on premium white cotton. For the creative minds who outmanoeuvre the game.</p>
+                <div class="card-price">Est. Rs. 1,499 – 1,899</div>
+                <div class="notify-form"><input type="email" placeholder="Your email" /><button onclick="notifyMe(this,'kage-white-fox-series')">Notify Me</button></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+
+
+    <!-- ================================================================
+         CUSTOM STICKERS PAGE
+         ================================================================ -->
+    <div class="page" id="page-custom-stickers">
+      <section class="brand-section">
+        <div class="container">
+          <div class="brand-section-header">
+            <span class="section-label">Your Design</span>
+            <h2>Custom Stickers</h2>
+            <p>Send us your idea — a name, a sketch, a meme, anything — and we'll turn it into a premium vinyl sticker. Peel-proof. Rain-proof. Personality-proof. Your design, printed by KAGE.</p>
+            <div class="coming-soon-badge">🎨 Custom Orders Opening Soon</div>
+          </div>
+          <div class="collection-cards">
+            <div class="collection-card">
+              <div class="collection-card-img">
+                ✏️
+                <span class="coming-soon-tag">Coming Soon</span>
+              </div>
+              <div class="collection-card-body">
+                <h3>Design It Yourself</h3>
+                <p>Submit your own artwork, logo, or concept. We'll print it on high-quality vinyl at any size you want. Bumper stickers, laptop stickers, wall art — you name it.</p>
+                <div class="card-price">Est. Rs. 200 – 500 per sticker</div>
+                <div class="notify-form"><input type="email" placeholder="Your email" /><button onclick="notifyMe(this,'custom-design-it-yourself')">Notify Me</button></div>
+              </div>
+            </div>
+            <div class="collection-card">
+              <div class="collection-card-img">
+                🎨
+                <span class="coming-soon-tag">Coming Soon</span>
+              </div>
+              <div class="collection-card-body">
+                <h3>KAGE Designs</h3>
+                <p>Can't think of something? Pick from our library of KAGE designs — kanji marks, animal spirits, and street art prints. Pre-made, ready to ship.</p>
+                <div class="card-price">Est. Rs. 150 – 350 per sticker</div>
+                <div class="notify-form"><input type="email" placeholder="Your email" /><button onclick="notifyMe(this,'custom-kage-designs')">Notify Me</button></div>
+              </div>
+            </div>
+            <div class="collection-card">
+              <div class="collection-card-img">
+                📦
+                <span class="coming-soon-tag">Coming Soon</span>
+              </div>
+              <div class="collection-card-body">
+                <h3>Sticker Packs</h3>
+                <p>Mix and match. Get a bundle of 5, 10, or 20 stickers at a discounted rate. Perfect for laptops, water bottles, skateboards, and giving away to friends.</p>
+                <div class="card-price">Est. Rs. 600 – 1,500 per pack</div>
+                <div class="notify-form"><input type="email" placeholder="Your email" /><button onclick="notifyMe(this,'custom-sticker-packs')">Notify Me</button></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
     <!-- COMING SOON PAGE -->
     <div class="page" id="page-coming-soon">
       <section class="coming-soon-page">
@@ -3725,7 +4347,7 @@
               <button class="btn btn-primary" type="submit">Notify Me</button>
             </form>
             <p class="coming-soon-msg" id="comingSoonMsg"></p>
-            <span class="coming-soon-back" onclick="navigateTo('home')">← Back to Home</span>
+            <span class="coming-soon-back" onclick="navigateTo('home')" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();navigateTo('home');}">← Back to Home</span>
           </div>
         </div>
       </section>
@@ -3875,6 +4497,25 @@
 
     function fmt(n) { return Number(n).toLocaleString('en-IN'); }
 
+    // CSRF token helper — reads the cookie and returns it as a header value
+    function getCsrfToken() {
+      const cookies = document.cookie.split(';').map(c => c.trim());
+      const csrfCookie = cookies.find(c => c.startsWith('kage.csrf='));
+      return csrfCookie ? csrfCookie.split('=')[1] : '';
+    }
+
+    // Monkey-patch fetch to automatically add CSRF token to state-changing requests
+    const _origFetch = window.fetch;
+    window.fetch = function(url, opts) {
+      if (opts && opts.method && ['POST','PUT','PATCH','DELETE'].includes(opts.method.toUpperCase())) {
+        opts.headers = opts.headers || {};
+        if (!opts.headers['X-CSRF-Token'] && !opts.headers['x-csrf-token']) {
+          opts.headers['X-CSRF-Token'] = getCsrfToken();
+        }
+      }
+      return _origFetch.call(this, url, opts);
+    };
+
     // Escape user-provided text before injecting into innerHTML (prevents stored XSS)
     function esc(s) {
       return String(s == null ? '' : s)
@@ -3988,6 +4629,10 @@
       } else if (target === 'confirmation') {
         navDeactivate();
         if (lastOrder) renderConfirmation(lastOrder);
+      } else if (['kage-animals','kage-clothes','custom-stickers'].includes(target)) {
+        // Brand sections — just show the page, activate nav
+        navDeactivate();
+        document.querySelectorAll('.nav-links a[data-nav]').forEach(a => a.classList.toggle('active', a.dataset.nav === target));
       } else {
         // Content pages (returns, shipping, terms, privacy, contact, account)
         navDeactivate();
@@ -4034,6 +4679,13 @@
       document.getElementById('coSubtotal').textContent = 'Rs. ' + sub;
       document.getElementById('coShipping').textContent = 'Rs. ' + shipping;
       document.getElementById('coTotal').textContent = 'Rs. ' + (sub + shipping);
+      // Show/hide payment reference field
+      document.querySelectorAll('input[name="payMethod"]').forEach(r => {
+        r.addEventListener('change', () => {
+          const refGroup = document.getElementById('paymentRefGroup');
+          refGroup.style.display = (r.value === 'jazzcash' || r.value === 'bank') ? 'block' : 'none';
+        });
+      });
     }
 
     async function placeOrder() {
@@ -4046,7 +4698,8 @@
         address: document.getElementById('coAddress').value.trim(),
         city: document.getElementById('coCity').value.trim(),
         notes: document.getElementById('coNotes').value.trim(),
-        payment_method: document.querySelector('input[name="payMethod"]:checked').value
+        payment_method: document.querySelector('input[name="payMethod"]:checked').value,
+        payment_ref: document.getElementById('coPaymentRef').value.trim()
       };
       if (!f.name || !f.email || !f.phone || !f.address || !f.city) {
         errEl.textContent = 'Please fill in all required fields (name, email, phone, address, city).';
@@ -4055,6 +4708,12 @@
       }
       if (!/^\S+@\S+\.\S+$/.test(f.email)) {
         errEl.textContent = 'Please enter a valid email address.';
+        errEl.style.display = 'block';
+        return;
+      }
+      // Require payment reference for non-COD
+      if ((f.payment_method === 'jazzcash' || f.payment_method === 'bank') && !f.payment_ref) {
+        errEl.textContent = 'Payment reference number is required for JazzCash/Bank Transfer.';
         errEl.style.display = 'block';
         return;
       }
@@ -4089,22 +4748,295 @@
     function renderConfirmation(order) {
       document.getElementById('confName').textContent = order.customer_name;
       document.getElementById('confNumber').textContent = order.order_number;
-      document.getElementById('confStatus').textContent = order.status === 'pending' ? 'Pending' : order.status;
-      document.getElementById('confPayment').textContent = order.payment_method === 'bank' ? 'Bank Transfer' : 'Cash on Delivery';
+      const statusLabels = { pending: 'Pending', awaiting_verification: 'Awaiting Payment Verification', confirmed: 'Confirmed', shipped: 'Shipped', delivered: 'Delivered', cancelled: 'Cancelled' };
+      document.getElementById('confStatus').textContent = statusLabels[order.status] || order.status;
+      const payLabel = order.payment_method === 'bank' ? 'Bank Transfer' : order.payment_method === 'jazzcash' ? 'JazzCash' : 'Cash on Delivery';
+      document.getElementById('confPayment').textContent = order.payment_ref ? `${payLabel} (Ref: ${order.payment_ref})` : payLabel;
       document.getElementById('confAddress').textContent = order.address + ', ' + order.city;
       document.getElementById('confTotal').textContent = 'Rs. ' + order.total;
       document.getElementById('confItems').innerHTML = (order.items || []).map(it => `
         <div class="conf-item">
-          <span>${esc(it.name)}${it.size ? ' · Size ' + esc(it.size) : ''} × ${it.qty}</span>
+          <span>${esc(it.name)}${it.size ? ' \u00b7 Size ' + esc(it.size) : ''} \u00d7 ${it.qty}</span>
           <span>Rs. ${it.total}</span>
         </div>`).join('');
+
+      // Show spin wheel popup after order if the customer has spins
+      const email = order.email || '';
+      if (email) openSpinPopup(email);
     }
 
+    /* ================================================================
+       SPIN-THE-WHEEL SYSTEM
+       ================================================================ */
+    const KAGE_ANIMALS = [
+      { id: 'bear',         emoji: '\ud83d\udc3b', name: 'Bear',         color: '#3B82F6', rarity: 'Common',    weight: 45, img: 'images/animal-bear.webp', imgFallback: 'images/animal-bear-sm.jpg' },
+      { id: 'black-panther',emoji: '\ud83d\udc08', name: 'Black Panther',color: '#22C55E', rarity: 'Uncommon',  weight: 25, img: 'images/animal-black-panther.webp', imgFallback: 'images/animal-black-panther-sm.jpg' },
+      { id: 'white-fox',    emoji: '\ud83e\udd8a', name: 'White Fox',    color: '#EF4444', rarity: 'Rare',      weight: 20, img: 'images/animal-white-fox.webp', imgFallback: 'images/animal-white-fox-sm.jpg' },
+      { id: 'white-tiger',  emoji: '\ud83d\udc2f', name: 'White Tiger',  color: '#9333EA', rarity: 'Mythic',    weight: 10, img: 'images/animal-white-tiger.webp', imgFallback: 'images/animal-white-tiger-sm.jpg' }
+    ];
+    let spinEmail = '';
+    let spinState = null; // { spins_remaining, collection, unique_count, has_all_four }
+    let spinAnimating = false;
+
+    function openSpinPopup(email) {
+      spinEmail = email || '';
+      const popup = document.getElementById('clanPopup');
+      if (!popup) return;
+      // Reset UI
+      document.getElementById('spinResult').classList.remove('show');
+      document.getElementById('freeShirtBanner').style.display = 'none';
+      document.getElementById('spinMsg').textContent = '';
+      document.getElementById('spinWheelWrap').style.display = 'none';
+      popup.classList.add('show');
+      // Focus management — store previously focused element and focus popup
+      popup._previousFocus = document.activeElement;
+      popup.setAttribute('role', 'dialog');
+      popup.setAttribute('aria-modal', 'true');
+      popup.setAttribute('aria-label', 'KAGE Clan Spin the Wheel');
+      const firstFocusable = popup.querySelector('button, input, [tabindex]');
+      if (firstFocusable) setTimeout(() => firstFocusable.focus(), 100);
+      // If we have an email, fetch spin status directly
+      if (spinEmail && /\S+@\S+\.\S+/.test(spinEmail)) {
+        fetchSpinStatus();
+      } else {
+        // Show email input form
+        document.getElementById('stickerGrid').style.display = 'none';
+        document.getElementById('spinProgress').innerHTML = '';
+        document.getElementById('clanPopupAction').innerHTML = '<div style="margin-bottom:0.6rem;font-size:0.8rem;font-weight:600;color:var(--text-secondary)">Enter your email to check your spin status:</div><div class="notify-form" style="width:100%"><input type="email" id="spinEmailInput" placeholder="Your email" /><button onclick="submitSpinEmail()">Go</button></div>';
+      }
+    }
+    function submitSpinEmail() {
+      var input = document.getElementById('spinEmailInput');
+      var email = input ? input.value.trim() : '';
+      if (!email || !/\S+@\S+\.\S+/.test(email)) {
+        document.getElementById('spinMsg').textContent = 'Please enter a valid email.';
+        document.getElementById('spinMsg').className = 'spin-msg error';
+        return;
+      }
+      spinEmail = email;
+      document.getElementById('stickerGrid').style.display = '';
+      fetchSpinStatus();
+    }
+
+    async function fetchSpinStatus() {
+      if (!spinEmail) return;
+      try {
+        const res = await fetch('/api/spin/status?email=' + encodeURIComponent(spinEmail));
+        spinState = await res.json();
+        updateStickerGrid();
+        updateSpinUI();
+      } catch (e) {
+        document.getElementById('spinMsg').textContent = 'Could not load spin status.';
+      }
+    }
+
+    function updateStickerGrid() {
+      if (!spinState) return;
+      document.querySelectorAll('#stickerGrid .sticker-slot').forEach(slot => {
+        const animal = slot.dataset.animal;
+        const count = (spinState.collection && spinState.collection[animal]) || 0;
+        const collected = count > 0;
+        slot.classList.toggle('collected', collected);
+        // When collected, replace emoji with the actual animal image
+        const emojiEl = slot.querySelector('.sticker-emoji');
+        if (collected && emojiEl) {
+          const animalData = KAGE_ANIMALS.find(a => a.id === animal);
+          if (animalData && animalData.img && !emojiEl.querySelector('img')) {
+            emojiEl.innerHTML = '<picture><source srcset="' + animalData.img + '" type="image/webp"><img src="' + (animalData.imgFallback || animalData.img) + '" alt="' + animalData.name + '" style="width:36px;height:36px;border-radius:50%;object-fit:cover;" loading="lazy" /></picture>';
+          }
+        }
+      });
+      // Progress text
+      const prog = document.getElementById('spinProgress');
+      if (spinState.has_all_four) {
+        prog.innerHTML = '<strong>Complete collection!</strong> You\'ve unlocked a free shirt.';
+      } else {
+        prog.innerHTML = '<strong>' + spinState.unique_count + '/4</strong> animals collected. ' + (spinState.spins_remaining > 0 ? 'Spin to get more!' : 'Order more shirts to earn spins.');
+      }
+    }
+
+    function updateSpinUI() {
+      if (!spinState) return;
+      const spinBtn = document.getElementById('spinBtn');
+      const respinBtn = document.getElementById('respinBtn');
+      const wheelWrap = document.getElementById('spinWheelWrap');
+      if (spinState.spins_remaining > 0) {
+        spinBtn.style.display = 'inline-flex';
+        spinBtn.disabled = spinAnimating;
+        spinBtn.textContent = '\ud83c\udfb0 SPIN THE WHEEL (' + spinState.spins_remaining + ' left)';
+        wheelWrap.style.display = 'block';
+      } else {
+        spinBtn.style.display = 'none';
+        wheelWrap.style.display = 'none';
+      }
+      // Re-spin disabled until payment verification is implemented
+      respinBtn.style.display = 'none';
+      // Free shirt banner
+      if (spinState.has_all_four) {
+        document.getElementById('freeShirtBanner').style.display = 'block';
+      }
+    }
+
+    function resetWheelAngle() {
+      const wheel = document.getElementById('spinWheel');
+      if (wheel) {
+        wheel.style.transition = 'none';
+        wheel.style.transform = 'rotate(0deg)';
+        // Force reflow
+        void wheel.offsetWidth;
+      }
+    }
+
+    async function executeSpin() {
+      if (spinAnimating || !spinState || spinState.spins_remaining <= 0) return;
+      spinAnimating = true;
+      const spinBtn = document.getElementById('spinBtn');
+      const respinBtn = document.getElementById('respinBtn');
+      spinBtn.disabled = true;
+      respinBtn.style.display = 'none';
+      document.getElementById('spinResult').classList.remove('show');
+      document.getElementById('spinMsg').textContent = '';
+
+      // Reset wheel angle
+      resetWheelAngle();
+
+      try {
+        const res = await fetch('/api/spin/execute', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: spinEmail })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          document.getElementById('spinMsg').textContent = data.error || 'Spin failed.';
+          document.getElementById('spinMsg').className = 'spin-msg error';
+          spinAnimating = false;
+          spinBtn.disabled = false;
+          return;
+        }
+
+        // Calculate target angle: each sector is 90 degrees
+        const animalIndex = KAGE_ANIMALS.findIndex(a => a.id === data.animal);
+        // The pointer is at top (0deg). Sectors: Fox=0-90, Tiger=90-180, Dragon=180-270, Wolf=270-360
+        // We want the middle of the target sector to land at the pointer
+        const sectorMid = animalIndex * 90 + 45;
+        // Total rotations: at least 5 full spins + target position
+        const spins = 5 + Math.floor(Math.random() * 3);
+        const targetAngle = 360 * spins + (360 - sectorMid);
+
+        // Animate wheel
+        const wheel = document.getElementById('spinWheel');
+        wheel.style.transition = 'transform 4s cubic-bezier(0.17, 0.67, 0.12, 0.99)';
+        wheel.style.transform = 'rotate(' + targetAngle + 'deg)';
+
+        // Wait for animation to finish
+        await new Promise(resolve => setTimeout(resolve, 4200));
+
+        // Show result
+        const animal = KAGE_ANIMALS.find(a => a.id === data.animal);
+        document.getElementById('spinResultEmoji').innerHTML = '<picture><source srcset="' + animal.img + '" type="image/webp"><img src="' + (animal.imgFallback || animal.img) + '" alt="' + animal.name + '" /></picture>';
+        document.getElementById('spinResultText').textContent = animal.name + ' — ' + animal.rarity + '!';
+        document.getElementById('spinResultSub').textContent = 'Your ' + animal.name + ' sticker (' + animal.rarity + ') has been added to your collection.';
+        document.getElementById('spinResult').classList.add('show');
+
+        // Update state
+        spinState.spins_remaining = data.spins_remaining;
+        spinState.collection = data.collection;
+        spinState.unique_count = data.unique_count;
+        spinState.has_all_four = data.has_all_four;
+        updateStickerGrid();
+        updateSpinUI();
+
+        document.getElementById('spinMsg').textContent = data.spins_remaining > 0 ? 'You have ' + data.spins_remaining + ' spin(s) remaining.' : 'No spins left. Order more shirts to earn spins!';
+        document.getElementById('spinMsg').className = 'spin-msg success';
+      } catch (e) {
+        document.getElementById('spinMsg').textContent = 'Connection error.';
+        document.getElementById('spinMsg').className = 'spin-msg error';
+      }
+      spinAnimating = false;
+    }
+
+    // Re-spin disabled — waiting for payment verification
+    async function respinWheel() {
+      document.getElementById('spinMsg').textContent = 'Re-spins are temporarily unavailable while we set up payment verification.';
+      document.getElementById('spinMsg').className = 'spin-msg error';
+    }
+
+    function closeClanPopup() {
+      const popup = document.getElementById('clanPopup');
+      if (popup) {
+        popup.classList.remove('show');
+        // Restore focus to the element that opened the popup
+        if (popup._previousFocus && popup._previousFocus.focus) {
+          popup._previousFocus.focus();
+        }
+      }
+      sessionStorage.setItem('kage-clan-popup-closed', '1');
+    }
+
+    // Auto-show spin popup on page load (generic, not order-specific)
+    function openSpinPopupFromNav() {
+      // If we already have an email from a recent order, use it
+      if (lastOrder && lastOrder.email) {
+        openSpinPopup(lastOrder.email);
+      } else {
+        openSpinPopup('');
+      }
+    }
+    function autoShowClanPopup() {
+      if (sessionStorage.getItem('kage-clan-popup-closed')) return;
+      const popup = document.getElementById('clanPopup');
+      if (!popup || popup.classList.contains('show')) return;
+      openSpinPopup('');
+    }
+    setTimeout(autoShowClanPopup, 5000);
+
+    // ================================================================
+    // NOTIFY ME — inline email capture for Coming Soon cards
+    // ================================================================
+    function notifyMe(btn, category) {
+      var form = btn.parentElement;
+      var emailInput = form.querySelector('input[type=email]');
+      var email = emailInput ? emailInput.value.trim() : '';
+      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        var errEl = form.parentElement.querySelector('.notify-error');
+        if (!errEl) { errEl = document.createElement('div'); errEl.className = 'notify-error'; form.parentElement.appendChild(errEl); }
+        errEl.textContent = 'Please enter a valid email.';
+        return;
+      }
+      btn.disabled = true;
+      btn.textContent = '...';
+      fetch('/api/coming-soon', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email, category: category })
+      })
+        .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, data: d }; }); })
+        .then(function(res) {
+          var msgEl = form.parentElement.querySelector('.notify-success') || document.createElement('div');
+          msgEl.className = 'notify-success';
+          var errEl2 = form.parentElement.querySelector('.notify-error');
+          if (errEl2) errEl2.textContent = '';
+          if (res.ok || res.data.success) {
+            msgEl.textContent = '\u2713 You\'re on the list! We\'ll let you know when this drops.';
+            form.style.display = 'none';
+          } else {
+            msgEl.textContent = res.data.message || res.data.error || 'Something went wrong.';
+            btn.disabled = false;
+            btn.textContent = 'Notify Me';
+          }
+          if (!msgEl.parentElement) form.parentElement.appendChild(msgEl);
+        })
+        .catch(function() {
+          btn.disabled = false;
+          btn.textContent = 'Notify Me';
+        });
+    }
     function initShop(filter) {
       currentCollectionFilter = filter || 'all';
       currentPage = 1;
-      const titles = { 'all':'FEATURED DROPS | NEW ARRIVALS','new':'NEW ARRIVALS','compression':'COMPRESSION','graphic-tees':'GRAPHIC TEES','oversized':'OVERSIZED','sale':'ON SALE','the-vault':'THE VAULT COLLECTION','iron-code':'IRON CODE COLLECTION','after-hours':'AFTER HOURS COLLECTION' };
-      const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.','compression':'4-way stretch, muscle-hugging fit — engineered for movement.','graphic-tees':'Heavyweight 220GSM cotton. Original art, printed not painted.','oversized':'Drop-shoulder, relaxed silhouettes — take up space.','sale':'Limited-time markdowns. When it\'s gone, it\'s gone.','the-vault':'Power without effort.','iron-code':'Relentless self-made strength.','after-hours':'Quiet, terrifying precision.' };
+      const titles = { 'all':'FEATURED DROPS | NEW ARRIVALS','new':'NEW ARRIVALS','anime':'ANIME SHIRTS','streetwear':'STREETWEAR','sale':'ON SALE','the-vault':'THE VAULT COLLECTION','iron-code':'IRON CODE COLLECTION','after-hours':'AFTER HOURS COLLECTION' };
+      const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.','anime':'Anime-inspired art on premium cotton. Each piece is unique — one size, one chance.','streetwear':'Bold silhouettes. Limited pieces. Built for those who take up space.','sale':'Limited-time markdowns. When it\'s gone, it\'s gone.','the-vault':'Power without effort.','iron-code':'Relentless self-made strength.','after-hours':'Quiet, terrifying precision.' };
       document.getElementById('collectionTitle').textContent = titles[filter] || titles.all;
       document.getElementById('collectionDesc').textContent = descs[filter] || '';
       const eb = document.getElementById('shopEyebrow');
@@ -4122,7 +5054,7 @@
       if (filter && filter !== 'all') {
         if (filter === 'new') f = f.filter(p => p.id <= 3);
         else if (filter === 'sale') f = f.filter(p => p.on_sale || (p.sale_price && p.sale_price < p.price));
-        else if (['compression','graphic-tees','oversized'].includes(filter)) f = f.filter(p => p.collection === filter);
+        else if (['anime','streetwear'].includes(filter)) f = f.filter(p => p.collection === filter);
         else if (['the-vault','iron-code','after-hours'].includes(filter)) f = f.filter(p => p.collections && p.collections.includes(filter));
       }
       if (searchQuery.trim()) {
@@ -4249,6 +5181,7 @@
       if (wishlist.has(id)) wishlist.delete(id); else wishlist.add(id);
       if (el) el.classList.toggle('active', wishlist.has(id));
       document.getElementById('wishlistCount').textContent = wishlist.size;
+      var mc = document.getElementById('wishlistCountMobile'); if (mc) mc.textContent = wishlist.size;
       if (wishlistOnly) renderCollectionGrid();
     }
     function toggleWishlistFilter() {
@@ -4262,7 +5195,7 @@
       const p = allProducts.find(x => x.id === id);
       if (!p) return;
       if (p.in_stock === false) { showToast(p.name + ' is currently out of stock.'); return; }
-      const size = (p.sizes && p.sizes.length) ? p.sizes[Math.floor(p.sizes.length / 2)] : 'L';
+      const size = (p.sizes && p.sizes.length) ? p.sizes[0] : 'L';
       addToCart(p, size, 1);
       showToast(p.name + ' added to cart (' + size + ')');
     }
@@ -4430,50 +5363,11 @@
       initScrollReveal();
     }
 
-    // Load Flash Deal (check if any products have sale_price)
-    function loadFlashDeal() {
-      const section = document.getElementById('sectionFlash');
-      if (!section) return;
-      const saleProducts = allProducts.filter(p => p.sale_price && p.sale_price < p.price);
-      if (!saleProducts.length) {
-        section.style.display = 'none';
-        return;
-      }
-      const maxDiscount = Math.max(...saleProducts.map(p => Math.round((1 - p.sale_price / p.price) * 100)));
-      const percentEl = document.getElementById('flashPercent');
-      if (percentEl) percentEl.textContent = maxDiscount;
-      section.style.display = '';
-      // Start countdown (24h from now)
-      startFlashCountdown();
-    }
-
-    function startFlashCountdown() {
-      const container = document.getElementById('flashCountdown');
-      if (!container) return;
-      // Set end time to midnight tonight
-      const now = new Date();
-      const end = new Date(now);
-      end.setHours(24, 0, 0, 0);
-      function update() {
-        const diff = Math.max(0, end - new Date());
-        const h = Math.floor(diff / 3600000);
-        const m = Math.floor((diff % 3600000) / 60000);
-        const s = Math.floor((diff % 60000) / 1000);
-        container.innerHTML = `
-          <div class="countdown-unit"><span class="countdown-num">${String(h).padStart(2,'0')}</span><span class="countdown-label">Hours</span></div>
-          <div class="countdown-unit"><span class="countdown-num">${String(m).padStart(2,'0')}</span><span class="countdown-label">Minutes</span></div>
-          <div class="countdown-unit"><span class="countdown-num">${String(s).padStart(2,'0')}</span><span class="countdown-label">Seconds</span></div>`;
-      }
-      update();
-      setInterval(update, 1000);
-    }
-
     // Initialize all homepage sections after products load
     function initHomePageSections() {
       loadNewArrivals();
       loadBestSellers();
       loadCollections();
-      loadFlashDeal();
       loadRecentlyViewed();
     }
 
@@ -4641,21 +5535,32 @@
 
     // ---------- Filter drawer (mobile) ----------
     function openFilterDrawer() {
+      const drawer = document.getElementById('filterDrawer');
+      drawer._previousFocus = document.activeElement;
+      drawer.setAttribute('role', 'dialog');
+      drawer.setAttribute('aria-modal', 'true');
+      drawer.setAttribute('aria-label', 'Filter products');
       document.getElementById('filterDrawer').classList.add('open');
       document.getElementById('filterOverlay').classList.add('open');
       document.body.style.overflow = 'hidden';
+      const firstInput = drawer.querySelector('input, button, select, [tabindex]');
+      if (firstInput) setTimeout(() => firstInput.focus(), 100);
     }
     function closeFilterDrawer() {
+      const drawer = document.getElementById('filterDrawer');
       document.getElementById('filterDrawer').classList.remove('open');
       document.getElementById('filterOverlay').classList.remove('open');
       document.body.style.overflow = '';
+      if (drawer._previousFocus && drawer._previousFocus.focus) {
+        drawer._previousFocus.focus();
+      }
     }
 
     // Detail page
     function openProductDetail(productId) {
       const p = allProducts.find(x => x.id === productId);
       if (!p) return;
-      currentProduct = p; detailQty = 1; detailSize = 'L'; detailAngle = 0;
+      currentProduct = p; detailQty = 1; detailSize = (p.sizes && p.sizes.length) ? p.sizes[0] : 'L'; detailAngle = 0;
       navigateTo('product');
       document.getElementById('detailName').textContent = p.name;
       document.getElementById('detailPrice').innerHTML = detailPriceHtml(p);
@@ -4680,7 +5585,17 @@
       } else dc.style.display = 'none';
       const th = document.getElementById('detailThumbnails');
       th.innerHTML = p.images.map((img,i) => `<div class="detail-thumb ${i===0?'active':''}" onclick="switchDetailAngle(${i})"><img src="${img}" alt="View ${i+1}" /></div>`).join('');
-      document.querySelectorAll('#page-product .size-btn').forEach(btn => { btn.classList.toggle('selected', btn.dataset.size === 'L'); btn.onclick = function() { document.querySelectorAll('#page-product .size-btn').forEach(b => b.classList.remove('selected')); this.classList.add('selected'); detailSize = this.dataset.size; }; });
+      // Display fixed size — hide entirely for stickers (goofy-wears)
+      const szDisplay = document.getElementById('detailSizeDisplay');
+      const szContainer = szDisplay ? szDisplay.parentElement : null;
+      const szLabel = szContainer ? szContainer.previousElementSibling : null;
+      const isSticker = p.collection === 'goofy-wears';
+      if (szContainer) szContainer.style.display = isSticker ? 'none' : '';
+      if (szLabel && szLabel.tagName === 'LABEL') szLabel.style.display = isSticker ? 'none' : '';
+      // Also hide the "only size" note
+      const szNote = szContainer ? szContainer.nextElementSibling : null;
+      if (szNote && szNote.textContent.includes('only size')) szNote.style.display = isSticker ? 'none' : '';
+      if (szDisplay) szDisplay.textContent = detailSize;
       setupGallerySwipe();
       // Reflect stock state on both Add-to-Cart buttons (main + sticky bar)
       const mainBtn = document.getElementById('addToCartBtn');
@@ -4941,7 +5856,7 @@
           <div class="track-timeline">${timeline}</div>
           <div class="track-details">
             <div><span>Placed</span><span>${esc(String(o.created_at || ''))}</span></div>
-            <div><span>Payment</span><span>${o.payment_method === 'bank' ? 'Bank Transfer' : 'Cash on Delivery'}</span></div>
+            <div><span>Payment</span><span>${o.payment_method === 'bank' ? 'Bank Transfer' : o.payment_method === 'jazzcash' ? 'JazzCash' : 'Cash on Delivery'}</span></div>
             <div><span>Total</span><span>Rs. ${o.total}</span></div>
           </div>
           <div class="track-items">${items}</div>
@@ -4967,6 +5882,7 @@
     function updateCartUI() {
       const c = cart.reduce((s,i) => s + i.qty, 0);
       document.getElementById('cartCount').textContent = c;
+      var mcc = document.getElementById('cartCountMobile'); if (mcc) mcc.textContent = c;
       const items = document.getElementById('cartItems'), footer = document.getElementById('cartFooter');
       if (!cart.length) { items.innerHTML = '<div class="cart-empty"><p>Your cart is empty.</p></div>'; footer.style.display = 'none'; return; }
       footer.style.display = 'flex';
@@ -4988,6 +5904,16 @@
       const open = !d.classList.contains('open');
       o.classList.toggle('open', open); d.classList.toggle('open', open);
       document.body.style.overflow = open ? 'hidden' : '';
+      if (open) {
+        d._previousFocus = document.activeElement;
+        d.setAttribute('role', 'dialog');
+        d.setAttribute('aria-modal', 'true');
+        d.setAttribute('aria-label', 'Shopping cart');
+        const closeBtn = d.querySelector('button[onclick*="toggleCart"]');
+        if (closeBtn) setTimeout(() => closeBtn.focus(), 100);
+      } else if (d._previousFocus && d._previousFocus.focus) {
+        d._previousFocus.focus();
+      }
     }
 
     // Mobile menu
@@ -5195,6 +6121,22 @@
       document.getElementById('custLoginView').style.display = 'none';
       document.getElementById('custSignupView').style.display = '';
       document.getElementById('custSignupError').style.display = 'none';
+    }
+
+    async function requestCustomerPasswordReset() {
+      const email = prompt('Enter your email address:');
+      if (!email) return;
+      try {
+        const res = await fetch('/api/auth/forgot-password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: email.trim(), user_type: 'customer' })
+        });
+        const data = await res.json();
+        alert(data.message || 'Check your email for reset instructions.');
+      } catch (err) {
+        alert('Connection error.');
+      }
     }
 
     async function submitCustLogin() {
@@ -5457,6 +6399,7 @@
         <label for="custLoginPassword">Password</label>
         <input type="password" id="custLoginPassword" placeholder="Enter password" autocomplete="current-password" />
         <button class="cust-btn" id="custLoginBtn" onclick="submitCustLogin()">Sign In</button>
+        <p style="text-align:center;margin-top:0.5rem;font-size:0.72rem;"><a onclick="requestCustomerPasswordReset()" style="color:var(--accent);cursor:pointer;">Forgot password?</a></p>
         <p class="cust-switch">Don't have an account? <a onclick="showCustSignup()">Create one</a></p>
       </div>
       <div id="custSignupView" style="display:none;">

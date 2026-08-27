@@ -26,3 +26,7 @@ Thumbs.db
 memdb1
 
 .vercel
+
+# Backup files
+*.backup
+*.bak
