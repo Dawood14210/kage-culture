@@ -454,34 +454,41 @@
     }
 
     /* ================================================================
-       CATEGORY STRIP — olive band with 3 photo tiles
+       KAGE CATEGORIES — anime shirts, kage animals, custom stickers
        ================================================================ */
     .category-band {
       background: var(--accent);
-      padding: var(--spacing-xl) 0;
+      padding: var(--spacing-2xl) 0;
     }
     .category-strip {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
-      gap: var(--spacing-lg);
+      gap: var(--spacing-xl);
     }
     .cat-tile {
       display: flex;
+      flex-direction: column;
       align-items: center;
-      gap: var(--spacing-md);
+      text-align: center;
       color: #FFF;
       cursor: pointer;
       transition: transform var(--transition-med);
+      gap: var(--spacing-md);
     }
-    .cat-tile:hover { transform: translateY(-3px); }
+    .cat-tile:hover { transform: translateY(-6px); }
     .cat-thumb {
-      width: 84px;
-      height: 84px;
+      width: 140px;
+      height: 140px;
       border-radius: 50%;
       overflow: hidden;
       flex-shrink: 0;
-      border: 2px solid rgba(255,255,255,0.28);
+      border: 3px solid rgba(255,255,255,0.2);
       display: block;
+      transition: border-color var(--transition-med), box-shadow var(--transition-med);
+    }
+    .cat-tile:hover .cat-thumb {
+      border-color: rgba(255,255,255,0.5);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.25);
     }
     .cat-thumb img {
       width: 100%;
@@ -491,18 +498,21 @@
     .cat-info {
       display: flex;
       flex-direction: column;
-      gap: 0.15rem;
+      align-items: center;
+      gap: 0.3rem;
     }
     .cat-name {
       font-family: var(--font-display);
       font-weight: 800;
-      font-size: 1.05rem;
-      letter-spacing: 0.14em;
+      font-size: 1rem;
+      letter-spacing: 0.16em;
       text-transform: uppercase;
     }
     .cat-desc {
-      font-size: 0.75rem;
-      color: rgba(255,255,255,0.68);
+      font-size: 0.78rem;
+      color: rgba(255,255,255,0.6);
+      max-width: 200px;
+      line-height: 1.4;
     }
     .cat-shop {
       font-size: 0.65rem;
@@ -510,7 +520,7 @@
       letter-spacing: 0.2em;
       text-transform: uppercase;
       color: #FFF;
-      margin-top: 0.3rem;
+      margin-top: 0.2rem;
       display: inline-flex;
       align-items: center;
       gap: 0.4rem;
@@ -521,7 +531,18 @@
     .cat-tile:hover .cat-shop i { transform: translateX(4px); }
     .cat-tile:hover .cat-shop { border-color: #FFF; }
     @media (max-width: 768px) {
-      .category-strip { grid-template-columns: 1fr; gap: var(--spacing-md); }
+      .category-strip {
+        grid-template-columns: 1fr;
+        gap: var(--spacing-lg);
+      }
+      .cat-tile {
+        flex-direction: row;
+        text-align: left;
+        gap: var(--spacing-md);
+      }
+      .cat-info { align-items: flex-start; }
+      .cat-thumb { width: 96px; height: 96px; }
+      .cat-desc { max-width: none; }
     }
 
     /* ================================================================
@@ -3471,33 +3492,33 @@
 
     </section>
 
-    <!-- CATEGORY STRIP — olive band with 3 photo tiles -->
+    <!-- KAGE CATEGORIES — anime shirts, kage animals, custom stickers -->
     <section class="section-categories" id="sectionCategories">
       <div class="category-band">
         <div class="container">
           <div class="category-strip">
-            <a class="cat-tile reveal" onclick="navigateTo('collection', 'oversized')">
-              <span class="cat-thumb"><img src="https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=300&q=80" alt="Men" loading="lazy" /></span>
+            <a class="cat-tile reveal" onclick="navigateTo('collection', 'anime')">
+              <span class="cat-thumb"><img src="images/hero.jpg" alt="Anime Shirts" loading="lazy" /></span>
               <span class="cat-info">
-                <span class="cat-name">Men</span>
-                <span class="cat-desc">Relaxed, original art fits.</span>
+                <span class="cat-name">Anime Shirts</span>
+                <span class="cat-desc">Original art on premium cotton. Each piece is wearable fandom.</span>
                 <span class="cat-shop">Shop Now <i>→</i></span>
               </span>
             </a>
-            <a class="cat-tile reveal" onclick="navigateTo('collection', 'graphic-tees')">
-              <span class="cat-thumb"><img src="https://images.unsplash.com/photo-1576566588028-4147f3842f27?w=300&q=80" alt="Graphic Tees" loading="lazy" /></span>
+            <a class="cat-tile reveal" onclick="navigateTo('kage-animals')">
+              <span class="cat-thumb"><img src="images/animal-bear.jpg" alt="KAGE Animals" loading="lazy" /></span>
               <span class="cat-info">
-                <span class="cat-name">Graphic Tees</span>
-                <span class="cat-desc">Original street prints.</span>
-                <span class="cat-shop">Shop Now <i>→</i></span>
+                <span class="cat-name">KAGE Animals</span>
+                <span class="cat-desc">Four spirits. Collect all four sticker animals by purchasing shirts.</span>
+                <span class="cat-shop">Explore <i>→</i></span>
               </span>
             </a>
-            <a class="cat-tile reveal" onclick="navigateTo('collection', 'oversized')">
-              <span class="cat-thumb"><img src="https://images.unsplash.com/photo-1571455786673-9c9793823c9f?w=300&q=80" alt="Oversized" loading="lazy" /></span>
+            <a class="cat-tile reveal" onclick="navigateTo('custom-stickers')">
+              <span class="cat-thumb"><img src="images/animal-white-fox.jpg" alt="Custom Stickers" loading="lazy" /></span>
               <span class="cat-info">
-                <span class="cat-name">Oversized</span>
-                <span class="cat-desc">Comfort meets cool.</span>
-                <span class="cat-shop">Shop Now <i>→</i></span>
+                <span class="cat-name">Custom Stickers</span>
+                <span class="cat-desc">Your design, our print. Peel-proof vinyl, any size.</span>
+                <span class="cat-shop">Design Yours <i>→</i></span>
               </span>
             </a>
           </div>
