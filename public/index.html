@@ -1729,7 +1729,7 @@
     .nav-search {
       position: relative;
       flex: 1;
-      max-width: 300px;
+      max-width: 480px;
       margin: 0 var(--spacing-md);
     }
     .nav-search input {
@@ -2720,7 +2720,9 @@
       cursor:pointer; transition:all 0.2s; margin-top:1rem;
     }
     .spin-btn:hover { transform:translateY(-1px); box-shadow:0 6px 20px rgba(74,68,51,0.3); }
-    .spin-btn:disabled { opacity:0.5; cursor:default; transform:none; box-shadow:none; }
+    .spin-btn:not(:disabled) { animation: spinBtnPulse 2s ease-in-out infinite; }
+    @keyframes spinBtnPulse { 0%,100% { box-shadow:0 0 0 0 rgba(74,68,51,0.4); } 50% { box-shadow:0 0 20px 6px rgba(74,68,51,0.25); } }
+    .spin-btn:disabled { opacity:0.5; cursor:default; transform:none; box-shadow:none; animation:none; }
     .spin-btn.respin {
       background:transparent; border:2px solid var(--accent); color:var(--accent);
       margin-left:0.5rem;
@@ -3511,7 +3513,7 @@
         <div class="container">
           <div class="category-strip">
             <a class="cat-tile reveal" onclick="navigateTo('collection', 'anime')">
-              <span class="cat-thumb"><img src="images/cat-anime-shirts.jpg" alt="Anime Shirts" loading="lazy" /></span>
+              <span class="cat-thumb"><img src="images/cat-anime-shirts.jpg" alt="Anime Shirts" loading="lazy" style="object-position: center 65%;" /></span>
               <span class="cat-info">
                 <span class="cat-name">Anime Shirts</span>
                 <span class="cat-desc">Original art on premium cotton. Each piece is wearable fandom.</span>
@@ -4021,6 +4023,16 @@
       <div class="cart-subtotal"><span>Subtotal</span><span class="subtotal-value" id="cartSubtotal">Rs. 0</span></div>
       <button class="btn btn-primary" onclick="startCheckout()">Checkout</button>
     </div>
+  </div>
+
+  <!-- WISHLIST DRAWER -->
+  <div class="cart-overlay" id="wishlistOverlay" onclick="toggleWishlistFilter()"></div>
+  <div class="cart-drawer" id="wishlistDrawer">
+    <div class="cart-header">
+      <h3>♥ Favourites</h3>
+      <button class="cart-close" onclick="toggleWishlistFilter()">✕</button>
+    </div>
+    <div class="cart-items" id="wishlistItems"><div class="cart-empty"><span style="font-size:2rem;display:block;margin-bottom:0.5rem;">♡</span>No favourite picks yet.<br><span style="font-size:0.75rem;margin-top:0.3rem;display:block;">Tap the heart icon on any product to save it here.</span></div></div>
   </div>
 
   <!-- CUSTOMER ACCOUNT PAGE (content injected by JS) -->
@@ -4601,8 +4613,8 @@
     // ---------- Navigation ----------
     // Category status: a category is "live" when it has at least one in-stock
     // product. Empty / not-yet-stocked categories route to the Coming Soon page.
-    const COMING_SOON_CATS = ['graphic-tees', 'compression', 'oversized', 'sale'];
-    const CATEGORY_NAMES = { 'graphic-tees': 'Graphic Tees', 'compression': 'Compression', 'oversized': 'Oversized', 'sale': 'Sale' };
+    const COMING_SOON_CATS = ['anime', 'graphic-tees', 'compression', 'oversized', 'sale'];
+    const CATEGORY_NAMES = { 'anime': 'Anime Shirts', 'graphic-tees': 'Graphic Tees', 'compression': 'Compression', 'oversized': 'Oversized', 'sale': 'Sale' };
     let productsLoadedFromApi = false;
     function categoryHasLiveProducts(filter) {
       // Before real data arrives, allProducts is the hardcoded fallback catalog
@@ -5223,9 +5235,32 @@
       if (wishlistOnly) renderCollectionGrid();
     }
     function toggleWishlistFilter() {
-      wishlistOnly = !wishlistOnly;
-      document.getElementById('wishlistNav').classList.toggle('active', wishlistOnly);
-      renderCollectionGrid();
+      var overlay = document.getElementById('wishlistOverlay');
+      var drawer = document.getElementById('wishlistDrawer');
+      var isOpen = drawer.classList.contains('open');
+      if (isOpen) {
+        overlay.classList.remove('open');
+        drawer.classList.remove('open');
+      } else {
+        overlay.classList.add('open');
+        drawer.classList.add('open');
+        renderWishlistDrawer();
+      }
+    }
+    function renderWishlistDrawer() {
+      var container = document.getElementById('wishlistItems');
+      if (wishlist.size === 0) {
+        container.innerHTML = '<div class="cart-empty"><span style="font-size:2rem;display:block;margin-bottom:0.5rem;">♡</span>No favourite picks yet.<br><span style="font-size:0.75rem;margin-top:0.3rem;display:block;">Tap the heart icon on any product to save it here.</span></div>';
+        return;
+      }
+      var html = '';
+      wishlist.forEach(function(id) {
+        var p = allProducts.find(function(x) { return x.id === id; });
+        if (!p) return;
+        var img = (p.images && p.images[0]) || p.image || '';
+        html += '<div class="cart-item"><div class="cart-item-image">' + (img ? '<img src="' + img + '" alt="' + p.name + '" />' : '') + '</div><div class="cart-item-info"><h4>' + p.name + '</h4><div class="cart-item-meta">' + (p.fit || '') + '</div><div class="cart-item-price">Rs. ' + (p.sale_price || p.price) + '</div></div><div style="display:flex;flex-direction:column;gap:0.3rem;"><button class="btn btn-sm btn-outline" onclick="quickAdd(' + p.id + '); showToast(\"' + p.name + ' added to cart\");" style="font-size:0.6rem;">Add to Cart</button><button style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:0.7rem;min-height:36px;" onclick="toggleWishlist(' + p.id + '); renderWishlistDrawer();">Remove</button></div></div>';
+      });
+      container.innerHTML = html;
     }
 
     // ---------- Quick add ----------
