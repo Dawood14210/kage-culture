@@ -495,6 +495,10 @@ function initDatabase() {
 }
 
 async function doInit() {
+  // Skip if already initialized (warm Vercel invocations)
+  if (module.exports._initialized) return;
+  module.exports._initialized = true;
+
   // 1. Try Turso first
   if (USE_TURSO) {
     try {
@@ -588,7 +592,10 @@ async function exec(sql) {
 
 async function save() { /* no-op */ }
 
-// Kick off init
+// Kick off init eagerly (fast — just connects + creates schema)
 init().catch(err => console.error('database init failed:', err));
+
+// Expose a flag so server.js can skip re-init
+module.exports._initialized = false;
 
 module.exports = { init, prepare, get, all, exec, save, USE_TURSO };

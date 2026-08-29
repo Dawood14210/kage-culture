@@ -261,6 +261,7 @@
 
     .site-header .nav-inner {
       padding: 0.55rem 0;
+      position: relative;
     }
     .kage-logo {
       display: flex; flex-direction: column; align-items: center;
@@ -293,9 +294,22 @@
     }
 
     .nav-links {
-      display: flex; align-items: center; gap: var(--spacing-lg);
+      display: none;
+      position: absolute; top: 100%; right: 0; width: 280px;
+      background: var(--bg-primary);
+      flex-direction: column;
+      padding: var(--spacing-md);
+      border-top: 1px solid var(--border-color);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+      border-radius: 0 0 var(--radius-md) var(--radius-md);
+      gap: var(--spacing-xs);
+      z-index: 100;
       list-style: none;
     }
+    .nav-links.open { display: flex; }
+    .nav-links a { padding: 10px 12px; min-height: 40px; width: 100%; display: flex; align-items: center; font-size: 0.8rem; border-radius: var(--radius-sm); transition: background var(--transition-fast), color var(--transition-fast); }
+    .nav-links a:hover { background: var(--bg-secondary); color: var(--text-primary); }
+    .nav-links a::after { display: none; }
     .nav-links a {
       font-size: 0.7rem; font-weight: 600;
       letter-spacing: 0.06em; text-transform: uppercase;
@@ -342,7 +356,7 @@
     .badge.bump { transform: scale(1.3); }
 
     .hamburger {
-      display: none; flex-direction: column; gap: 4px;
+      display: flex; flex-direction: column; gap: 4px;
       cursor: pointer; background: none; border: none;
       padding: 10px; min-width: 44px; min-height: 44px;
       align-items: center; justify-content: center;
@@ -2465,24 +2479,23 @@
 
     @media (max-width: 768px) {
       .nav-links {
-        display: none;
-        position: absolute; top: 100%; left: 0; width: 100%;
+        position: absolute; top: 100%; left: 0; right: 0; width: 100%;
         background: var(--bg-primary);
         flex-direction: column;
         padding: var(--spacing-md);
         border-top: 1px solid var(--border-color);
         gap: var(--spacing-sm);
+        border-radius: 0;
+        box-shadow: none;
       }
-      .nav-links.open { display: flex; }
       .nav-links a { padding: 12px 0; min-height: 48px; width: 100%; display: flex; align-items: center; font-size: 0.85rem; }
-      .hamburger { display: flex; margin: 0; padding: 10px; border-right: none; order: 2; }
+      .hamburger { margin: 0; padding: 10px; border-right: none; order: 2; }
       .nav-search { display: none; }
       .nav-icons { display: none; }
       .mobile-search { display: block; }
       .mobile-icons-row { display: flex; align-items: center; gap: var(--spacing-md); padding-top: var(--spacing-md); margin-top: var(--spacing-sm); border-top: 1px solid var(--border-color); justify-content: center; }
       .hero-tile:nth-child(n+4) { display: none; }
 
-      .category-strip { grid-template-columns: 1fr; }
       .collections-grid { grid-template-columns: 1fr; }
       .footer-main { grid-template-columns: 1fr; }
       .footer-bottom { flex-direction: column; text-align: center; }
@@ -3498,15 +3511,15 @@
         <div class="container">
           <div class="category-strip">
             <a class="cat-tile reveal" onclick="navigateTo('collection', 'anime')">
-              <span class="cat-thumb"><img src="images/hero.jpg" alt="Anime Shirts" loading="lazy" /></span>
+              <span class="cat-thumb"><img src="images/cat-anime-shirts.jpg" alt="Anime Shirts" loading="lazy" /></span>
               <span class="cat-info">
                 <span class="cat-name">Anime Shirts</span>
                 <span class="cat-desc">Original art on premium cotton. Each piece is wearable fandom.</span>
-                <span class="cat-shop">Shop Now <i>→</i></span>
+                <span class="cat-shop">Explore <i>→</i></span>
               </span>
             </a>
             <a class="cat-tile reveal" onclick="navigateTo('kage-animals')">
-              <span class="cat-thumb"><img src="images/animal-bear.jpg" alt="KAGE Animals" loading="lazy" /></span>
+              <span class="cat-thumb"><img src="images/cat-kage-animals.jpg" alt="KAGE Animals" loading="lazy" /></span>
               <span class="cat-info">
                 <span class="cat-name">KAGE Animals</span>
                 <span class="cat-desc">Four spirits. Collect all four sticker animals by purchasing shirts.</span>
@@ -3514,11 +3527,11 @@
               </span>
             </a>
             <a class="cat-tile reveal" onclick="navigateTo('custom-stickers')">
-              <span class="cat-thumb"><img src="images/animal-white-fox.jpg" alt="Custom Stickers" loading="lazy" /></span>
+              <span class="cat-thumb"><img src="images/cat-custom-stickers.jpg" alt="Custom Stickers" loading="lazy" /></span>
               <span class="cat-info">
                 <span class="cat-name">Custom Stickers</span>
                 <span class="cat-desc">Your design, our print. Peel-proof vinyl, any size.</span>
-                <span class="cat-shop">Design Yours <i>→</i></span>
+                <span class="cat-shop">Explore <i>→</i></span>
               </span>
             </a>
           </div>
@@ -3533,7 +3546,7 @@
           <p class="section-label">New Season</p>
           <h2 class="vibes-title">NEW<br />VIBES</h2>
           <p class="vibes-desc">New original anime drops daily.<br /><span class="vibes-jp">カゲ — エディット — Kage Edit</span></p>
-          <button class="vibes-cta" onclick="navigateTo('collection', 'new')">Explore Collection</button>
+          <button class="vibes-cta" onclick="navigateTo('collection', 'anime')">Explore Collection</button>
         </div>
         <div class="vibes-image">
           <picture>
@@ -3834,8 +3847,8 @@
   </div>
 
   <!-- KAGE CLAN SPIN-THE-WHEEL POPUP -->
-  <div class="clan-popup-overlay" id="clanPopup">
-    <div class="clan-popup">
+  <div class="clan-popup-overlay" id="clanPopup" onclick="if(event.target===this)closeClanPopup()">
+    <div class="clan-popup" onclick="event.stopPropagation()">
       <button class="clan-popup-close" onclick="closeClanPopup()">✕</button>
       <div class="clan-popup-icon">🎰</div>
       <div class="clan-popup-title">KAGE Clan Spin the Wheel</div>
@@ -4010,11 +4023,43 @@
     </div>
   </div>
 
-  <!-- CUSTOMER ACCOUNT PAGE -->
+  <!-- CUSTOMER ACCOUNT PAGE (content injected by JS) -->
   <div class="page" id="page-account">
+    <div class="container">
+      <div class="account-welcome">Welcome, <span id="acctName">Clan Member</span></div>
+      <div class="account-email" id="acctEmail"></div>
+      <div class="account-grid">
+        <div class="account-sidebar">
+          <div class="account-card">
+            <h3>Profile</h3>
+            <div class="acct-field"><label>Name</label><input type="text" id="acctNameInput" /></div>
+            <div class="acct-field"><label>Phone</label><input type="tel" id="acctPhone" /></div>
+            <div class="acct-field"><label>Address</label><input type="text" id="acctAddress" /></div>
+            <div class="acct-field"><label>City</label><input type="text" id="acctCity" /></div>
+            <button class="acct-btn" onclick="saveAccountProfile()">Save Changes</button>
+            <div class="acct-msg" id="acctProfileMsg"></div>
+          </div>
+          <div class="account-card">
+            <h3>Change Password</h3>
+            <div class="acct-field"><label>Current Password</label><input type="password" id="acctCurrentPw" /></div>
+            <div class="acct-field"><label>New Password</label><input type="password" id="acctNewPw" placeholder="Min. 6 characters" /></div>
+            <button class="acct-btn" onclick="changeAccountPassword()">Update Password</button>
+            <div class="acct-msg" id="acctPwMsg"></div>
+          </div>
+          <button class="account-logout" onclick="customerLogout()">Sign Out</button>
+        </div>
+        <div>
+          <div class="account-card">
+            <h3>Order History</h3>
+            <div class="account-orders" id="acctOrders">
+              <div style="text-align:center;padding:1rem;color:var(--text-muted);font-size:0.82rem;">Loading orders…</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
-
-    <!-- CONTENT PAGES -->
+n    <!-- CONTENT PAGES -->
     <div class="page" id="page-returns">
       <div class="container" style="padding: calc(104px + var(--spacing-lg)) 0 var(--spacing-xl); max-width: 720px;">
         <p class="section-label">Policy</p>
@@ -4404,39 +4449,6 @@
         <p style="margin-top: var(--spacing-xl);"><a onclick="navigateTo('home')" style="color: var(--accent); cursor: pointer; font-size: 0.85rem;">← Back to Shop</a></p>
       </div>
     </div>
-    <div class="container">
-      <div class="account-welcome">Welcome, <span id="acctName">Clan Member</span></div>
-      <div class="account-email" id="acctEmail"></div>
-      <div class="account-grid">
-        <div class="account-sidebar">
-          <div class="account-card">
-            <h3>Profile</h3>
-            <div class="acct-field"><label>Name</label><input type="text" id="acctNameInput" /></div>
-            <div class="acct-field"><label>Phone</label><input type="tel" id="acctPhone" /></div>
-            <div class="acct-field"><label>Address</label><input type="text" id="acctAddress" /></div>
-            <div class="acct-field"><label>City</label><input type="text" id="acctCity" /></div>
-            <button class="acct-btn" onclick="saveAccountProfile()">Save Changes</button>
-            <div class="acct-msg" id="acctProfileMsg"></div>
-          </div>
-          <div class="account-card">
-            <h3>Change Password</h3>
-            <div class="acct-field"><label>Current Password</label><input type="password" id="acctCurrentPw" /></div>
-            <div class="acct-field"><label>New Password</label><input type="password" id="acctNewPw" placeholder="Min. 6 characters" /></div>
-            <button class="acct-btn" onclick="changeAccountPassword()">Update Password</button>
-            <div class="acct-msg" id="acctPwMsg"></div>
-          </div>
-          <button class="account-logout" onclick="customerLogout()">Sign Out</button>
-        </div>
-        <div>
-          <div class="account-card">
-            <h3>Order History</h3>
-            <div class="account-orders" id="acctOrders">
-              <div style="text-align:center;padding:1rem;color:var(--text-muted);font-size:0.82rem;">Loading orders…</div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
 
   <!-- JAVASCRIPT -->
   <script>
@@ -4631,6 +4643,11 @@
       }
       const t = document.getElementById('page-' + target);
       if (!t) { document.getElementById('page-home').classList.add('active'); return; }
+      // Move the target page inside <main> so it renders in the correct layout position
+      const mainEl = document.querySelector('main');
+      if (mainEl && t.parentElement !== mainEl) {
+        mainEl.appendChild(t);
+      }
       t.classList.add('active');
       window.scrollTo({ top: 0 });
       closeFilterDrawer();

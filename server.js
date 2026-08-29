@@ -4,16 +4,19 @@
 // Route logic lives in routes/*.js, middleware in middleware/*.js.
 // ================================================================
 const express = require('express');
-const cookieSession = require('cookie-session');
-const helmet = require('helmet');
-const compression = require('compression');
 const path = require('path');
-const multer = require('multer');
 const dbModule = require('./database');
 const config = require('./config');
 const { globalLimiter } = require('./middleware/rateLimit');
 const { csrfMiddleware } = require('./middleware/csrf');
 const { requireAuth } = require('./middleware/auth');
+
+// Lazy-loaded heavy modules (loaded on first use, not on every cold start)
+let helmet, compression, cookieSession, multer;
+function loadHelmet() { return (helmet = helmet || require('helmet')); }
+function loadCompression() { return (compression = compression || require('compression')); }
+function loadCookieSession() { return (cookieSession = cookieSession || require('cookie-session')); }
+function loadMulter() { return (multer = multer || require('multer')); }
 
 let db = dbModule;
 
@@ -28,7 +31,7 @@ if ((process.env.VERCEL || process.env.NODE_ENV === 'production') && !process.en
 const SESSION_SECRET = process.env.SESSION_SECRET || 'kage-dev-secret-not-for-production';
 
 // ── Security Headers ──────────────────────────────────────────
-app.use(helmet({
+app.use(loadHelmet()({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
@@ -52,14 +55,14 @@ app.use(globalLimiter);
 app.use(csrfMiddleware);
 
 // ── Compression ───────────────────────────────────────────────
-app.use(compression({ level: 6, threshold: 1024 }));
+app.use(loadCompression()({ level: 6, threshold: 1024 }));
 
 // ── Body Parsers ──────────────────────────────────────────────
 app.use(express.json({ limit: '8mb' }));
 app.use(express.urlencoded({ extended: true, limit: '8mb' }));
 
 // ── Sessions ──────────────────────────────────────────────────
-app.use(cookieSession({
+app.use(loadCookieSession()({
   name: 'kage.session',
   secret: SESSION_SECRET,
   maxAge: 24 * 60 * 60 * 1000,
@@ -69,7 +72,7 @@ app.use(cookieSession({
 }));
 
 // ── Static Files ──────────────────────────────────────────────
-app.use(express.static(path.join(__dirname, 'public'), { maxAge: '1d', etag: true, lastModified: true }));
+app.use(express.static(path.join(__dirname, 'public'), { maxAge: process.env.VERCEL ? '1d' : 0, etag: true, lastModified: true }));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads'), { maxAge: '7d' }));
 
 // ── Cache-Control for API ─────────────────────────────────────
@@ -102,12 +105,14 @@ const createAdminRoutes = require('./routes/admin');
 // ── Error Handler ─────────────────────────────────────────────
 app.use((err, req, res, next) => {
   console.error('Server error:', err);
-  if (err instanceof multer.MulterError) return res.status(400).json({ error: 'Upload error: ' + err.message });
+  if (err instanceof loadMulter().MulterError) return res.status(400).json({ error: 'Upload error: ' + err.message });
   if (err.status) return res.status(err.status).json({ error: err.message });
   res.status(500).json({ error: 'Internal server error.' });
 });
 
-// ── Seed & Migrate ────────────────────────────────────────────
+// ── Seed & Migrate (runs once per cold start) ────────────────────
+let _initialized = false;
+
 async function backfillUnitCosts() {
   const missing = await db.prepare('SELECT id, price FROM products WHERE unit_cost IS NULL OR unit_cost = 0').all();
   if (missing.length === 0) return;
@@ -162,9 +167,14 @@ async function seedProducts() {
 // ── Start ─────────────────────────────────────────────────────
 async function startServer() {
   try { await dbModule.init(); db = dbModule; } catch (e) { console.error('⚠️  Database init failed:', e.message); db = dbModule; }
-  try { await seedProducts(); } catch (e) { console.error('seedProducts skipped:', e.message); }
-  try { await backfillUnitCosts(); } catch (e) { console.error('backfillUnitCosts skipped:', e.message); }
-  try { await syncSeedSalePrices(); } catch (e) { console.error('syncSeedSalePrices skipped:', e.message); }
+
+  // Seed & migrate only once per cold start
+  if (!_initialized) {
+    _initialized = true;
+    try { await seedProducts(); } catch (e) { console.error('seedProducts skipped:', e.message); }
+    try { await backfillUnitCosts(); } catch (e) { console.error('backfillUnitCosts skipped:', e.message); }
+    try { await syncSeedSalePrices(); } catch (e) { console.error('syncSeedSalePrices skipped:', e.message); }
+  }
 
   // Register routes with DB reference
   app.use(createAuthRoutes(db, SESSION_SECRET));
@@ -188,8 +198,42 @@ async function startServer() {
   }
 }
 
-const serverReady = startServer().catch(err => { console.error('Failed to start server:', err); throw err; });
+let serverReady;
+if (!process.env.VERCEL) {
+  // Local dev: start once
+  serverReady = startServer().catch(err => { console.error('Failed to start server:', err); throw err; });
+} else {
+  // Vercel serverless: init DB eagerly, routes lazily on first request
+  serverReady = (async () => {
+    try { await dbModule.init(); db = dbModule; } catch (e) { console.error('⚠️  Database init failed:', e.message); db = dbModule; }
+    if (!_initialized) {
+      _initialized = true;
+      try { await seedProducts(); } catch (e) { /* ok */ }
+      try { await backfillUnitCosts(); } catch (e) { /* ok */ }
+      try { await syncSeedSalePrices(); } catch (e) { /* ok */ }
+    }
+  })();
+}
 
 module.exports = async (req, res) => {
-  try { await serverReady; return app(req, res); } catch (err) { console.error('Server not ready:', err.message); if (!res.headersSent) return res.status(500).json({ error: 'Server not ready yet. Please retry.' }); }
+  try {
+    await serverReady;
+    // Register routes only once
+    if (!app._kageRoutesRegistered) {
+      app._kageRoutesRegistered = true;
+      app.use(createAuthRoutes(db, SESSION_SECRET));
+      app.use(createProductRoutes(db));
+      app.use(createOrderRoutes(db));
+      app.use(createReviewRoutes(db));
+      app.use(createSpinRoutes(db));
+      app.use(createAdminRoutes(db));
+      app.get('/admin', requireAuth, (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin.html')));
+      app.get('/admin/*', requireAuth, (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin.html')));
+      app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
+    }
+    return app(req, res);
+  } catch (err) {
+    console.error('Server not ready:', err.message);
+    if (!res.headersSent) return res.status(500).json({ error: 'Server not ready yet. Please retry.' });
+  }
 };
