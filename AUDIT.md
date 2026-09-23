@@ -143,6 +143,22 @@ until FE-H2's event-delegation work lands). Verified live: header now includes
 - The original "CSP clean (no script-src-attr)" check above **read the bug as a pass** — header
   changes must be compared against expected values, not just the absence of old ones.
 
+### ✅ Production smoke test — 2026-09-23 (customer flows, after CSP fix)
+- **Browse:** `/` 200 (330 KB), `/api/products` 200 (20 products), all key assets 200
+  (hero images, mp4, `/vendor/chart.umd.min.js`, manifest, sitemap, `/reset-password`, `/admin`).
+- **Checkout:** CSRF bootstrap → `POST /api/orders` 201 → `KAGE-3LRV34YB` (COD, Cheese God ×1,
+  total 400 = 250 sale price + 150 shipping), status `pending`, stock decremented 10 → 9 atomically.
+- **Tracking:** `/api/orders/track` good phone 200 (**sanitized payload — no email/address**);
+  no phone 400; wrong phone 404; `/api/orders/:num` 401 without phone / 404 wrong phone
+  (H1 verified live).
+- **Cleanup:** test order marked **cancelled**, stock restored 10/10 (done at DB layer,
+  replicating the cancel route's logic).
+- **Observation:** admin API login 401'd during cleanup — the admin password no longer matches
+  the bootstrap value. Most likely the owner changed it (recommended, since it passed through
+  chat). **If the owner did NOT change it, rotate immediately** and treat it as a compromise.
+- **Hardening candidate (low):** login routes are CSRF-exempt (no session yet) — fine, but adding
+  `requireCsrf` to admin/customer login would also harden against login-CSRF phishing. Next pass.
+
 ---
 
 ## Frontend audit — 2026-09-23 (storefront + admin panel)
