@@ -23,6 +23,11 @@ let db = dbModule;
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// M1: behind Vercel's proxy every request arrives with the proxy IP. Without
+// `trust proxy`, express-rate-limit would bucket ALL visitors into one shared
+// bucket — the 120/min global limit could knock the whole site over.
+app.set('trust proxy', 1);
+
 // Session secret — REQUIRED in production
 if ((process.env.VERCEL || process.env.NODE_ENV === 'production') && !process.env.SESSION_SECRET) {
   console.error('FATAL: SESSION_SECRET environment variable is not set.');
@@ -35,8 +40,7 @@ app.use(loadHelmet()({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://unpkg.com"],
-      scriptSrcAttr: ["'unsafe-inline'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
       styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://cdn.jsdelivr.net"],
       fontSrc: ["'self'", "https://fonts.gstatic.com", "https://cdn.jsdelivr.net"],
       imgSrc: ["'self'", "data:", "https:", "blob:"],
@@ -72,7 +76,27 @@ app.use(loadCookieSession()({
 }));
 
 // ── Static Files ──────────────────────────────────────────────
-app.use(express.static(path.join(__dirname, 'public'), { maxAge: process.env.VERCEL ? '1d' : 0, etag: true, lastModified: true }));
+// L4: one canonical admin entry — redirect /admin.html to /admin BEFORE the
+// static middleware can serve it directly.
+app.use((req, res, next) => {
+  if (req.path === '/admin.html') return res.redirect(301, '/admin');
+  next();
+});
+app.use(express.static(path.join(__dirname, 'public'), {
+  // M7: HTML stays uncacheable (fresh deployments must show immediately);
+  // everything else (images, fonts, icons) is fingerprint-free but stable, so
+  // clients may reuse it for a year with must-revalidate as a safety net.
+  maxAge: '365d',
+  etag: true,
+  lastModified: true,
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('.html')) {
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+    }
+  }
+}));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads'), { maxAge: '7d' }));
 
 // ── Cache-Control for API ─────────────────────────────────────
@@ -165,8 +189,11 @@ async function seedProducts() {
 }
 
 // ── Start ─────────────────────────────────────────────────────
-async function startServer() {
-  try { await dbModule.init(); db = dbModule; } catch (e) { console.error('⚠️  Database init failed:', e.message); db = dbModule; }
+// Idempotent bootstrap: init DB → seed → register routes. Safe to call from
+// local dev, Vercel serverless, and tests.
+async function ensureReady() {
+  try { await dbModule.init(); } catch (e) { console.error('⚠️  Database init failed:', e.message); throw e; }
+  db = dbModule;
 
   // Seed & migrate only once per cold start
   if (!_initialized) {
@@ -176,64 +203,53 @@ async function startServer() {
     try { await syncSeedSalePrices(); } catch (e) { console.error('syncSeedSalePrices skipped:', e.message); }
   }
 
-  // Register routes with DB reference
-  app.use(createAuthRoutes(db, SESSION_SECRET));
-  app.use(createProductRoutes(db));
-  app.use(createOrderRoutes(db));
-  app.use(createReviewRoutes(db));
-  app.use(createSpinRoutes(db));
-  app.use(createAdminRoutes(db));
+  // Register routes (guard so repeated invocations don't double-register)
+  if (!app._kageRoutesRegistered) {
+    app._kageRoutesRegistered = true;
+    app.use(createAuthRoutes(db, SESSION_SECRET));
+    app.use(createProductRoutes(db));
+    app.use(createOrderRoutes(db));
+    app.use(createReviewRoutes(db));
+    app.use(createSpinRoutes(db));
+    app.use(createAdminRoutes(db));
 
-  // HTML fallback routes (registered AFTER API routes)
-  app.get('/admin', requireAuth, (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin.html')));
-  app.get('/admin/*', requireAuth, (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin.html')));
-  app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
-
-  if (!process.env.VERCEL) {
-    const server = app.listen(PORT, () => {
-      const mode = dbModule.USE_TURSO ? 'Turso (cloud)' : 'sql.js (local file)';
-      console.log(`\n╔══════════════════════════════════════════════════╗\n║         KAGE CULTURE — Admin System              ║\n╠══════════════════════════════════════════════════╣\n║  Public site:  http://localhost:${PORT}              ║\n║  Admin panel:  http://localhost:${PORT}/admin       ║\n║  Database:     ${mode}                                ║\n╚══════════════════════════════════════════════════╝\n    `);
-    });
-    process.on('SIGTERM', () => { console.log('SIGTERM received — shutting down gracefully...'); server.close(() => { process.exit(0); }); setTimeout(() => process.exit(1), 5000); });
+    // HTML fallback routes (registered AFTER API routes)
+    // L4: admin.html IS the login page, so it must stay publicly reachable;
+    // the data APIs behind it are the real protection. /admin.html already
+    // redirects to /admin above (before static), giving one canonical entry.
+    app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin.html')));
+    app.get('/admin/*', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin.html')));
+    app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
   }
 }
 
-let serverReady;
-if (!process.env.VERCEL) {
-  // Local dev: start once
-  serverReady = startServer().catch(err => { console.error('Failed to start server:', err); throw err; });
-} else {
-  // Vercel serverless: init DB eagerly, routes lazily on first request
-  serverReady = (async () => {
-    try { await dbModule.init(); db = dbModule; } catch (e) { console.error('⚠️  Database init failed:', e.message); db = dbModule; }
-    if (!_initialized) {
-      _initialized = true;
-      try { await seedProducts(); } catch (e) { /* ok */ }
-      try { await backfillUnitCosts(); } catch (e) { /* ok */ }
-      try { await syncSeedSalePrices(); } catch (e) { /* ok */ }
-    }
-  })();
-}
+const serverReady = ensureReady();
 
+// Vercel serverless entrypoint
 module.exports = async (req, res) => {
   try {
     await serverReady;
-    // Register routes only once
-    if (!app._kageRoutesRegistered) {
-      app._kageRoutesRegistered = true;
-      app.use(createAuthRoutes(db, SESSION_SECRET));
-      app.use(createProductRoutes(db));
-      app.use(createOrderRoutes(db));
-      app.use(createReviewRoutes(db));
-      app.use(createSpinRoutes(db));
-      app.use(createAdminRoutes(db));
-      app.get('/admin', requireAuth, (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin.html')));
-      app.get('/admin/*', requireAuth, (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin.html')));
-      app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
-    }
     return app(req, res);
   } catch (err) {
+    // H2: fail loudly — if boot failed (e.g. Vercel without Turso) say so
+    // instead of silently serving a data-loss in-memory DB.
     console.error('Server not ready:', err.message);
-    if (!res.headersSent) return res.status(500).json({ error: 'Server not ready yet. Please retry.' });
+    if (!res.headersSent) res.status(503).json({ error: 'Server boot failed: ' + err.message });
   }
 };
+module.exports.app = app;          // tests: boot your own listener
+module.exports.ensureReady = ensureReady;
+
+// Local dev / direct execution: listen and manage the process lifecycle.
+if (require.main === module) {
+  serverReady.then(() => {
+    const server = app.listen(PORT, () => {
+      const mode = dbModule.USE_TURSO ? 'Turso (cloud)' : (dbModule.activeBackend === 'mem' ? 'in-memory' : 'sql.js (local)');
+      console.log(`\n╔══════════════════════════════════════════════════╗\n║         KAGE CULTURE — Admin System              ║\n╠══════════════════════════════════════════════════╣\n║  Public site:  http://localhost:${PORT}              ║\n║  Admin panel:  http://localhost:${PORT}/admin       ║\n║  Database:     ${mode}                                ║\n╚══════════════════════════════════════════════════╝\n    `);
+    });
+    process.on('SIGTERM', () => { console.log('SIGTERM received — shutting down gracefully...'); server.close(() => { process.exit(0); }); setTimeout(() => process.exit(1), 5000); });
+  }).catch(err => {
+    console.error('Failed to start server:', err.message);
+    process.exit(1);
+  });
+}

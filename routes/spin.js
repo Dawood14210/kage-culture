@@ -33,7 +33,7 @@ module.exports = function createSpinRoutes(db) {
       const collection = {}; KAGE_ANIMALS.forEach(a => { collection[a] = 0; }); stickers.forEach(s => { collection[s.animal] = s.count || 0; });
       const uniqueCount = Object.values(collection).filter(v => v > 0).length;
       res.json({ email: clean, total_shirts: totalShirts, spins_remaining: ticket.spins_remaining || 0, total_spins_earned: ticket.total_spins_earned || 0, total_spins_used: ticket.total_spins_used || 0, collection, unique_count: uniqueCount, has_all_four: uniqueCount >= 4, animals: KAGE_ANIMALS });
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) { console.error('spin route failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
   });
 
   // POST execute spin
@@ -55,7 +55,7 @@ module.exports = function createSpinRoutes(db) {
       const collection = {}; KAGE_ANIMALS.forEach(a => { collection[a] = 0; }); stickers.forEach(s => { collection[s.animal] = s.count || 0; });
       const uniqueCount = Object.values(collection).filter(v => v > 0).length;
       res.json({ success: true, animal, spins_remaining: updatedTicket.spins_remaining || 0, collection, unique_count: uniqueCount, has_all_four: uniqueCount >= 4 });
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) { console.error('spin route failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
   });
 
   // POST re-spin — DISABLED

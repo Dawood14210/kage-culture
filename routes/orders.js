@@ -43,7 +43,22 @@ module.exports = function createOrderRoutes(db) {
       const initialStatus = method === 'cod' ? 'pending' : 'awaiting_verification';
       const result = await db.prepare('INSERT INTO orders (order_number, customer_name, email, phone, address, city, notes, payment_method, payment_ref, subtotal, shipping, total, items_json, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(orderNumber, String(name).slice(0, 120), String(email).slice(0, 160), String(phone).slice(0, 40), String(address).slice(0, 300), String(city).slice(0, 120), String(notes || '').slice(0, 500), method, String(payment_ref || '').slice(0, 100) || null, Math.round(subtotal), shipping, total, JSON.stringify(lineItems), initialStatus, now);
 
-      for (const it of lineItems) { if (it.stock == null) continue; const newStock = Math.max(0, it.stock - it.qty); await db.prepare('UPDATE products SET stock_qty = ? WHERE id = ?').run(newStock, it.id); if (newStock === 0) await db.prepare('UPDATE products SET in_stock = ? WHERE id = ?').run(0, it.id); }
+      // Atomic stock decrement — `WHERE stock_qty >= ?` guards against the
+      // SELECT-then-UPDATE overselling race: if stock changed between the
+      // availability check above and now, the UPDATE matches 0 rows and we
+      // reject the order. (Backends report `changes`; a backend without it
+      // is assumed to have applied the guarded UPDATE.)
+      for (const it of lineItems) {
+        if (it.stock == null) continue;
+        const upd = await db.prepare('UPDATE products SET stock_qty = stock_qty - ? WHERE id = ? AND stock_qty >= ?').run(it.qty, it.id, it.qty);
+        const changed = upd && upd.changes != null ? Number(upd.changes) : 1;
+        if (!changed) {
+          // Roll back the just-inserted order so no phantom order remains.
+          try { await db.prepare('DELETE FROM orders WHERE id = ?').run(result.lastInsertRowid); } catch (_) {}
+          return res.status(400).json({ error: `Sorry — "${it.name}" just sold out or has fewer units left than requested. Please review your cart.` });
+        }
+        await db.prepare('UPDATE products SET in_stock = ? WHERE id = ? AND stock_qty <= 0').run(0, it.id);
+      }
 
       const order = await db.prepare('SELECT * FROM orders WHERE id = ?').get(result.lastInsertRowid);
       order.items = JSON.parse(order.items_json || '[]');
@@ -53,12 +68,18 @@ module.exports = function createOrderRoutes(db) {
       const clanEligible = totalShirts >= config.CLAN_THRESHOLD;
       const alreadyMember = !!(await db.prepare('SELECT id FROM newsletter_subscribers WHERE email = ?').get(String(email).toLowerCase()));
 
-      res.status(201).json({ order_number: order.order_number, customer_name: order.customer_name, email: order.email, phone: order.phone, address: order.address, city: order.city, notes: order.notes, payment_method: order.payment_method, payment_ref: order.payment_ref, subtotal: order.subtotal, shipping: order.shipping, total: order.total, items: order.items, status: order.status, created_at: order.created_at, total_shirts: totalShirts, clan_eligible: clanEligible, clan_member: alreadyMember });
-      sendOrderConfirmation({ ...order, items: order.items }).catch(e => console.error('Order confirmation email failed:', e.message));
-    } catch (err) { res.status(500).json({ error: err.message }); }
+      const payload = { order_number: order.order_number, customer_name: order.customer_name, email: order.email, phone: order.phone, address: order.address, city: order.city, notes: order.notes, payment_method: order.payment_method, payment_ref: order.payment_ref, subtotal: order.subtotal, shipping: order.shipping, total: order.total, items: order.items, status: order.status, created_at: order.created_at, total_shirts: totalShirts, clan_eligible: clanEligible, clan_member: alreadyMember };
+
+      // Await the confirmation email BEFORE responding — on Vercel the lambda
+      // can freeze right after res.json(), killing fire-and-forget promises.
+      try { await sendOrderConfirmation({ ...order, items: order.items }); }
+      catch (e) { console.error('Order confirmation email failed:', e.message); }
+
+      res.status(201).json(payload);
+    } catch (err) { console.error('order placement failed:', err.message); res.status(500).json({ error: 'Something went wrong placing your order. Please try again.' }); }
   });
 
-  // GET track order (public)
+  // GET track order (public) — requires order number + matching phone
   router.get('/api/orders/track', async (req, res) => {
     try {
       const { number, phone } = req.query;
@@ -66,16 +87,20 @@ module.exports = function createOrderRoutes(db) {
       const order = await db.prepare('SELECT * FROM orders WHERE order_number = ?').get(String(number).trim().toUpperCase());
       if (!order || normPhone(order.phone) !== normPhone(phone)) return res.status(404).json({ error: "We couldn't find an order with that number and phone." });
       const { email, address, notes, items_json, ...safe } = order; safe.items = JSON.parse(order.items_json || '[]'); res.json(safe);
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) { console.error('order track failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
   });
 
-  // GET single order (public)
+  // GET single order (public) — requires the order number AND matching phone
+  // (same verification as /track). Previously this returned name, address and
+  // payment details to anyone who knew/guessed an order number.
   router.get('/api/orders/:orderNumber', async (req, res) => {
     try {
-      const order = await db.prepare('SELECT * FROM orders WHERE order_number = ?').get(req.params.orderNumber);
-      if (!order) return res.status(404).json({ error: 'Order not found' });
-      const { email, phone, notes, items_json, ...safe } = order; safe.items = JSON.parse(order.items_json || '[]'); res.json(safe);
-    } catch (err) { res.status(500).json({ error: err.message }); }
+      const { phone } = req.query;
+      if (!phone) return res.status(401).json({ error: 'Phone verification required. Use /api/orders/track?number=...&phone=... instead.' });
+      const order = await db.prepare('SELECT * FROM orders WHERE order_number = ?').get(String(req.params.orderNumber).trim().toUpperCase());
+      if (!order || normPhone(order.phone) !== normPhone(phone)) return res.status(404).json({ error: "We couldn't find an order with that number and phone." });
+      const { email, address, notes, items_json, ...safe } = order; safe.items = JSON.parse(order.items_json || '[]'); res.json(safe);
+    } catch (err) { console.error('order lookup failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
   });
 
   // GET all orders (admin only) — supports search
@@ -92,7 +117,7 @@ module.exports = function createOrderRoutes(db) {
         orders = await db.prepare('SELECT * FROM orders ORDER BY created_at DESC, id DESC').all();
       }
       orders.forEach(o => { o.items = JSON.parse(o.items_json || '[]'); }); res.json(orders);
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) { console.error('orders list failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
   });
 
   // GET CSV export (admin only)
@@ -105,7 +130,7 @@ module.exports = function createOrderRoutes(db) {
       res.setHeader('Content-Type', 'text/csv');
       res.setHeader('Content-Disposition', `attachment; filename="kage-orders-${new Date().toISOString().slice(0,10)}.csv"`);
       res.send(header + rows);
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) { console.error('orders CSV export failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
   });
 
   // PATCH update order status (admin only)
@@ -124,9 +149,13 @@ module.exports = function createOrderRoutes(db) {
       await db.prepare('UPDATE orders SET status = ? WHERE id = ?').run(status, id);
       const updated = await db.prepare('SELECT * FROM orders WHERE id = ?').get(id);
       updated.items = JSON.parse(updated.items_json || '[]');
-      if (oldStatus !== status) sendStatusUpdate({ ...updated, items: updated.items }, oldStatus).catch(e => console.error('Status email failed:', e.message));
+      if (oldStatus !== status) {
+        // Await BEFORE responding — serverless lambdas freeze after res.json()
+        try { await sendStatusUpdate({ ...updated, items: updated.items }, oldStatus); }
+        catch (e) { console.error('Status email failed:', e.message); }
+      }
       res.json(updated);
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) { console.error('order status update failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
   });
 
   // PATCH mark payment verified (admin only)
@@ -137,7 +166,7 @@ module.exports = function createOrderRoutes(db) {
       if (!order) return res.status(404).json({ error: 'Order not found' });
       await db.prepare('UPDATE orders SET payment_verified = ? WHERE id = ?').run(req.body.verified !== false ? 1 : 0, id);
       const updated = await db.prepare('SELECT * FROM orders WHERE id = ?').get(id); updated.items = JSON.parse(updated.items_json || '[]'); res.json(updated);
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) { console.error('payment verify failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
   });
 
   // PATCH confirm COD payment (admin only)
@@ -149,7 +178,7 @@ module.exports = function createOrderRoutes(db) {
       if (order.payment_method !== 'cod') return res.status(400).json({ error: 'This order is not a COD order.' });
       await db.prepare('UPDATE orders SET cod_confirmed = ? WHERE id = ?').run(req.body.confirmed !== false ? 1 : 0, id);
       const updated = await db.prepare('SELECT * FROM orders WHERE id = ?').get(id); updated.items = JSON.parse(updated.items_json || '[]'); res.json(updated);
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) { console.error('COD confirm failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
   });
 
   // GET customer order history
@@ -159,7 +188,7 @@ module.exports = function createOrderRoutes(db) {
       if (!customer) return res.status(404).json({ error: 'Account not found.' });
       const orders = await db.prepare('SELECT * FROM orders WHERE email = ? OR phone = ? ORDER BY created_at DESC, id DESC').all(customer.email, customer.phone);
       orders.forEach(o => { o.items = JSON.parse(o.items_json || '[]'); }); res.json({ orders });
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) { console.error('customer orders failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
   });
 
   return router;

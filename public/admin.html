@@ -1405,13 +1405,8 @@
       errEl.style.display = 'none';
 
       try {
-        // Try to create admin account on first run
-        await fetch('/api/admin/setup', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, password })
-        }).catch(() => {});
-
+        // NOTE: first-run bootstrap is NOT automatic — POST /api/admin/setup is
+        // disabled unless ALLOW_ADMIN_SETUP=true (prevents first-visitor admin takeover).
         const res = await fetch('/api/admin/login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1625,7 +1620,7 @@
       // Front image preview (existing image)
       const frontPreview = document.getElementById('frontPreview');
       if (p.front_image) {
-        frontPreview.innerHTML = `<img src="${p.front_image}" alt="Front" />`;
+        frontPreview.innerHTML = `<img src="${esc(p.front_image)}" alt="Front" />`;
         frontPreview.classList.add('show');
         document.getElementById('frontUploadArea').classList.add('has-image');
         document.getElementById('frontIdle').style.display = 'none';
@@ -1633,7 +1628,7 @@
       }
 
       if (p.back_image) {
-        document.getElementById('backPreview').innerHTML = `<img src="${p.back_image}" alt="Back" />`;
+        document.getElementById('backPreview').innerHTML = `<img src="${esc(p.back_image)}" alt="Back" />`;
         document.getElementById('backUploadArea').classList.add('has-image');
       }
 

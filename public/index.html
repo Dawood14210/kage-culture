@@ -229,8 +229,8 @@
     .topbar {
       background: var(--accent);
       color: #fff;
-      font-size: 0.6rem;
-      letter-spacing: 0.14em;
+      font-size: 0.4rem;
+      letter-spacing: 0.12em;
       text-transform: uppercase;
     }
     .topbar .container {
@@ -238,18 +238,20 @@
       align-items: center;
       justify-content: space-between;
       gap: var(--spacing-md);
-      min-height: 32px;
+      min-height: 10px;
+      padding-top: 0;
+      padding-bottom: 0;
     }
     .topbar-links {
       display: flex;
       align-items: center;
-      gap: 1rem;
+      gap: 0.8rem;
     }
     .topbar-links a {
       color: rgba(255,255,255,0.75);
       cursor: pointer;
       transition: color var(--transition-fast);
-      min-height: 32px;
+      min-height: 10px;
       display: flex;
       align-items: center;
     }
@@ -260,7 +262,7 @@
     }
 
     .site-header .nav-inner {
-      padding: 0.55rem 0;
+      padding: 0 0;
       position: relative;
     }
     .kage-logo {
@@ -271,26 +273,26 @@
     /* Brush-style 影 — Zen Brush sumi-ink typeface with a faded ink-wash edge */
     .kage-logo .kanji {
       font-family: 'Zen Brush', 'Noto Serif JP', serif;
-      font-size: 40px;
+      font-size: 18px;
       font-weight: 400;
       color: var(--accent);
-      line-height: 0.95;
+      line-height: 0.9;
       opacity: 0.88;
       -webkit-mask-image: radial-gradient(ellipse 78% 78% at 50% 50%, #000 60%, rgba(0,0,0,0.75) 82%, transparent 100%);
       mask-image: radial-gradient(ellipse 78% 78% at 50% 50%, #000 60%, rgba(0,0,0,0.75) 82%, transparent 100%);
     }
     .kage-logo .wordmark-wrap {
-      display: flex; flex-direction: column; align-items: center; margin-top: 2px;
+      display: flex; flex-direction: column; align-items: center; margin-top: 1px;
     }
     .kage-logo .kage {
-      font-family: var(--font-display); font-size: 13px;
+      font-family: var(--font-display); font-size: 7px;
       font-weight: 800;
       letter-spacing: 0.3em; color: #0A0A0A; line-height: 1;
     }
     .kage-logo .kage .accent { color: var(--accent); }
     .kage-logo .culture {
-      font-family: var(--font-body); font-size: 6px;
-      letter-spacing: 0.35em; color: var(--text-dim); margin-top: 2px; line-height: 1;
+      font-family: var(--font-body); font-size: 3.5px;
+      letter-spacing: 0.35em; color: var(--text-dim); margin-top: 0px; line-height: 1;
     }
 
     .nav-links {
@@ -337,7 +339,7 @@
     .nav-icons { display: flex; align-items: center; gap: var(--spacing-xs); }
     .nav-icon {
       background: none; border: none;
-      color: var(--text-secondary); font-size: 1.1rem;
+      color: var(--text-secondary); font-size: 1rem;
       cursor: pointer; transition: color var(--transition-fast);
       position: relative;
       min-width: 44px; min-height: 44px;
@@ -356,13 +358,14 @@
     .badge.bump { transform: scale(1.3); }
 
     .hamburger {
-      display: flex; flex-direction: column; gap: 4px;
+      display: flex; flex-direction: column; gap: 2px;
       cursor: pointer; background: none; border: none;
-      padding: 10px; min-width: 44px; min-height: 44px;
+      padding: 6px; min-width: 44px; min-height: 44px;
       align-items: center; justify-content: center;
+      margin-left: 12px;
     }
     .hamburger span {
-      display: block; width: 20px; height: 2px;
+      display: block; width: 16px; height: 1.5px;
       background: var(--text-primary);
       transition: all var(--transition-fast);
     }
@@ -378,14 +381,14 @@
       border-color: var(--border-color);
       color: var(--text-primary);
     }
-    .hamburger.active span:nth-child(1) { transform: rotate(45deg) translate(5px, 5px); }
+    .hamburger.active span:nth-child(1) { transform: translate(0, 3.5px) rotate(45deg); }
     .hamburger.active span:nth-child(2) { opacity: 0; }
-    .hamburger.active span:nth-child(3) { transform: rotate(-45deg) translate(5px, -5px); }
+    .hamburger.active span:nth-child(3) { transform: translate(0, -3.5px) rotate(-45deg); }
 
     /* ================================================================
        PAGE SYSTEM
        ================================================================ */
-    .page { display: none; padding-top: 116px; min-height: 100vh; }
+    .page { display: none; padding-top: 34px; min-height: 100vh; }
     .page.active { display: block; }
 
     /* ================================================================
@@ -786,8 +789,7 @@
     .product-grid .quick-view-btn {
       width: 100%;
       margin-top: 0.5rem;
-      background: transparent;
-      border: 1px solid var(--border-color);
+      background: transparent;      border: 1px solid var(--border-color);
       color: var(--text-muted);
       font-family: var(--font-body);
       font-size: 0.65rem;
@@ -800,7 +802,8 @@
       opacity: 0;
       transform: translateY(4px);
     }
-    .product-grid .product-card:hover .quick-view-btn {
+    .product-grid .product-card:hover .quick-view-btn,
+    .product-grid .quick-view-btn:focus-visible {
       opacity: 1;
       transform: translateY(0);
     }
@@ -1024,7 +1027,7 @@
     /* ================================================================
        COLLECTION / CATEGORY PAGE — LIGHT
        ================================================================ */
-    .collection-page { padding: calc(104px + var(--spacing-md)) 0 var(--spacing-lg); }
+    .collection-page { padding: calc(52px + var(--spacing-md)) 0 var(--spacing-lg); }
 
     /* Breadcrumb */
     .breadcrumb {
@@ -1463,7 +1466,7 @@
        PRODUCT DETAIL PAGE — LIGHT
        ================================================================ */
     .product-detail-page {
-      padding: calc(104px + var(--spacing-md)) 0 var(--spacing-lg);
+      padding: calc(52px + var(--spacing-md)) 0 var(--spacing-lg);
     }
     .detail-layout { display: grid; grid-template-columns: 1fr 1fr; gap: var(--spacing-lg); }
 
@@ -1983,7 +1986,7 @@
     /* ================================================================
        CUSTOMER ACCOUNT PAGE
        ================================================================ */
-    .account-page { padding: calc(104px + var(--spacing-lg)) 0 var(--spacing-xl); }
+    .account-page { padding: calc(78px + var(--spacing-lg)) 0 var(--spacing-xl); }
     .account-grid { display: grid; grid-template-columns: 1fr 1.4fr; gap: var(--spacing-lg); }
     @media (max-width: 768px) { .account-grid { grid-template-columns: 1fr; } }
     .account-sidebar { display: flex; flex-direction: column; gap: var(--spacing-md); }
@@ -2068,7 +2071,7 @@
     }
     .filter-sidebar {
       position: sticky;
-      top: 84px;
+      top: 60px;
       z-index: 1;
       display: flex;
       flex-direction: column;
@@ -2488,8 +2491,8 @@
         border-radius: 0;
         box-shadow: none;
       }
-      .nav-links a { padding: 12px 0; min-height: 48px; width: 100%; display: flex; align-items: center; font-size: 0.85rem; }
-      .hamburger { margin: 0; padding: 10px; border-right: none; order: 2; }
+      .nav-links a { padding: 10px 0; min-height: 44px; width: 100%; display: flex; align-items: center; font-size: 0.85rem; }
+      .hamburger { margin: 0; padding: 8px; border-right: none; order: 2; }
       .nav-search { display: none; }
       .nav-icons { display: none; }
       .mobile-search { display: block; }
@@ -2559,7 +2562,7 @@
     .co-pay-option small { color: var(--text-gray); font-size: 0.72rem; }
     .checkout-summary {
       border: 1px solid var(--border-color); border-radius: 14px; padding: var(--spacing-lg);
-      background: var(--bg-panel); position: sticky; top: 80px;
+      background: var(--bg-panel); position: sticky; top: 60px;
     }
     .co-items { display: flex; flex-direction: column; gap: 0.8rem; max-height: 280px; overflow: auto; }
     .co-item { display: flex; gap: 0.8rem; align-items: center; }
@@ -3407,9 +3410,315 @@
       min-height: 40px;
     }
     .coming-soon-back:hover { color: var(--accent); }
+  
+    /* Spirit Detail Page */
+    .spirit-detail-page { padding-bottom: 0; }
+    .spirit-back-link {
+      display: block; width: 100%;
+      font-size: 0.75rem; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 0.05em; color: #3D3931;
+      text-decoration: none; cursor: pointer;
+      padding: 16px 32px;
+      background: var(--bg-primary);
+      border: none; box-shadow: none;
+    }
+    .spirit-back-link:hover { color: var(--accent); }
+
+    /* Editorial Image Sequence */
+    .spirit-editorial {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .spirit-editorial-img {
+      display: block;
+      width: 100%;
+      height: auto;
+      max-height: 90vh;
+      object-fit: contain;
+      margin: 0;
+      padding: 0;
+    }
+    .spirit-editorial-gap {
+      width: 100%;
+      height: 24px;
+      flex-shrink: 0;
+    }
+
+    @media (max-width: 900px) {
+      .spirit-back-link { padding: 16px 20px; }
+      .spirit-editorial-img { max-height: none; }
+      .spirit-editorial-gap { height: 16px; }
+    }
+    @media (max-width: 540px) {
+      .spirit-back-link { padding: 16px; }
+      .spirit-editorial-gap { height: 12px; }
+    }
+
+    /* ================================================================
+       KAGE ANIMALS — SPIRIT VIDEO STAGE
+       ================================================================ */
+    /* Override .page for full-bleed video stage */
+    #page-kage-animals {
+      padding-top: 0 !important;
+      min-height: 0 !important;
+      background: #000 !important;
+    }
+    /* Hide footer when on KAGE Animals page */
+    body.showing-kage-animals .site-footer {
+      display: none !important;
+    }
+    body.showing-kage-animals,
+    body.showing-kage-animals main {
+      background: #000 !important;
+    }
+    body.showing-kage-animals .site-header {
+      background: transparent;
+      border-bottom: none;
+    }
+    body.showing-kage-animals .site-header.scrolled {
+      background: rgba(0,0,0,0.3);
+    }
+    body.showing-kage-animals .nav-search,
+    body.showing-kage-animals .nav-icons {
+      opacity: 0;
+      pointer-events: none;
+    }
+    .kage-animals-stage {
+      width: 100vw;
+      margin-left: calc(-50vw + 50%);
+      position: relative;
+      background: #000;
+    }
+    .kage-animals-stage .spirit-video-wrap {
+      width: 100%;
+      height: 100vh;
+      position: relative;
+      border-radius: 0;
+      overflow: hidden;
+      box-shadow: none;
+      border: none;
+      outline: none;
+      background: #000;
+    }
+    .kage-animals-stage .spirit-video-wrap video {
+      display: block;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: center 45%;
+      background: #000;
+    }
+    .kage-animals-stage .spirit-video-label {
+      position: absolute;
+      bottom: var(--spacing-md);
+      left: var(--spacing-md);
+      display: flex;
+      flex-direction: column;
+      gap: 0.15rem;
+      z-index: 2;
+      pointer-events: none;
+      transition: opacity 0.3s ease;
+    }
+    .kage-animals-stage .spirit-video-label .spirit-name {
+      font-family: var(--font-display);
+      font-size: 1.1rem;
+      font-weight: 800;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-primary);
+      text-shadow: 0 1px 8px rgba(217,212,200,0.7);
+    }
+    .kage-animals-stage .spirit-video-label .spirit-subtitle {
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--accent);
+      text-shadow: 0 1px 6px rgba(217,212,200,0.7);
+    }
+    .kage-animals-stage .spirit-video-label .spirit-rarity {
+      font-size: 0.6rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-top: 0.2rem;
+      padding: 0.15rem 0.5rem;
+      border-radius: 4px;
+      display: inline-block;
+      width: fit-content;
+    }
+
+    /* ================================================================
+       SPIRIT SELECTOR — DESKTOP LEFT PANEL
+       ================================================================ */
+    .spirit-selector {
+      position: absolute;
+      left: 0;
+      top: 0;
+      height: 100%;
+      width: 200px;
+      z-index: 10;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 2rem 1rem;
+      gap: 0.6rem;
+    }
+    .spirit-card {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      padding: 0.5rem 0.6rem;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      border: 1.5px solid transparent;
+      background: rgba(0,0,0,0.25);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+    }
+    .spirit-card:hover {
+      background: rgba(0,0,0,0.45);
+    }
+    .spirit-card.active {
+      background: rgba(0,0,0,0.55);
+      border-color: var(--spirit-rarity-color, rgba(255,255,255,0.3));
+    }
+    .spirit-card-portrait {
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      overflow: hidden;
+      flex-shrink: 0;
+      border: 2px solid rgba(255,255,255,0.15);
+      transition: border-color 0.3s ease;
+    }
+    .spirit-card.active .spirit-card-portrait {
+      border-color: var(--spirit-rarity-color, rgba(255,255,255,0.5));
+    }
+    .spirit-card-portrait img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .spirit-card-info {
+      display: flex;
+      flex-direction: column;
+      gap: 0.05rem;
+      min-width: 0;
+    }
+    .spirit-card-name {
+      font-family: var(--font-display);
+      font-size: 0.65rem;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #fff;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .spirit-card-title {
+      font-size: 0.52rem;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      color: rgba(255,255,255,0.55);
+    }
+    .spirit-card-rarity {
+      font-size: 0.48rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--spirit-rarity-color, rgba(255,255,255,0.4));
+    }
+
+    /* Rarity colors */
+    .spirit-card[data-spirit="white-tiger"] { --spirit-rarity-color: #9333EA; }
+    .spirit-card[data-spirit="white-fox"] { --spirit-rarity-color: #F59E0B; }
+    .spirit-card[data-spirit="black-panther"] { --spirit-rarity-color: #4ADE80; }
+    .spirit-card[data-spirit="bear"] { --spirit-rarity-color: #60A5FA; }
+
+    /* Mobile dots indicator */
+    .spirit-dots {
+      display: none;
+      position: absolute;
+      bottom: 50px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 10;
+      gap: 8px;
+      align-items: center;
+    }
+    .spirit-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.3);
+      border: none;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      padding: 0;
+    }
+    .spirit-dot.active {
+      background: #fff;
+      width: 20px;
+      border-radius: 4px;
+    }
+
+    /* Mobile swipe hint */
+    .swipe-hint {
+      display: none;
+      position: absolute;
+      bottom: 80px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 10;
+      font-size: 0.6rem;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.5);
+      animation: swipeHintFade 3s ease-in-out infinite;
+    }
+    @keyframes swipeHintFade {
+      0%, 100% { opacity: 0.3; }
+      50% { opacity: 0.7; }
+    }
+
+    /* Video crossfade overlay */
+    .video-crossfade {
+      position: absolute;
+      inset: 0;
+      background: #000;
+      opacity: 0;
+      z-index: 1;
+      pointer-events: none;
+      transition: opacity 0.4s ease;
+    }
+    .video-crossfade.active {
+      opacity: 1;
+    }
+
+    @media (max-width: 900px) {
+      .spirit-selector { display: none; }
+      .spirit-dots { display: flex; }
+      .swipe-hint { display: block; }
+      .kage-animals-stage .spirit-video-label .spirit-name {
+        font-size: 0.85rem;
+      }
+      .kage-animals-stage .spirit-video-wrap video {
+        object-position: center 40%;
+      }
+      body.showing-kage-animals .nav-search,
+      body.showing-kage-animals .nav-icons {
+        opacity: 1;
+        pointer-events: auto;
+      }
+    }
   </style>
 
-  <script defer src="https://unpkg.com/@phosphor-icons/web"></script>
 </head>
 <body>
 
@@ -4239,50 +4548,35 @@
 
     <!-- ================================================================
          KAGE ANIMALS PAGE
-         ================================================================ -->
-    <div class="page" id="page-kage-animals">
-      <section class="brand-section">
-        <div class="container">
-          <div class="brand-section-header">
-            <span class="section-label">The Clan</span>
-            <h2>KAGE Animals</h2>
-            <p>Four spirits. Four identities. Each one represents a pillar of the KAGE CULTURE ethos. Collect all four animal stickers by purchasing shirts — earn one spin per shirt ordered.</p>
-            <div class="coming-soon-badge">🎌 Sticker drops live now</div>
-          </div>
-          <div class="animals-grid">
-            <div class="animal-card">
-              <div class="animal-card-img"><picture><source srcset="images/animal-bear.webp" type="image/webp"><img src="images/animal-bear-sm.jpg" alt="Bear" loading="lazy" /></picture></div>
-              <h3>Bear</h3>
-              <div class="animal-role">The Foundation</div>
-              <div class="rarity-badge rarity-common">Common · 45%</div>
-              <p>Unshakable. The bear doesn't move for anyone. Raw power wrapped in patience — only strikes when it matters. Represents the backbone of KAGE: consistency, strength, and the refusal to fold under pressure.</p>
-            </div>
-            <div class="animal-card">
-              <div class="animal-card-img"><picture><source srcset="images/animal-white-tiger.webp" type="image/webp"><img src="images/animal-white-tiger-sm.jpg" alt="White Tiger" loading="lazy" /></picture></div>
-              <h3>White Tiger</h3>
-              <div class="animal-role">The Presence</div>
-              <div class="rarity-badge rarity-mythic">Mythic · 10%</div> <p>Rare and impossible to ignore. The white tiger walks into a room and the energy shifts. Represents KAGE's commitment to standing out — not by being loud, but by being undeniable.</p>
-            </div>
-            <div class="animal-card">
-              <div class="animal-card-img"><picture><source srcset="images/animal-black-panther.webp" type="image/webp"><img src="images/animal-black-panther-sm.jpg" alt="Black Panther" loading="lazy" /></picture></div>
-              <h3>Black Panther</h3>
-              <div class="animal-role">The Silence</div>
-              <div class="rarity-badge rarity-uncommon">Uncommon · 25%</div>
-              <p>Moves in the dark. Strikes before you see it. The panther represents the KAGE mindset — calculated, precise, and always three steps ahead. No wasted energy. No wasted words.</p>
-            </div>
-            <div class="animal-card">
-              <div class="animal-card-img"><picture><source srcset="images/animal-white-fox.webp" type="image/webp"><img src="images/animal-white-fox-sm.jpg" alt="White Fox" loading="lazy" /></picture></div>
-              <h3>White Fox</h3>
-              <div class="animal-role">The Intelligence</div>
-              <div class="rarity-badge rarity-rare">Rare · 20%</div>
-              <p>Outsmarts everything in its path. The fox doesn't fight — it outmanoeuvres. Represents the creative mind behind KAGE: the design, the strategy, and the ability to turn obstacles into opportunities.</p>
-            </div>
+         ================================================================ -->    <div class="page" id="page-kage-animals">
+      <div class="kage-animals-stage">
+        <div class="spirit-video-wrap" id="spiritVideoWrap">
+          <video id="spiritVideo" autoplay loop muted playsinline></video>
+          <div class="video-crossfade" id="videoCrossfade"></div>
+          <div class="spirit-video-label">
+            <span class="spirit-name" id="spiritName"></span>
+            <span class="spirit-subtitle" id="spiritSubtitle"></span>
+            <span class="spirit-rarity" id="spiritRarity"></span>
           </div>
         </div>
-      </section>
+
+        <!-- Desktop: Left-side spirit selector -->
+        <div class="spirit-selector" id="spiritSelector"></div>
+
+        <!-- Mobile: Swipe dots -->
+        <div class="spirit-dots" id="spiritDots"></div>
+        <div class="swipe-hint" id="swipeHint">← SWIPE →</div>
+      </div>
     </div>
 
-    <!-- ================================================================
+        <!-- Spirit Detail Page -->
+    <div class="page" id="page-spirit-detail">
+      <div class="spirit-detail-page">
+        <a class="spirit-back-link" onclick="navigateTo('kage-animals')">← Back to KAGE Animals</a>
+        <div id="spirit-content"></div>
+      </div>
+    </div>
+<!-- ================================================================
          KAGE CLOTHES PAGE
          ================================================================ -->
     <div class="page" id="page-kage-clothes">
@@ -4663,6 +4957,8 @@
       t.classList.add('active');
       window.scrollTo({ top: 0 });
       closeFilterDrawer();
+      // Toggle body class for KAGE Animals page footer hiding
+      document.body.classList.toggle('showing-kage-animals', target === 'kage-animals');
       // Deactivate all nav links by default, then activate the matching one
       const navDeactivate = () => document.querySelectorAll('.nav-links a[data-nav]').forEach(a => a.classList.remove('active'));
       if (target === 'home') {
@@ -4683,6 +4979,7 @@
         // Brand sections — just show the page, activate nav
         navDeactivate();
         document.querySelectorAll('.nav-links a[data-nav]').forEach(a => a.classList.toggle('active', a.dataset.nav === target));
+        if (target === 'kage-animals') { buildSpiritSelector(); buildSpiritDots(); selectSpirit(currentSpiritId); }
       } else {
         // Content pages (returns, shipping, terms, privacy, contact, account)
         navDeactivate();
@@ -4720,7 +5017,7 @@
       wrap.innerHTML = cart.map((item) => {
         const t = item.price * item.qty; sub += t;
         return `<div class="co-item">
-          <div class="co-item-img"><img src="${item.images && item.images[0] ? item.images[0] : ''}" alt="${esc(item.name)}" /></div>
+          <div class="co-item-img"><img src="${esc(item.images && item.images[0] ? item.images[0] : '')}" alt="${esc(item.name)}" /></div>
           <div class="co-item-info"><div class="co-item-name">${esc(item.name)}</div><div class="co-item-meta">Size ${esc(item.size)} · Qty ${item.qty}</div></div>
           <div class="co-item-price">Rs. ${t}</div>
         </div>`;
@@ -4892,7 +5189,7 @@
         if (collected && emojiEl) {
           const animalData = KAGE_ANIMALS.find(a => a.id === animal);
           if (animalData && animalData.img && !emojiEl.querySelector('img')) {
-            emojiEl.innerHTML = '<picture><source srcset="' + animalData.img + '" type="image/webp"><img src="' + (animalData.imgFallback || animalData.img) + '" alt="' + animalData.name + '" style="width:36px;height:36px;border-radius:50%;object-fit:cover;" loading="lazy" /></picture>';
+            emojiEl.innerHTML = '<picture><source srcset="' + esc(animalData.img) + '" type="image/webp"><img src="' + esc(animalData.imgFallback || animalData.img) + '" alt="' + esc(animalData.name) + '" style="width:36px;height:36px;border-radius:50%;object-fit:cover;" loading="lazy" /></picture>';
           }
         }
       });
@@ -4984,7 +5281,7 @@
 
         // Show result
         const animal = KAGE_ANIMALS.find(a => a.id === data.animal);
-        document.getElementById('spinResultEmoji').innerHTML = '<picture><source srcset="' + animal.img + '" type="image/webp"><img src="' + (animal.imgFallback || animal.img) + '" alt="' + animal.name + '" /></picture>';
+        document.getElementById('spinResultEmoji').innerHTML = '<picture><source srcset="' + esc(animal.img) + '" type="image/webp"><img src="' + esc(animal.imgFallback || animal.img) + '" alt="' + esc(animal.name) + '" /></picture>';
         document.getElementById('spinResultText').textContent = animal.name + ' — ' + animal.rarity + '!';
         document.getElementById('spinResultSub').textContent = 'Your ' + animal.name + ' sticker (' + animal.rarity + ') has been added to your collection.';
         document.getElementById('spinResult').classList.add('show');
@@ -5039,9 +5336,228 @@
       if (!popup || popup.classList.contains('show')) return;
       openSpinPopup('');
     }
-    setTimeout(autoShowClanPopup, 5000);
+    // setTimeout(autoShowClanPopup, 5000); // DISABLED — popup hidden for now
 
     // ================================================================
+    // SPIRITS DATA
+    // ================================================================
+    var SPIRITS = {
+      "bear": {
+        name: "Bear", subtitle: "The Foundation", kanji: "影",
+        brand: "KAGE", animalLabel: "THE LONE BEAR",
+        video: "images/bear.mp4",
+        desc: 'Unshakable. The bear does not move for anyone. Raw power wrapped in patience. Represents <strong>KAGE</strong>: consistency, strength, and the refusal to fold under pressure.',
+        hero: "images/bear-hero.jpg",
+        gallery: ["images/bear-1.jpg", "images/bear-2.jpg", "images/bear-3.jpg"],
+        stats: [
+          { icon: "🐻", label: "Power", value: "Stillness", desc: "Absolute calm that hides overwhelming strength and speed. Strikes with silence. Leaves an impact." },
+          { icon: "🎯", label: "Style", value: "Focus · Grace · Strength", desc: "Every move is calculated. Every action has meaning. No wasted motion." },
+          { icon: "影", label: "Name", value: "KAGE — 影 (Shadow)", desc: "A name that carries legacy. Not given. Earned." }
+        ],
+        quote: "A lone soul with calm power and deadly focus. KAGE is not seen — KAGE is felt.",
+        quoteBg: "images/bear-banner.jpg"
+      },
+      "white-tiger": {
+        name: "White Tiger", subtitle: "The Presence", kanji: "影",
+        brand: "KAGE", animalLabel: "THE WHITE TIGER",
+        video: "images/whiteTiger.mp4",
+        desc: 'Rare and impossible to ignore. The white tiger walks into a room and the energy shifts. Represents KAGE\'s commitment to standing out — not by being loud, but by being undeniable.',
+        hero: "images/white-tiger-hero.jpg",
+        gallery: ["images/white-tiger-1.jpg", "images/white-tiger-2.jpg", "images/white-tiger-3.jpg"],
+        stats: [
+          { icon: "🐯", label: "Power", value: "Stillness", desc: "Absolute calm that hides overwhelming strength and speed. Strikes with silence. Leaves an impact." },
+          { icon: "🎯", label: "Style", value: "Focus · Grace · Strength · Discipline", desc: "Every move is calculated. Every action has meaning. No wasted motion." },
+          { icon: "影", label: "Name", value: "KAGE — 影 (Shadow)", desc: "A name that carries legacy. Not given. Earned." }
+        ],
+        quote: "A lone soul with calm power and deadly focus. KAGE is not seen — KAGE is felt.",
+        quoteBg: "images/white-tiger-banner.jpg"
+      },
+      "black-panther": {
+        name: "Black Panther", subtitle: "The Silence", kanji: "影",
+        brand: "KAGE", animalLabel: "THE BLACK PANTHER",
+        video: "images/blackPanther.mp4",
+        desc: 'Moves in the dark. Strikes before you see it. The panther represents the <strong>KAGE</strong> mindset — calculated, precise, and always three steps ahead. No wasted energy. No wasted words.',
+        hero: "images/black-panther-hero.jpg",
+        gallery: ["images/black-panther-1.jpg", "images/black-panther-2.jpg", "images/black-panther-3.jpg"],
+        stats: [
+          { icon: "🌑", label: "Power", value: "Stealth", desc: "Moves in darkness. Strikes before you see it. Presence felt long after it vanishes." },
+          { icon: "🎯", label: "Style", value: "Silence · Precision · Calm", desc: "Every move is calculated. Every action has meaning. No wasted motion." },
+          { icon: "影", label: "Name", value: "KAGE — 影 (Shadow)", desc: "A name that carries legacy. Not given. Earned." }
+        ],
+        quote: "A shadow that hunts in silence. KAGE is not seen — KAGE is felt.",
+        quoteBg: "images/black-panther-banner.jpg"
+      },
+      "white-fox": {
+        name: "White Fox", subtitle: "The Intelligence", kanji: "影",
+        brand: "KAGE", animalLabel: "THE WHITE FOX",
+        video: "images/whiteFox.mp4",
+        desc: 'Outsmarts everything in its path. The fox does not fight — it outmanoeuvres. Represents the creative mind behind KAGE: the design, the strategy, and the ability to turn obstacles into opportunities.',
+        hero: "images/fox-hero.jpg",
+        gallery: ["images/fox-1.jpg", "images/fox-2.jpg", "images/fox-3.jpg"],
+        stats: [
+          { icon: "🦊", label: "Power", value: "Cunning", desc: "Outsmarts everything in its path. The fox does not fight — it outmanoeuvres." },
+          { icon: "🎯", label: "Style", value: "Sharp · Clean · Strategic", desc: "Every move is calculated. Every action has meaning. No wasted motion." },
+          { icon: "影", label: "Name", value: "KAGE — 影 (Shadow)", desc: "A name that carries legacy. Not given. Earned." }
+        ],
+        quote: "A mind sharper than any blade. KAGE is not seen — KAGE is felt.",
+        quoteBg: "images/fox-banner.jpg"
+      }
+    };
+
+    function openSpirit(id) {
+      var s = SPIRITS[id];
+      if (!s) return;
+      var allImages = [s.hero].concat(s.gallery);
+      var editorialHTML = allImages.map(function(src, i) {
+        var h = '<img class="spirit-editorial-img" src="' + esc(src) + '" alt="' + esc(s.name) + ' editorial ' + (i+1) + '" loading="lazy" />';
+        if (i < allImages.length - 1) {
+          h += '<div class="spirit-editorial-gap"></div>';
+        }
+        return h;
+      }).join('');
+      var html = '<div class="spirit-editorial">' + editorialHTML + '</div>';
+      document.getElementById("spirit-content").innerHTML = html;
+      navigateTo('spirit-detail');
+    }
+
+    // ---------- KAGE Animals Video Stage ----------
+    var currentSpiritId = 'white-tiger';
+    var spiritRoster = ['white-tiger','white-fox','black-panther','bear'];
+    var spiritRarity = {
+      'white-tiger': { label: 'MYTHIC · 10%', color: '#9333EA' },
+      'white-fox':   { label: 'RARE · 20%', color: '#F59E0B' },
+      'black-panther':{ label: 'UNCOMMON · 25%', color: '#4ADE80' },
+      'bear':        { label: 'COMMON · 45%', color: '#60A5FA' }
+    };
+    var spiritPortraits = {
+      'white-tiger': 'images/animal-white-tiger-sm.jpg',
+      'white-fox':   'images/animal-white-fox-sm.jpg',
+      'black-panther':'images/animal-black-panther-sm.jpg',
+      'bear':        'images/animal-bear-sm.jpg'
+    };
+
+    // Build desktop selector cards
+    function buildSpiritSelector() {
+      var container = document.getElementById('spiritSelector');
+      if (!container) return;
+      container.innerHTML = spiritRoster.map(function(id) {
+        var s = SPIRITS[id];
+        var r = spiritRarity[id];
+        return '<div class="spirit-card" data-spirit="' + id + '" onclick="selectSpirit(\'' + id + '\')">' +
+          '<div class="spirit-card-portrait"><img src="' + esc(spiritPortraits[id]) + '" alt="' + esc(s.name) + '" /></div>' +
+          '<div class="spirit-card-info">' +
+            '<span class="spirit-card-name">' + esc(s.name) + '</span>' +
+            '<span class="spirit-card-title">' + esc(s.subtitle) + '</span>' +
+            '<span class="spirit-card-rarity" style="color:' + r.color + '">' + r.label + '</span>' +
+          '</div>' +
+        '</div>';
+      }).join('');
+    }
+
+    // Build mobile dots
+    function buildSpiritDots() {
+      var container = document.getElementById('spiritDots');
+      if (!container) return;
+      container.innerHTML = spiritRoster.map(function(id) {
+        return '<button class="spirit-dot" data-spirit="' + id + '" onclick="selectSpirit(\'' + id + '\')"></button>';
+      }).join('');
+    }
+
+    function selectSpirit(id, skipCrossfade) {
+      var s = SPIRITS[id];
+      if (!s || !s.video) return;
+      var prevId = currentSpiritId;
+      currentSpiritId = id;
+
+      // Crossfade transition
+      var crossfade = document.getElementById('videoCrossfade');
+      var video = document.getElementById('spiritVideo');
+      var nameEl = document.getElementById('spiritName');
+      var subEl = document.getElementById('spiritSubtitle');
+      var rarityEl = document.getElementById('spiritRarity');
+
+      function doSwap() {
+        if (video) {
+          video.src = s.video;
+          video.load();
+          video.play().catch(function() {});
+        }
+        if (nameEl) nameEl.textContent = s.name.toUpperCase();
+        if (subEl) subEl.textContent = s.subtitle.toUpperCase();
+        if (rarityEl) {
+          var r = spiritRarity[id];
+          rarityEl.textContent = r.label;
+          rarityEl.style.background = r.color + '22';
+          rarityEl.style.color = r.color;
+        }
+        // Fade video back in
+        if (crossfade) {
+          setTimeout(function() { crossfade.classList.remove('active'); }, 50);
+        }
+      }
+
+      if (!skipCrossfade && crossfade) {
+        crossfade.classList.add('active');
+        setTimeout(doSwap, 400);
+      } else {
+        doSwap();
+      }
+
+      // Update desktop cards
+      document.querySelectorAll('.spirit-card').forEach(function(card) {
+        card.classList.toggle('active', card.dataset.spirit === id);
+      });
+
+      // Update mobile dots
+      document.querySelectorAll('.spirit-dot').forEach(function(dot) {
+        dot.classList.toggle('active', dot.dataset.spirit === id);
+      });
+
+      // Hide swipe hint after first interaction
+      var hint = document.getElementById('swipeHint');
+      if (hint) hint.style.display = 'none';
+    }
+
+    // ---------- Mobile Swipe ----------
+    (function() {
+      var startX = 0;
+      var isDragging = false;
+      var wrap = null;
+
+      function getWrap() {
+        if (!wrap) wrap = document.getElementById('spiritVideoWrap');
+        return wrap;
+      }
+
+      function onPointerDown(e) {
+        if (window.innerWidth > 900) return;
+        startX = e.touches ? e.touches[0].clientX : e.clientX;
+        isDragging = true;
+      }
+
+      function onPointerUp(e) {
+        if (!isDragging || window.innerWidth > 900) return;
+        isDragging = false;
+        var endX = e.changedTouches ? e.changedTouches[0].clientX : e.clientX;
+        var diff = endX - startX;
+        if (Math.abs(diff) < 50) return;
+
+        var idx = spiritRoster.indexOf(currentSpiritId);
+        if (diff < 0) {
+          // Swipe left → next
+          var nextIdx = (idx + 1) % spiritRoster.length;
+          selectSpirit(spiritRoster[nextIdx]);
+        } else {
+          // Swipe right → prev
+          var prevIdx = (idx - 1 + spiritRoster.length) % spiritRoster.length;
+          selectSpirit(spiritRoster[prevIdx]);
+        }
+      }
+
+      document.addEventListener('touchstart', onPointerDown, { passive: true });
+      document.addEventListener('touchend', onPointerUp, { passive: true });
+    })();
+
     // NOTIFY ME — inline email capture for Coming Soon cards
     // ================================================================
     function notifyMe(btn, category) {
@@ -5165,7 +5681,7 @@
         if (r.isRange) priceHtml = 'Rs. ' + fmt(r.min) + ' — Rs. ' + fmt(r.max);
         else if (r.onSale) priceHtml = '<span class="original">Rs. ' + fmt(r.max) + '</span><span class="sale">Rs. ' + fmt(r.min) + '</span>';
         else priceHtml = 'Rs. ' + fmt(r.min);
-        return `<div class="product-card" onclick="openProductDetail(${p.id})">
+        return `<div class="product-card" role="link" tabindex="0" aria-label="View ${esc(p.name)}" onclick="openProductDetail(${p.id})" onkeydown="if(event.key==='Enter'&&event.target===this){event.preventDefault();openProductDetail(${p.id});}">
           <div class="product-card-image" data-id="${p.id}">
             <img class="img-front" src="${front}" alt="${esc(p.name)}" loading="lazy" />
             <img class="img-back" data-src="${back}" alt="${esc(p.name)} back" />
@@ -5258,7 +5774,7 @@
         var p = allProducts.find(function(x) { return x.id === id; });
         if (!p) return;
         var img = (p.images && p.images[0]) || p.image || '';
-        html += '<div class="cart-item"><div class="cart-item-image">' + (img ? '<img src="' + img + '" alt="' + p.name + '" />' : '') + '</div><div class="cart-item-info"><h4>' + p.name + '</h4><div class="cart-item-meta">' + (p.fit || '') + '</div><div class="cart-item-price">Rs. ' + (p.sale_price || p.price) + '</div></div><div style="display:flex;flex-direction:column;gap:0.3rem;"><button class="btn btn-sm btn-outline" onclick="quickAdd(' + p.id + '); showToast(\"' + p.name + ' added to cart\");" style="font-size:0.6rem;">Add to Cart</button><button style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:0.7rem;min-height:36px;" onclick="toggleWishlist(' + p.id + '); renderWishlistDrawer();">Remove</button></div></div>';
+        html += '<div class="cart-item"><div class="cart-item-image">' + (img ? '<img src="' + esc(img) + '" alt="' + esc(p.name) + '" />' : '') + '</div><div class="cart-item-info"><h4>' + esc(p.name) + '</h4><div class="cart-item-meta">' + esc(p.fit || '') + '</div><div class="cart-item-price">Rs. ' + (p.sale_price || p.price) + '</div></div><div style="display:flex;flex-direction:column;gap:0.3rem;"><button class="btn btn-sm btn-outline" onclick="event.stopPropagation();quickAdd(' + p.id + ')" style="font-size:0.6rem;">Add to Cart</button><button style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:0.7rem;min-height:36px;" onclick="toggleWishlist(' + p.id + '); renderWishlistDrawer();">Remove</button></div></div>';
       });
       container.innerHTML = html;
     }
@@ -5420,14 +5936,14 @@
           { name: 'after-hours', label: 'After Hours', desc: 'Night-mode essentials. Dark fits for dark souls.' }
         ];
         grid.innerHTML = placeholders.map(c => `
-          <div class="collection-tile reveal" onclick="navigateTo('collection', '${c.name}')">
+          <div class="collection-tile reveal" role="link" tabindex="0" aria-label="Explore ${esc(c.label)}" onclick="navigateTo('collection', '${esc(c.name)}')" onkeydown="if(event.key==='Enter'&&event.target===this){event.preventDefault();navigateTo('collection', '${esc(c.name)}');}">
             <h3>${esc(c.label)}</h3>
             <p>${esc(c.desc)}</p>
             <span class="tag">Explore</span>
           </div>`).join('');
       } else {
         grid.innerHTML = colls.map(c => `
-          <div class="collection-tile reveal" onclick="navigateTo('collection', '${esc(c.name)}')">
+          <div class="collection-tile reveal" role="link" tabindex="0" aria-label="Explore ${esc(c.name.replace(/-/g, ' '))}" onclick="navigateTo('collection', '${esc(c.name)}')" onkeydown="if(event.key==='Enter'&&event.target===this){event.preventDefault();navigateTo('collection', '${esc(c.name)}');}">
             <h3>${esc(c.name.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase()))}</h3>
             <p>${c.count} product${c.count !== 1 ? 's' : ''}</p>
             <span class="tag">Explore</span>
@@ -5462,7 +5978,7 @@
       const wrap = document.getElementById('heroTiles');
       if (!wrap) return;
       const items = allProducts.slice(0, 6);
-      wrap.innerHTML = items.map((p, i) => `<div class="hero-tile" style="background-image:url('${heroTileSVG(i, p.name)}')"><span class="hero-tile-kanji">影</span></div>`).join('');
+      wrap.innerHTML = items.map((p, i) => `<div class="hero-tile" style="background-image:url('${esc(heroTileSVG(i, p.name))}')"><span class="hero-tile-kanji">影</span></div>`).join('');
     }
 
     // ---------- Filter panel (sidebar + drawer share one markup) ----------
@@ -5649,15 +6165,15 @@
       loadReviews(p.id);
       document.getElementById('detailQty').textContent = '1';
       const track = document.getElementById('galleryTrack');
-      track.innerHTML = p.images.map((img,i) => `<img src="${img}" alt="${esc(p.name)} view ${i+1}" loading="${i>0?'lazy':'eager'}" />`).join('');
+      track.innerHTML = p.images.map((img,i) => `<img src="${esc(img)}" alt="${esc(p.name)} view ${i+1}" loading="${i>0?'lazy':'eager'}" />`).join('');
       track.style.transform = 'translateX(0)';
       const dc = document.getElementById('detailDots');
       if (p.images.length > 1) {
-        dc.innerHTML = p.images.map((_,i) => `<span class="detail-dot ${i===0?'active':''}" data-idx="${i}"></span>`).join('');
+        dc.innerHTML = p.images.map((_,i) => `<button type="button" class="detail-dot ${i===0?'active':''}" data-idx="${i}" aria-label="Go to image ${i+1}"></button>`).join('');
         dc.style.display = 'flex';
       } else dc.style.display = 'none';
       const th = document.getElementById('detailThumbnails');
-      th.innerHTML = p.images.map((img,i) => `<div class="detail-thumb ${i===0?'active':''}" onclick="switchDetailAngle(${i})"><img src="${img}" alt="View ${i+1}" /></div>`).join('');
+      th.innerHTML = p.images.map((img,i) => `<div class="detail-thumb ${i===0?'active':''}" role="button" tabindex="0" aria-label="View image ${i+1}" onclick="switchDetailAngle(${i})" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();switchDetailAngle(${i});}"><img src="${esc(img)}" alt="View ${i+1}" /></div>`).join('');
       // Display fixed size — hide entirely for stickers (goofy-wears)
       const szDisplay = document.getElementById('detailSizeDisplay');
       const szContainer = szDisplay ? szDisplay.parentElement : null;
@@ -5688,6 +6204,11 @@
       document.querySelectorAll('#detailDots .detail-dot').forEach((d,i) => d.classList.toggle('active', i === index));
       document.querySelectorAll('#detailThumbnails .detail-thumb').forEach((t,i) => t.classList.toggle('active', i === index));
     }
+    // Dot + thumbnail clicks are delegated — dots are real <button>s now (a11y).
+    document.addEventListener('click', (e) => {
+      const dot = e.target.closest('#detailDots .detail-dot');
+      if (dot) switchDetailAngle(parseInt(dot.dataset.idx, 10));
+    });
 
     function detailChangeQty(d) { detailQty = Math.max(1, Math.min(99, detailQty + d)); document.getElementById('detailQty').textContent = detailQty; }
     function detailAddToCart() { if (currentProduct) addToCart(currentProduct, detailSize, detailQty); }
@@ -5962,7 +6483,7 @@
       let sub = 0;
       items.innerHTML = cart.map((item,i) => {
         const t = item.price * item.qty; sub += t;
-        return `<div class="cart-item"><div class="cart-item-image"><img src="${item.images[0]}" alt="${esc(item.name)}" /></div><div class="cart-item-info"><h4>${esc(item.name)}</h4><div class="cart-item-meta">Size: ${esc(item.size)} · ${esc(item.fit)}</div><div class="cart-item-price">Rs. ${t}</div></div><div style="display:flex;flex-direction:column;align-items:flex-end;gap:0.3rem;"><div class="cart-item-qty"><button onclick="changeCartQty(${i},-1)">−</button><span>${item.qty}</span><button onclick="changeCartQty(${i},1)">+</button></div><button class="cart-item-remove" onclick="removeFromCart(${i})">Remove</button></div></div>`;
+        return `<div class="cart-item"><div class="cart-item-image"><img src="${esc(item.images[0])}" alt="${esc(item.name)}" /></div><div class="cart-item-info"><h4>${esc(item.name)}</h4><div class="cart-item-meta">Size: ${esc(item.size)} · ${esc(item.fit)}</div><div class="cart-item-price">Rs. ${t}</div></div><div style="display:flex;flex-direction:column;align-items:flex-end;gap:0.3rem;"><div class="cart-item-qty"><button onclick="changeCartQty(${i},-1)">−</button><span>${item.qty}</span><button onclick="changeCartQty(${i},1)">+</button></div><button class="cart-item-remove" onclick="removeFromCart(${i})">Remove</button></div></div>`;
       }).join('');
       document.getElementById('cartSubtotal').textContent = 'Rs. ' + sub;
     }
@@ -6096,12 +6617,8 @@
       btn.textContent = 'Signing in…';
       errEl.style.display = 'none';
       try {
-        // First-run: creates the admin account when none exists yet (mirrors the /admin login page)
-        await fetch('/api/admin/setup', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, password })
-        }).catch(() => {});
+        // NOTE: first-run bootstrap is intentionally NOT automatic here —
+        // POST /api/admin/setup is disabled unless ALLOW_ADMIN_SETUP=true.
         const res = await fetch('/api/admin/login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

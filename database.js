@@ -4,10 +4,12 @@
 // * Production (Vercel + Turso): Turso edge SQLite — automatic
 //   whenever TURSO_DATABASE_URL is set. Data persists forever.
 //
-// * Vercel without Turso: Pure-JS in-memory store. Works but data
-//   resets on cold starts. No WASM needed.
+// * Vercel without Turso: BOOT FAILS LOUDLY. The pure-JS in-memory
+//   fallback would silently lose every order on each cold start.
+//   Set TURSO_DATABASE_URL (+ TURSO_AUTH_TOKEN) in production.
 //
-// * Local dev: sql.js with file persistence (kage.db).
+// * Local dev: sql.js IN-MEMORY database (no kage.db file — data resets
+//   when the process exits; save() is a no-op on every backend).
 //
 // All backends expose the SAME interface:
 //   db.prepare(sql).get(...)  -> row object | undefined
@@ -112,10 +114,13 @@ function memPrepare(sql) {
         const table = extractDeleteTable(trimmed);
         const whereClause = extractWhereClause(trimmed);
         const whereArgs = args;
+        let removed = 0;
         if (memStore[table]) {
+          const before = memStore[table].length;
           memStore[table] = memStore[table].filter(row => !matchWhere(row, whereClause, whereArgs));
+          removed = before - memStore[table].length;
         }
-        return { changes: 0 };
+        return { changes: removed };
       }
       if (/^\s*ALTER\s+TABLE/i.test(upper)) {
         // No-op for migrations on in-memory
@@ -268,7 +273,9 @@ function tursoPrepare(sql) {
     run: async (...params) => {
       const r = await run(params);
       const lastId = r.lastInsertRowid != null ? Number(r.lastInsertRowid) : null;
-      return { lastInsertRowid: lastId };
+      // rowsAffected is required by guarded UPDATEs (e.g. atomic stock decrement).
+      const changes = r.rowsAffected != null ? Number(r.rowsAffected) : null;
+      return { lastInsertRowid: lastId, changes };
     }
   };
 }
@@ -328,19 +335,20 @@ function sqlJsPrepare(sql) {
       } catch (e) { return []; }
     },
     run: (...params) => {
-      if (!sqlJsDb) return { lastInsertRowid: null };
+      if (!sqlJsDb) return { lastInsertRowid: null, changes: 0 };
       try {
         const stmt = sqlJsDb.prepare(sql);
         bindParams(stmt, params);
         stmt.step();
         stmt.free();
+        const changes = sqlJsDb.getRowsModified();
         const res = sqlJsDb.exec('SELECT last_insert_rowid() as id');
         let lastId = null;
         if (res && res.length > 0 && res[0].values && res[0].values.length > 0) {
           lastId = res[0].values[0][0];
         }
-        return { lastInsertRowid: lastId };
-      } catch (e) { return { lastInsertRowid: null }; }
+        return { lastInsertRowid: lastId, changes };
+      } catch (e) { return { lastInsertRowid: null, changes: 0 }; }
     }
   };
 }
@@ -555,12 +563,18 @@ async function doInit() {
     }
   }
 
-  // 3. Fallback: pure-JS in-memory store (works everywhere, no WASM)
+  // 3. Fail loudly rather than silently lose data.
+  //
+  // On Vercel the pure-JS in-memory store resets on every cold start AND its
+  // regex "SQL" shim mangles queries (GROUP BY / ORDER BY / multi-arg UPDATE
+  // WHEREs; DELETE always reports 0 changes) — orders, stats, clan and spin
+  // logic would all quietly misbehave. That is worse than a visible outage.
   if (ON_VERCEL) {
-    console.warn('⚠️  Vercel without Turso — using in-memory store. Data will NOT persist.');
-  } else {
-    console.warn('⚠️  sql.js unavailable — using in-memory store.');
+    module.exports._initialized = false; // allow retry once env is fixed
+    initPromise = null;
+    throw new Error('FATAL: TURSO_DATABASE_URL is not set on Vercel. The in-memory fallback would silently lose all orders and corrupt queries. Configure Turso (TURSO_DATABASE_URL + TURSO_AUTH_TOKEN) before deploying.');
   }
+  console.warn('⚠️  sql.js unavailable — using in-memory store (local dev only; data resets on exit).');
   activeBackend = 'mem';
   const exec = async (sql) => { memPrepare(sql).run(); };
   await createSchema(exec);
@@ -598,4 +612,4 @@ init().catch(err => console.error('database init failed:', err));
 // Expose a flag so server.js can skip re-init
 module.exports._initialized = false;
 
-module.exports = { init, prepare, get, all, exec, save, USE_TURSO };
+module.exports = { init, prepare, get, all, exec, save, USE_TURSO, get activeBackend() { return activeBackend; } };

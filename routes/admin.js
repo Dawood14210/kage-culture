@@ -2,15 +2,25 @@
 // KAGE Culture — Admin stats, upload, newsletter, clan, coming-soon routes
 // ================================================================
 const express = require('express');
+const path = require('path');
 const multer = require('multer');
 const config = require('../config');
 const { requireCsrf } = require('../middleware/csrf');
 const { requireAuth } = require('../middleware/auth');
 const { persistImage } = require('../utils/helpers');
 
+// SECURITY: without fileFilter, /api/upload accepted ANY file (e.g. .html/.js
+// payloads served from /uploads). Same image-only filter as products routes.
+const IMAGE_FILE_FILTER = (req, file, cb) => {
+  const allowed = /jpeg|jpg|png|gif|webp|svg/;
+  if (allowed.test(path.extname(file.originalname || '').toLowerCase()) && allowed.test(file.mimetype)) cb(null, true);
+  else { const err = new Error('Only image files (JPEG, PNG, GIF, WebP, SVG) are allowed'); err.status = 400; cb(err); }
+};
+
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 8 * 1024 * 1024 }
+  limits: { fileSize: 8 * 1024 * 1024 },
+  fileFilter: IMAGE_FILE_FILTER
 });
 
 module.exports = function createAdminRoutes(db) {
@@ -29,7 +39,7 @@ module.exports = function createAdminRoutes(db) {
       const lowStockCount = (await db.prepare('SELECT COUNT(*) as c FROM products WHERE stock_qty IS NOT NULL AND stock_qty > 0 AND stock_qty < ?').get(LOW_STOCK_THRESHOLD)).c;
       const recentOrders = (await db.prepare('SELECT id, order_number, customer_name, total, status, created_at FROM orders ORDER BY created_at DESC, id DESC LIMIT 10').all());
       res.json({ products: prodCount, orders: orderCount, revenue: Math.round(revenue), pendingOrders, deliveredOrders, outOfStock, lowStockCount, lowStockThreshold: LOW_STOCK_THRESHOLD, recentOrders });
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) { console.error('admin route failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
   });
 
   // --- Sales summary ---
@@ -50,7 +60,7 @@ module.exports = function createAdminRoutes(db) {
       let bestProduct = null; let bestUnits = 0;
       for (const [pid, units] of Object.entries(unitMap)) { if (units > bestUnits) { bestUnits = units; const p = await db.prepare('SELECT id, name FROM products WHERE id = ?').get(Number(pid)); bestProduct = p ? p.name : ('Product #' + pid); } }
       res.json({ revenueToday: Math.round(revToday), revenueWeek: Math.round(revWeek), revenueMonth: Math.round(revMonth), ordersByStatus: byStatus, bestProduct: bestProduct ? { name: bestProduct, units: bestUnits } : null });
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) { console.error('admin route failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
   });
 
   // --- P&L stats ---
@@ -86,13 +96,15 @@ module.exports = function createAdminRoutes(db) {
       }
       const totals = buckets.reduce((acc, b) => { acc.revenue += b.revenue; acc.cost += b.cost; acc.profit += b.profit; return acc; }, { revenue: 0, cost: 0, profit: 0 });
       res.json({ period, labels: buckets.map(b => b.label), revenue: buckets.map(b => Math.round(b.revenue)), cost: buckets.map(b => Math.round(b.cost)), profit: buckets.map(b => Math.round(b.profit)), summary: { revenue: Math.round(totals.revenue), cost: Math.round(totals.cost), profit: Math.round(totals.profit), orders: bucketedOrders } });
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) { console.error('admin route failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
   });
 
   // --- Image upload (standalone) ---
   router.post('/api/upload', requireCsrf, requireAuth, upload.single('image'), async (req, res) => {
-    if (!req.file) return res.status(400).json({ error: 'No file uploaded.' });
-    const url = await persistImage(req.file.buffer, req.file.originalname); res.json({ url });
+    try {
+      if (!req.file) return res.status(400).json({ error: 'No file uploaded.' });
+      const url = await persistImage(req.file.buffer, req.file.originalname); res.json({ url });
+    } catch (err) { console.error('upload failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
   });
 
   // --- Newsletter ---
@@ -145,7 +157,7 @@ module.exports = function createAdminRoutes(db) {
 
   // --- Health check ---
   router.get('/api/health', async (req, res) => {
-    try { await db.prepare('SELECT 1 as ok').get(); res.json({ status: 'ok', uptime: process.uptime(), timestamp: new Date().toISOString() }); } catch (err) { res.status(503).json({ status: 'error', error: err.message, uptime: process.uptime() }); }
+    try { await db.prepare('SELECT 1 as ok').get(); res.json({ status: 'ok', uptime: process.uptime(), timestamp: new Date().toISOString() }); } catch (err) { res.status(503).json({ status: 'error', error: 'Database unavailable.', uptime: process.uptime() }); }
   });
 
   return router;

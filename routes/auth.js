@@ -15,17 +15,27 @@ module.exports = function createAuthRoutes(db, SESSION_SECRET) {
   const router = express.Router();
 
   // --- Admin setup (first-run) ---
+  // SECURITY: bootstrap is opt-in via ALLOW_ADMIN_SETUP=true. Without it this
+  // endpoint is disabled, so a fresh/in-memory deployment can never be claimed
+  // by whoever visits first (the storefront must NOT auto-call this).
   router.post('/api/admin/setup', strictLimiter, async (req, res) => {
     try {
-      const existing = await db.prepare('SELECT id FROM admin LIMIT 1').get();
-      if (existing) return res.status(400).json({ error: 'Admin account already exists.' });
+      if (process.env.ALLOW_ADMIN_SETUP !== 'true') {
+        return res.status(403).json({ error: 'Admin setup is disabled. Log in with an existing admin account.' });
+      }
       const { email, password } = req.body;
       if (!email || !password) return res.status(400).json({ error: 'Email and password are required.' });
       if (password.length < config.MIN_PASSWORD_LENGTH) return res.status(400).json({ error: `Password must be at least ${config.MIN_PASSWORD_LENGTH} characters.` });
+      const existing = await db.prepare('SELECT id FROM admin LIMIT 1').get();
+      if (existing) return res.status(400).json({ error: 'Admin account already exists.' });
       const hash = await bcrypt.hash(password, 12);
-      await db.prepare('INSERT INTO admin (email, password_hash) VALUES (?, ?)').run(email, hash);
-      res.json({ success: true, message: 'Admin account created.' });
-    } catch (err) { res.status(500).json({ error: err.message }); }
+      // Atomic insert: admin.email is UNIQUE, so two concurrent setups race on
+      // the INSERT, not on the check above — the loser gets no row created.
+      const result = await db.prepare('INSERT INTO admin (email, password_hash) VALUES (?, ?) ON CONFLICT (email) DO NOTHING').run(email, hash);
+      const changes = result && result.changes != null ? Number(result.changes) : (result && result.lastInsertRowid != null ? 1 : 0);
+      if (!changes) return res.status(400).json({ error: 'Admin account already exists.' });
+      res.json({ success: true, message: 'Admin account created. You can now log in.' });
+    } catch (err) { console.error('admin/setup failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
   });
 
   // --- Admin login ---
@@ -43,12 +53,11 @@ module.exports = function createAuthRoutes(db, SESSION_SECRET) {
       if (!admin) return res.status(401).json({ error: 'Invalid credentials.' });
       const match = await bcrypt.compare(password, admin.password_hash);
       if (!match) return res.status(401).json({ error: 'Invalid credentials.' });
+      // cookie-session middleware commits kage.session (payload + HMAC sig)
+      // after this handler — do not also set a manual cookie (double-set).
       req.session.adminId = admin.id;
-      const cookieVal = Buffer.from(JSON.stringify({ adminId: admin.id })).toString('base64');
-      const sig = crypto.createHmac('sha256', SESSION_SECRET).update(cookieVal).digest('base64');
-      res.setHeader('Set-Cookie', `kage.session=${cookieVal}.${sig}; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400`);
       res.json({ success: true, admin: { email: admin.email } });
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) { console.error('admin/login failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
   });
 
   // --- Admin check auth ---
@@ -76,7 +85,7 @@ module.exports = function createAuthRoutes(db, SESSION_SECRET) {
       const newHash = await bcrypt.hash(newPassword, 12);
       await db.prepare('UPDATE admin SET password_hash = ? WHERE id = ?').run(newHash, req.adminId);
       res.json({ success: true, message: 'Password updated successfully.' });
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) { console.error('admin/change-password failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
   });
 
   // --- Admin create new admin ---
@@ -90,7 +99,7 @@ module.exports = function createAuthRoutes(db, SESSION_SECRET) {
       const hash = await bcrypt.hash(password, 12);
       await db.prepare('INSERT INTO admin (email, password_hash) VALUES (?, ?)').run(email, hash);
       res.json({ success: true, message: 'Admin account created.' });
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) { console.error('admin/create failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
   });
 
   // --- Password reset: request ---
@@ -120,7 +129,7 @@ module.exports = function createAuthRoutes(db, SESSION_SECRET) {
   </div>`;
       await sendEmail(clean, 'Reset your KAGE Culture password', html);
       res.json({ success: true, message: 'If an account exists, a reset link has been sent.' });
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) { console.error('forgot-password failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
   });
 
   // --- Password reset: execute ---
@@ -141,7 +150,7 @@ module.exports = function createAuthRoutes(db, SESSION_SECRET) {
       await db.prepare(`UPDATE ${table} SET password_hash = ? WHERE id = ?`).run(newHash, record.user_id);
       await db.prepare('UPDATE password_reset_tokens SET used = 1 WHERE id = ?').run(record.id);
       res.json({ success: true, message: 'Password reset successfully. You can now log in.' });
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) { console.error('reset-password failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
   });
 
   // --- Customer signup ---
@@ -159,12 +168,10 @@ module.exports = function createAuthRoutes(db, SESSION_SECRET) {
       const now = new Date().toISOString().replace('T', ' ').slice(0, 19);
       const result = await db.prepare('INSERT INTO customers (email, password_hash, name, created_at) VALUES (?, ?, ?, ?)').run(clean, hash, customerName, now);
       const customerId = result.lastInsertRowid;
+      // cookie-session middleware commits kage.session after this handler.
       req.session.customerId = customerId;
-      const cookieVal = Buffer.from(JSON.stringify({ customerId })).toString('base64');
-      const sig = crypto.createHmac('sha256', SESSION_SECRET).update(cookieVal).digest('base64');
-      res.setHeader('Set-Cookie', `kage.cust=${cookieVal}.${sig}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000`);
       res.json({ success: true, customer: { id: customerId, email: clean, name: customerName } });
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) { console.error('customer/signup failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
   });
 
   // --- Customer login ---
@@ -176,12 +183,10 @@ module.exports = function createAuthRoutes(db, SESSION_SECRET) {
       if (!customer) return res.status(401).json({ error: 'Invalid email or password.' });
       const match = await bcrypt.compare(password, customer.password_hash);
       if (!match) return res.status(401).json({ error: 'Invalid email or password.' });
+      // cookie-session middleware commits kage.session after this handler.
       req.session.customerId = customer.id;
-      const cookieVal = Buffer.from(JSON.stringify({ customerId: customer.id })).toString('base64');
-      const sig = crypto.createHmac('sha256', SESSION_SECRET).update(cookieVal).digest('base64');
-      res.setHeader('Set-Cookie', `kage.cust=${cookieVal}.${sig}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000`);
       res.json({ success: true, customer: { id: customer.id, email: customer.email, name: customer.name, phone: customer.phone, address: customer.address, city: customer.city } });
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) { console.error('customer/login failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
   });
 
   // --- Customer logout ---

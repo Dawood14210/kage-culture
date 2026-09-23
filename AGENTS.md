@@ -30,10 +30,19 @@
 - When a work item from `AUDIT.md` is completed, update `AUDIT.md`: mark the item done
   and record what changed + how it was verified.
 
-## Status snapshot (2026-09-20)
+## Status snapshot (2026-09-23)
 
 - ✅ CRITICAL admin auth bypass fixed in `middleware/auth.js` (HMAC verification,
   constant-time compare, 7/7 e2e tests passed).
-- ⬜ Next priority: **C1** — gate `POST /api/admin/setup` (race + storefront auto-setup
-  in `public/index.html:6617`), then **H1** — public order PII leak
-  (`routes/orders.js:58`).
+- ✅ **Full audit queue cleared (2026-09-23):** C1 (admin setup gated behind
+  `ALLOW_ADMIN_SETUP=true`, atomic insert, storefront auto-setup removed), H1
+  (public order endpoint requires phone match), H2 (Vercel without Turso now
+  fails loudly at boot — 503, no silent in-memory data loss), H3 (emails awaited
+  before responding), H4 (audit clean, multer 2.x, /api/upload fileFilter),
+  M1–M7, and L1/L3–L7. Details + verification in `AUDIT.md`.
+- ✅ Permanent regression suite: `node tests/e2e.test.js` (14/14) — auth
+  middleware, setup gate, order PII phone-gate, stock decrement, CSRF. Run it
+  after any auth/order/database change.
+- ⬜ Only **L2** remains (deployment decision): ~25 untracked product images +
+  9.3 MB of mp4s in `public/images/` — commit them or move videos off-repo;
+  `vercel.json` bundles all of `public/**` into the lambda either way.

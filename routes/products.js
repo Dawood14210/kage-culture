@@ -8,6 +8,7 @@ const { requireCsrf } = require('../middleware/csrf');
 const { requireAuth } = require('../middleware/auth');
 const { persistImage, removeImage } = require('../utils/helpers');
 
+// Same filter as /api/upload must use — only real image types get through.
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 8 * 1024 * 1024 },
@@ -44,7 +45,7 @@ module.exports = function createProductRoutes(db) {
         return { ...p, sizes: JSON.parse(p.sizes || '["S","M","L","XL","XXL"]'), extra_images: JSON.parse(p.extra_images || '[]'), collections: JSON.parse(p.collections || '[]'), on_sale: Boolean(p.on_sale), in_stock: Boolean(p.in_stock), stock_qty: stock, sold_count: sold[p.id] || 0, order_count: sold[p.id] || 0, avg_rating: agg ? Math.round((agg.sum / agg.n) * 10) / 10 : null, review_count: agg ? agg.n : 0 };
       });
       res.json(parsed);
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) { console.error('products route failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
   });
 
   // GET single product (public)
@@ -54,7 +55,7 @@ module.exports = function createProductRoutes(db) {
       if (!p) return res.status(404).json({ error: 'Product not found' });
       p.sizes = JSON.parse(p.sizes || '["S","M","L","XL","XXL"]'); p.extra_images = JSON.parse(p.extra_images || '[]'); p.collections = JSON.parse(p.collections || '[]'); p.on_sale = Boolean(p.on_sale); p.in_stock = Boolean(p.in_stock);
       res.json(p);
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) { console.error('products route failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
   });
 
   // POST create product (admin only)
@@ -73,7 +74,7 @@ module.exports = function createProductRoutes(db) {
       const product = await db.prepare('SELECT * FROM products WHERE id = ?').get(result.lastInsertRowid);
       product.sizes = JSON.parse(product.sizes || '[]'); product.extra_images = JSON.parse(product.extra_images || '[]'); product.collections = JSON.parse(product.collections || '[]'); product.on_sale = Boolean(product.on_sale); product.in_stock = Boolean(product.in_stock);
       res.status(201).json(product);
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) { console.error('products route failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
   });
 
   // PUT update product (admin only)
@@ -96,7 +97,7 @@ module.exports = function createProductRoutes(db) {
       const updated = await db.prepare('SELECT * FROM products WHERE id = ?').get(req.params.id);
       updated.sizes = JSON.parse(updated.sizes || '[]'); updated.extra_images = JSON.parse(updated.extra_images || '[]'); updated.collections = JSON.parse(updated.collections || '[]'); updated.on_sale = Boolean(updated.on_sale); updated.in_stock = Boolean(updated.in_stock);
       res.json(updated);
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) { console.error('products route failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
   });
 
   // DELETE product (admin only)
@@ -109,7 +110,7 @@ module.exports = function createProductRoutes(db) {
       for (const img of extraImages) await removeImage(img);
       await db.prepare('DELETE FROM products WHERE id = ?').run(req.params.id);
       res.json({ success: true });
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) { console.error('products route failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
   });
 
   // PATCH toggle stock (admin only)
@@ -120,7 +121,7 @@ module.exports = function createProductRoutes(db) {
       const newStock = existing.in_stock ? 0 : 1;
       await db.prepare('UPDATE products SET in_stock = ? WHERE id = ?').run(newStock, req.params.id);
       res.json({ success: true, in_stock: Boolean(newStock) });
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) { console.error('products route failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
   });
 
   // PATCH quick-update stock quantity (admin only)
@@ -135,7 +136,7 @@ module.exports = function createProductRoutes(db) {
       await db.prepare('UPDATE products SET stock_qty = ?, in_stock = ? WHERE id = ?').run(qty, qty > 0 ? 1 : 0, id);
       const updated = await db.prepare('SELECT * FROM products WHERE id = ?').get(id);
       res.json({ success: true, stock_qty: updated.stock_qty, in_stock: Boolean(updated.in_stock) });
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) { console.error('products route failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
   });
 
   return router;

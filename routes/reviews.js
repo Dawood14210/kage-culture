@@ -29,7 +29,7 @@ module.exports = function createReviewRoutes(db) {
       const now = new Date().toISOString().replace('T', ' ').slice(0, 19);
       await db.prepare('INSERT INTO reviews (product_id, order_number, customer_name, rating, comment, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run(pid, num, customerName, r, cleanComment, 'pending', now);
       res.status(201).json({ success: true, message: 'Thanks for your review! It will appear on the site once approved.' });
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) { console.error('reviews route failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
   });
 
   // GET approved reviews for a product (public)
@@ -39,12 +39,12 @@ module.exports = function createReviewRoutes(db) {
       if (!pid || isNaN(pid)) return res.json([]);
       const rows = await db.prepare('SELECT id, customer_name, rating, comment, created_at FROM reviews WHERE product_id = ? AND status = ?').all(pid, 'approved');
       res.json(rows);
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) { console.error('reviews route failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
   });
 
   // GET all reviews (admin only)
   router.get('/api/reviews/all', requireAuth, async (req, res) => {
-    try { const rows = await db.prepare('SELECT * FROM reviews ORDER BY id DESC').all(); res.json(rows); } catch (err) { res.status(500).json({ error: err.message }); }
+    try { const rows = await db.prepare('SELECT * FROM reviews ORDER BY id DESC').all(); res.json(rows); } catch (err) { console.error('reviews route failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
   });
 
   // PATCH review status (admin only)
@@ -57,12 +57,12 @@ module.exports = function createReviewRoutes(db) {
       if (!existing) return res.status(404).json({ error: 'Review not found.' });
       await db.prepare('UPDATE reviews SET status = ? WHERE id = ?').run(status, id);
       res.json({ success: true });
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) { console.error('reviews route failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
   });
 
   // DELETE review (admin only)
   router.delete('/api/reviews/:id', requireCsrf, requireAuth, async (req, res) => {
-    try { const id = parseInt(req.params.id, 10); if (isNaN(id)) return res.status(400).json({ error: 'Invalid review ID.' }); await db.prepare('DELETE FROM reviews WHERE id = ?').run(id); res.json({ success: true }); } catch (err) { res.status(500).json({ error: err.message }); }
+    try { const id = parseInt(req.params.id, 10); if (isNaN(id)) return res.status(400).json({ error: 'Invalid review ID.' }); await db.prepare('DELETE FROM reviews WHERE id = ?').run(id); res.json({ success: true }); } catch (err) { console.error('reviews route failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
   });
 
   return router;
