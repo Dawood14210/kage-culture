@@ -128,7 +128,20 @@ Framework-free (`node tests/e2e.test.js`), boots the real app on an ephemeral po
 - **Production URL:** `https://kage-culture-ruby.vercel.app` (NOTE: `kage-culture.vercel.app` belongs to an older project on a *different* Vercel team — candidates for deletion to avoid confusion).
 - **Deploy:** commit `33a27e2` via API — READY. Env vars upserted: `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`, fresh `SESSION_SECRET` (48-byte random), `ALLOW_ADMIN_SETUP=true` (until first admin is created), `AUTO_CREATE_ADMIN=false` (old backdoor closed).
 - **Turso:** `kage-dawood14210` (aws-ap-south-1) — schema created, seeded 20 products, verified live (`SELECT 1` ok, products API serves from cloud DB).
-- **Live checks passed:** storefront 200 (one transient 503 on the very first cold hit), health ok, setup gate open (400 not 403), order PII phone-gate 401, vendor Chart.js 200, CSP clean (no unpkg / no script-src-attr), `/reset-password` shell present, `/admin.html` 301 → `/admin`.
+- **Live checks passed:** storefront 200 (one transient 503 on the very first cold hit), health ok, setup gate open (400 not 403), order PII phone-gate 401, vendor Chart.js 200, `/reset-password` shell present, `/admin.html` 301 → `/admin`.
+
+### 🔴 Prod incident (same day) — CSP `script-src-attr` omission made the site unclickable
+The M4 CSP cleanup removed `scriptSrcAttr: ["'unsafe-inline'"]`; helmet then defaulted to
+`script-src-attr 'none'`, silently blocking **every inline `onclick`/`onkeydown`** — pages
+rendered but nothing was clickable. Shipped in `33a27e2`, caught by the user within the hour,
+fixed in `3e7ee39` (directive restored, with a comment in `server.js` explaining it must stay
+until FE-H2's event-delegation work lands). Verified live: header now includes
+`script-src-attr 'unsafe-inline'`.
+- **Deploy-author lesson:** Hobby teams reject Git-triggered deploys whose commit author is not
+  a team member (the `4d4211c` build sat BLOCKED for this). Repo-local git identity is now
+  `Dawood14210 <160178068+Dawood14210@users.noreply.github.com>` — keep using it for commits.
+- The original "CSP clean (no script-src-attr)" check above **read the bug as a pass** — header
+  changes must be compared against expected values, not just the absence of old ones.
 
 ---
 
@@ -189,6 +202,10 @@ Wrap with `esc()`.
 `server.js:36` — unavoidable while both pages use hundreds of inline `onclick` handlers,
 but it largely negates XSS protection. Long-term: delegate events (gallery dots and the
 filter panel already do), then drop the directive and nonce what remains.
+
+> ⚠️ **Incident 2026-09-23:** dropping `scriptSrcAttr` from the helmet config *instead of*
+> migrating handlers first defaulted it to `'none'` and made production unclickable.
+> The directive must stay until every inline handler is replaced by delegated listeners.
 
 ### 🟡 FE-M — UX / quality
 
