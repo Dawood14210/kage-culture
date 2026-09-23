@@ -123,6 +123,13 @@ Framework-free (`node tests/e2e.test.js`), boots the real app on an ephemeral po
 - Set `ALLOW_ADMIN_SETUP=true` **once** on a fresh DB to create the first admin, then remove it.
 - `TURSO_DATABASE_URL` + `TURSO_AUTH_TOKEN` are now **hard requirements** on Vercel — deploys without them will 503 by design.
 
+### ✅ Production deployed — 2026-09-23
+- **Vercel project:** `kage-culture` (team `daw00d`, `prj_EfYzamAT9c0sM6dFm7f3mpwc0HN4`) — was already git-linked to `Dawood14210/kage-culture`; framework `express`, Node 24.x.
+- **Production URL:** `https://kage-culture-ruby.vercel.app` (NOTE: `kage-culture.vercel.app` belongs to an older project on a *different* Vercel team — candidates for deletion to avoid confusion).
+- **Deploy:** commit `33a27e2` via API — READY. Env vars upserted: `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`, fresh `SESSION_SECRET` (48-byte random), `ALLOW_ADMIN_SETUP=true` (until first admin is created), `AUTO_CREATE_ADMIN=false` (old backdoor closed).
+- **Turso:** `kage-dawood14210` (aws-ap-south-1) — schema created, seeded 20 products, verified live (`SELECT 1` ok, products API serves from cloud DB).
+- **Live checks passed:** storefront 200 (one transient 503 on the very first cold hit), health ok, setup gate open (400 not 403), order PII phone-gate 401, vendor Chart.js 200, CSP clean (no unpkg / no script-src-attr), `/reset-password` shell present, `/admin.html` 301 → `/admin`.
+
 ---
 
 ## Frontend audit — 2026-09-23 (storefront + admin panel)
