@@ -4081,6 +4081,23 @@
     </div>
   </div>
 
+  <!-- PASSWORD RESET PAGE -->
+  <div class="page" id="page-reset">
+    <div class="container tracking-page">
+      <p class="section-label">Account Recovery</p>
+      <h2 class="section-title">RESET YOUR PASSWORD</h2>
+      <p class="tracking-sub">Choose a new password for your account.</p>
+      <form class="tracking-form" onsubmit="submitPasswordReset(event)">
+        <input type="password" id="rstPassword" placeholder="New password (min. 6 characters)" autocomplete="new-password" />
+        <input type="password" id="rstConfirm" placeholder="Confirm new password" autocomplete="new-password" />
+        <button class="btn btn-primary" type="submit">Update Password</button>
+      </form>
+      <div class="tracking-error" id="rstError" style="display:none;"></div>
+      <div id="rstMsg" style="display:none; margin-top:0.8rem; font-size:0.85rem; color:var(--accent);"></div>
+      <p style="margin-top:1rem;"><a onclick="navigateTo('home')" style="color: var(--accent); cursor: pointer; font-size: 0.85rem;">← Back to Shop</a></p>
+    </div>
+  </div>
+
   <!-- CHECKOUT PAGE -->
   <div class="page" id="page-checkout">
     <div class="container checkout-page">
@@ -5683,8 +5700,8 @@
         else priceHtml = 'Rs. ' + fmt(r.min);
         return `<div class="product-card" role="link" tabindex="0" aria-label="View ${esc(p.name)}" onclick="openProductDetail(${p.id})" onkeydown="if(event.key==='Enter'&&event.target===this){event.preventDefault();openProductDetail(${p.id});}">
           <div class="product-card-image" data-id="${p.id}">
-            <img class="img-front" src="${front}" alt="${esc(p.name)}" loading="lazy" />
-            <img class="img-back" data-src="${back}" alt="${esc(p.name)} back" />
+            <img class="img-front" src="${esc(front)}" alt="${esc(p.name)}" loading="lazy" />
+            <img class="img-back" data-src="${esc(back)}" alt="${esc(p.name)} back" />
             <button class="wishlist-icon ${wishlist.has(p.id) ? 'active' : ''}" onclick="event.stopPropagation();toggleWishlist(${p.id}, this)" aria-label="Add to wishlist">♡</button>
             <span class="product-fit-tag">${esc(p.fit)}</span>
             ${r.onSale ? '<span class="sale-flag">SALE</span>' : ''}
@@ -5864,7 +5881,7 @@
       const displayPrice = p.sale_price || p.price;
       const isWishlisted = wishlist && wishlist.has(p.id);
       return `
-        <div class="product-card" onclick="navigateTo('product', ${p.id})">
+        <div class="product-card" role="link" tabindex="0" aria-label="View ${esc(p.name)}" onclick="openProductDetail(${p.id})" onkeydown="if(event.key==='Enter'&&event.target===this){event.preventDefault();openProductDetail(${p.id});}">
           <div class="product-card-image">
             ${img ? `<img src="${esc(img)}" alt="${esc(p.name)}" loading="lazy" />` : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:var(--text-dim);font-size:0.8rem;">No Image</div>`}
             <button class="product-wishlist ${isWishlisted ? 'active' : ''}" onclick="event.stopPropagation();toggleWishlist(${p.id})" aria-label="Wishlist">
@@ -5880,7 +5897,7 @@
             <p class="price">
               ${discount > 0 ? `<span class="original">Rs. ${p.price}</span> <span class="sale">Rs. ${displayPrice}</span>` : `Rs. ${p.price}`}
             </p>
-            <button class="quick-view-btn" onclick="event.stopPropagation();navigateTo('product', ${p.id})">Quick View</button>
+            <button class="quick-view-btn" onclick="event.stopPropagation();openProductDetail(${p.id})">Quick View</button>
           </div>
         </div>`;
     }
@@ -6729,6 +6746,56 @@
       }
     }
 
+    // ---------- Password reset (email link lands on /reset-password?token=...&type=...) ----------
+    let resetToken = '';
+    let resetUserType = 'customer';
+
+    function initPasswordReset() {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        resetToken = params.get('token') || '';
+        resetUserType = params.get('type') === 'admin' ? 'admin' : 'customer';
+      } catch (e) { resetToken = ''; }
+      const err = document.getElementById('rstError');
+      if (!resetToken && err) {
+        err.textContent = 'This reset link is missing its token. Request a new reset email and use the link inside it.';
+        err.style.display = 'block';
+      }
+    }
+
+    async function submitPasswordReset(e) {
+      e.preventDefault();
+      const err = document.getElementById('rstError');
+      const msg = document.getElementById('rstMsg');
+      err.style.display = 'none'; msg.style.display = 'none';
+      const password = document.getElementById('rstPassword').value;
+      const confirm = document.getElementById('rstConfirm').value;
+      if (!resetToken) { err.textContent = 'Reset token missing — use the link from your reset email.'; err.style.display = 'block'; return; }
+      if (!password || password.length < 6) { err.textContent = 'Password must be at least 6 characters.'; err.style.display = 'block'; return; }
+      if (password !== confirm) { err.textContent = 'Passwords do not match.'; err.style.display = 'block'; return; }
+      try {
+        const res = await fetch('/api/auth/reset-password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token: resetToken, password, user_type: resetUserType })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok) {
+          msg.textContent = data.message || 'Password reset! You can now log in.';
+          msg.style.display = 'block';
+          document.getElementById('rstPassword').value = '';
+          document.getElementById('rstConfirm').value = '';
+          resetToken = '';
+        } else {
+          err.textContent = data.error || 'Reset failed. The link may have expired — request a new one.';
+          err.style.display = 'block';
+        }
+      } catch (e2) {
+        err.textContent = 'Connection error. Please try again.';
+        err.style.display = 'block';
+      }
+    }
+
     async function submitCustLogin() {
       const email = document.getElementById('custLoginEmail').value.trim();
       const password = document.getElementById('custLoginPassword').value;
@@ -6877,6 +6944,13 @@
     setupFilters(); updateCartUI(); initWatermarkParallax(); navigateTo('home');
     loadProductsFromAPI();
     checkCustomerAuth();
+
+    // FE-C4: password-reset email links land on /reset-password?token=...&type=...
+    // (the server's catch-all route serves this SPA shell for that path)
+    if (window.location.pathname === '/reset-password') {
+      navigateTo('reset');
+      initPasswordReset();
+    }
 
     // Auto-refresh the grid when the tab regains focus (e.g. after an admin upload)
     document.addEventListener('visibilitychange', () => {

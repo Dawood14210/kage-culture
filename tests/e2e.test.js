@@ -201,6 +201,109 @@ async function main() {
   });
 
   // ---------------------------------------------------------------
+  // 6. FE-C2 — customer account endpoints (GET/PUT /api/customers/me)
+  // ---------------------------------------------------------------
+  console.log('\nCustomer account (FE-C2):');
+  let custCookie = '';
+  {
+    const csrf = await getCsrf();
+    const login = await request(PORT, 'POST', '/api/customers/login', { body: { email: 'cust@kage.test', password: 'custpass1' }, headers: { 'X-CSRF-Token': csrf.token, Cookie: csrf.cookie } });
+    assert.strictEqual(login.status, 200, JSON.stringify(login.json));
+    custCookie = cookieHeader(login);
+  }
+
+  await check('GET /api/customers/me without session → 401', async () => {
+    const r = await request(PORT, 'GET', '/api/customers/me');
+    assert.strictEqual(r.status, 401);
+  });
+
+  await check('GET /api/customers/me with session → customer object, no password_hash', async () => {
+    const r = await request(PORT, 'GET', '/api/customers/me', { headers: { Cookie: custCookie } });
+    assert.strictEqual(r.status, 200, JSON.stringify(r.json));
+    assert.ok(r.json.customer && r.json.customer.email === 'cust@kage.test');
+    assert.ok(!('password_hash' in r.json.customer), 'password_hash must not leak');
+  });
+
+  await check('PUT /api/customers/me profile update → persists', async () => {
+    const csrf = await getCsrf();
+    const r = await request(PORT, 'PUT', '/api/customers/me', {
+      body: { name: 'Renamed Cust', phone: '03005559999', address: '2 New St', city: 'Karachi' },
+      headers: { 'X-CSRF-Token': csrf.token, Cookie: custCookie + '; ' + csrf.cookie }
+    });
+    assert.strictEqual(r.status, 200, JSON.stringify(r.json));
+    assert.strictEqual(r.json.customer.name, 'Renamed Cust');
+    const me = await request(PORT, 'GET', '/api/customers/me', { headers: { Cookie: custCookie } });
+    assert.strictEqual(me.json.customer.city, 'Karachi', 'update must persist');
+  });
+
+  await check('PUT password change with wrong current password → 401', async () => {
+    const csrf = await getCsrf();
+    const r = await request(PORT, 'PUT', '/api/customers/me', {
+      body: { currentPassword: 'wrongpass', newPassword: 'newpass456' },
+      headers: { 'X-CSRF-Token': csrf.token, Cookie: custCookie + '; ' + csrf.cookie }
+    });
+    assert.strictEqual(r.status, 401);
+    assert.ok(/incorrect/i.test(r.json.error), 'must reject the current-password check, not the session');
+  });
+
+  await check('PUT password change → old login fails, new login works', async () => {
+    const csrf = await getCsrf();
+    const r = await request(PORT, 'PUT', '/api/customers/me', {
+      body: { currentPassword: 'custpass1', newPassword: 'newpass456' },
+      headers: { 'X-CSRF-Token': csrf.token, Cookie: custCookie + '; ' + csrf.cookie }
+    });
+    assert.strictEqual(r.status, 200, JSON.stringify(r.json));
+    const oldLogin = await request(PORT, 'POST', '/api/customers/login', { body: { email: 'cust@kage.test', password: 'custpass1' }, headers: { 'X-CSRF-Token': csrf.token, Cookie: csrf.cookie } });
+    assert.strictEqual(oldLogin.status, 401, 'old password must stop working');
+    const newLogin = await request(PORT, 'POST', '/api/customers/login', { body: { email: 'cust@kage.test', password: 'newpass456' }, headers: { 'X-CSRF-Token': csrf.token, Cookie: csrf.cookie } });
+    assert.strictEqual(newLogin.status, 200, 'new password must work');
+  });
+
+  // ---------------------------------------------------------------
+  // 7. FE-C4 — password reset flow + page shell
+  // ---------------------------------------------------------------
+  console.log('\nPassword reset (FE-C4):');
+  await check('POST /api/auth/reset-password with bogus token → 400', async () => {
+    const r = await request(PORT, 'POST', '/api/auth/reset-password', { body: { token: 'deadbeef', password: 'whatever1' } });
+    assert.strictEqual(r.status, 400);
+  });
+
+  await check('GET /reset-password serves the SPA shell with the reset view', async () => {
+    const r = await request(PORT, 'GET', '/reset-password?token=abc&type=customer');
+    assert.strictEqual(r.status, 200);
+    assert.ok(r.text.includes('page-reset'), 'shell must contain the reset view');
+    assert.ok(r.text.includes('initPasswordReset'), 'shell must contain the reset JS');
+  });
+
+  // ---------------------------------------------------------------
+  // 8. FE-C3 — self-hosted Chart.js must be served
+  // ---------------------------------------------------------------
+  console.log('\nVendor assets (FE-C3):');
+  await check('GET /vendor/chart.umd.min.js → 200 javascript', async () => {
+    const r = await request(PORT, 'GET', '/vendor/chart.umd.min.js');
+    assert.strictEqual(r.status, 200);
+    assert.ok(/javascript|ecmascript/i.test(r.headers['content-type'] || ''), `unexpected content-type: ${r.headers['content-type']}`);
+  });
+
+  await check('admin.html references the self-hosted chart, not the CDN', async () => {
+    const r = await request(PORT, 'GET', '/admin');
+    assert.strictEqual(r.status, 200);
+    assert.ok(!r.text.includes('cdn.jsdelivr.net/npm/chart.js'), 'CDN reference must be gone');
+    assert.ok(r.text.includes('/vendor/chart.umd.min.js'), 'self-hosted script must be referenced');
+  });
+
+  // ---------------------------------------------------------------
+  // 9. FE-C1 — product cards route through openProductDetail
+  // ---------------------------------------------------------------
+  console.log('\nCard wiring (FE-C1):');
+  await check('renderHomeProductCard uses openProductDetail, not navigateTo', async () => {
+    const r = await request(PORT, 'GET', '/');
+    assert.strictEqual(r.status, 200);
+    assert.ok(!r.text.includes("onclick=\"navigateTo('product', "), 'stale navigateTo(product) wiring must be gone');
+    assert.ok(r.text.includes('openProductDetail(${p.id})'), 'cards must call openProductDetail');
+  });
+
+  // ---------------------------------------------------------------
   await new Promise((r) => server.close(r));
   const failed = results.filter((r) => !r[1]);
   console.log(`\n${results.length - failed.length}/${results.length} passed`);

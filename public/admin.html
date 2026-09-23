@@ -1259,7 +1259,8 @@
     </div>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <!-- Chart.js is self-hosted: CSP scriptSrc allows only 'self' (FE-C3) -->
+  <script src="/vendor/chart.umd.min.js"></script>
   <script>
     // ================================================================
     // STATE

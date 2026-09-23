@@ -43,6 +43,10 @@
 - ✅ Permanent regression suite: `node tests/e2e.test.js` (14/14) — auth
   middleware, setup gate, order PII phone-gate, stock decrement, CSRF. Run it
   after any auth/order/database change.
-- ⬜ Only **L2** remains (deployment decision): ~25 untracked product images +
-  9.3 MB of mp4s in `public/images/` — commit them or move videos off-repo;
-  `vercel.json` bundles all of `public/**` into the lambda either way.
+- ✅ **Frontend FE-criticals fixed (2026-09-23, later session):** FE-C1 (product cards
+  route through `openProductDetail`), FE-C2 (`GET/PUT /api/customers/me` implemented —
+  PUT handles both profile + password-change shapes), FE-C3 (Chart.js self-hosted in
+  `public/vendor/`, CSP-safe), FE-C4 (`/reset-password` view + flow), FE-H1 (grid attrs
+  escaped). Test suite is now **24/24** in `tests/e2e.test.js`.
+- ⬜ Remaining: FE-H2 (long-term CSP hardening), FE-M1–M8 (routing, cart persistence,
+  a11y polish, etc.).

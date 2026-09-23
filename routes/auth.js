@@ -6,7 +6,7 @@ const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const config = require('../config');
 const { requireCsrf } = require('../middleware/csrf');
-const { requireAuth } = require('../middleware/auth');
+const { requireAuth, requireCustomerAuth } = require('../middleware/auth');
 const { strictLimiter, resetLimiter } = require('../middleware/rateLimit');
 const { hashToken } = require('../utils/helpers');
 const { sendEmail } = require('../utils/email');
@@ -194,6 +194,44 @@ module.exports = function createAuthRoutes(db, SESSION_SECRET) {
     req.session = null;
     res.setHeader('Set-Cookie', 'kage.cust=; Path=/; HttpOnly; Max-Age=0');
     res.json({ success: true });
+  });
+
+  // --- Customer: session restore (account page) ---
+  router.get('/api/customers/me', requireCustomerAuth, async (req, res) => {
+    try {
+      const c = await db.prepare('SELECT id, email, name, phone, address, city, created_at FROM customers WHERE id = ?').get(req.customerId);
+      if (!c) return res.status(404).json({ error: 'Account not found.' });
+      res.json({ customer: c });
+    } catch (err) { console.error('customers/me GET failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
+  });
+
+  // --- Customer: update profile OR change password (one endpoint, two shapes) ---
+  router.put('/api/customers/me', requireCsrf, requireCustomerAuth, async (req, res) => {
+    try {
+      const { currentPassword, newPassword } = req.body;
+      if (currentPassword !== undefined || newPassword !== undefined) {
+        // Password change path (account page "Update Password")
+        if (!currentPassword || !newPassword) return res.status(400).json({ error: 'Current and new passwords are required.' });
+        if (String(newPassword).length < config.MIN_PASSWORD_LENGTH) return res.status(400).json({ error: `New password must be at least ${config.MIN_PASSWORD_LENGTH} characters.` });
+        const c = await db.prepare('SELECT id, password_hash FROM customers WHERE id = ?').get(req.customerId);
+        if (!c) return res.status(404).json({ error: 'Account not found.' });
+        const match = await bcrypt.compare(currentPassword, c.password_hash);
+        if (!match) return res.status(401).json({ error: 'Current password is incorrect.' });
+        const newHash = await bcrypt.hash(newPassword, 12);
+        await db.prepare('UPDATE customers SET password_hash = ? WHERE id = ?').run(newHash, req.customerId);
+        return res.json({ success: true, message: 'Password updated successfully.' });
+      }
+      // Profile update path (account page "Save Changes")
+      const existing = await db.prepare('SELECT id, email, name, phone, address, city FROM customers WHERE id = ?').get(req.customerId);
+      if (!existing) return res.status(404).json({ error: 'Account not found.' });
+      const name = req.body.name !== undefined ? String(req.body.name).trim().slice(0, 80) : existing.name;
+      const phone = req.body.phone !== undefined ? String(req.body.phone).trim().slice(0, 40) : existing.phone;
+      const address = req.body.address !== undefined ? String(req.body.address).trim().slice(0, 300) : existing.address;
+      const city = req.body.city !== undefined ? String(req.body.city).trim().slice(0, 120) : existing.city;
+      await db.prepare('UPDATE customers SET name = ?, phone = ?, address = ?, city = ? WHERE id = ?').run(name, phone, address, city, req.customerId);
+      const updated = await db.prepare('SELECT id, email, name, phone, address, city FROM customers WHERE id = ?').get(req.customerId);
+      res.json({ success: true, customer: updated });
+    } catch (err) { console.error('customers/me PUT failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
   });
 
   return router;
