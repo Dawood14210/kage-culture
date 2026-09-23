@@ -41,6 +41,11 @@ app.use(loadHelmet()({
     directives: {
       defaultSrc: ["'self'"],
       scriptSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      // REQUIRED: the storefront/admin are built on inline onclick/onkeydown
+      // handlers — omitting this lets helmet default to script-src-attr 'none',
+      // which silently blocks every click (prod incident 2026-09-23).
+      // Long-term removal tracked in AUDIT.md as FE-H2 (event delegation).
+      scriptSrcAttr: ["'unsafe-inline'"],
       styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://cdn.jsdelivr.net"],
       fontSrc: ["'self'", "https://fonts.gstatic.com", "https://cdn.jsdelivr.net"],
       imgSrc: ["'self'", "data:", "https:", "blob:"],
