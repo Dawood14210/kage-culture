@@ -276,13 +276,6 @@
           font-family: 'Noto Serif JP', 'Archivo', sans-serif;
           line-height: 1; user-select: none; cursor: pointer; flex-shrink: 0;
         }
-        .nav-search {
-              position: absolute;
-              left: 50%;
-              transform: translateX(-50%);
-              max-width: 320px;
-              width: 100%;
-            }
     /* Brush-style 影 — Zen Brush sumi-ink typeface with a faded ink-wash edge */
     .kage-logo .kanji {
       font-family: 'Zen Brush', 'Noto Serif JP', serif;
@@ -1742,11 +1735,18 @@
     .nav-links { gap: 1.25rem; }
     .nav-links a.active { color: var(--text-primary); }
 
+    /* Sits centred between the logo and the icon cluster. It is absolutely
+       positioned so it is out of flow — as a flex item its width fought the
+       right-hand icons. `min()` shrinks it on narrow desktops so it can never
+       reach the icons; 520px = icon cluster + breathing room on both sides. */
     .nav-search {
-      position: relative;
-      flex: 1;
-      max-width: 480px;
-      margin: 0 var(--spacing-md);
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      max-width: 320px;
+      width: min(320px, calc(100% - 520px));
+      margin: 0;
     }
     .nav-search input {
       width: 100%;

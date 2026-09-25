@@ -304,6 +304,27 @@ async function main() {
   });
 
   // ---------------------------------------------------------------
+  // 10. Header nav search — must stay centred and clear of the nav icons
+  // A second `.nav-search` rule (equal specificity, declared later) once
+  // overrode `position: absolute` back to `relative`, so the centred
+  // `left: 50%` + `translateX(-50%)` pair shifted the field ~370px right
+  // and it rendered on top of the right-hand icons.
+  // ---------------------------------------------------------------
+  console.log('\nNav search layout:');
+  await check('single .nav-search positioning rule, centred + width-guarded', async () => {
+    const r = await request(PORT, 'GET', '/');
+    assert.strictEqual(r.status, 200);
+    const positional = (r.text.match(/\.nav-search\s*\{[^}]*\}/g) || [])
+      .filter((rule) => /position\s*:/.test(rule));
+    assert.strictEqual(positional.length, 1, `expected one .nav-search positioning rule, found ${positional.length}`);
+    const rule = positional[0];
+    assert.ok(/position:\s*absolute/.test(rule), 'field must be out of flow or it pushes over the icons');
+    assert.ok(/left:\s*50%/.test(rule), 'field must be horizontally centred');
+    assert.ok(/translate\(\s*-50%/.test(rule), 'centring needs the matching translate(-50%)');
+    assert.ok(/min\(320px,\s*calc\(100%\s*-\s*520px\)\)/.test(rule), 'field must shrink so it never reaches the icon cluster');
+  });
+
+  // ---------------------------------------------------------------
   await new Promise((r) => server.close(r));
   const failed = results.filter((r) => !r[1]);
   console.log(`\n${results.length - failed.length}/${results.length} passed`);
