@@ -369,6 +369,63 @@ async function main() {
       'pop must fire only when saving, not when unsaving');
   });
 
+  // 13. Track-your-order page — the customer-facing bugs fixed here:
+  // (a) the submit button was never re-enabled after a failed lookup,
+  // (b) cancelled orders rendered an active "Pending" timeline,
+  // (c) awaiting_verification (JazzCash/bank) looked identical to pending.
+  // ---------------------------------------------------------------
+  console.log('\nTrack order page:');
+  await check('trackOrder re-enables button + cancelled/awaiting_verification handled', async () => {
+    const r = await request(PORT, 'GET', '/');
+    assert.strictEqual(r.status, 200);
+    const track = r.text.match(/async function trackOrder\([\s\S]*?\n    \}/);
+    assert.ok(track, 'trackOrder must be defined');
+    assert.ok(/finally\s*\{[\s\S]*?btn\.disabled\s*=\s*false/.test(track[0]),
+      'submit button must be re-enabled in finally (no dead button after an error)');
+    const render = r.text.match(/function renderTracking\([\s\S]*?\n    \}/);
+    assert.ok(render, 'renderTracking must be defined');
+    assert.ok(/status === 'cancelled'/.test(render[0]) && /track-status-cancelled/.test(r.text),
+      'cancelled orders must render the terminal state, not a live timeline');
+    assert.ok(/awaiting_verification.*\? 1 :/.test(render[0]),
+      'awaiting_verification must map to the confirmed step, not clamp to pending');
+    assert.ok(/TRACK_STATUS_LABELS/.test(r.text) && /formatTrackDate/.test(r.text),
+      'statuses must be humanized and the placed date formatted');
+  });
+
+  // ---------------------------------------------------------------
+  // Responsive layout guards (2026-09-25 session)
+  // (a) track timeline overflowed 4-across on phones,
+  // (b) admin product/order rows assumed a ~700px column grid,
+  // (c) admin disabled pinch-zoom (user-scalable=no).
+  // ---------------------------------------------------------------
+  console.log('\nResponsive layout guards:');
+  await check('storefront ≤540px + ≤360px blocks present, checkout stacks', async () => {
+    const r = await request(PORT, 'GET', '/');
+    assert.strictEqual(r.status, 200);
+    assert.ok(/@media \(max-width: 540px\)[\s\S]*?\.track-timeline \{\s*flex-direction: column/.test(r.text),
+      'track timeline must stack vertically on phones (4 labels across overflow)');
+    assert.ok(/\.nav-links li \{\s*min-height: 0;/.test(r.text) && /\.nav-links li:has\(\.nav-icon\) \{\s*min-height: 44px;/.test(r.text),
+      'nav dropdown rows must not inherit the 44px min-height as full-width rows');
+    assert.ok(/@media \(max-width: 360px\)[\s\S]*?\.nav-inner \{\s*flex-wrap: wrap/.test(r.text),
+      'header must wrap instead of overflowing on ultra-narrow phones');
+    assert.ok(/\.co-row \{\s*grid-template-columns: 1fr;\s*\}/.test(r.text),
+      'checkout form rows must collapse to one column on phones');
+  });
+
+  await check('admin ≤768px wrap-cards, legend hidden, no zoom lock', async () => {
+    const r = await request(PORT, 'GET', '/admin');
+    assert.strictEqual(r.status, 200);
+    // The media block now includes top-bar/main-wrapper fixes BEFORE product-row
+    assert.ok(/@media\(max-width:768px\)[\s\S]*?\.product-row\{display:flex;flex-wrap:wrap/.test(r.text),
+      'admin product/order rows must become wrap cards on phones');
+    assert.ok(/\.product-row\.header-row\{display:none;\}/.test(r.text),
+      'admin column-label legend must hide once rows wrap');
+    assert.ok(/\.pnl-summary\{grid-template-columns:1fr;\}/.test(r.text),
+      'PnL summary must go single-column on phones');
+    assert.ok(!r.text.includes('user-scalable=no'),
+      'admin must not disable pinch-zoom (accessibility)');
+  });
+
   // ---------------------------------------------------------------
   await new Promise((r) => server.close(r));
   const failed = results.filter((r) => !r[1]);

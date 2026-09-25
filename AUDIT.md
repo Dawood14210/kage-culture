@@ -269,7 +269,7 @@ Not from the audit queue — user-requested polish. Two changes in `public/index
   trigger) — **27/27 passed**.
 - **Docs:** AGENTS.md status snapshot updated to 27/27; FE-M2 note added below.
 
-### ✅ Topbar marquee + nav Track Order button — 2026-09-25 (user request)
+### ✅ Topbar marquee + nav  button — 2026-09-25 (user request)
 - **Removed** the `Track Order` / `Help` links from the top utility bar (`.topbar-links`
   markup + its CSS deleted). `Help` never pointed anywhere useful (it navigated home);
   the tracking page itself is untouched and still reachable.
@@ -297,6 +297,67 @@ Not from the audit queue — user-requested polish. Two changes in `public/index
   Verified: asset 200 `image/png` with the M7 1-year cache rule, 2 shell refs,
   27/27 tests. Note: fixed color (unlike `currentColor` SVGs), so it won't shift
   hue on hover; icon is cached by URL — rename the file if the artwork changes.
+
+### ✅ Track-your-order page fixed — 2026-09-25 (user request)
+Found and fixed four client-side bugs in `public/index.html` (the API itself was
+sound — phone-gated, sanitized, verified in the earlier prod smoke):
+1. **Submit button bricked after any failed lookup** — `trackOrder`'s early
+   `return` on `!res.ok` skipped the re-enable, so one wrong phone number
+   disabled the Track button until a full page reload. Now re-enabled in a
+   `finally`; stale results are also hidden on error so a previous order's
+   details can't linger next to an error message.
+2. **Cancelled orders rendered an active "Pending" timeline** —
+   `steps.indexOf('cancelled')` → −1 → clamped to 0 → green checkmark on a
+   dead order. Cancelled now renders a terminal state: red **Cancelled**
+   badge (new `.track-status-cancelled` rule), placed-date/total/items, and a
+   refund-questions help line — no timeline.
+3. **`awaiting_verification` (every JazzCash/bank order) showed as
+   "Pending" forever** — mapped to the **Confirmed** step (index 1) with a
+   "we're verifying your payment…" explainer; status badge now uses a
+   `TRACK_STATUS_LABELS` map (humanized labels for all six backend statuses).
+4. **Raw DB timestamp shown** — "2026-09-25 09:41:12" UTC. New
+   `formatTrackDate()` renders "25 Sep 2026, 2:41 pm" in the visitor's local
+   time (DB times are UTC ISO with a T→space swap; falls back to raw on parse
+   failure).
+- **Verification:** suite item 13 added (finally-guard present; cancelled →
+  `.track-status-cancelled`; `awaiting_verification ? 1 :` mapping; labels +
+  date formatter exist) — **28/28 passed**; live boot on :4123 serves all four
+  fixes in the shell.
+
+### ✅ Responsive hardening pass — 2026-09-25 (user request)
+User asked to "keep the mobile and PC views separate" → clarified as **make the site
+properly responsive on both**. The site already had a solid base (breakpoints at
+1024/900/768/640, stacking checkout, hamburger nav) — this pass fixed the audited gaps:
+
+**Storefront (`public/index.html`)**
+- **Track timeline overflowed phones** — 4 status labels in one flex row + horizontal
+  connector line. New ≤540px block stacks it vertically (steps become rows, connector
+  becomes a vertical line, first step's connector hidden).
+- **Checkout on phones** — ≤540px: page padding tightened, form/summary `min-width:0`
+  (grid-blowout guard), `.co-row` (expiry/CVV-style pairs) collapses to 1 column.
+- **Nav dropdown rows** — the `min-height:44px` on mobile dropdown links stretched the
+  icon-row/search `<li>`s to full header height on narrow screens; ≤540px now zeroes
+  `li` min-height and re-applies 44px only to `li:has(.nav-icon)`.
+- **Ultra-narrow phones (≤360px)** — `.nav-inner` wraps instead of overflowing; the
+  micro-logo shrink is intentional branding, left alone.
+
+**Admin (`public/admin.html`)**
+- **`user-scalable=no` removed** from the viewport meta (FE-M5 item; pinch-zoom is an
+  accessibility right).
+- **Product/order/recent rows** assumed a ~700px 6-col grid (`60px 1fr 100px 100px
+  100px auto`) — on phones they squeezed/overflowed. ≤768px: rows become wrap-friendly
+  flex cards, the column-label header-row hides (meaningless once rows wrap), thumbs
+  shrink to 38px, action buttons right-align, PnL summary goes single-column, filter
+  search input takes full width. Deliberately **flex-wrap, not `overflow-x:auto`**:
+  the order status dropdown menu is `position:absolute`, and an overflow-x container
+  forces overflow-y too (CSS quirk), which would clip the open menu.
+- ≤640px: tighter `.main-content` padding + smaller top-bar title.
+
+**Verification:** suite items 14–15 added (storefront ≤540/≤360 blocks + co-row stack;
+admin wrap-cards, legend hidden, no zoom lock) — **30/30 passed**; live boot on :4123 —
+shell 200 with all 3 new storefront rules served, `/admin` 200 with wrap rule + zero
+`user-scalable=no`, health ok. No browser/device session yet — recommend a quick
+DevTools-device-mode pass on iPhone SE / 390px widths before calling it done.
 
 ---
 
@@ -338,8 +399,7 @@ Not from the audit queue — user-requested polish. Two changes in `public/index
   pop animation shipped 2026-09-25 — persistence itself still open.)*
 - **FE-M3.** De-duplicate checkout payment-radio listeners.
 - **FE-M4.** Fix cart-badge bump selector.
-- **FE-M5.** A11y: focusable nav/tiles, Escape + focus-trap on all overlays, remove
-  `user-scalable=no` from admin.
+- **FE-M5.** A11y: focusable nav/tiles, Escape + focus-trap on all overlays. *(✅ `user-scalable=no` removed from admin + responsive hardening shipped 2026-09-25 — see Completed work; focus-trap/Esc coverage still open.)*
 - **FE-M7.** Surface product-load failures instead of silently serving the fallback
   catalog.
 

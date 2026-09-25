@@ -47,8 +47,15 @@
   route through `openProductDetail`), FE-C2 (`GET/PUT /api/customers/me` implemented —
   PUT handles both profile + password-change shapes), FE-C3 (Chart.js self-hosted in
   `public/vendor/`, CSP-safe), FE-C4 (`/reset-password` view + flow), FE-H1 (grid attrs
-  escaped). Test suite is now **27/27** in `tests/e2e.test.js`.
+  escaped). Test suite is now **28/28** in `tests/e2e.test.js`.
 - ✅ **Wishlist heart UX (2026-09-25):** hearts turn red + pop once when favoriting
   (CSS in `public/index.html`; details in `AUDIT.md`).
+- ✅ **Track-order page fixed (2026-09-25):** submit button re-enables after failed
+  lookups, cancelled orders show a terminal state (not a live timeline),
+  `awaiting_verification` maps to Confirmed with an explainer, dates humanized.
+- ✅ **Responsive hardening (2026-09-25):** storefront ≤540px (track timeline stacks
+  vertically, checkout rows collapse, nav-dropdown row heights fixed) + ≤360px header
+  wrap; admin rows become wrap-cards ≤768px (column legend hidden), `user-scalable=no`
+  removed. Suite is now **30/30** in `tests/e2e.test.js`.
 - ⬜ Remaining: FE-H2 (long-term CSP hardening), FE-M1–M8 (routing, cart persistence,
   a11y polish, etc.).
