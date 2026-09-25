@@ -3187,7 +3187,7 @@
     /* ================================================================
        ORDER TRACKING
        ================================================================ */
-    .tracking-page { max-width: 680px; margin: 0 auto; padding-top: 7rem; padding-bottom: var(--spacing-lg); }
+    .tracking-page { max-width: 680px; margin: 0 auto; padding-top: 8rem; padding-bottom: var(--spacing-lg); transition: none; }
         .tracking-sub { color: var(--text-muted); font-size: 0.85rem; margin-bottom: var(--spacing-md); }
         .tracking-form { display: flex; flex-direction: column; gap: 0.7rem; }
     .tracking-form input { width: 100%; padding: 0.75rem 0.9rem; border: 1.5px solid var(--border-color); border-radius: 10px; font-family: var(--font-body); font-size: 0.9rem; background: var(--bg-panel); }
@@ -3537,8 +3537,14 @@
     }
     /* Hide footer when on KAGE Animals page */
     body.showing-kage-animals .site-footer {
-      display: none !important;
-    }
+          display: none;
+        }
+        body.showing-tracking .watermark.wm-bottom::before {
+          display: none;
+        }
+        body.showing-tracking .watermark.wm-bottom {
+          will-change: auto;
+        }
     body.showing-kage-animals,
     body.showing-kage-animals main {
       background: #000 !important;
@@ -5079,7 +5085,9 @@ n    <!-- CONTENT PAGES -->
       window.scrollTo({ top: 0 });
       closeFilterDrawer();
       // Toggle body class for KAGE Animals page footer hiding
-      document.body.classList.toggle('showing-kage-animals', target === 'kage-animals');
+            document.body.classList.toggle('showing-kage-animals', target === 'kage-animals');
+            // Toggle body class for tracking page to disable footer watermark
+            document.body.classList.toggle('showing-tracking', target === 'tracking');
       // Deactivate all nav links by default, then activate the matching one
       const navDeactivate = () => document.querySelectorAll('.nav-links a[data-nav]').forEach(a => a.classList.remove('active'));
       if (target === 'home') {
