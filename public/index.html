@@ -227,26 +227,29 @@
 
     /* Top utility bar — olive band */
     .topbar {
-      background: var(--accent);
-      color: #fff;
-      font-size: 0.4rem;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-    }
+          background: var(--accent);
+          color: #fff;
+          font-size: 0.7rem;
+          letter-spacing: 0.12em;
+          text-transform: uppercase;
+        }
     .topbar .container {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: var(--spacing-md);
-      min-height: 10px;
-      padding-top: 0;
-      padding-bottom: 0;
-    }
-    .topbar-links {
-      display: flex;
-      align-items: center;
-      gap: 0.8rem;
-    }
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: var(--spacing-md);
+          min-height: 10px;
+          padding-top: 0;
+          padding-bottom: 0;
+          position: relative;
+        }
+        .topbar-links {
+          position: absolute;
+          right: 0;
+          display: flex;
+          align-items: center;
+          gap: 0.8rem;
+        }
     .topbar-links a {
       color: rgba(255,255,255,0.75);
       cursor: pointer;
@@ -262,14 +265,24 @@
     }
 
     .site-header .nav-inner {
-      padding: 0 0;
-      position: relative;
-    }
-    .kage-logo {
-      display: flex; flex-direction: column; align-items: center;
-      font-family: 'Noto Serif JP', 'Archivo', sans-serif;
-      line-height: 1; user-select: none; cursor: pointer; flex-shrink: 0;
-    }
+          padding: 0 0;
+          position: relative;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+        }
+        .kage-logo {
+          display: flex; flex-direction: column; align-items: center;
+          font-family: 'Noto Serif JP', 'Archivo', sans-serif;
+          line-height: 1; user-select: none; cursor: pointer; flex-shrink: 0;
+        }
+        .nav-search {
+              position: absolute;
+              left: 50%;
+              transform: translateX(-50%);
+              max-width: 320px;
+              width: 100%;
+            }
     /* Brush-style 影 — Zen Brush sumi-ink typeface with a faded ink-wash edge */
     .kage-logo .kanji {
       font-family: 'Zen Brush', 'Noto Serif JP', serif;
@@ -3759,28 +3772,28 @@
         <li><a class="nav-admin" onclick="openAdminLogin(); closeMenu();" title="Admin">Admin</a></li>
         <li class="mobile-search"><input type="search" id="mobileSearch" placeholder="Search drops…" oninput="onSearchInput(this.value)" /></li>
         <li class="mobile-icons-row">
-          <button class="nav-icon" onclick="toggleWishlistFilter(); closeMenu();" title="Wishlist" aria-label="Wishlist">♡<span class="badge" id="wishlistCountMobile">0</span></button>
-          <button class="nav-icon" onclick="handleAccountClick(); closeMenu();" title="Account" aria-label="Account">👤</button>
-          <button class="nav-icon" onclick="toggleCart(); closeMenu();" title="Cart" aria-label="Shopping Cart">🛒<span class="badge" id="cartCountMobile">0</span></button>
+          <button class="nav-icon" onclick="toggleWishlistFilter(); closeMenu();" title="Wishlist" aria-label="Wishlist"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg><span class="badge" id="wishlistCountMobile">0</span></button>
+                    <button class="nav-icon" onclick="handleAccountClick(); closeMenu();" title="Account" aria-label="Account"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></button>
+                    <button class="nav-icon" onclick="toggleCart(); closeMenu();" title="Cart" aria-label="Shopping Cart"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg><span class="badge" id="cartCountMobile">0</span></button>
         </li>
       </ul>
 
       <div class="nav-search">
         <input type="search" id="searchInput" placeholder="Search drops…" oninput="onSearchInput(this.value)" />
-        <span class="nav-search-icon">🔍</span>
-      </div>
+        <span class="nav-search-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></span>
+              </div>
 
-      <button class="hamburger" id="hamburger" aria-label="Toggle menu">
-        <span></span><span></span><span></span>
-      </button>
-      <div class="nav-icons">
-        <button class="nav-icon" id="wishlistNav" onclick="toggleWishlistFilter()" title="Wishlist" aria-label="Wishlist">♡<span class="badge" id="wishlistCount">0</span></button>
-        <button class="nav-icon" onclick="openSpinPopupFromNav()" title="KAGE Clan Spin" style="font-size:1.2rem;" aria-label="KAGE Clan Spin">🎰</button>
-        <button class="nav-icon" id="customerAccountBtn" onclick="handleAccountClick()" title="Account" aria-label="Account">👤</button>
-        <button class="nav-icon" onclick="toggleCart()" title="Cart" aria-label="Shopping Cart">
-          🛒<span class="badge" id="cartCount">0</span>
-        </button>
-      </div>
+              <div class="nav-icons">
+                <button class="nav-icon" id="wishlistNav" onclick="toggleWishlistFilter()" title="Wishlist" aria-label="Wishlist"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg><span class="badge" id="wishlistCount">0</span></button>
+                <button class="nav-icon" onclick="openSpinPopupFromNav()" title="KAGE Clan Spin" aria-label="KAGE Clan Spin"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg></button>
+                <button class="nav-icon" id="customerAccountBtn" onclick="handleAccountClick()" title="Account" aria-label="Account"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></button>
+                <button class="nav-icon" onclick="toggleCart()" title="Cart" aria-label="Shopping Cart">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg><span class="badge" id="cartCount">0</span>
+                </button>
+                <button class="hamburger" id="hamburger" aria-label="Toggle menu">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+                </button>
+              </div>
     </div>
   </header>
 
@@ -3826,7 +3839,7 @@
               <span class="cat-info">
                 <span class="cat-name">Anime Shirts</span>
                 <span class="cat-desc">Original art on premium cotton. Each piece is wearable fandom.</span>
-                <span class="cat-shop">Explore <i>→</i></span>
+                <span class="cat-shop">Explore <i><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg></i></span>
               </span>
             </a>
             <a class="cat-tile reveal" onclick="navigateTo('kage-animals')">
@@ -3834,7 +3847,7 @@
               <span class="cat-info">
                 <span class="cat-name">KAGE Animals</span>
                 <span class="cat-desc">Four spirits. Collect all four sticker animals by purchasing shirts.</span>
-                <span class="cat-shop">Explore <i>→</i></span>
+                <span class="cat-shop">Explore <i><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg></i></span>
               </span>
             </a>
             <a class="cat-tile reveal" onclick="navigateTo('custom-stickers')">
@@ -3842,7 +3855,7 @@
               <span class="cat-info">
                 <span class="cat-name">Custom Stickers</span>
                 <span class="cat-desc">Your design, our print. Peel-proof vinyl, any size.</span>
-                <span class="cat-shop">Explore <i>→</i></span>
+                <span class="cat-shop">Explore <i><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg></i></span>
               </span>
             </a>
           </div>
@@ -3913,7 +3926,7 @@
             <p class="section-label">Most Popular</p>
             <h2 class="section-title">BEST SELLERS</h2>
           </div>
-          <a class="bestsellers-viewall" onclick="navigateTo('collection', 'all')">View All <i>→</i></a>
+          <a class="bestsellers-viewall" onclick="navigateTo('collection', 'all')">View All <i><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg></i></a>
         </div>
         <div class="product-grid" id="bestSellersGrid"></div>
       </div>
@@ -3930,20 +3943,7 @@
 
 
 
-    <!-- NEWSLETTER -->
-    <section class="section-newsletter" id="sectionNewsletter">
-      <div class="container">
-        <div class="newsletter-content">
-          <h2 class="newsletter-title">JOIN THE CLAN</h2>
-          <p class="newsletter-sub">Restock alerts, early drop access, and clan-only pricing. No spam, ever.</p>
-          <form class="newsletter-form" onsubmit="subscribeNewsletter(event)">
-            <input type="email" placeholder="Enter your email" required />
-            <button class="btn btn-primary" type="submit">Subscribe</button>
-          </form>
-          <p class="newsletter-msg" id="newsletterMsg"></p>
-        </div>
-      </div>
-    </section>
+    <!-- NEWSLETTER REMOVED -->
 
     <!-- SHOP SECTION (Collection Grid) -->
     <section class="shop-section" id="shopSection" style="display:none;">
@@ -3979,7 +3979,7 @@
               </div>
               <div class="pagination-row">
                 <span class="page-info" id="pageInfo">Page 1 of 1</span>
-                <button class="next-btn" id="nextBtn" onclick="nextPage()">Next <span>→</span></button>
+                <button class="next-btn" id="nextBtn" onclick="nextPage()">Next <span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg></span></button>
               </div>
             </div>
           </div>
@@ -3992,7 +3992,7 @@
     <div class="filter-drawer" id="filterDrawer">
       <div class="filter-drawer-header">
         <h3>Filter</h3>
-        <button class="close-btn" onclick="closeFilterDrawer()">✕</button>
+        <button class="close-btn" onclick="closeFilterDrawer()"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
       </div>
       <div class="filter-drawer-body filter-panel" id="filterDrawerBody"></div>
       <div class="filter-drawer-footer">
@@ -4167,7 +4167,7 @@
         <div class="confirm-items" id="confItems"></div>
         <div class="confirm-next">
           <p>We'll confirm your order by email or phone shortly. Keep your order number handy.</p>
-          <p style="text-align:center;margin-bottom:0.6rem;"><a class="track-order-link" onclick="goTrackOrder()">Track your order anytime →</a></p>
+          <p style="text-align:center;margin-bottom:0.6rem;"><a class="track-order-link" onclick="goTrackOrder()">Track your order anytime <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg></a></p>
           <button class="btn btn-primary" onclick="navigateTo('home'); initShop('all')">Continue Shopping</button>
         </div>
       </div>
@@ -4177,19 +4177,20 @@
   <!-- KAGE CLAN SPIN-THE-WHEEL POPUP -->
   <div class="clan-popup-overlay" id="clanPopup" onclick="if(event.target===this)closeClanPopup()">
     <div class="clan-popup" onclick="event.stopPropagation()">
-      <button class="clan-popup-close" onclick="closeClanPopup()">✕</button>
-      <div class="clan-popup-icon">🎰</div>
+      <button class="clan-popup-close" onclick="closeClanPopup()"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+      <div class="clan-popup-icon"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M7 15h0M2 9.5h20"/><path d="M12 4v4M10 6h4"/></svg></div>
       <div class="clan-popup-title">KAGE Clan Spin the Wheel</div>
-      <div class="clan-popup-subtitle">Every shirt you buy earns you a spin. Collect all 4 animal stickers → unlock a FREE shirt.</div>
+      <div class="clan-popup-subtitle">Every shirt you buy earns you a spin. Collect all 4 animal stickers <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg> unlock a FREE shirt.</div>
 
       <!-- Rules -->
       <div class="spin-rules">
         <div class="spin-rules-title">How It Works</div>
         <p><strong>1 shirt = 1 free spin.</strong> The more shirts you order, the more spins you get. Each spin lands on one of 4 KAGE animals with a 25% chance each.</p>
-        <p><strong>Collect all 4 animal stickers</strong> → you unlock a <strong>FREE shirt</strong> with that animal printed on it. The KAGE clan decides which shirt you receive — it's a surprise.</p>
+        <p><strong>Collect all 4 animal stickers</strong> <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg> you unlock a <strong>FREE shirt</strong> with that animal printed on it. The KAGE clan decides which shirt you receive — it's a surprise.</p>
         <p><strong>Don't like a sticker?</strong> Re-spins are coming soon! We're setting up payment verification to make sure every re-spin is paid for securely.</p>
       </div>
-n      <!-- Sticker collection -->
+
+n      <!-- Sticker collection -->
       <div class="sticker-grid" id="stickerGrid">
         <div class="sticker-slot" data-animal="bear"><span class="sticker-emoji">🐻</span><span class="sticker-label">Bear</span></div>
         <div class="sticker-slot" data-animal="white-tiger"><span class="sticker-emoji">🐯</span><span class="sticker-label">White Tiger</span></div>
@@ -4222,24 +4223,27 @@
             <text x="70" y="72" fill="#FFF" font-size="9" font-weight="800" text-anchor="middle" font-family="Archivo,sans-serif">WHITE TIGER</text>
             <text x="70" y="86" fill="rgba(255,255,255,0.6)" font-size="7" font-weight="600" text-anchor="middle" font-family="Archivo,sans-serif">MYTHIC 10%</text>
           </svg>
-          <div class="spin-center">🎰</div>
+          <div class="spin-center"><svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M7 15h0M2 9.5h20"/><path d="M12 4v4M10 6h4"/></svg></div>
         </div>
       </div>
-n      <!-- Spin result -->
+
+n      <!-- Spin result -->
       <div class="spin-result" id="spinResult">
         <div class="spin-result-animal" id="spinResultEmoji"></div>
         <div class="spin-result-text" id="spinResultText"></div>
         <div class="spin-result-sub" id="spinResultSub"></div>
       </div>
       <style>.spin-result-animal img { width:80px; height:80px; border-radius:50%; box-shadow:0 4px 16px rgba(0,0,0,0.2); }</style>
-n      <!-- Free shirt banner -->
+
+n      <!-- Free shirt banner -->
       <div class="free-shirt-banner" id="freeShirtBanner" style="display:none;">
         <p>🎉 You've collected all 4 animals!</p>
         <span>You've unlocked a FREE shirt with your favourite animal sticker. The KAGE clan will surprise you with a random design.</span>
       </div>
-n      <!-- Action buttons -->
+
+n      <!-- Action buttons -->
       <div id="clanPopupAction">
-        <button class="spin-btn" id="spinBtn" onclick="executeSpin()">🎰 SPIN THE WHEEL</button>
+        <button class="spin-btn" id="spinBtn" onclick="executeSpin()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M7 15h0M2 9.5h20"/><path d="M12 4v4M10 6h4"/></svg> SPIN THE WHEEL</button>
         <button class="spin-btn respin" id="respinBtn" style="display:none;" disabled title="Re-spins are temporarily unavailable while we set up payment verification.">Re-Spin — Coming Soon</button>
       </div>
       <div class="spin-msg" id="spinMsg"></div>
@@ -4342,7 +4346,7 @@
   <div class="cart-drawer" id="cartDrawer">
     <div class="cart-header">
       <h3>Your Cart</h3>
-      <button class="cart-close" onclick="toggleCart()">✕</button>
+      <button class="cart-close" onclick="toggleCart()"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
     </div>
     <div class="cart-items" id="cartItems"><div class="cart-empty"><p>Your cart is empty.</p></div></div>
     <div class="cart-footer" id="cartFooter" style="display:none;">
@@ -4355,8 +4359,8 @@
   <div class="cart-overlay" id="wishlistOverlay" onclick="toggleWishlistFilter()"></div>
   <div class="cart-drawer" id="wishlistDrawer">
     <div class="cart-header">
-      <h3>♥ Favourites</h3>
-      <button class="cart-close" onclick="toggleWishlistFilter()">✕</button>
+      <h3><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg> Favourites</h3>
+                <button class="cart-close" onclick="toggleWishlistFilter()"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
     </div>
     <div class="cart-items" id="wishlistItems"><div class="cart-empty"><span style="font-size:2rem;display:block;margin-bottom:0.5rem;">♡</span>No favourite picks yet.<br><span style="font-size:0.75rem;margin-top:0.3rem;display:block;">Tap the heart icon on any product to save it here.</span></div></div>
   </div>
@@ -4397,7 +4401,8 @@
       </div>
     </div>
   </div>
-n    <!-- CONTENT PAGES -->
+
+n    <!-- CONTENT PAGES -->
     <div class="page" id="page-returns">
       <div class="container" style="padding: calc(104px + var(--spacing-lg)) 0 var(--spacing-xl); max-width: 720px;">
         <p class="section-label">Policy</p>
@@ -4582,7 +4587,7 @@
 
         <!-- Mobile: Swipe dots -->
         <div class="spirit-dots" id="spiritDots"></div>
-        <div class="swipe-hint" id="swipeHint">← SWIPE →</div>
+        <div class="swipe-hint" id="swipeHint"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg> SWIPE <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg></div>
       </div>
     </div>
 
@@ -6691,13 +6696,13 @@
         btn.style.opacity = '1';
         btn.style.cursor = 'pointer';
         btn.title = currentCustomer.name || currentCustomer.email;
-        btn.textContent = '👤';
-      } else {
-        btn.style.opacity = '0.6';
-        btn.style.cursor = 'pointer';
-        btn.title = 'Sign in';
-        btn.textContent = '👤';
-      }
+        btn.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>';
+              } else {
+                btn.style.opacity = '0.6';
+                btn.style.cursor = 'pointer';
+                btn.title = 'Sign in';
+                btn.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>';
+              }
     }
 
     function handleAccountClick() {
@@ -7052,7 +7057,7 @@
   <!-- CUSTOMER LOGIN / SIGNUP MODAL -->
   <div class="cust-overlay" id="custOverlay" onclick="if(event.target===this)closeCustModal()">
     <div class="cust-card" role="dialog" aria-modal="true">
-      <button type="button" class="cust-close" onclick="closeCustModal()" aria-label="Close">✕</button>
+      <button type="button" class="cust-close" onclick="closeCustModal()" aria-label="Close"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
       <div style="text-align:center;margin-bottom:0.3rem;"><span style="font-family:'Noto Serif JP',serif;font-size:1.8rem;font-weight:900;color:var(--accent);">影</span></div>
       <div id="custLoginView">
         <h3>Welcome Back</h3>
@@ -7085,7 +7090,7 @@
   <!-- ADMIN LOGIN MODAL (subtle entry to the existing /admin) -->
   <div class="admin-login-overlay" id="adminLoginOverlay" onclick="if(event.target===this)closeAdminLogin()">
     <div class="admin-login-card" role="dialog" aria-modal="true" aria-labelledby="adminLoginTitle">
-      <button type="button" class="admin-login-close" onclick="closeAdminLogin()" aria-label="Close">✕</button>
+      <button type="button" class="admin-login-close" onclick="closeAdminLogin()"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
       <div class="admin-login-logo"><span class="kanji">影</span></div>
       <h3 id="adminLoginTitle">Admin Login</h3>
       <p class="admin-login-sub">Sign in to manage the shop</p>
