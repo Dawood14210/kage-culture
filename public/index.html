@@ -76,6 +76,7 @@
       --accent: #4A4433;
       --accent-hover: #5A5240;
       --accent-glow: rgba(74,68,51,0.12);
+      --heart-red: #DC2626;
       --text-primary: #1A1815;
       --text-secondary: #3D3931;
       --text-muted: #5C564C;
@@ -233,35 +234,30 @@
           letter-spacing: 0.12em;
           text-transform: uppercase;
         }
-    .topbar .container {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: var(--spacing-md);
-          min-height: 10px;
-          padding-top: 0;
-          padding-bottom: 0;
-          position: relative;
-        }
-        .topbar-links {
-          position: absolute;
-          right: 0;
-          display: flex;
-          align-items: center;
-          gap: 0.8rem;
-        }
-    .topbar-links a {
-      color: rgba(255,255,255,0.75);
-      cursor: pointer;
-      transition: color var(--transition-fast);
-      min-height: 10px;
+    /* Welcome marquee — the olive band's message loops forever, seamlessly:
+       two identical groups, the track shifts by exactly one group width
+       (translateX(-50%)) per cycle, so the join is invisible. */
+    .topbar-marquee { overflow: hidden; display: block; }
+    .topbar-track {
       display: flex;
-      align-items: center;
+      width: max-content;
+      animation: topbar-marquee 28s linear infinite;
+      will-change: transform;
     }
-    .topbar-links a:hover { color: #fff; }
-    @media (max-width: 768px) {
-      .topbar .container { justify-content: center; }
-      .topbar-links { display: none; }
+    .topbar-group { display: flex; align-items: center; }
+    .topbar-item {
+      display: flex; align-items: center;
+      padding: 5px 0;
+      white-space: nowrap;
+    }
+    .topbar-item::after { content: '\00B7'; margin: 0 1.6em; opacity: 0.55; }
+    .topbar-jp { font-family: var(--font-kanji); letter-spacing: 0.3em; margin-right: 0.5em; }
+    @keyframes topbar-marquee {
+      from { transform: translateX(0); }
+      to { transform: translateX(-50%); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .topbar-track { animation: none; }
     }
 
     .site-header .nav-inner {
@@ -279,7 +275,7 @@
     /* Brush-style 影 — Zen Brush sumi-ink typeface with a faded ink-wash edge */
     .kage-logo .kanji {
       font-family: 'Zen Brush', 'Noto Serif JP', serif;
-      font-size: 18px;
+      font-size: 24px;
       font-weight: 400;
       color: var(--accent);
       line-height: 0.9;
@@ -288,16 +284,16 @@
       mask-image: radial-gradient(ellipse 78% 78% at 50% 50%, #000 60%, rgba(0,0,0,0.75) 82%, transparent 100%);
     }
     .kage-logo .wordmark-wrap {
-      display: flex; flex-direction: column; align-items: center; margin-top: 1px;
+      display: flex; flex-direction: column; align-items: center; margin-top: 2px;
     }
     .kage-logo .kage {
-      font-family: var(--font-display); font-size: 7px;
+      font-family: var(--font-display); font-size: 9px;
       font-weight: 800;
       letter-spacing: 0.3em; color: #0A0A0A; line-height: 1;
     }
     .kage-logo .kage .accent { color: var(--accent); }
     .kage-logo .culture {
-      font-family: var(--font-body); font-size: 3.5px;
+      font-family: var(--font-body); font-size: 4.5px;
       letter-spacing: 0.35em; color: var(--text-dim); margin-top: 0px; line-height: 1;
     }
 
@@ -353,6 +349,7 @@
     }
     .nav-icon:hover { color: var(--accent); }
     .nav-icon.active { color: var(--accent); }
+    .nav-icon img { display: block; } /* raster icon (track order) sits like the stroke SVGs */
     .nav-icon .badge {
       position: absolute; top: 4px; right: 4px;
       background: var(--accent); color: #FFF;
@@ -743,8 +740,8 @@
     }
     .product-grid .product-wishlist:hover,
     .product-grid .product-wishlist.active {
-      color: var(--accent);
-      border-color: var(--accent);
+      color: var(--heart-red);
+      border-color: var(--heart-red);
       background: #FFF;
     }
     .product-grid .product-discount-badge {
@@ -1181,7 +1178,22 @@
       color: var(--text-gray);
     }
     .wishlist-icon:hover { color: var(--accent); background: #FFF; }
-    .wishlist-icon.active { color: var(--accent); }
+    .wishlist-icon.active { color: var(--heart-red); }
+    /* Card hearts use the navbar's stroked SVG; saving a product fills it in red. */
+    .wishlist-icon.active svg,
+    .product-wishlist.active svg { fill: currentColor; }
+
+    /* Pop when a heart is saved — runs on the SVG (so the circular button
+       background stays put) and only via the .pop class toggleWishlist adds,
+       never on re-render. */
+    @keyframes heart-pop {
+      0% { transform: scale(0.6); }
+      40% { transform: scale(1.35); }
+      70% { transform: scale(0.9); }
+      100% { transform: scale(1); }
+    }
+    .wishlist-icon.pop svg,
+    .product-wishlist.pop svg { animation: heart-pop 0.35s ease-out; }
 
     .product-card-body {
       padding: var(--spacing-sm) 0;
@@ -3740,16 +3752,50 @@
 
   <!-- HEADER -->
   <header class="site-header" id="siteHeader">
-    <!-- Top utility bar — olive band -->
-    <div class="topbar">
-      <div class="container">
-        <span class="topbar-jp" style="font-family:var(--font-kanji);letter-spacing:0.3em;">ようこそ — Welcome</span>
-        <div class="topbar-links">
-          <a onclick="navigateTo('tracking');">Track Order</a>
-          <a onclick="navigateTo('home')">Help</a>
+    <!-- Top utility bar — olive band; welcome message loops forever -->
+    <div class="topbar topbar-marquee">
+      <div class="topbar-track">
+          <span class="topbar-group">
+            <span class="topbar-item"><span class="topbar-jp">ようこそ</span>Welcome to KAGE Culture</span>
+            <span class="topbar-item"><span class="topbar-jp">ようこそ</span>Welcome to KAGE Culture</span>
+            <span class="topbar-item"><span class="topbar-jp">ようこそ</span>Welcome to KAGE Culture</span>
+            <span class="topbar-item"><span class="topbar-jp">ようこそ</span>Welcome to KAGE Culture</span>
+            <span class="topbar-item"><span class="topbar-jp">ようこそ</span>Welcome to KAGE Culture</span>
+            <span class="topbar-item"><span class="topbar-jp">ようこそ</span>Welcome to KAGE Culture</span>
+            <span class="topbar-item"><span class="topbar-jp">ようこそ</span>Welcome to KAGE Culture</span>
+            <span class="topbar-item"><span class="topbar-jp">ようこそ</span>Welcome to KAGE Culture</span>
+          </span>
+          <span class="topbar-group" aria-hidden="true">
+            <span class="topbar-item"><span class="topbar-jp">ようこそ</span>Welcome to KAGE Culture</span>
+            <span class="topbar-item"><span class="topbar-jp">ようこそ</span>Welcome to KAGE Culture</span>
+            <span class="topbar-item"><span class="topbar-jp">ようこそ</span>Welcome to KAGE Culture</span>
+            <span class="topbar-item"><span class="topbar-jp">ようこそ</span>Welcome to KAGE Culture</span>
+            <span class="topbar-item"><span class="topbar-jp">ようこそ</span>Welcome to KAGE Culture</span>
+            <span class="topbar-item"><span class="topbar-jp">ようこそ</span>Welcome to KAGE Culture</span>
+            <span class="topbar-item"><span class="topbar-jp">ようこそ</span>Welcome to KAGE Culture</span>
+            <span class="topbar-item"><span class="topbar-jp">ようこそ</span>Welcome to KAGE Culture</span>
+          </span>
         </div>
-      </div>
     </div>
+    <script>
+      // Marquee top-up: the loop is seamless only while one group is at least
+      // as wide as the viewport (the track shows group N while group N+1 slides
+      // in). On very wide screens, clone items into BOTH groups until that
+      // holds, keeping their widths identical so the -50% loop stays seamless.
+      (function () {
+        var track = document.querySelector('.topbar-track');
+        if (!track) return;
+        var groups = track.querySelectorAll('.topbar-group');
+        if (groups.length < 2) return;
+        var item = groups[0].querySelector('.topbar-item');
+        if (!item) return;
+        var need = Math.ceil(window.innerWidth / Math.max(item.offsetWidth, 1)) + 1;
+        while (groups[0].children.length < need) {
+          groups[0].appendChild(item.cloneNode(true));
+          groups[1].appendChild(item.cloneNode(true));
+        }
+      })();
+    </script>
 
     <div class="container nav-inner">
       <div class="kage-logo" onclick="navigateTo('home')" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();navigateTo('home');}">
@@ -3772,6 +3818,7 @@
         <li><a class="nav-admin" onclick="openAdminLogin(); closeMenu();" title="Admin">Admin</a></li>
         <li class="mobile-search"><input type="search" id="mobileSearch" placeholder="Search drops…" oninput="onSearchInput(this.value)" /></li>
         <li class="mobile-icons-row">
+          <button class="nav-icon" onclick="navigateTo('tracking'); closeMenu();" title="Track Order" aria-label="Track Order"><img src="/images/track-order.png" alt="" width="22" height="22" /></button>
           <button class="nav-icon" onclick="toggleWishlistFilter(); closeMenu();" title="Wishlist" aria-label="Wishlist"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg><span class="badge" id="wishlistCountMobile">0</span></button>
                     <button class="nav-icon" onclick="handleAccountClick(); closeMenu();" title="Account" aria-label="Account"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></button>
                     <button class="nav-icon" onclick="toggleCart(); closeMenu();" title="Cart" aria-label="Shopping Cart"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg><span class="badge" id="cartCountMobile">0</span></button>
@@ -3784,6 +3831,7 @@
               </div>
 
               <div class="nav-icons">
+                <button class="nav-icon" onclick="navigateTo('tracking')" title="Track Order" aria-label="Track Order"><img src="/images/track-order.png" alt="" width="22" height="22" /></button>
                 <button class="nav-icon" id="wishlistNav" onclick="toggleWishlistFilter()" title="Wishlist" aria-label="Wishlist"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg><span class="badge" id="wishlistCount">0</span></button>
                 <button class="nav-icon" onclick="openSpinPopupFromNav()" title="KAGE Clan Spin" aria-label="KAGE Clan Spin"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg></button>
                 <button class="nav-icon" id="customerAccountBtn" onclick="handleAccountClick()" title="Account" aria-label="Account"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></button>
@@ -4848,6 +4896,12 @@ n    <!-- CONTENT PAGES -->
     let searchQuery = '';
     const wishlist = new Set();
     let wishlistOnly = false;
+
+    // Heart glyph for every wishlist button. Kept byte-identical to the navbar's
+    // (same path, 20x20, stroked with currentColor) so the card and nav hearts
+    // can never drift apart again; a saved item fills it via the `.active svg`
+    // rule in the wishlist-icon block.
+    const HEART_SVG = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>';
     const filterState = {
       cats: new Set(['Anime-Inspired', 'Japanese Art', 'Typography']),
       priceMin: 500,
@@ -5707,7 +5761,7 @@ n    <!-- CONTENT PAGES -->
           <div class="product-card-image" data-id="${p.id}">
             <img class="img-front" src="${esc(front)}" alt="${esc(p.name)}" loading="lazy" />
             <img class="img-back" data-src="${esc(back)}" alt="${esc(p.name)} back" />
-            <button class="wishlist-icon ${wishlist.has(p.id) ? 'active' : ''}" onclick="event.stopPropagation();toggleWishlist(${p.id}, this)" aria-label="Add to wishlist">♡</button>
+            <button class="wishlist-icon ${wishlist.has(p.id) ? 'active' : ''}" onclick="event.stopPropagation();toggleWishlist(${p.id}, this)" aria-label="Add to wishlist">${HEART_SVG}</button>
             <span class="product-fit-tag">${esc(p.fit)}</span>
             ${r.onSale ? '<span class="sale-flag">SALE</span>' : ''}
             ${lowStockBadge(p)}
@@ -5766,8 +5820,18 @@ n    <!-- CONTENT PAGES -->
 
     // ---------- Wishlist ----------
     function toggleWishlist(id, el) {
-      if (wishlist.has(id)) wishlist.delete(id); else wishlist.add(id);
-      if (el) el.classList.toggle('active', wishlist.has(id));
+      var saved = !wishlist.has(id);
+      if (saved) wishlist.add(id); else wishlist.delete(id);
+      if (el) {
+        el.classList.toggle('active', saved);
+        if (saved) {  // pop only when saving, not when unsaving or re-rendering
+          el.classList.remove('pop');
+          void el.offsetWidth;  // restart the animation on rapid re-saves
+          el.classList.add('pop');
+        } else {
+          el.classList.remove('pop');
+        }
+      }
       document.getElementById('wishlistCount').textContent = wishlist.size;
       var mc = document.getElementById('wishlistCountMobile'); if (mc) mc.textContent = wishlist.size;
       if (wishlistOnly) renderCollectionGrid();
@@ -5889,8 +5953,8 @@ n    <!-- CONTENT PAGES -->
         <div class="product-card" role="link" tabindex="0" aria-label="View ${esc(p.name)}" onclick="openProductDetail(${p.id})" onkeydown="if(event.key==='Enter'&&event.target===this){event.preventDefault();openProductDetail(${p.id});}">
           <div class="product-card-image">
             ${img ? `<img src="${esc(img)}" alt="${esc(p.name)}" loading="lazy" />` : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:var(--text-dim);font-size:0.8rem;">No Image</div>`}
-            <button class="product-wishlist ${isWishlisted ? 'active' : ''}" onclick="event.stopPropagation();toggleWishlist(${p.id})" aria-label="Wishlist">
-              ${isWishlisted ? '&#9829;' : '&#9825;'}
+            <button class="product-wishlist ${isWishlisted ? 'active' : ''}" onclick="event.stopPropagation();toggleWishlist(${p.id}, this)" aria-label="Wishlist">
+              ${HEART_SVG}
             </button>
             ${discount > 0 ? `<span class="product-discount-badge">-${discount}%</span>` : ''}
             ${lowStockBadge(p)}

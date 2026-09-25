@@ -325,6 +325,51 @@ async function main() {
   });
 
   // ---------------------------------------------------------------
+  // 11. Wishlist hearts — product cards must reuse the navbar's icon
+  // The cards rendered text glyphs (♡ / &#9825; / &#9829;) that look different
+  // per platform and never matched the navbar, and the homepage card called
+  // toggleWishlist() without its element, so the heart kept its old state
+  // until the section re-rendered.
+  // ---------------------------------------------------------------
+  console.log('\nWishlist hearts:');
+  await check('card hearts reuse the navbar SVG, fill when saved, pass their element', async () => {
+    const r = await request(PORT, 'GET', '/');
+    assert.strictEqual(r.status, 200);
+    const norm = (s) => s.replace(/\s+/g, ' ').trim();
+    const svgAfter = (marker) => {
+      const start = r.text.indexOf('<svg', r.text.indexOf(marker));
+      return norm(r.text.slice(start, r.text.indexOf('</svg>', start) + 6));
+    };
+    const constant = r.text.match(/const HEART_SVG = .(<svg[\s\S]*?<\/svg>).;/);
+    assert.ok(constant, 'HEART_SVG constant must be defined');
+    assert.strictEqual(norm(constant[1]), svgAfter('id="wishlistNav"'), 'card heart must match the navbar icon exactly');
+    assert.ok((r.text.match(/\$\{HEART_SVG\}/g) || []).length >= 2, 'both card renderers must use HEART_SVG');
+    assert.ok(!r.text.includes('&#9825;') && !r.text.includes('&#9829;'), 'text-glyph hearts must be gone');
+    assert.ok(!/toggleWishlist\(\$\{p\.id\}\)"/.test(r.text), 'card buttons must pass their element so the heart updates on click');
+    assert.ok(/\.wishlist-icon\.active svg,/.test(r.text) && /\.product-wishlist\.active svg \{ fill: currentColor/.test(r.text), 'saved items must fill the heart');
+  });
+
+  // 12. Heart pop animation — saving a product pops the heart once.
+  // The keyframe must animate the SVG (not the round button background) and
+  // must be gated behind the .pop class so grid re-renders never re-pop.
+  // ---------------------------------------------------------------
+  console.log('\nHeart pop animation:');
+  await check('heart-pop keyframe on svg, .pop-gated, added only when saving', async () => {
+    const r = await request(PORT, 'GET', '/');
+    assert.strictEqual(r.status, 200);
+    assert.ok(/@keyframes heart-pop[\s\S]*?\.wishlist-icon\.pop svg,\s*\.product-wishlist\.pop svg\s*\{\s*animation:\s*heart-pop/.test(r.text),
+      'keyframe must animate the svg via .pop, not the button');
+    const fn = r.text.match(/function toggleWishlist\([\s\S]*?\n    \}/);
+    assert.ok(fn, 'toggleWishlist must be defined');
+    assert.ok(/classList\.add\('pop'\)/.test(fn[0]) && /classList\.remove\('pop'\)/.test(fn[0]),
+      'toggleWishlist must toggle the .pop class');
+    const popIdx = fn[0].indexOf("add('pop')");
+    const savedIdx = fn[0].indexOf('if (saved)');
+    assert.ok(savedIdx !== -1 && popIdx > savedIdx && popIdx < fn[0].indexOf('} else {'),
+      'pop must fire only when saving, not when unsaving');
+  });
+
+  // ---------------------------------------------------------------
   await new Promise((r) => server.close(r));
   const failed = results.filter((r) => !r[1]);
   console.log(`\n${results.length - failed.length}/${results.length} passed`);

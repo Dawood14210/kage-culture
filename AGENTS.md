@@ -47,6 +47,8 @@
   route through `openProductDetail`), FE-C2 (`GET/PUT /api/customers/me` implemented —
   PUT handles both profile + password-change shapes), FE-C3 (Chart.js self-hosted in
   `public/vendor/`, CSP-safe), FE-C4 (`/reset-password` view + flow), FE-H1 (grid attrs
-  escaped). Test suite is now **24/24** in `tests/e2e.test.js`.
+  escaped). Test suite is now **27/27** in `tests/e2e.test.js`.
+- ✅ **Wishlist heart UX (2026-09-25):** hearts turn red + pop once when favoriting
+  (CSS in `public/index.html`; details in `AUDIT.md`).
 - ⬜ Remaining: FE-H2 (long-term CSP hardening), FE-M1–M8 (routing, cart persistence,
   a11y polish, etc.).

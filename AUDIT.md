@@ -252,6 +252,52 @@ filter panel already do), then drop the directive and nonce what remains.
   confirmation page re-triggers the spin popup on every render; 9.3 MB of hero videos
   bundled into the lambda via `vercel.json` (overlaps L2).
 
+### ✅ Wishlist heart UX — 2026-09-25 (red fill + pop animation)
+Not from the audit queue — user-requested polish. Two changes in `public/index.html`:
+- **Red heart (previous turn):** favoriting turned the heart brand-brown because the
+  active rules used `--accent`. Added `--heart-red: #DC2626` and applied it to
+  `.wishlist-icon.active` and `.product-grid .product-wishlist.active` (incl. border);
+  SVG fill follows via `currentColor`. Hover on `.wishlist-icon` intentionally still
+  uses `--accent`.
+- **Pop animation (this turn):** new `@keyframes heart-pop` (scale 0.6 → 1.35 → 0.9 → 1,
+  0.35s ease-out) applied to the **SVG only** (`.wishlist-icon.pop svg, .product-wishlist.pop
+  svg`) so the round button background stays put. Gated behind a `.pop` class that
+  `toggleWishlist` adds only when **saving** — never when unsaving or on grid re-renders —
+  with a `void el.offsetWidth` reflow restart so rapid re-saves re-pop. Reduced-motion
+  users are covered by the existing global `prefers-reduced-motion` kill-switch.
+- **Verification:** suite item 12 added (`heart-pop` keyframe, `.pop` gating, save-only
+  trigger) — **27/27 passed**.
+- **Docs:** AGENTS.md status snapshot updated to 27/27; FE-M2 note added below.
+
+### ✅ Topbar marquee + nav Track Order button — 2026-09-25 (user request)
+- **Removed** the `Track Order` / `Help` links from the top utility bar (`.topbar-links`
+  markup + its CSS deleted). `Help` never pointed anywhere useful (it navigated home);
+  the tracking page itself is untouched and still reachable.
+- **New Track Order nav button** (no emoji — a wifi/signal-line SVG in the same stroke
+  style as the other nav icons): desktop `nav-icons` cluster + mobile `mobile-icons-row`,
+  both `navigateTo('tracking')` (mobile also `closeMenu()`), `aria-label="Track Order"`.
+  The mobile dropdown's text link stays. Footer/confirmation links unchanged.
+- **Infinite welcome marquee:** the olive band now loops `ようこそ Welcome to KAGE
+  Culture` forever. Two identical `.topbar-group`s in a `max-content` track animating
+  `translateX(0 → -50%)` (28s linear) — the loop point is invisible because group N's
+  tail (including its `·` separator) matches group N+1's head. A tiny boot script
+  clones items into both groups when one group would be narrower than the viewport
+  (ultra-wide seamlessness), and `prefers-reduced-motion` freezes the track. Kept
+  inside `<header>` so the sticky header is unaffected; `.topbar` keeps its olive
+  band styling.
+- **Verification:** 27/27 suite + live boot on :4123 — shell 200, marquee items served,
+  0 `topbar-links` remnants, 2 `aria-label="Track Order"` buttons, health ok.
+- **Track icon artwork (later, same day):** user supplied a circular aviation-badge
+  logo (gstatic thumbnail, 260×280 JPEG) to use as the Track Order icon. Edited it to
+  fit the 24px-icon system with ImageMagick: chopped the watermark strip (bottom
+  30px), grayscale + 62% threshold, `morphology Close disk:2` to heal JPEG mush,
+  white → transparent, trim, resize x36, center-padded to 40×40, tinted `#3D3931`
+  (the nav icon color). Saved as `public/images/track-order.png` (1.1 KB); both nav
+  buttons now use `<img width=22 height=22>` + `.nav-icon img { display:block }`.
+  Verified: asset 200 `image/png` with the M7 1-year cache rule, 2 shell refs,
+  27/27 tests. Note: fixed color (unlike `currentColor` SVGs), so it won't shift
+  hue on hover; icon is cached by URL — rename the file if the artwork changes.
+
 ---
 
 ## Remaining work (priority order)
@@ -286,7 +332,10 @@ filter panel already do), then drop the directive and nonce what remains.
 ### 🟡 Medium
 - **FE-M1.** URL routing/history (pushState, deep links, real 404) — unblocks the
   sitemap half of L6.
-- **FE-M2.** Persist cart (and wishlist) to localStorage.
+- **FE-M2.** Persist cart (and wishlist) to localStorage. *(Note: the wishlist heart
+  red-fill + pop animation shipped 2026-09-25; localStorage persistence itself is
+  still open.)* *(Wishlist heart color +
+  pop animation shipped 2026-09-25 — persistence itself still open.)*
 - **FE-M3.** De-duplicate checkout payment-radio listeners.
 - **FE-M4.** Fix cart-badge bump selector.
 - **FE-M5.** A11y: focusable nav/tiles, Escape + focus-trap on all overlays, remove
