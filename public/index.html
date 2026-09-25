@@ -2449,12 +2449,19 @@
     }
     @media (max-width: 768px) {
       .whatsapp-float {
-        bottom: 16px;
+        /* Hovered above the mobile sticky-cart bar (70px) so the
+           two never overlap on product pages. */
+        bottom: 86px;
         right: 16px;
         width: 56px;
         height: 56px;
       }
       .whatsapp-float svg { width: 26px; height: 26px; }
+    }
+    /* Keep page-bottom content clear of the floating WhatsApp button
+       on touch layouts (it sits over the last row otherwise). */
+    @media (hover: none) {
+      .checkout-page { padding-bottom: calc(var(--spacing-xl) + 56px); }
     }
     .footer-newsletter h4 {
       font-family: var(--font-display);
@@ -2538,6 +2545,35 @@
     @media (max-width: 640px) {
       .collection-grid { grid-template-columns: 1fr; gap: var(--spacing-md); }
       .container { padding-left: var(--spacing-sm); padding-right: var(--spacing-sm); }
+    }
+
+    /* ================================================================
+       RESPONSIVE HARDENING — small screens (≤540px)
+       Everything here fixes a concrete overflow/cramping bug; keep it
+       that way rather than piling on generic overrides.
+       ================================================================ */
+    @media (max-width: 540px) {
+      /* Track timeline: 4 labels in a flex row overflow narrow screens;
+         the horizontal connector line breaks anyway once labels wrap. */
+      .track-timeline { flex-direction: column; align-items: flex-start; gap: 1.1rem; }
+      .track-step { flex-direction: row; align-items: center; width: 100%; }
+      .track-step::before {
+        top: auto; left: 10px; width: 2px; height: 100%; min-height: 24px;
+      }
+      .track-step:first-child::before { display: none; }
+      .track-label { font-size: 0.78rem; }
+
+      /* Horizontal row-limits so min-height:44px nav buttons can't
+         stretch to the header's full height. */
+      .nav-links li { min-height: 0; }
+      .nav-links li:has(.nav-icon) { min-height: 44px; }
+      .nav-links li:has(.mobile-search) { min-height: 0; }
+    }
+
+    /* Ultra-narrow phones (≤360px): stop the header from overflowing —
+       the logo/nav shrink is intentional branding, not a bug. */
+    @media (max-width: 360px) {
+      .nav-inner { flex-wrap: wrap; }
     }
 
     /* ================================================================
@@ -2821,6 +2857,14 @@
     @media (max-width: 900px) {
       .checkout-layout { grid-template-columns: 1fr; }
       .checkout-summary { position: static; }
+    }
+
+    /* Phone-sized screens: checkout + summary go edge-to-edge with tight
+       padding; form rows (expiry/CVV etc.) can't fit side-by-side. */
+    @media (max-width: 540px) {
+      .checkout-page { padding: var(--spacing-md) var(--spacing-sm) var(--spacing-xl); }
+      .checkout-form, .checkout-summary { min-width: 0; }
+      .co-row { grid-template-columns: 1fr; }
     }
     /* ================================================================
        KAGE BRAND SECTIONS (Animals, Clothes, Goofy Wears, Custom Stickers)
@@ -3143,9 +3187,9 @@
     /* ================================================================
        ORDER TRACKING
        ================================================================ */
-    .tracking-page { max-width: 680px; padding-bottom: var(--spacing-xl); }
-    .tracking-sub { color: var(--text-muted); font-size: 0.85rem; margin-bottom: var(--spacing-md); }
-    .tracking-form { display: flex; flex-direction: column; gap: 0.7rem; margin-bottom: var(--spacing-md); }
+    .tracking-page { max-width: 680px; margin: 0 auto; padding-top: 7rem; padding-bottom: var(--spacing-lg); }
+        .tracking-sub { color: var(--text-muted); font-size: 0.85rem; margin-bottom: var(--spacing-md); }
+        .tracking-form { display: flex; flex-direction: column; gap: 0.7rem; }
     .tracking-form input { width: 100%; padding: 0.75rem 0.9rem; border: 1.5px solid var(--border-color); border-radius: 10px; font-family: var(--font-body); font-size: 0.9rem; background: var(--bg-panel); }
     .tracking-form input:focus { outline: none; border-color: var(--accent); }
     .tracking-form .btn { align-self: flex-start; }
@@ -3153,6 +3197,7 @@
     .track-result { border: 1px solid var(--border-color); border-radius: 14px; padding: var(--spacing-lg); background: var(--bg-panel); }
     .track-top { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem; margin-bottom: var(--spacing-md); }
     .track-status { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--accent); }
+    .track-status-cancelled { color: #DC2626; }
     .track-timeline { display: flex; align-items: flex-start; justify-content: space-between; margin: var(--spacing-md) 0 var(--spacing-lg); }
     .track-step { display: flex; flex-direction: column; align-items: center; gap: 0.35rem; flex: 1; position: relative; }
     .track-step::before { content: ''; position: absolute; top: 11px; left: -50%; width: 100%; height: 2px; background: var(--border-color); z-index: 0; }
@@ -6503,24 +6548,66 @@ n    <!-- CONTENT PAGES -->
         if (!res.ok) {
           err.textContent = data.error || 'Could not find that order. Please check and try again.';
           err.style.display = 'block';
-          result.style.display = 'none';
+          result.style.display = 'none';  // don't leave a previous order's details on screen
           return;
         }
         renderTracking(data);
       } catch (err2) {
         err.textContent = 'Connection error. Please try again.';
         err.style.display = 'block';
+        result.style.display = 'none';
+      } finally {
+        btn.disabled = false;  // was skipped on the !res.ok path — one failed lookup bricked the button
       }
-      btn.disabled = false;
     }
 
+    // Human-readable status labels — the admin/backend statuses shown to
+    // customers. `awaiting_verification` gets its own copy so customers who
+    // paid via JazzCash/bank understand what's happening instead of seeing
+    // "Pending" forever; cancelled shows as a red badge, not a timeline.
+    const TRACK_STATUS_LABELS = {
+      pending: 'Pending',
+      awaiting_verification: 'Verifying payment',
+      confirmed: 'Confirmed',
+      shipped: 'Shipped',
+      delivered: 'Delivered',
+      cancelled: 'Cancelled'
+    };
+
     function renderTracking(o) {
+      // Cancelled orders have no journey — show a clear terminal state instead
+      // of an active "Pending" timeline (old bug: indexOf → -1 → clamped to 0).
+      if (o.status === 'cancelled') {
+        document.getElementById('trkResult').innerHTML = `
+          <div class="track-result">
+            <div class="track-top">
+              <strong>Order ${esc(o.order_number)}</strong>
+              <span class="track-status track-status-cancelled">Cancelled</span>
+            </div>
+            <div class="track-details">
+              <div><span>Placed</span><span>${esc(formatTrackDate(o.created_at))}</span></div>
+              <div><span>Total</span><span>Rs. ${o.total}</span></div>
+            </div>
+            <div class="track-items">${(o.items || []).map(it => `
+              <div class="conf-item">
+                <span>${esc(it.name)}${it.size ? ' · Size ' + esc(it.size) : ''} × ${it.qty}</span>
+                <span>Rs. ${it.total}</span>
+              </div>`).join('')}</div>
+            <p class="track-help">This order was cancelled. If you weren't expecting this or have questions about a refund, WhatsApp us at +92 322 804 2633 with your order number.</p>
+          </div>`;
+        document.getElementById('trkResult').style.display = 'block';
+        return;
+      }
       const steps = ['pending', 'confirmed', 'shipped', 'delivered'];
-      const idx = Math.max(0, steps.indexOf(o.status));
+      // Payment-first orders (JazzCash/bank) sit in `awaiting_verification`
+      // before `confirmed` — without this they clamped to 0 and rendered as
+      // an active "Pending" step.
+      const idx = o.status === 'awaiting_verification' ? 1 : Math.max(0, steps.indexOf(o.status));
+      const stepLabel = (s) => TRACK_STATUS_LABELS[s] || s;
       const timeline = steps.map((s, i) => `
         <div class="track-step ${i < idx ? 'done' : ''} ${i === idx ? 'active' : ''}">
           <span class="track-dot">${i <= idx ? '✓' : ''}</span>
-          <span class="track-label">${s.charAt(0).toUpperCase() + s.slice(1)}</span>
+          <span class="track-label">${stepLabel(s)}</span>
         </div>`).join('');
       const items = (o.items || []).map(it => `
         <div class="conf-item">
@@ -6531,11 +6618,12 @@ n    <!-- CONTENT PAGES -->
         <div class="track-result">
           <div class="track-top">
             <strong>Order ${esc(o.order_number)}</strong>
-            <span class="track-status">${esc(o.status)}</span>
+            <span class="track-status">${esc(TRACK_STATUS_LABELS[o.status] || o.status)}</span>
+            ${o.status === 'awaiting_verification' ? '<p class="track-help" style="margin-top:0.4rem;">We\'re verifying your payment — this usually takes a few hours. You\'ll get a confirmation email once it\'s confirmed.</p>' : ''}
           </div>
           <div class="track-timeline">${timeline}</div>
           <div class="track-details">
-            <div><span>Placed</span><span>${esc(String(o.created_at || ''))}</span></div>
+            <div><span>Placed</span><span>${esc(formatTrackDate(o.created_at))}</span></div>
             <div><span>Payment</span><span>${o.payment_method === 'bank' ? 'Bank Transfer' : o.payment_method === 'jazzcash' ? 'JazzCash' : 'Cash on Delivery'}</span></div>
             <div><span>Total</span><span>Rs. ${o.total}</span></div>
           </div>
@@ -6543,6 +6631,15 @@ n    <!-- CONTENT PAGES -->
           <p class="track-help">Questions about your order? WhatsApp us at +92 322 804 2633 with your order number.</p>
         </div>`;
       document.getElementById('trkResult').style.display = 'block';
+    }
+
+    // "2026-09-25 09:41:12" (UTC, DB format) → "25 Sep 2026, 2:41 pm" in the
+    // visitor's local time. DB times are UTC (ISO with T→space swap).
+    function formatTrackDate(dbTime) {
+      if (!dbTime) return '';
+      const d = new Date(String(dbTime).replace(' ', 'T') + 'Z');
+      if (isNaN(d.getTime())) return String(dbTime);  // fall back to raw
+      return d.toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' });
     }
 
     // Cart
