@@ -5,6 +5,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
+    "test": "node tests/e2e.test.js && node tests/frontend.test.js",
     "dev": "node server.js",
     "build": "node -e \"console.log('KAGE build: static site + Express API ready')\""
   },
@@ -24,6 +25,7 @@
     "sql.js": "^1.9.0"
   },
   "devDependencies": {
+    "jsdom": "^26.1.0",
     "puppeteer-core": "^25.9.0"
   }
 }

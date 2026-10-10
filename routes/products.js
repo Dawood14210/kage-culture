@@ -42,7 +42,7 @@ module.exports = function createProductRoutes(db) {
       const parsed = products.map(p => {
         const agg = revAgg[p.id];
         const stock = (p.stock_qty != null && p.stock_qty !== '') ? Number(p.stock_qty) : null;
-        return { ...p, sizes: JSON.parse(p.sizes || '["S","M","L","XL","XXL"]'), extra_images: JSON.parse(p.extra_images || '[]'), collections: JSON.parse(p.collections || '[]'), on_sale: Boolean(p.on_sale), in_stock: Boolean(p.in_stock), stock_qty: stock, sold_count: sold[p.id] || 0, order_count: sold[p.id] || 0, avg_rating: agg ? Math.round((agg.sum / agg.n) * 10) / 10 : null, review_count: agg ? agg.n : 0 };
+        return { ...p, sizes: JSON.parse(p.sizes || '["S","M","L","XL","XXL"]'), extra_images: JSON.parse(p.extra_images || '[]'), collections: JSON.parse(p.collections || '[]'), on_sale: Boolean(p.on_sale), in_stock: Boolean(p.in_stock) && (stock == null || stock > 0), stock_qty: stock, sold_count: sold[p.id] || 0, order_count: sold[p.id] || 0, avg_rating: agg ? Math.round((agg.sum / agg.n) * 10) / 10 : null, review_count: agg ? agg.n : 0 };
       });
       res.json(parsed);
     } catch (err) { console.error('products route failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
@@ -53,7 +53,7 @@ module.exports = function createProductRoutes(db) {
     try {
       const p = await db.prepare('SELECT * FROM products WHERE id = ?').get(req.params.id);
       if (!p) return res.status(404).json({ error: 'Product not found' });
-      p.sizes = JSON.parse(p.sizes || '["S","M","L","XL","XXL"]'); p.extra_images = JSON.parse(p.extra_images || '[]'); p.collections = JSON.parse(p.collections || '[]'); p.on_sale = Boolean(p.on_sale); p.in_stock = Boolean(p.in_stock);
+      p.sizes = JSON.parse(p.sizes || '["S","M","L","XL","XXL"]'); p.extra_images = JSON.parse(p.extra_images || '[]'); p.collections = JSON.parse(p.collections || '[]'); p.on_sale = Boolean(p.on_sale); p.in_stock = Boolean(p.in_stock) && (p.stock_qty == null || Number(p.stock_qty) > 0);
       res.json(p);
     } catch (err) { console.error('products route failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
   });
@@ -66,9 +66,13 @@ module.exports = function createProductRoutes(db) {
       const frontImage = req.files?.front_image?.[0] ? await persistImage(req.files.front_image[0].buffer, req.files.front_image[0].originalname) : null;
       const backImage = req.files?.back_image?.[0] ? await persistImage(req.files.back_image[0].buffer, req.files.back_image[0].originalname) : null;
       const extraImages = []; if (req.files?.extra_images) { for (const f of req.files.extra_images) { extraImages.push(await persistImage(f.buffer, f.originalname)); } }
-      const sizesArr = sizes || JSON.stringify(['S', 'M', 'L', 'XL', 'XXL']); const salePriceVal = sale_price || null; const onSale = sale_price ? 1 : 0;
-      const inStock = in_stock !== undefined ? (in_stock === 'true' || in_stock === true ? 1 : 0) : 1;
+      const sizesArr = sizes || JSON.stringify(['S', 'M', 'L', 'XL', 'XXL']);
+      const salePriceVal = sale_price ? Number(sale_price) : null;
+      if (salePriceVal != null && (!Number.isFinite(salePriceVal) || salePriceVal <= 0 || salePriceVal >= Number(price))) return res.status(400).json({ error: 'Sale price must be lower than the regular price.' });
+      const onSale = salePriceVal != null ? 1 : 0;
+      const requestedInStock = in_stock !== undefined ? (in_stock === 'true' || in_stock === true ? 1 : 0) : 1;
       const stockQty = (stock_qty !== undefined && stock_qty !== '' && stock_qty !== null) ? Math.max(0, Number(stock_qty) || 0) : null;
+      const inStock = stockQty === 0 ? 0 : requestedInStock;
       const estCost = Math.max(50, Math.round(parseFloat(price) * 0.55));
       const result = await db.prepare('INSERT INTO products (name, category, fit, price, sale_price, on_sale, description, sizes, front_image, back_image, extra_images, in_stock, unit_cost, stock_qty) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(name, category, fit || '', parseFloat(price), salePriceVal, onSale, description || '', JSON.stringify(Array.isArray(sizesArr) ? sizesArr : JSON.parse(sizesArr)), frontImage, backImage, JSON.stringify(extraImages), inStock, estCost, stockQty);
       const product = await db.prepare('SELECT * FROM products WHERE id = ?').get(result.lastInsertRowid);
@@ -88,12 +92,15 @@ module.exports = function createProductRoutes(db) {
       if (req.files?.back_image?.[0]) { const newUrl = await persistImage(req.files.back_image[0].buffer, req.files.back_image[0].originalname); if (existing.back_image) await removeImage(existing.back_image); backImage = newUrl; } else if (remove_back === 'true') { if (existing.back_image) await removeImage(existing.back_image); backImage = null; }
       let extraImages = []; try { extraImages = JSON.parse(existing.extra_images || '[]'); } catch (e) { extraImages = []; }
       if (req.files?.extra_images) { for (const f of req.files.extra_images) { extraImages.push(await persistImage(f.buffer, f.originalname)); } }
-      const sizesArr = sizes || existing.sizes || JSON.stringify(['S', 'M', 'L', 'XL', 'XXL']); const salePriceVal = sale_price !== undefined ? sale_price : existing.sale_price; const onSale = sale_price ? 1 : 0;
+      const sizesArr = sizes || existing.sizes || JSON.stringify(['S', 'M', 'L', 'XL', 'XXL']);
+      const salePriceVal = sale_price === undefined ? existing.sale_price : (sale_price === '' ? null : Number(sale_price));
+      const onSale = salePriceVal != null && salePriceVal > 0 ? 1 : 0;
       const finalName = name || existing.name; const finalCategory = category || existing.category; const finalFit = fit !== undefined ? fit : existing.fit; const finalPrice = price !== undefined ? parseFloat(price) : existing.price; const finalDesc = description !== undefined ? description : existing.description;
       const finalInStock = in_stock !== undefined ? (in_stock === 'true' || in_stock === true ? 1 : 0) : existing.in_stock; const finalUnitCost = unit_cost !== undefined && unit_cost !== '' ? Math.max(0, parseFloat(unit_cost) || 0) : existing.unit_cost;
       const finalStockQty = (stock_qty !== undefined && stock_qty !== '' && stock_qty !== null) ? Math.max(0, Number(stock_qty) || 0) : existing.stock_qty;
+      if (salePriceVal != null && (!Number.isFinite(salePriceVal) || salePriceVal >= finalPrice || salePriceVal <= 0)) return res.status(400).json({ error: 'Sale price must be lower than the regular price.' });
       const now = new Date().toISOString().replace('T', ' ').slice(0, 19);
-      await db.prepare('UPDATE products SET name=?, category=?, fit=?, price=?, sale_price=?, on_sale=?, description=?, sizes=?, front_image=?, back_image=?, extra_images=?, in_stock=?, unit_cost=?, stock_qty=?, updated_at=? WHERE id=?').run(finalName, finalCategory, finalFit, finalPrice, salePriceVal, onSale, finalDesc, JSON.stringify(Array.isArray(sizesArr) ? sizesArr : JSON.parse(sizesArr)), frontImage, backImage, JSON.stringify(extraImages), finalInStock, finalUnitCost, finalStockQty, now, req.params.id);
+      await db.prepare('UPDATE products SET name=?, category=?, fit=?, price=?, sale_price=?, on_sale=?, description=?, sizes=?, front_image=?, back_image=?, extra_images=?, in_stock=?, unit_cost=?, stock_qty=?, updated_at=? WHERE id=?').run(finalName, finalCategory, finalFit, finalPrice, salePriceVal, onSale, finalDesc, JSON.stringify(Array.isArray(sizesArr) ? sizesArr : JSON.parse(sizesArr)), frontImage, backImage, JSON.stringify(extraImages), finalStockQty === 0 ? 0 : finalInStock, finalUnitCost, finalStockQty, now, req.params.id);
       const updated = await db.prepare('SELECT * FROM products WHERE id = ?').get(req.params.id);
       updated.sizes = JSON.parse(updated.sizes || '[]'); updated.extra_images = JSON.parse(updated.extra_images || '[]'); updated.collections = JSON.parse(updated.collections || '[]'); updated.on_sale = Boolean(updated.on_sale); updated.in_stock = Boolean(updated.in_stock);
       res.json(updated);
@@ -119,6 +126,7 @@ module.exports = function createProductRoutes(db) {
       const existing = await db.prepare('SELECT * FROM products WHERE id = ?').get(req.params.id);
       if (!existing) return res.status(404).json({ error: 'Product not found' });
       const newStock = existing.in_stock ? 0 : 1;
+      if (newStock && existing.stock_qty != null && Number(existing.stock_qty) <= 0) return res.status(400).json({ error: 'Restock this product before marking it in stock.' });
       await db.prepare('UPDATE products SET in_stock = ? WHERE id = ?').run(newStock, req.params.id);
       res.json({ success: true, in_stock: Boolean(newStock) });
     } catch (err) { console.error('products route failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }

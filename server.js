@@ -186,7 +186,7 @@ async function seedProducts() {
   for (const p of defaults) {
     const exists = await db.prepare('SELECT id FROM products WHERE name = ?').get(p.name);
     if (exists) continue;
-    await insert.run([p.name, p.category, p.fit, p.price, p.sale || null, p.sale ? 1 : 0, p.desc, JSON.stringify([p.size || 'L']), p.cost, p.stock, 1]);
+    await insert.run([p.name, p.category, p.fit, p.price, p.sale || null, p.sale ? 1 : 0, p.desc, JSON.stringify([p.size || 'L']), p.cost, p.stock, p.stock > 0 ? 1 : 0]);
     added++;
   }
   await db.save();
@@ -223,8 +223,12 @@ async function ensureReady() {
     // the data APIs behind it are the real protection. /admin.html already
     // redirects to /admin above (before static), giving one canonical entry.
     app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin.html')));
-    app.get('/admin/*', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin.html')));
-    app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
+    const spaPages = new Set(['/', '/about', '/contact', '/tracking', '/shipping', '/returns', '/privacy', '/terms', '/account', '/checkout', '/confirmation', '/reset-password', '/kage-animals', '/kage-clothes', '/custom-stickers']);
+    app.get('*', (req, res) => {
+      if (req.path.startsWith('/api/')) return res.status(404).json({ error: 'Not found.' });
+      const known = spaPages.has(req.path) || /^\/product\/\d+$/.test(req.path) || /^\/collection\/[a-z0-9-]+$/.test(req.path) || /^\/kage-animals\/(bear|white-tiger|white-fox|black-panther)$/.test(req.path);
+      res.status(known ? 200 : 404).sendFile(path.join(__dirname, 'public', 'index.html'));
+    });
   }
 }
 

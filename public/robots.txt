@@ -3,4 +3,4 @@ Allow: /
 Disallow: /admin
 Disallow: /api/
 
-Sitemap: https://kage-culture.vercel.app/sitemap.xml
+Sitemap: https://kage-culture-ruby.vercel.app/sitemap.xml

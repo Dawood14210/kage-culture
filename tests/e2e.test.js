@@ -426,6 +426,36 @@ async function main() {
       'admin must not disable pinch-zoom (accessibility)');
   });
 
+  // Frontend/API contract: stock and sale editing must agree with checkout.
+  console.log('\nCatalog contract:');
+  await check('zero-stock products are unavailable in the catalog', async () => {
+    const r = await request(PORT, 'GET', '/api/products');
+    assert.strictEqual(r.status, 200);
+    for (const name of ['Melting', 'Robo Bro', 'All-Seeing Eye']) {
+      const p = r.json.find(x => x.name === name);
+      assert.equal(p.stock_qty, 0);
+      assert.equal(p.in_stock, false);
+    }
+  });
+  await check('zero-stock product cannot be marked available without restocking', async () => {
+    const csrf = await getCsrf();
+    const r = await request(PORT, 'PATCH', '/api/products/14/stock', {
+      headers: { Cookie: adminCookie + '; ' + csrf.cookie, 'X-CSRF-Token': csrf.token }
+    });
+    assert.strictEqual(r.status, 400);
+    assert.match(r.json.error, /Restock/);
+  });
+  await check('clearing a sale price removes the discount on the API', async () => {
+    const csrf = await getCsrf();
+    const headers = { Cookie: adminCookie + '; ' + csrf.cookie, 'X-CSRF-Token': csrf.token };
+    const r = await request(PORT, 'PUT', '/api/products/4', { body: { sale_price: '' }, headers });
+    assert.strictEqual(r.status, 200, JSON.stringify(r.json));
+    assert.equal(r.json.sale_price, null);
+    assert.equal(r.json.on_sale, false);
+    const list = await request(PORT, 'GET', '/api/products');
+    assert.equal(list.json.find(x => x.id === 4).sale_price, null);
+  });
+
   // ---------------------------------------------------------------
   await new Promise((r) => server.close(r));
   const failed = results.filter((r) => !r[1]);

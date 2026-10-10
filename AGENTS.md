@@ -57,5 +57,9 @@
   vertically, checkout rows collapse, nav-dropdown row heights fixed) + ≤360px header
   wrap; admin rows become wrap-cards ≤768px (column legend hidden), `user-scalable=no`
   removed. Suite is now **30/30** in `tests/e2e.test.js`.
-- ⬜ Remaining: FE-H2 (long-term CSP hardening), FE-M1–M8 (routing, cart persistence,
-  a11y polish, etc.).
+- ✅ **Frontend repair (2026-10-10):** admin filters, stock/sale contract, Goofy Wears
+  catalog, pagination, API failure state, cart/wishlist persistence, history/deep links,
+  return messaging, dialog keyboard access, and dependency advisories addressed.
+  Run `npm test` for 33 API + 7 DOM-level scenarios; see `AUDIT.md` for details.
+- ⬜ Remaining: FE-H2 CSP migration (do not drop unsafe-inline without replacing
+  handlers), browser/device visual QA, dynamic-control a11y, FE-M6 typography, L2 media.

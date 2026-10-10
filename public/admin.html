@@ -212,7 +212,6 @@
     .form-grid select option { background:var(--bg-card); color:var(--text-primary); }
     .form-grid input::placeholder, .form-grid textarea::placeholder { color:var(--text-dim); }
     .form-grid input:focus, .form-grid select:focus, .form-grid textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow);}
-    }
     .form-grid textarea { min-height:80px; resize:vertical; }
     .form-grid .checkbox-group {
       display:flex; gap:0.5rem; flex-wrap:wrap;
@@ -292,14 +291,14 @@
       overflow:hidden; border:1px solid var(--border-dark);
     }
     .product-row .thumb img { width:100%; height:100%; object-fit:contain; }
-    .product-row .p-name { font-weight:600; color:var(--white); }
+    .product-row .p-name { font-weight:600; color:var(--text-primary); }
     .product-row .p-category { font-size:0.7rem; color:var(--text-muted); }
-    .product-row .p-price { font-weight:700; color:var(--white); }
+    .product-row .p-price { font-weight:700; color:var(--text-primary); }
     .product-row .actions { display:flex; gap:0.3rem; }
     .product-row .actions button {
       background:none; border:1px solid var(--border-dark);
       padding:0.3rem 0.6rem; font-size:0.65rem; cursor:pointer;
-      min-height:36px; transition:all 0.2s; color:var(--text-muted);
+      min-height:36px; transition:all 0.2s; color:var(--text-secondary);
     }
     .product-row .actions button:hover { border-color:var(--red); color:var(--red); background:var(--red-subtle); }
     .product-row .actions .delete-btn:hover { border-color:var(--red); color:var(--red); background:var(--red-subtle); }
@@ -355,7 +354,7 @@
     .upload-zone .uz-icon {
       font-size:1.8rem; margin-bottom:0.4rem; color:var(--text-secondary);
     }
-    .upload-zone .uz-main { font-size:0.9rem; font-weight:600; color:var(--white); }
+    .upload-zone .uz-main { font-size:0.9rem; font-weight:600; color:var(--text-primary); }
     .upload-zone .uz-hint { font-size:0.75rem; color:var(--text-muted); margin-top:0.2rem; }
     .upload-zone .uz-error {
       color:var(--red); font-size:0.75rem; margin-top:0.5rem; display:none;
@@ -450,8 +449,8 @@
       border:1px solid var(--border-dark);
     }
     .live-card .lc-thumb img { width:100%; height:100%; object-fit:contain; }
-    .live-card .lc-name { font-size:0.8rem; font-weight:600; color:var(--white); }
-    .live-card .lc-price { font-size:0.8rem; font-weight:700; margin-top:0.15rem; color:var(--white); }
+    .live-card .lc-name { font-size:0.8rem; font-weight:600; color:var(--text-primary); }
+    .live-card .lc-price { font-size:0.8rem; font-weight:700; margin-top:0.15rem; color:var(--text-primary); }
     .live-card .lc-badge {
       display:inline-block; margin-top:0.25rem; font-size:0.6rem;
       font-weight:700; text-transform:uppercase; color:var(--red);
@@ -554,7 +553,7 @@
     #extraFields { display: none; }
     #extraFields.show { display: contents; }
     .form-grid .upload-area .uz-icon { font-size: 2rem; margin-bottom: 0.4rem; }
-    .form-grid .upload-area .uz-main { font-size: 0.9rem; font-weight: 600; color:var(--white); }
+    .form-grid .upload-area .uz-main { font-size: 0.9rem; font-weight: 600; color:var(--text-primary); }
     .form-grid .upload-area .uz-hint { font-size: 0.75rem; color: var(--text-muted); margin-top: 0.2rem; }
     .form-grid .upload-area .uz-error { font-size: 0.75rem; color: var(--red); margin-top: 0.4rem; display: none; }
     .form-grid .upload-area.dragover { border-color: var(--red); background: var(--red-glow); }
@@ -574,7 +573,7 @@
     }
     .reports-title {
       font-family: 'Anton', sans-serif; font-size: 1.35rem;
-      letter-spacing: 0.08em; text-transform: uppercase; color: var(--white);
+      letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-primary);
     }
     .period-toggle {
       display: flex; gap: 0.3rem; background: var(--bg-elevated);
@@ -601,7 +600,7 @@
       letter-spacing: 0.1em; color: var(--text-muted); margin-bottom: 0.4rem;
     }
     .pnl-value {
-      font-family: 'Anton', sans-serif; font-size: 1.6rem; color: var(--white);
+      font-family: 'Anton', sans-serif; font-size: 1.6rem; color: var(--text-primary);
       letter-spacing: 0.02em;
     }
     .pnl-sub { font-size: 0.68rem; color: var(--text-dim); margin-top: 0.25rem; }
@@ -616,6 +615,10 @@
     }
     .pnl-empty.show { display: flex; }
     @media (max-width: 640px) {
+      #tab-reports{padding:1rem;}
+      .period-toggle{width:100%;max-width:100%;}
+      .period-toggle .period-btn{flex:1 1 0;min-width:0;padding:0.45rem 0.2rem;font-size:0.65rem;}
+      .pnl-chart-wrap canvas{max-width:100%;}
       .pnl-summary { grid-template-columns: 1fr; }
     }
 
@@ -783,7 +786,7 @@
     .sidebar-logout{color:var(--red);}
     .sidebar-logout:hover{color:var(--red-hover);}
     /* ===== MAIN WRAPPER ===== */
-    .main-wrapper{margin-left:var(--sidebar-width);min-height:100vh;display:flex;flex-direction:column;}
+    .main-wrapper{margin-left:var(--sidebar-width);min-height:100vh;display:flex;flex:1;min-width:0;flex-direction:column;}
     .top-bar{position:sticky;top:0;z-index:100;height:var(--topbar-height);background:var(--bg-card);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 2rem;box-shadow:var(--shadow-sm);}
     .top-bar-title{font-family:'Anton',sans-serif;font-size:1.25rem;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-primary);}
     .top-bar-right{display:flex;align-items:center;gap:1rem;}
@@ -909,7 +912,13 @@
       .reviews-toolbar .period-btn{flex:1 1 30%;}
       .top-bar-email{display:none;}
     }
+    /* On phones the sidebar is hidden, so provide an equivalent section/account menu. */
+    .mobile-admin-nav{display:none;}
     @media(max-width:640px){
+      .mobile-admin-nav{display:flex;flex-wrap:wrap;gap:0.5rem;width:100%;}
+      .mobile-admin-nav select{flex:1 1 140px;min-width:0;max-width:100%;}
+      .mobile-admin-nav select,.mobile-admin-nav button{min-height:44px;padding:0.45rem 0.6rem;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-elevated);color:var(--text-primary);font:600 0.75rem 'Archivo',sans-serif;}
+      .mobile-admin-nav button{cursor:pointer;}
       .main-content{padding:0.75rem;}
       .top-bar-title{font-size:1.05rem;}
     }
@@ -927,7 +936,7 @@
       <label for="loginPassword">Password</label>
       <input type="password" id="loginPassword" placeholder="Enter password" autocomplete="current-password" />
       <button id="loginBtn" onclick="handleLogin()">Sign In</button>
-      <p style="text-align:center;margin-top:0.8rem;font-size:0.78rem;"><a href="#" onclick="requestPasswordReset('admin')" style="color:var(--accent);text-decoration:none;">Forgot password?</a></p>
+      <p style="text-align:center;margin-top:0.8rem;font-size:0.78rem;"><a href="#" onclick="requestPasswordReset('admin'); return false;" style="color:var(--accent);text-decoration:none;">Forgot password?</a></p>
     </div>
   </div>
 
@@ -961,6 +970,19 @@
           </div>
           <span class="top-bar-email" id="adminEmailTop"></span>
           <button class="btn-action" onclick="switchSection('add')">+ Add Product</button>
+        </div>
+        <div class="mobile-admin-nav">
+          <select id="mobileAdminSection" aria-label="Admin section" onchange="switchSection(this.value)">
+            <option value="dashboard">Dashboard</option>
+            <option value="products">Products</option>
+            <option value="upload">Quick Upload</option>
+            <option value="add">Add Product</option>
+            <option value="orders">Orders</option>
+            <option value="reviews">Reviews</option>
+            <option value="reports">Reports</option>
+          </select>
+          <button type="button" onclick="openChangePasswordModal()">Password</button>
+          <button type="button" onclick="handleLogout()">Log out</button>
         </div>
       </header>
       <main class="main-content">
@@ -1013,7 +1035,6 @@
       </div>
       </div>
 
-      </div>
       <!-- Tabs (hidden) -->
       <div class="tabs">
         <button class="tab active" onclick="switchTab(this, 'upload')">Upload</button>
@@ -1216,6 +1237,7 @@
           <select id="orderStatusFilter" onchange="filterOrders()">
             <option value="">All Status</option>
             <option value="pending">Pending</option>
+            <option value="awaiting_verification">Awaiting Payment</option>
             <option value="confirmed">Confirmed</option>
             <option value="shipped">Shipped</option>
             <option value="delivered">Delivered</option>
@@ -1475,6 +1497,7 @@
     // CHANGE PASSWORD
     // ================================================================
     function openChangePasswordModal() {
+      document.getElementById('changePwModal')._previousFocus = document.activeElement;
       document.getElementById('changePwModal').style.display = 'flex';
       document.getElementById('changePwError').style.display = 'none';
       document.getElementById('currentPw').value = '';
@@ -1484,6 +1507,7 @@
     }
     function closeChangePasswordModal() {
       document.getElementById('changePwModal').style.display = 'none';
+      document.getElementById('changePwModal')._previousFocus?.focus();
     }
     async function handleChangePassword() {
       const cur = document.getElementById('currentPw').value;
@@ -1546,12 +1570,12 @@
     function renderProductList(list2) {
       const arr = list2 || products;
       const list = document.getElementById('productList');
-      if (arr.length === 0 && products.length === 0) {
+      if (arr.length === 0) {
         list.innerHTML = `
           <div class="product-row header-row">
             <span></span><span>Name</span><span>Price</span><span>Category</span><span>Stock</span><span>Actions</span>
           </div>
-          <div class="empty-state">No products yet. Add your first product!</div>
+          <div class="empty-state">${products.length ? "No products match your filters." : "No products yet. Add your first product!"}</div>
         `;
         return;
       }
@@ -1562,7 +1586,7 @@
         </div>
       `;
 
-      products.forEach(p => {
+      arr.forEach(p => {
         const thumbSrc = p.front_image || '';
         const catLabel = { 'anime':'Anime Shirts', 'streetwear':'Streetwear', 'goofy-wears':'Goofy Wears' }[p.category] || p.category;
         const stockLabel = p.in_stock ? 'In Stock' : 'Sold Out';
@@ -1604,7 +1628,10 @@
           const data = await res.json();
           const p = products.find(x => x.id === id);
           if (p) p.in_stock = data.in_stock;
-          renderProductList();
+          filterProducts();
+        } else {
+          const data = await res.json().catch(() => ({}));
+          alert(data.error || 'Failed to toggle stock.');
         }
       } catch (err) {
         alert('Failed to toggle stock.');
@@ -1620,7 +1647,7 @@
         const res = await fetch('/api/products/' + id, { method: 'DELETE' });
         if (res.ok) {
           products = products.filter(p => p.id !== id);
-          renderProductList();
+          filterProducts();
           refreshStatsIfNeeded();
         } else {
           alert('Failed to delete product.');
@@ -1837,7 +1864,8 @@
       formData.append('price', price);
 
       const salePrice = document.getElementById('prodSalePrice').value;
-      if (salePrice) formData.append('sale_price', salePrice);
+      // An empty field on edit means remove the discount, not retain the old price.
+      if (editId || salePrice) formData.append('sale_price', salePrice);
 
       const unitCost = document.getElementById('prodUnitCost').value;
       if (unitCost) formData.append('unit_cost', unitCost);
@@ -2099,15 +2127,18 @@
     async function loadOrders() {
       try {
         const res = await fetch('/api/orders');
-        if (!res.ok) return;
-        const orders = await res.json();
-        renderOrderList(orders);
-      } catch (err) {}
+        if (!res.ok) throw new Error('Orders request failed');
+        allOrders = await res.json();
+        filterOrders();
+      } catch (err) {
+        allOrders = [];
+        document.getElementById('ordersList').innerHTML = '<div class="empty-state">Failed to load orders. <button type="button" onclick="loadOrders()">Retry</button></div>';
+      }
     }
 
         function filterOrders() {
       const status = document.getElementById('orderStatusFilter').value;
-      let filtered = allOrders;
+      let filtered = [...allOrders];
       if (status) filtered = filtered.filter(o => (o.status || 'pending').toLowerCase() === status);
       filtered.sort((a, b) => { const da = new Date(a.created_at || 0).getTime(); const db = new Date(b.created_at || 0).getTime(); return orderSortAsc ? da - db : db - da; });
       renderOrderList(filtered);
@@ -2120,7 +2151,7 @@
     function renderOrderList(orders) {
       const list = document.getElementById('ordersList');
       if (!orders.length) {
-        list.innerHTML = '<div class="empty-state">No orders yet. Orders placed on the storefront will appear here.</div>';
+        list.innerHTML = '<div class="empty-state">' + (allOrders.length ? 'No orders match this status.' : 'No orders yet. Orders placed on the storefront will appear here.') + '</div>';
         return;
       }
       let html = `
@@ -2334,9 +2365,9 @@
         const bs = document.getElementById('salesBestProduct');
         if (s.bestProduct && s.bestProduct.units > 0) { bs.innerHTML = esc(s.bestProduct.name) + '<span class="best-seller-units">(' + s.bestProduct.units + ' sold)</span>'; } else { bs.textContent = '—'; }
         const sc = document.getElementById('salesStatusCounts');
-        const statuses = ['pending','confirmed','shipped','delivered','cancelled'];
-        const colors = {pending:'dot-pending',confirmed:'dot-confirmed',shipped:'dot-shipped',delivered:'dot-delivered',cancelled:'dot-cancelled'};
-        const labels = {pending:'Pending',confirmed:'Confirmed',shipped:'Shipped',delivered:'Delivered',cancelled:'Cancelled'};
+        const statuses = ['pending','awaiting_verification','confirmed','shipped','delivered','cancelled'];
+        const colors = {pending:'dot-pending',awaiting_verification:'dot-pending',confirmed:'dot-confirmed',shipped:'dot-shipped',delivered:'dot-delivered',cancelled:'dot-cancelled'};
+        const labels = {pending:'Pending',awaiting_verification:'Awaiting Payment',confirmed:'Confirmed',shipped:'Shipped',delivered:'Delivered',cancelled:'Cancelled'};
         sc.innerHTML = statuses.map(st => { const count = (s.ordersByStatus && s.ordersByStatus[st]) || 0; return '<span class="status-chip"><span class="dot ' + colors[st] + '"></span>' + count + ' ' + labels[st] + '</span>'; }).join('');
       } catch (err) {}
     }
@@ -2536,6 +2567,8 @@
       });
       const titleEl = document.getElementById('sectionTitle');
       if (titleEl) titleEl.textContent = sectionTitles[name] || name;
+      const mobileSection = document.getElementById('mobileAdminSection');
+      if (mobileSection) mobileSection.value = name;
       const dashSection = document.getElementById('section-dashboard');
       if (dashSection) dashSection.classList.remove('active');
       document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
@@ -2555,6 +2588,18 @@
     setupFormFrontUpload();
     checkAuth();
 
+    // Keep keyboard focus within the password dialog; Escape restores focus.
+    document.addEventListener('keydown', e => {
+      const modal = document.getElementById('changePwModal');
+      if (modal.style.display !== 'flex') return;
+      if (e.key === 'Escape') { e.preventDefault(); closeChangePasswordModal(); return; }
+      if (e.key !== 'Tab') return;
+      const focusable = [...modal.querySelectorAll('button, input')];
+      const first = focusable[0], last = focusable[focusable.length - 1];
+      if (e.shiftKey && (document.activeElement === first || !modal.contains(document.activeElement))) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && (document.activeElement === last || !modal.contains(document.activeElement))) { e.preventDefault(); first.focus(); }
+    });
+
     // Allow Enter to submit login
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && !isLoggedIn) handleLogin();
@@ -2562,7 +2607,7 @@
   </script>
 
   <!-- CHANGE PASSWORD MODAL -->
-  <div id="changePwModal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.4);backdrop-filter:blur(4px);align-items:center;justify-content:center;">
+  <div id="changePwModal" role="dialog" aria-modal="true" aria-label="Change password" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.4);backdrop-filter:blur(4px);align-items:center;justify-content:center;">
     <div style="background:#FFFFFF;border:1px solid #E5E7EB;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,0.12);padding:2rem;max-width:400px;width:90%;position:relative;">
       <button onclick="closeChangePasswordModal()" style="position:absolute;top:12px;right:12px;background:none;border:none;color:#999;font-size:1.2rem;cursor:pointer;">✕</button>
       <h3 style="font-family:'Anton',sans-serif;letter-spacing:0.06em;margin-bottom:1rem;">Change Password</h3>
