@@ -61,20 +61,42 @@ module.exports = function createProductRoutes(db) {
   // POST create product (admin only)
   router.post('/api/products', requireCsrf, requireAuth, upload.fields([{ name: 'front_image', maxCount: 1 }, { name: 'back_image', maxCount: 1 }, { name: 'extra_images', maxCount: 4 }]), async (req, res) => {
     try {
-      const { name, category, fit, price, sale_price, description, sizes, in_stock, stock_qty } = req.body;
-      if (!name || !category || !price) return res.status(400).json({ error: 'Name, category, and price are required.' });
+      const { name, category, fit, price, sale_price, description, sizes, in_stock, stock_qty, unit_cost } = req.body;
+      const cleanName = String(name || '').trim().slice(0, 120);
+      if (!cleanName || !category || price === undefined || price === '' || price === null) return res.status(400).json({ error: 'Name, category, and price are required.' });
+      const priceVal = Number(price);
+      if (!Number.isFinite(priceVal) || priceVal <= 0) return res.status(400).json({ error: 'Price must be a positive number.' });
+      const salePriceVal = sale_price ? Number(sale_price) : null;
+      if (salePriceVal != null && (!Number.isFinite(salePriceVal) || salePriceVal <= 0 || salePriceVal >= priceVal)) return res.status(400).json({ error: 'Sale price must be lower than the regular price.' });
+      let stockQty = null;
+      if (stock_qty !== undefined && stock_qty !== '' && stock_qty !== null) {
+        const q = Number(stock_qty);
+        if (!Number.isFinite(q) || q < 0) return res.status(400).json({ error: 'Stock quantity must be a non-negative number.' });
+        stockQty = Math.floor(q);
+      }
+      let unitCostVal = null;
+      if (unit_cost !== undefined && unit_cost !== '' && unit_cost !== null) {
+        const c = Number(unit_cost);
+        if (!Number.isFinite(c) || c < 0) return res.status(400).json({ error: 'Unit cost must be a non-negative number.' });
+        unitCostVal = c;
+      }
+      let sizesParsed = ['S', 'M', 'L', 'XL', 'XXL'];
+      if (sizes) {
+        try { const parsed = JSON.parse(sizes); if (!Array.isArray(parsed) || !parsed.length) throw new Error('bad'); sizesParsed = parsed.map(String).slice(0, 6); }
+        catch (e) { return res.status(400).json({ error: 'Invalid sizes format.' }); }
+      }
+      // Persist images only AFTER the body validates, so a 400 never orphans uploads.
       const frontImage = req.files?.front_image?.[0] ? await persistImage(req.files.front_image[0].buffer, req.files.front_image[0].originalname) : null;
       const backImage = req.files?.back_image?.[0] ? await persistImage(req.files.back_image[0].buffer, req.files.back_image[0].originalname) : null;
       const extraImages = []; if (req.files?.extra_images) { for (const f of req.files.extra_images) { extraImages.push(await persistImage(f.buffer, f.originalname)); } }
-      const sizesArr = sizes || JSON.stringify(['S', 'M', 'L', 'XL', 'XXL']);
-      const salePriceVal = sale_price ? Number(sale_price) : null;
-      if (salePriceVal != null && (!Number.isFinite(salePriceVal) || salePriceVal <= 0 || salePriceVal >= Number(price))) return res.status(400).json({ error: 'Sale price must be lower than the regular price.' });
       const onSale = salePriceVal != null ? 1 : 0;
       const requestedInStock = in_stock !== undefined ? (in_stock === 'true' || in_stock === true ? 1 : 0) : 1;
-      const stockQty = (stock_qty !== undefined && stock_qty !== '' && stock_qty !== null) ? Math.max(0, Number(stock_qty) || 0) : null;
       const inStock = stockQty === 0 ? 0 : requestedInStock;
-      const estCost = Math.max(50, Math.round(parseFloat(price) * 0.55));
-      const result = await db.prepare('INSERT INTO products (name, category, fit, price, sale_price, on_sale, description, sizes, front_image, back_image, extra_images, in_stock, unit_cost, stock_qty) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(name, category, fit || '', parseFloat(price), salePriceVal, onSale, description || '', JSON.stringify(Array.isArray(sizesArr) ? sizesArr : JSON.parse(sizesArr)), frontImage, backImage, JSON.stringify(extraImages), inStock, estCost, stockQty);
+      // Honor an admin-entered unit cost (previously this field was silently
+      // discarded on create and replaced with a 55% estimate); estimate only
+      // when none was provided.
+      const estCost = unitCostVal != null ? unitCostVal : Math.max(50, Math.round(priceVal * 0.55));
+      const result = await db.prepare('INSERT INTO products (name, category, fit, price, sale_price, on_sale, description, sizes, front_image, back_image, extra_images, in_stock, unit_cost, stock_qty) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(cleanName, category, String(fit || '').trim().slice(0, 60), priceVal, salePriceVal, onSale, String(description || '').slice(0, 2000), JSON.stringify(sizesParsed), frontImage, backImage, JSON.stringify(extraImages), inStock, estCost, stockQty);
       const product = await db.prepare('SELECT * FROM products WHERE id = ?').get(result.lastInsertRowid);
       product.sizes = JSON.parse(product.sizes || '[]'); product.extra_images = JSON.parse(product.extra_images || '[]'); product.collections = JSON.parse(product.collections || '[]'); product.on_sale = Boolean(product.on_sale); product.in_stock = Boolean(product.in_stock);
       res.status(201).json(product);
@@ -87,20 +109,49 @@ module.exports = function createProductRoutes(db) {
       const existing = await db.prepare('SELECT * FROM products WHERE id = ?').get(req.params.id);
       if (!existing) return res.status(404).json({ error: 'Product not found' });
       const { name, category, fit, price, sale_price, description, sizes, in_stock, unit_cost, stock_qty, remove_front, remove_back } = req.body;
+      // Validate the body BEFORE touching files: a rejected request must not
+      // delete the existing images or orphan freshly uploaded ones.
+      const finalName = name !== undefined && String(name).trim() ? String(name).trim().slice(0, 120) : existing.name;
+      const finalCategory = category || existing.category;
+      const finalFit = fit !== undefined && fit !== null ? String(fit).trim().slice(0, 60) : existing.fit;
+      const finalDesc = description !== undefined && description !== null ? String(description).slice(0, 2000) : existing.description;
+      let finalPrice = existing.price;
+      if (price !== undefined) {
+        const pv = Number(price);
+        if (!Number.isFinite(pv) || pv <= 0) return res.status(400).json({ error: 'Price must be a positive number.' });
+        finalPrice = pv;
+      }
+      const salePriceVal = sale_price === undefined ? existing.sale_price : (sale_price === '' || sale_price === null ? null : Number(sale_price));
+      if (salePriceVal != null && (!Number.isFinite(salePriceVal) || salePriceVal >= finalPrice || salePriceVal <= 0)) return res.status(400).json({ error: 'Sale price must be lower than the regular price.' });
+      const onSale = salePriceVal != null && salePriceVal > 0 ? 1 : 0;
+      let finalUnitCost = existing.unit_cost;
+      if (unit_cost !== undefined && unit_cost !== '' && unit_cost !== null) {
+        const c = Number(unit_cost);
+        if (!Number.isFinite(c) || c < 0) return res.status(400).json({ error: 'Unit cost must be a non-negative number.' });
+        finalUnitCost = c;
+      }
+      let finalStockQty = existing.stock_qty;
+      if (stock_qty !== undefined && stock_qty !== '' && stock_qty !== null) {
+        const q = Number(stock_qty);
+        if (!Number.isFinite(q) || q < 0) return res.status(400).json({ error: 'Stock quantity must be a non-negative number.' });
+        finalStockQty = Math.floor(q);
+      }
+      const finalInStock = in_stock !== undefined ? (in_stock === 'true' || in_stock === true ? 1 : 0) : existing.in_stock;
+      let sizesParsed;
+      if (sizes !== undefined) {
+        try { const parsed = JSON.parse(sizes); if (!Array.isArray(parsed) || !parsed.length) throw new Error('bad'); sizesParsed = parsed.map(String).slice(0, 6); }
+        catch (e) { return res.status(400).json({ error: 'Invalid sizes format.' }); }
+      } else {
+        try { sizesParsed = JSON.parse(existing.sizes || '["S","M","L","XL","XXL"]'); } catch (e) { sizesParsed = null; }
+        if (!Array.isArray(sizesParsed) || !sizesParsed.length) sizesParsed = ['S', 'M', 'L', 'XL', 'XXL'];
+      }
       let frontImage = existing.front_image ?? null; let backImage = existing.back_image ?? null;
       if (req.files?.front_image?.[0]) { const newUrl = await persistImage(req.files.front_image[0].buffer, req.files.front_image[0].originalname); if (existing.front_image) await removeImage(existing.front_image); frontImage = newUrl; } else if (remove_front === 'true') { if (existing.front_image) await removeImage(existing.front_image); frontImage = null; }
       if (req.files?.back_image?.[0]) { const newUrl = await persistImage(req.files.back_image[0].buffer, req.files.back_image[0].originalname); if (existing.back_image) await removeImage(existing.back_image); backImage = newUrl; } else if (remove_back === 'true') { if (existing.back_image) await removeImage(existing.back_image); backImage = null; }
       let extraImages = []; try { extraImages = JSON.parse(existing.extra_images || '[]'); } catch (e) { extraImages = []; }
       if (req.files?.extra_images) { for (const f of req.files.extra_images) { extraImages.push(await persistImage(f.buffer, f.originalname)); } }
-      const sizesArr = sizes || existing.sizes || JSON.stringify(['S', 'M', 'L', 'XL', 'XXL']);
-      const salePriceVal = sale_price === undefined ? existing.sale_price : (sale_price === '' ? null : Number(sale_price));
-      const onSale = salePriceVal != null && salePriceVal > 0 ? 1 : 0;
-      const finalName = name || existing.name; const finalCategory = category || existing.category; const finalFit = fit !== undefined ? fit : existing.fit; const finalPrice = price !== undefined ? parseFloat(price) : existing.price; const finalDesc = description !== undefined ? description : existing.description;
-      const finalInStock = in_stock !== undefined ? (in_stock === 'true' || in_stock === true ? 1 : 0) : existing.in_stock; const finalUnitCost = unit_cost !== undefined && unit_cost !== '' ? Math.max(0, parseFloat(unit_cost) || 0) : existing.unit_cost;
-      const finalStockQty = (stock_qty !== undefined && stock_qty !== '' && stock_qty !== null) ? Math.max(0, Number(stock_qty) || 0) : existing.stock_qty;
-      if (salePriceVal != null && (!Number.isFinite(salePriceVal) || salePriceVal >= finalPrice || salePriceVal <= 0)) return res.status(400).json({ error: 'Sale price must be lower than the regular price.' });
       const now = new Date().toISOString().replace('T', ' ').slice(0, 19);
-      await db.prepare('UPDATE products SET name=?, category=?, fit=?, price=?, sale_price=?, on_sale=?, description=?, sizes=?, front_image=?, back_image=?, extra_images=?, in_stock=?, unit_cost=?, stock_qty=?, updated_at=? WHERE id=?').run(finalName, finalCategory, finalFit, finalPrice, salePriceVal, onSale, finalDesc, JSON.stringify(Array.isArray(sizesArr) ? sizesArr : JSON.parse(sizesArr)), frontImage, backImage, JSON.stringify(extraImages), finalStockQty === 0 ? 0 : finalInStock, finalUnitCost, finalStockQty, now, req.params.id);
+      await db.prepare('UPDATE products SET name=?, category=?, fit=?, price=?, sale_price=?, on_sale=?, description=?, sizes=?, front_image=?, back_image=?, extra_images=?, in_stock=?, unit_cost=?, stock_qty=?, updated_at=? WHERE id=?').run(finalName, finalCategory, finalFit, finalPrice, salePriceVal, onSale, finalDesc, JSON.stringify(sizesParsed), frontImage, backImage, JSON.stringify(extraImages), finalStockQty === 0 ? 0 : finalInStock, finalUnitCost, finalStockQty, now, req.params.id);
       const updated = await db.prepare('SELECT * FROM products WHERE id = ?').get(req.params.id);
       updated.sizes = JSON.parse(updated.sizes || '[]'); updated.extra_images = JSON.parse(updated.extra_images || '[]'); updated.collections = JSON.parse(updated.collections || '[]'); updated.on_sale = Boolean(updated.on_sale); updated.in_stock = Boolean(updated.in_stock);
       res.json(updated);

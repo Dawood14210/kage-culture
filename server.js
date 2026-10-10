@@ -125,7 +125,6 @@ const createAuthRoutes = require('./routes/auth');
 const createProductRoutes = require('./routes/products');
 const createOrderRoutes = require('./routes/orders');
 const createReviewRoutes = require('./routes/reviews');
-const createSpinRoutes = require('./routes/spin');
 const createAdminRoutes = require('./routes/admin');
 
 // Routes are registered after DB init below (see startServer)
@@ -215,7 +214,6 @@ async function ensureReady() {
     app.use(createProductRoutes(db));
     app.use(createOrderRoutes(db));
     app.use(createReviewRoutes(db));
-    app.use(createSpinRoutes(db));
     app.use(createAdminRoutes(db));
 
     // HTML fallback routes (registered AFTER API routes)
@@ -223,10 +221,10 @@ async function ensureReady() {
     // the data APIs behind it are the real protection. /admin.html already
     // redirects to /admin above (before static), giving one canonical entry.
     app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin.html')));
-    const spaPages = new Set(['/', '/about', '/contact', '/tracking', '/shipping', '/returns', '/privacy', '/terms', '/account', '/checkout', '/confirmation', '/reset-password', '/kage-animals', '/kage-clothes', '/custom-stickers']);
+    const spaPages = new Set(['/', '/about', '/contact', '/tracking', '/shipping', '/returns', '/privacy', '/terms', '/account', '/checkout', '/confirmation', '/reset-password', '/kage-clothes', '/custom-stickers']);
     app.get('*', (req, res) => {
       if (req.path.startsWith('/api/')) return res.status(404).json({ error: 'Not found.' });
-      const known = spaPages.has(req.path) || /^\/product\/\d+$/.test(req.path) || /^\/collection\/[a-z0-9-]+$/.test(req.path) || /^\/kage-animals\/(bear|white-tiger|white-fox|black-panther)$/.test(req.path);
+      const known = spaPages.has(req.path) || /^\/product\/\d+$/.test(req.path) || /^\/collection\/[a-z0-9-]+$/.test(req.path);
       res.status(known ? 200 : 404).sendFile(path.join(__dirname, 'public', 'index.html'));
     });
   }

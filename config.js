@@ -13,9 +13,6 @@ module.exports = {
   // KAGE Clan
   CLAN_THRESHOLD: 5, // shirts needed to join the clan
 
-  // Spin wheel
-  SPIN_COST_RS: 250, // cost in RS for a re-spin
-
   // Password
   MIN_PASSWORD_LENGTH: 6,
 
@@ -25,7 +22,6 @@ module.exports = {
   // Rate limiting
   RATE_LIMIT_GLOBAL: 120, // per minute
   RATE_LIMIT_STRICT: 10,  // auth-sensitive endpoints
-  RATE_LIMIT_SPIN: 15,    // spin endpoints
   RATE_LIMIT_ORDERS: 8,   // order placement
   RATE_LIMIT_RESET: 5,    // password reset requests per minute
 

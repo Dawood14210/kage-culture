@@ -186,9 +186,7 @@
 
     .dash-content { padding:1.2rem; max-width:1100px; margin:0 auto; }
 
-    /* ===== TABS ===== */
-    .tabs { display:none; }
-    .tab { display:none; }
+    /* ===== TABS ===== (navigation lives in the sidebar; tab panels are toggled via .tab-content) */
     .tab-content { display:none; animation: fadeIn 0.3s ease; }
     .tab-content.active { display:block; }
     @keyframes fadeIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
@@ -305,7 +303,7 @@
 
     /* ===== STOCK TOGGLE ===== */
     .stock-toggle {
-      display:flex; align-items:center; gap:0.4rem;
+      display:flex; align-items:center; gap:0.4rem; flex-wrap:wrap;
     }
     .stock-toggle .toggle-switch {
       position:relative; width:40px; height:22px;
@@ -463,7 +461,7 @@
 
     /* ===== DASHBOARD STATS ===== */
     .dash-stats {
-      display:grid; grid-template-columns:repeat(4, 1fr); gap:0.8rem;
+      display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:0.8rem;
       margin-bottom:1.5rem;
     }
     .stat-card {background:var(--bg-card);border:1px solid var(--border);padding:1.1rem 1.2rem;display:flex;align-items:center;gap:0.8rem;border-radius:var(--radius);box-shadow:var(--shadow-sm);transition:box-shadow 0.2s,transform 0.2s;}
@@ -496,6 +494,7 @@
       border:1px solid; white-space:nowrap;
     }
     .status-pending{color:#D97706;border-color:rgba(217,119,6,0.3);background:rgba(251,191,36,0.10);}
+    .status-awaiting_verification{color:#8B5CF6;border-color:rgba(139,92,246,0.35);background:rgba(139,92,246,0.10);}
     .status-confirmed{color:#2563EB;border-color:rgba(37,99,235,0.3);background:rgba(59,130,246,0.10);}
     .status-shipped{color:var(--text-secondary);border-color:rgba(75,85,99,0.3);background:rgba(107,114,128,0.10);}
     .status-delivered{color:var(--green);border-color:rgba(16,185,129,0.3);background:var(--green-bg);}
@@ -550,7 +549,9 @@
     }
 
     /* ===== ADD PRODUCT FORM (Simplified) ===== */
-    #extraFields { display: none; }
+    /* Advanced fields are always visible — hiding Category/Stock/Size on create
+       silently forced every new product into "Anime Shirts" with untracked stock. */
+    #extraFields { display: contents; }
     #extraFields.show { display: contents; }
     .form-grid .upload-area .uz-icon { font-size: 2rem; margin-bottom: 0.4rem; }
     .form-grid .upload-area .uz-main { font-size: 0.9rem; font-weight: 600; color:var(--text-primary); }
@@ -808,7 +809,9 @@
     .review-row{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:1rem 1.1rem;box-shadow:var(--shadow-sm);}
     .review-top{display:flex;align-items:center;gap:0.8rem;flex-wrap:wrap;margin-bottom:0.5rem;}
     .review-prod{font-weight:700;color:var(--text-primary);font-size:0.85rem;}
-    .review-stars{color:#f5b301;letter-spacing:2px;font-size:0.9rem;}
+    .review-stars{color:#f5b301;letter-spacing:2px;font-size:0.9rem;display:inline-flex;gap:1px;align-items:center;}
+    .review-stars .icon{width:14px;height:14px;}
+    .icon-fill{fill:currentColor;}
     .review-meta{color:var(--text-muted);font-size:0.72rem;margin-left:auto;}
     .review-comment{font-size:0.85rem;color:var(--text-secondary);line-height:1.55;margin:0 0 0.7rem;}
     .review-comment.dim{color:var(--text-dim);}
@@ -863,6 +866,27 @@
     .order-filter-toolbar .sort-btn{padding:0.5rem 0.8rem;font-size:0.78rem;font-weight:600;background:var(--bg-elevated);border:1px solid var(--border);color:var(--text-muted);cursor:pointer;transition:all 0.15s;display:flex;align-items:center;gap:0.3rem;border-radius:var(--radius-sm);}
     .order-filter-toolbar .sort-btn:hover{border-color:var(--accent);color:var(--text-primary);}
     .order-filter-toolbar .sort-btn.active{border-color:var(--accent);color:var(--accent);}
+    .order-filter-toolbar input[type=text]{flex:1;min-width:160px;padding:0.5rem 0.8rem;font-size:0.78rem;background:var(--bg-elevated);border:1px solid var(--border);color:var(--text-primary);outline:none;transition:border-color 0.2s;border-radius:var(--radius-sm);}
+    .order-filter-toolbar input[type=text]:focus{border-color:var(--accent);}
+    .order-filter-toolbar input[type=text]::placeholder{color:var(--text-muted);}
+
+    /* ===== SVG ICONS (stroke-based, replace emoji glyphs) ===== */
+    .icon { width:1em; height:1em; display:inline-block; vertical-align:-0.125em; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; flex-shrink:0; }
+    .si-icon .icon { width:17px; height:17px; }
+    .stat-icon .icon { width:22px; height:22px; }
+    .uz-icon .icon { width:2rem; height:2rem; stroke-width:1.5; }
+    .lc-check .icon { width:16px; height:16px; stroke-width:2.5; }
+    .status-opt .icon, .review-actions .icon, .stock-qty-save .icon, .stock-qty-cancel .icon { width:13px; height:13px; }
+    .btn-action .icon, .sort-btn .icon, .sidebar-link .icon { width:14px; height:14px; }
+
+    /* Inline stock quantity editor (lives under the In Stock toggle) */
+    .stock-toggle .stock-qty-display { flex-basis:100%; margin-top:2px; font-size:0.7rem; }
+    .stock-toggle .stock-qty-cell { flex-basis:100%; margin-top:2px; }
+
+    /* Quick Upload: category + size selectors (previously hard-coded to Anime/5 sizes) */
+    .quick-fields { display:grid; grid-template-columns:1fr 1fr; gap:0.8rem; margin-top:1.2rem; }
+    .quick-panel select { width:100%; padding:0.55rem 0.7rem; font-size:0.8rem; background:var(--bg-elevated); border:1px solid var(--border); color:var(--text-primary); outline:none; border-radius:var(--radius-sm); cursor:pointer; }
+    .quick-panel select:focus { border-color:var(--accent); }
 
     /* Sales summary */
     .sales-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:0.8rem;margin-bottom:1.5rem;}
@@ -907,6 +931,7 @@
       .filter-toolbar input[type=text]{min-width:0;width:100%;}
       .filter-toolbar select{flex:1 1 100%;}
       .order-filter-toolbar select{flex:1 1 100%;}
+      .order-filter-toolbar input[type=text]{flex:1 1 100%;min-width:0;}
       .order-filter-toolbar .sort-btn{flex:1 1 auto;}
       .reviews-toolbar{flex-wrap:wrap;}
       .reviews-toolbar .period-btn{flex:1 1 30%;}
@@ -925,6 +950,31 @@
   </style>
 </head>
 <body>
+  <!-- SVG icon sprite (feather-style, stroke-based; used via <use href="#i-…">) -->
+  <svg xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true">
+    <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></symbol>
+    <symbol id="i-box" viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></symbol>
+    <symbol id="i-zap" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></symbol>
+    <symbol id="i-cart" viewBox="0 0 24 24"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></symbol>
+    <symbol id="i-star" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></symbol>
+    <symbol id="i-star-fill" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></symbol>
+    <symbol id="i-trending-up" viewBox="0 0 24 24"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></symbol>
+    <symbol id="i-store" viewBox="0 0 24 24"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></symbol>
+    <symbol id="i-camera" viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></symbol>
+    <symbol id="i-dollar" viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></symbol>
+    <symbol id="i-rotate" viewBox="0 0 24 24"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></symbol>
+    <symbol id="i-arrow-down" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></symbol>
+    <symbol id="i-arrow-up" viewBox="0 0 24 24"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></symbol>
+    <symbol id="i-truck" viewBox="0 0 24 24"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></symbol>
+    <symbol id="i-check-circle" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></symbol>
+    <symbol id="i-credit-card" viewBox="0 0 24 24"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></symbol>
+  </svg>
   <!-- LOGIN PAGE -->
   <div class="login-page" id="loginPage">
     <div class="login-card">
@@ -945,13 +995,13 @@
     <aside class="sidebar">
       <div class="sidebar-logo">KAGE <span>Admin</span></div>
       <nav class="sidebar-nav" id="sidebarNav">
-        <button class="sidebar-item active" data-section="dashboard" onclick="switchSection('dashboard')"><span class="si-icon">📊</span><span class="si-label">Dashboard</span></button>
-        <button class="sidebar-item" data-section="products" onclick="switchSection('products')"><span class="si-icon">📦</span><span class="si-label">Products</span></button>
-        <button class="sidebar-item" data-section="upload" onclick="switchSection('upload')"><span class="si-icon">⚡</span><span class="si-label">Quick Upload</span></button>
-        <button class="sidebar-item" data-section="add" onclick="switchSection('add')"><span class="si-icon">➕</span><span class="si-label">Add Product</span></button>
-        <button class="sidebar-item" data-section="orders" onclick="switchSection('orders')"><span class="si-icon">🛒</span><span class="si-label">Orders</span></button>
-        <button class="sidebar-item" data-section="reviews" onclick="switchSection('reviews')"><span class="si-icon">⭐</span><span class="si-label">Reviews</span></button>
-        <button class="sidebar-item" data-section="reports" onclick="switchSection('reports')"><span class="si-icon">📈</span><span class="si-label">Reports</span></button>
+        <button class="sidebar-item active" data-section="dashboard" onclick="switchSection('dashboard')"><span class="si-icon"><svg class="icon"><use href="#i-grid"/></svg></span><span class="si-label">Dashboard</span></button>
+        <button class="sidebar-item" data-section="products" onclick="switchSection('products')"><span class="si-icon"><svg class="icon"><use href="#i-box"/></svg></span><span class="si-label">Products</span></button>
+        <button class="sidebar-item" data-section="upload" onclick="switchSection('upload')"><span class="si-icon"><svg class="icon"><use href="#i-zap"/></svg></span><span class="si-label">Quick Upload</span></button>
+        <button class="sidebar-item" data-section="add" onclick="switchSection('add')"><span class="si-icon"><svg class="icon"><use href="#i-plus"/></svg></span><span class="si-label">Add Product</span></button>
+        <button class="sidebar-item" data-section="orders" onclick="switchSection('orders')"><span class="si-icon"><svg class="icon"><use href="#i-cart"/></svg></span><span class="si-label">Orders</span></button>
+        <button class="sidebar-item" data-section="reviews" onclick="switchSection('reviews')"><span class="si-icon"><svg class="icon"><use href="#i-star"/></svg></span><span class="si-label">Reviews</span></button>
+        <button class="sidebar-item" data-section="reports" onclick="switchSection('reports')"><span class="si-icon"><svg class="icon"><use href="#i-trending-up"/></svg></span><span class="si-label">Reports</span></button>
       </nav>
       <div class="sidebar-footer">
         <span class="admin-email" id="adminEmail"></span>
@@ -963,7 +1013,7 @@
       <header class="top-bar">
         <h2 class="top-bar-title" id="sectionTitle">Dashboard</h2>
         <div class="top-bar-right">
-          <a href="/" class="btn-store-link" title="Open storefront">🏪 View Store</a>
+          <a href="/" class="btn-store-link" title="Open storefront"><svg class="icon"><use href="#i-store"/></svg> View Store</a>
           <div class="theme-toggle" onclick="toggleTheme()" title="Toggle dark mode">
             <span class="theme-toggle-icon"></span>
             <div class="theme-toggle-track"><div class="theme-toggle-thumb"></div></div>
@@ -990,35 +1040,35 @@
       <!-- Dashboard Stats -->
       <div class="dash-stats" id="dashStats">
         <div class="stat-card">
-          <div class="stat-icon">📦</div>
+          <div class="stat-icon"><svg class="icon"><use href="#i-box"/></svg></div>
           <div class="stat-info">
             <div class="stat-value" id="statProducts">—</div>
             <div class="stat-label">Products</div>
           </div>
         </div>
         <div class="stat-card">
-          <div class="stat-icon">🛒</div>
+          <div class="stat-icon"><svg class="icon"><use href="#i-cart"/></svg></div>
           <div class="stat-info">
             <div class="stat-value" id="statOrders">—</div>
             <div class="stat-label">Total Orders</div>
           </div>
         </div>
         <div class="stat-card stat-card-revenue">
-          <div class="stat-icon">💰</div>
+          <div class="stat-icon"><svg class="icon"><use href="#i-dollar"/></svg></div>
           <div class="stat-info">
             <div class="stat-value" id="statRevenue">—</div>
             <div class="stat-label">Revenue</div>
           </div>
         </div>
         <div class="stat-card">
-          <div class="stat-icon">⏳</div>
+          <div class="stat-icon"><svg class="icon"><use href="#i-clock"/></svg></div>
           <div class="stat-info">
             <div class="stat-value" id="statPending">—</div>
             <div class="stat-label">Pending</div>
           </div>
         </div>
         <div class="stat-card low-stock-card">
-          <div class="stat-icon">⚠️</div>
+          <div class="stat-icon"><svg class="icon"><use href="#i-alert"/></svg></div>
           <div class="stat-info">
             <div class="stat-value" id="statLowStock">—</div>
             <div class="stat-label">Low Stock (&lt;5)</div>
@@ -1035,16 +1085,6 @@
       </div>
       </div>
 
-      <!-- Tabs (hidden) -->
-      <div class="tabs">
-        <button class="tab active" onclick="switchTab(this, 'upload')">Upload</button>
-        <button class="tab" onclick="switchTab(this, 'products')">Products</button>
-        <button class="tab" onclick="switchTab(this, 'add')">Add Product</button>
-        <button class="tab" onclick="switchTab(this, 'orders')">Orders</button>
-        <button class="tab" onclick="switchTab(this, 'reviews')">Reviews</button>
-        <button class="tab" onclick="switchTab(this, 'reports')">Reports</button>
-      </div>
-
       <!-- Quick Upload tab -->
       <div class="tab-content" id="tab-upload">
         <div class="quick-wrap">
@@ -1057,7 +1097,7 @@
             <div class="upload-zone" id="uploadZone" tabindex="0" role="button" aria-label="Choose product image">
               <input type="file" id="quickImage" accept="image/*" />
               <div id="uzIdle">
-                <div class="uz-icon">📷</div>
+                <div class="uz-icon"><svg class="icon"><use href="#i-camera"/></svg></div>
                 <div class="uz-main">Tap to choose a photo</div>
                 <div class="uz-hint">Works from your camera roll or file browser · or drag &amp; drop here</div>
                 <div class="uz-error" id="uzError"></div>
@@ -1077,6 +1117,26 @@
                 <input type="number" id="quickPrice" min="1" step="1" placeholder="0" inputmode="numeric" />
               </div>
             </div>
+            <div class="quick-fields">
+              <div>
+                <label class="field-label" for="quickCategory">Category</label>
+                <select id="quickCategory">
+                  <option value="anime">Anime Shirts</option>
+                  <option value="streetwear">Streetwear</option>
+                  <option value="goofy-wears">Goofy Wears</option>
+                </select>
+              </div>
+              <div>
+                <label class="field-label" for="quickSize">Size</label>
+                <select id="quickSize">
+                  <option value="S">S</option>
+                  <option value="M">M</option>
+                  <option value="L" selected>L</option>
+                  <option value="XL">XL</option>
+                  <option value="XXL">XXL</option>
+                </select>
+              </div>
+            </div>
             <div class="quick-actions">
               <button type="button" id="quickUploadBtn" onclick="handleQuickUpload()">Upload</button>
             </div>
@@ -1087,7 +1147,7 @@
                 <div class="lc-price" id="lcPrice"></div>
                 <span class="lc-badge">● Live in shop</span>
               </div>
-              <span class="lc-check">✓</span>
+              <span class="lc-check"><svg class="icon"><use href="#i-check"/></svg></span>
             </div>
           </div>
         </div>
@@ -1137,13 +1197,13 @@
             <div class="upload-area" id="frontUploadArea" tabindex="0" role="button" aria-label="Choose product picture">
               <input type="file" id="frontInput" accept="image/*" />
               <div id="frontIdle">
-                <div class="uz-icon">📷</div>
+                <div class="uz-icon"><svg class="icon"><use href="#i-camera"/></svg></div>
                 <div class="uz-main">Tap to choose a photo</div>
                 <div class="uz-hint">Works from your camera roll or file browser · or drag &amp; drop here</div>
                 <div class="uz-error" id="formImgError"></div>
               </div>
               <div class="preview-box" id="frontPreview"></div>
-              <button type="button" class="btn-change" id="formImgChange" style="display:none;">Choose different</button>
+              <button type="button" class="btn-change" id="formImgChange" style="display:none;" onclick="document.getElementById('frontInput').click()">Choose different</button>
             </div>
           </div>
 
@@ -1162,7 +1222,7 @@
             <textarea id="prodDesc" placeholder="Short product description" rows="3"></textarea>
           </div>
 
-          <!-- Advanced fields (shown when editing an existing product) -->
+          <!-- Advanced fields (always visible — needed when creating, not just editing) -->
           <div id="extraFields">
             <div>
               <label>Category *</label>
@@ -1206,9 +1266,10 @@
             </div>
             <div>
               <label>Back Image (optional)</label>
-              <div class="upload-area" id="backUploadArea" onclick="document.getElementById('backInput').click()">
-                <input type="file" id="backInput" accept="image/*" onchange="previewUpload(this, 'backPreview')" />
+              <div class="upload-area" id="backUploadArea" tabindex="0" role="button" aria-label="Choose back image">
+                <input type="file" id="backInput" accept="image/*" />
                 <div id="backPreview">          <span class="hint" style="color:var(--text-muted)">Tap to upload back view</span></div>
+                <div class="uz-error" id="backImgError"></div>
               </div>
             </div>
           </div>
@@ -1227,13 +1288,14 @@
             <div class="lc-price" id="formLcPrice"></div>
             <span class="lc-badge">● Live in shop</span>
           </div>
-          <span class="lc-check">✓</span>
+          <span class="lc-check"><svg class="icon"><use href="#i-check"/></svg></span>
         </div>
       </div>
 
       <!-- Orders tab -->
       <div class="tab-content" id="tab-orders">
         <div class="order-filter-toolbar">
+          <input type="text" id="orderSearch" placeholder="Search by order #, name, phone..." oninput="filterOrders()" />
           <select id="orderStatusFilter" onchange="filterOrders()">
             <option value="">All Status</option>
             <option value="pending">Pending</option>
@@ -1244,7 +1306,10 @@
             <option value="cancelled">Cancelled</option>
           </select>
           <button class="sort-btn active" id="orderSortBtn" onclick="toggleOrderSort()">
-            <span id="orderSortLabel">↓ Newest</span>
+            <span id="orderSortLabel"><svg class="icon"><use href="#i-arrow-down"/></svg> Newest</span>
+          </button>
+          <button class="sort-btn" onclick="exportOrdersCsv()" title="Download orders as CSV">
+            <svg class="icon"><use href="#i-download"/></svg> Export CSV
           </button>
         </div>
         <div class="orders-list" id="ordersList">
@@ -1334,7 +1399,9 @@
       return csrfCookie ? csrfCookie.split('=')[1] : '';
     }
 
-    // Monkey-patch fetch to add CSRF token to state-changing requests
+    // Monkey-patch fetch to add CSRF token to state-changing requests and to
+    // bounce back to the login screen when the session expires mid-use (any
+    // 401 from the API while we believed we were logged in).
     const _origFetch = window.fetch;
     window.fetch = function(url, opts) {
       if (opts && opts.method && ['POST','PUT','PATCH','DELETE'].includes(opts.method.toUpperCase())) {
@@ -1343,7 +1410,14 @@
           opts.headers['X-CSRF-Token'] = getCsrfToken();
         }
       }
-      return _origFetch.call(this, url, opts);
+      const promise = _origFetch.call(this, url, opts);
+      let apiPath = '';
+      try { const u = typeof url === 'string' ? url : (url && url.url) || ''; apiPath = u.startsWith('/api/') ? u : ''; } catch (e) {}
+      if (!apiPath) return promise;
+      return promise.then(res => {
+        if (res.status === 401 && isLoggedIn && typeof showLogin === 'function') showLogin();
+        return res;
+      });
     };
 
     // Escape user-provided text before injecting into innerHTML (prevents stored XSS)
@@ -1354,6 +1428,19 @@
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#39;');
+    }
+
+    // Inline SVG icon helper (references the sprite at the top of <body>)
+    function icon(name) {
+      return '<svg class="icon" aria-hidden="true"><use href="#i-' + name + '"/></svg>';
+    }
+
+    // Rating stars as SVG (filled up to `rating`, outline beyond; min 1 like before)
+    function starRating(rating) {
+      const n = Math.max(1, Math.min(5, Number(rating) || 0));
+      let out = '';
+      for (let i = 1; i <= 5; i++) out += '<svg class="icon' + (i <= n ? ' icon-fill' : '') + '" aria-hidden="true"><use href="#i-star"/></svg>';
+      return out;
     }
 
     // ================================================================
@@ -1368,6 +1455,9 @@
         document.getElementById('statOrders').textContent = s.orders;
         document.getElementById('statRevenue').textContent = fmtRs(s.revenue);
         document.getElementById('statPending').textContent = s.pendingOrders;
+        // Low-stock card label follows the configured threshold (was hard-coded "<5")
+        const lowLabel = document.querySelector('.low-stock-card .stat-label');
+        if (lowLabel && s.lowStockThreshold != null) lowLabel.textContent = 'Low Stock (<' + s.lowStockThreshold + ')';
         // Recent orders
         const recentList = document.getElementById('recentOrdersList');
         if (recentList && s.recentOrders) {
@@ -1377,13 +1467,13 @@
             let rhtml = '<div class="product-row header-row"><span>Order</span><span>Customer</span><span>Total</span><span>Status</span><span>Date</span></div>';
             s.recentOrders.forEach(o => {
               const st = (o.status || 'pending').toLowerCase();
-              const statusLabel = {pending:'Pending',confirmed:'Confirmed',shipped:'Shipped',delivered:'Delivered',cancelled:'Cancelled'}[st] || st;
+              const statusLabel = {pending:'Pending',awaiting_verification:'Awaiting Payment',confirmed:'Confirmed',shipped:'Shipped',delivered:'Delivered',cancelled:'Cancelled'}[st] || st;
               const date = (o.created_at || '').replace('T', ' ').slice(0, 16);
               rhtml += '<div class="product-row recent-order-row" style="cursor:pointer;">'
                 + '<div><div class="p-name">' + esc(o.order_number) + '</div></div>'
                 + '<div class="p-category">' + esc(o.customer_name) + '</div>'
-                + '<div class="p-price">Rs. ' + o.total + '</div>'
-                + '<div class="status-cell"><span class="status-badge status-' + st + '">' + statusLabel + '</span></div>'
+                + '<div class="p-price">' + fmtRs(o.total) + '</div>'
+                + '<div class="status-cell"><span class="status-badge status-' + esc(st) + '">' + statusLabel + '</span></div>'
                 + '<div class="p-category">' + esc(date) + '</div>'
                 + '</div>';
             });
@@ -1452,6 +1542,7 @@
       const password = document.getElementById('loginPassword').value;
       const btn = document.getElementById('loginBtn');
       const errEl = document.getElementById('loginError');
+      if (btn.disabled) return; // re-entrant Enter while a login is in flight
 
       if (!email || !password) {
         errEl.textContent = 'Please enter email and password.';
@@ -1489,16 +1580,34 @@
     }
 
     async function handleLogout() {
-      await fetch('/api/admin/logout', { method: 'POST' });
-      showLogin();
+      try {
+        // Refresh the CSRF cookie first if it's missing, otherwise a 403 keeps
+        // the admin stuck in a half-logged-in state.
+        if (!getCsrfToken()) await fetch('/');
+        const res = await fetch('/api/admin/logout', { method: 'POST' });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          alert(data.error || 'Logout failed. Please try again.');
+          return;
+        }
+        showLogin();
+      } catch (err) {
+        alert('Connection error. Please try again.');
+      }
     }
 
     // ================================================================
     // CHANGE PASSWORD
     // ================================================================
     function openChangePasswordModal() {
-      document.getElementById('changePwModal')._previousFocus = document.activeElement;
-      document.getElementById('changePwModal').style.display = 'flex';
+      const modal = document.getElementById('changePwModal');
+      modal._previousFocus = document.activeElement;
+      modal.style.display = 'flex';
+      // Enter submits from any field (bound once; the modal lives after the script)
+      if (!modal._enterBound) {
+        modal._enterBound = true;
+        modal.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); handleChangePassword(); } });
+      }
       document.getElementById('changePwError').style.display = 'none';
       document.getElementById('currentPw').value = '';
       document.getElementById('newPw').value = '';
@@ -1549,7 +1658,12 @@
       }
     }
 
-    // Allow Enter key on login
+    // Allow Enter key on login — one handler per field (a document-level
+    // handler fired TWICE for password-field Enter: both listeners saw the
+    // bubbling event, double-posting /api/admin/login against the rate limit).
+    document.getElementById('loginEmail').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') handleLogin();
+    });
     document.getElementById('loginPassword').addEventListener('keydown', (e) => {
       if (e.key === 'Enter') handleLogin();
     });
@@ -1560,10 +1674,13 @@
     async function loadProducts() {
       try {
         const res = await fetch('/api/products');
-        products = await res.json();
+        if (!res.ok) throw new Error('Products request failed');
+        const data = await res.json();
+        if (!Array.isArray(data)) throw new Error('Unexpected products payload');
+        products = data;
         filterProducts();
       } catch (err) {
-        document.getElementById('productList').innerHTML = '<div class="empty-state">Failed to load products.</div>';
+        document.getElementById('productList').innerHTML = '<div class="empty-state">Failed to load products. <button type="button" onclick="loadProducts()">Retry</button></div>';
       }
     }
 
@@ -1591,6 +1708,7 @@
         const catLabel = { 'anime':'Anime Shirts', 'streetwear':'Streetwear', 'goofy-wears':'Goofy Wears' }[p.category] || p.category;
         const stockLabel = p.in_stock ? 'In Stock' : 'Sold Out';
         const stockClass = p.in_stock ? 'active' : '';
+        const qtyText = (p.stock_qty != null && p.stock_qty !== '') ? p.stock_qty : '—';
 
         html += `
           <div class="product-row" data-id="${p.id}">
@@ -1599,13 +1717,13 @@
             </div>
             <div>
               <div class="p-name">${esc(p.name)}</div>
-              <div class="p-category">${esc(catLabel)}</div>
             </div>
-            <div class="p-price">Rs. ${p.sale_price || p.price}</div>
+            <div class="p-price">${fmtRs(p.sale_price || p.price)}</div>
             <div class="p-category">${esc(catLabel)}</div>
             <div class="stock-toggle">
               <button class="toggle-switch ${stockClass}" onclick="toggleStock(${p.id})"></button>
               <span class="stock-label">${stockLabel}</span>
+              <span class="stock-qty-display" onclick="startStockEdit(${p.id}, this)" title="Click to edit stock quantity">${qtyText}</span>
             </div>
             <div class="actions">
               <button onclick="editProduct(${p.id})">Edit</button>
@@ -1663,6 +1781,10 @@
     function editProduct(id) {
       const p = products.find(x => x.id === id);
       if (!p) return;
+      // Clear any in-progress Add-Product state first (pending image blob, stale
+      // previews from the previous product, leftover success/error banners) —
+      // otherwise an abandoned image upload silently overwrites this product.
+      resetForm();
 
       document.getElementById('editId').value = p.id;
       document.getElementById('prodName').value = p.name;
@@ -1712,6 +1834,8 @@
       document.getElementById('prodStockQty').value = '';
       document.getElementById('backPreview').innerHTML = '          <span class="hint" style="color:var(--text-muted)">Tap to upload back view</span>';
       document.getElementById('backUploadArea').classList.remove('has-image');
+      const backErr = document.getElementById('backImgError');
+      if (backErr) backErr.style.display = 'none';
       clearFormImage();
       document.getElementById('saveBtn').textContent = 'Add Product';
       document.getElementById('cancelBtn').style.display = 'none';
@@ -1720,24 +1844,47 @@
       currentImageFiles = { front: null, back: null };
       // Reset size
       document.getElementById('prodSize').value = 'L';
+      // Hide the "live in shop" confirmation card along with everything else
+      document.getElementById('formLiveCard').classList.remove('show');
     }
 
     // ================================================================
     // UPLOAD PREVIEW
     // ================================================================
-    function previewUpload(input, previewId) {
-      const preview = document.getElementById(previewId);
-      const area = input.closest('.upload-area');
-      if (input.files && input.files[0]) {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          preview.innerHTML = `<img src="${e.target.result}" alt="Preview" />`;
-          if (area) area.classList.add('has-image');
-        };
-        reader.readAsDataURL(input.files[0]);
-        // Store file for upload
-        if (previewId === 'frontPreview') currentImageFiles.front = input.files[0];
-        else if (previewId === 'backPreview') currentImageFiles.back = input.files[0];
+    // Back-image upload: same validation + WebP compression as the front image.
+    // (The old previewUpload stored the RAW file — large camera photos could
+    // exceed the 8MB upload limit, and this area had no drag & drop, so dropping
+    // a file made the browser navigate away from the admin.)
+    async function handleFormBackImage(file) {
+      const errEl = document.getElementById('backImgError');
+      errEl.style.display = 'none';
+      if (!file || !file.type.startsWith('image/')) {
+        errEl.textContent = 'That file type is not supported. Please choose a photo (JPEG, PNG or WebP).';
+        errEl.style.display = 'block';
+        return;
+      }
+      const input = document.getElementById('backInput');
+      if (input) input.value = ''; // allow re-picking the same file later
+      const preview = document.getElementById('backPreview');
+      const area = document.getElementById('backUploadArea');
+      const rawUrl = URL.createObjectURL(file);
+      preview.innerHTML = `<img src="${rawUrl}" alt="Back preview" />`;
+      area.classList.add('has-image');
+      try {
+        const optimized = await compressToWebP(file);
+        currentImageFiles.back = optimized.blob;
+        URL.revokeObjectURL(rawUrl);
+        preview.innerHTML = `<img src="${URL.createObjectURL(optimized.blob)}" alt="Back preview" />`;
+        const kb = Math.max(1, Math.round(optimized.blob.size / 1024));
+        const type = optimized.blob.type.includes('webp') ? 'WebP' : 'JPEG';
+        preview.innerHTML += `<div class="preview-meta">Optimized · ${optimized.width}px · ${type} · ${kb} KB</div>`;
+      } catch (err) {
+        currentImageFiles.back = null;
+        URL.revokeObjectURL(rawUrl);
+        preview.innerHTML = '<span class="hint" style="color:var(--text-muted);">Tap to upload back view</span>';
+        area.classList.remove('has-image');
+        errEl.textContent = 'Could not process that image. Please try a different photo.';
+        errEl.style.display = 'block';
       }
     }
 
@@ -1830,6 +1977,29 @@
       });
     }
 
+    function setupFormBackUpload() {
+      const area = document.getElementById('backUploadArea');
+      const input = document.getElementById('backInput');
+      if (!area || !input) return;
+      area.addEventListener('click', () => input.click());
+      area.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); input.click(); }
+      });
+      input.addEventListener('change', () => {
+        if (input.files && input.files[0]) handleFormBackImage(input.files[0]);
+      });
+      ['dragenter', 'dragover'].forEach(ev => {
+        area.addEventListener(ev, (e) => { e.preventDefault(); area.classList.add('dragover'); });
+      });
+      ['dragleave', 'drop'].forEach(ev => {
+        area.addEventListener(ev, (e) => { e.preventDefault(); area.classList.remove('dragover'); });
+      });
+      area.addEventListener('drop', (e) => {
+        const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+        if (f) handleFormBackImage(f);
+      });
+    }
+
     // ================================================================
     // SAVE PRODUCT (Create / Update)
     // ================================================================
@@ -1843,6 +2013,8 @@
       successEl.style.display = 'none';
       errorEl.style.display = 'none';
 
+      if (btn.disabled) return; // Enter inside a text field can re-submit while a save is in flight
+
       const name = document.getElementById('prodName').value.trim();
       const price = document.getElementById('prodPrice').value;
 
@@ -1853,6 +2025,12 @@
       }
       if (!editId && !formImageBlob) {
         errorEl.textContent = 'Please add a picture of the product.';
+        errorEl.style.display = 'block';
+        return;
+      }
+      const salePriceCheck = document.getElementById('prodSalePrice').value;
+      if (salePriceCheck !== '' && (isNaN(parseFloat(salePriceCheck)) || parseFloat(salePriceCheck) <= 0 || parseFloat(salePriceCheck) >= parseFloat(price))) {
+        errorEl.textContent = 'Sale price must be lower than the regular price.';
         errorEl.style.display = 'block';
         return;
       }
@@ -1896,24 +2074,27 @@
         if (res.ok) {
           const product = await res.json();
           if (editId) {
-            document.getElementById('formLiveCard').classList.remove('show');
             successEl.textContent = 'Product updated successfully!';
           } else {
-            // Live card — confirms the product is on the shop right now
-            document.getElementById('formLcImg').src = product.front_image || '';
-            document.getElementById('formLcName').textContent = product.name;
-            document.getElementById('formLcPrice').textContent = 'Rs. ' + (product.sale_price || product.price);
-            document.getElementById('formLiveCard').classList.add('show');
             successEl.textContent = 'Product added — it\'s live in the shop.';
           }
+          // resetForm() clears the live card, so show it afterwards for creates
           resetForm();
+          if (!editId) {
+            document.getElementById('formLcImg').src = product.front_image || '';
+            document.getElementById('formLcName').textContent = product.name;
+            document.getElementById('formLcPrice').textContent = fmtRs(product.sale_price || product.price);
+            document.getElementById('formLiveCard').classList.add('show');
+          }
           successEl.style.display = 'block';
           loadProducts();
           refreshStatsIfNeeded();
         } else {
-          const data = await res.json();
-          errorEl.textContent = data.error || 'Failed to save product.';
-          errorEl.style.display = 'block';
+          const data = await res.json().catch(() => ({}));
+          if (res.status !== 401) { // a 401 already bounced us back to the login screen
+            errorEl.textContent = data.error || 'Failed to save product.';
+            errorEl.style.display = 'block';
+          }
         }
       } catch (err) {
         errorEl.textContent = 'Connection error. Make sure the server is running.';
@@ -2079,9 +2260,12 @@
 
       const formData = new FormData();
       formData.append('name', productNameFromFile(quickImageName));
-      formData.append('category', 'anime');
+      const quickCat = document.getElementById('quickCategory');
+      const quickSz = document.getElementById('quickSize');
+      formData.append('category', (quickCat && quickCat.value) || 'anime');
       formData.append('fit', 'Regular');
       formData.append('price', String(price));
+      formData.append('sizes', JSON.stringify([(quickSz && quickSz.value) || 'L']));
       formData.append('front_image', quickImageBlob, 'drop-' + Date.now() + '.webp');
 
       quickUploading = true;
@@ -2138,15 +2322,25 @@
 
         function filterOrders() {
       const status = document.getElementById('orderStatusFilter').value;
+      const q = (document.getElementById('orderSearch') ? document.getElementById('orderSearch').value : '').toLowerCase().trim();
       let filtered = [...allOrders];
       if (status) filtered = filtered.filter(o => (o.status || 'pending').toLowerCase() === status);
+      if (q) filtered = filtered.filter(o =>
+        String(o.order_number || '').toLowerCase().includes(q) ||
+        String(o.customer_name || '').toLowerCase().includes(q) ||
+        String(o.phone || '').toLowerCase().includes(q) ||
+        String(o.email || '').toLowerCase().includes(q));
       filtered.sort((a, b) => { const da = new Date(a.created_at || 0).getTime(); const db = new Date(b.created_at || 0).getTime(); return orderSortAsc ? da - db : db - da; });
       renderOrderList(filtered);
     }
     function toggleOrderSort() {
       orderSortAsc = !orderSortAsc;
-      document.getElementById('orderSortLabel').textContent = orderSortAsc ? '\u2191 Oldest' : '\u2193 Newest';
+      document.getElementById('orderSortLabel').innerHTML = (orderSortAsc ? icon('arrow-up') + ' Oldest' : icon('arrow-down') + ' Newest');
       filterOrders();
+    }
+    function exportOrdersCsv() {
+      const st = document.getElementById('orderStatusFilter').value;
+      window.location.href = '/api/orders/export/csv' + (st ? '?status=' + encodeURIComponent(st) : '');
     }
     function renderOrderList(orders) {
       const list = document.getElementById('ordersList');
@@ -2167,7 +2361,11 @@
         const st = (o.status || 'pending').toLowerCase();
         const statusLabel = { pending:'Pending', awaiting_verification:'Awaiting Payment', confirmed:'Confirmed', shipped:'Shipped', delivered:'Delivered', cancelled:'Cancelled' }[st] || st;
         const payRef = o.payment_ref ? `<div class="p-category" style="font-size:0.65rem;color:var(--accent);">Ref: ${esc(o.payment_ref)}</div>` : '';
-        const codBadge = o.payment_method === 'cod' && o.cod_confirmed ? '<div class="p-category" style="font-size:0.62rem;color:var(--green);">✓ COD Confirmed</div>' : '';
+        const codBadge = o.payment_method === 'cod' && o.cod_confirmed ? `<div class="p-category" style="font-size:0.62rem;color:var(--green);">${icon('check')} COD Confirmed</div>` : '';
+        const verifiedBadge = o.payment_method !== 'cod' && o.payment_verified ? `<div class="p-category" style="font-size:0.62rem;color:var(--green);">${icon('check')} Payment Verified</div>` : '';
+        const payOpts = o.payment_method !== 'cod'
+          ? `<button onclick="verifyPayment(${o.id}, ${o.payment_verified ? 'false' : 'true'})" class="status-opt status-opt-confirmed">${icon('credit-card')} ${o.payment_verified ? 'Remove Verification' : 'Verify Payment'}</button>`
+          : `<button onclick="codConfirm(${o.id}, ${o.cod_confirmed ? 'false' : 'true'})" class="status-opt status-opt-delivered">${icon('dollar')} ${o.cod_confirmed ? 'Undo COD Confirmation' : 'Mark COD Confirmed'}</button>`;
         html += `
           <div class="product-row order-row">
             <div>
@@ -2179,20 +2377,19 @@
               <div class="p-category">${esc(o.phone)}</div>
             </div>
             <div class="p-category">${count} item${count === 1 ? '' : 's'}</div>
-            <div class="p-price">Rs. ${o.total}</div>
-            <div class="p-category">${pay}${payRef}${codBadge}</div>
+            <div class="p-price">${fmtRs(o.total)}</div>
+            <div class="p-category">${pay}${payRef}${codBadge}${verifiedBadge}</div>
             <div class="status-cell">
-              <span class="status-badge status-${st}">${statusLabel}</span>
+              <span class="status-badge status-${esc(st)}">${statusLabel}</span>
               <div class="status-dropdown">
                 <button class="status-dropdown-btn" onclick="toggleStatusDropdown(this)" aria-label="Change status">▾</button>
                 <div class="status-dropdown-menu">
-                  <button onclick="verifyPayment(${o.id}, true)" class="status-opt status-opt-confirmed">✓ Verify Payment</button>
-                  ${o.payment_method === 'cod' ? `<button onclick="codConfirm(${o.id}, true)" class="status-opt status-opt-delivered">💰 COD Confirmed</button>` : ''}
-                  <button onclick="updateOrderStatus(${o.id},'confirmed')" class="status-opt status-opt-confirmed">✓ Confirm</button>
-                  <button onclick="updateOrderStatus(${o.id},'shipped')" class="status-opt status-opt-shipped">📦 Mark Shipped</button>
-                  <button onclick="updateOrderStatus(${o.id},'delivered')" class="status-opt status-opt-delivered">✓ Delivered</button>
-                  <button onclick="if(confirm('Cancel this order? This cannot be undone.')) updateOrderStatus(${o.id},'cancelled')" class="status-opt status-opt-cancelled">✕ Cancel</button>
-                  <button onclick="updateOrderStatus(${o.id},'pending')" class="status-opt status-opt-pending">↻ Reset to Pending</button>
+                  ${payOpts}
+                  <button onclick="updateOrderStatus(${o.id},'confirmed')" class="status-opt status-opt-confirmed">${icon('check')} Confirm</button>
+                  <button onclick="updateOrderStatus(${o.id},'shipped')" class="status-opt status-opt-shipped">${icon('truck')} Mark Shipped</button>
+                  <button onclick="updateOrderStatus(${o.id},'delivered')" class="status-opt status-opt-delivered">${icon('check-circle')} Delivered</button>
+                  <button onclick="updateOrderStatus(${o.id},'cancelled')" class="status-opt status-opt-cancelled">${icon('x')} Cancel</button>
+                  <button onclick="updateOrderStatus(${o.id},'pending')" class="status-opt status-opt-pending">${icon('rotate')} Reset to Pending</button>
                 </div>
               </div>
             </div>
@@ -2211,8 +2408,16 @@
     }
 
     let updatingOrder = false;
+    const STATUS_LABELS = { pending:'Pending', awaiting_verification:'Awaiting Payment', confirmed:'Confirmed', shipped:'Shipped', delivered:'Delivered', cancelled:'Cancelled' };
     async function updateOrderStatus(id, status) {
       if (updatingOrder) return;
+      // Every transition emails the customer — confirm before mutating (Cancel
+      // included; it used to be the only one with a dialog).
+      const label = STATUS_LABELS[status] || status;
+      const msg = status === 'cancelled'
+        ? 'Cancel this order? Stock will be returned to inventory.'
+        : `Mark this order as ${label}? The customer will receive a status email.`;
+      if (!confirm(msg)) return;
       updatingOrder = true;
       // Close dropdown immediately
       document.querySelectorAll('.status-dropdown-menu.open').forEach(m => m.classList.remove('open'));
@@ -2225,8 +2430,8 @@
         if (res.ok) {
           loadOrders();
           refreshStatsIfNeeded();
-        } else {
-          const data = await res.json();
+        } else if (res.status !== 401) {
+          const data = await res.json().catch(() => ({}));
           alert(data.error || 'Failed to update status.');
         }
       } catch (err) {
@@ -2248,8 +2453,8 @@
         });
         if (res.ok) {
           loadOrders();
-        } else {
-          const data = await res.json();
+        } else if (res.status !== 401) {
+          const data = await res.json().catch(() => ({}));
           alert(data.error || 'Failed to verify payment.');
         }
       } catch (err) {
@@ -2271,8 +2476,8 @@
         });
         if (res.ok) {
           loadOrders();
-        } else {
-          const data = await res.json();
+        } else if (res.status !== 401) {
+          const data = await res.json().catch(() => ({}));
           alert(data.error || 'Failed to confirm COD.');
         }
       } catch (err) {
@@ -2316,8 +2521,8 @@
       const current = (p.stock_qty != null && p.stock_qty !== '') ? p.stock_qty : '';
       span.outerHTML = '<div class="stock-qty-cell" data-editing="' + id + '">' +
         '<input class="stock-qty-input" type="number" min="0" step="1" value="' + current + '" onkeydown="if(event.key===\'Enter\')saveStockEdit(' + id + ');if(event.key===\'Escape\')cancelStockEdit(' + id + ');" autofocus />' +
-        '<button class="stock-qty-save" onclick="saveStockEdit(' + id + ')" title="Save">✓</button>' +
-        '<button class="stock-qty-cancel" onclick="cancelStockEdit(' + id + ')" title="Cancel">✕</button>' +
+        '<button class="stock-qty-save" onclick="saveStockEdit(' + id + ')" title="Save">' + icon('check') + '</button>' +
+        '<button class="stock-qty-cancel" onclick="cancelStockEdit(' + id + ')" title="Cancel">' + icon('x') + '</button>' +
         '</div>';
       document.querySelector('[data-editing="' + id + '"] .stock-qty-input').focus();
     }
@@ -2325,25 +2530,19 @@
       const cell = document.querySelector('[data-editing="' + id + '"]');
       if (!cell) return;
       const val = cell.querySelector('.stock-qty-input').value;
+      // An empty box means "no change" — silently writing 0 would sell the
+      // product out. Type a number (0 explicitly clears stock) to save.
+      if (val === '') { cancelStockEdit(id); return; }
       try {
         const res = await fetch('/api/products/' + id + '/stock-qty', {
           method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ stock_qty: val === '' ? 0 : Number(val) })
+          body: JSON.stringify({ stock_qty: Number(val) })
         });
         if (res.ok) { const data = await res.json(); const p = products.find(x => x.id === id); if (p) { p.stock_qty = data.stock_qty; p.in_stock = data.in_stock; } filterProducts(); refreshStatsIfNeeded(); }
-        else { alert('Failed to update stock.'); cancelStockEdit(id); }
+        else if (res.status !== 401) { const d = await res.json().catch(() => ({})); alert(d.error || 'Failed to update stock.'); cancelStockEdit(id); }
       } catch (e) { alert('Connection error.'); cancelStockEdit(id); }
     }
     function cancelStockEdit(id) { filterProducts(); }
-    async function restockProduct(id, addQty) {
-      const p = products.find(x => x.id === id);
-      if (!p) return;
-      const current = (p.stock_qty != null && p.stock_qty !== '') ? Number(p.stock_qty) : 0;
-      try {
-        const res = await fetch('/api/products/' + id + '/stock-qty', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ stock_qty: current + addQty }) });
-        if (res.ok) { const data = await res.json(); p.stock_qty = data.stock_qty; p.in_stock = data.in_stock; filterProducts(); refreshStatsIfNeeded(); }
-      } catch (e) {}
-    }
 
     // ================================================================
     // ORDER FILTER + SORT
@@ -2390,10 +2589,23 @@
       const list = document.getElementById('reviewsList'); if (!list) return;
       const rows = allReviews.filter(r => r.status === reviewFilter);
       if (!rows.length) { list.innerHTML = '<div class="empty-state">No ' + reviewFilter + ' reviews.</div>'; return; }
-      list.innerHTML = rows.map(r => '<div class="review-row"><div class="review-top"><span class="review-prod">' + esc(productName(r.product_id)) + '</span><span class="review-stars">' + '\u2605'.repeat(Math.max(1, Math.min(5, Number(r.rating) || 0))) + '</span><span class="review-meta">' + esc(r.customer_name || 'Verified Buyer') + ' · ' + esc(r.order_number || '') + '</span></div>' + (r.comment ? '<p class="review-comment">' + esc(r.comment) + '</p>' : '<p class="review-comment dim">(no comment)</p>') + '<div class="review-actions">' + (r.status !== 'approved' ? '<button class="approve-btn" onclick="setReviewStatus(' + r.id + ', \x27approved\x27)">✓ Approve</button>' : '') + (r.status !== 'rejected' ? '<button class="reject-btn" onclick="setReviewStatus(' + r.id + ', \x27rejected\x27)">✕ Reject</button>' : '') + '<button class="delete-btn" onclick="deleteReview(' + r.id + ')">Delete</button></div></div>').join('');
+      list.innerHTML = rows.map(r => '<div class="review-row"><div class="review-top"><span class="review-prod">' + esc(productName(r.product_id)) + '</span><span class="review-stars">' + starRating(r.rating) + '</span><span class="review-meta">' + esc(r.customer_name || 'Verified Buyer') + ' · ' + esc(r.order_number || '') + '</span></div>' + (r.comment ? '<p class="review-comment">' + esc(r.comment) + '</p>' : '<p class="review-comment dim">(no comment)</p>') + '<div class="review-actions">' + (r.status !== 'approved' ? '<button class="approve-btn" onclick="setReviewStatus(' + r.id + ', \x27approved\x27)"">' + icon('check') + ' Approve</button>' : '') + (r.status !== 'rejected' ? '<button class="reject-btn" onclick="setReviewStatus(' + r.id + ', \x27rejected\x27)"">' + icon('x') + ' Reject</button>' : '') + '<button class="delete-btn" onclick="deleteReview(' + r.id + ')">Delete</button></div></div>').join('');
     }
-    async function setReviewStatus(id, status) { try { const res = await fetch('/api/reviews/' + id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) }); if (res.ok) loadReviews(); } catch (e) {} }
-    async function deleteReview(id) { if (!confirm('Delete this review permanently?')) return; try { const res = await fetch('/api/reviews/' + id, { method: 'DELETE' }); if (res.ok) loadReviews(); } catch (e) {} }
+    async function setReviewStatus(id, status) {
+      try {
+        const res = await fetch('/api/reviews/' + id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) });
+        if (res.ok) loadReviews();
+        else if (res.status !== 401) { const d = await res.json().catch(() => ({})); alert(d.error || 'Failed to update review.'); }
+      } catch (e) { alert('Connection error.'); }
+    }
+    async function deleteReview(id) {
+      if (!confirm('Delete this review permanently?')) return;
+      try {
+        const res = await fetch('/api/reviews/' + id, { method: 'DELETE' });
+        if (res.ok) loadReviews();
+        else if (res.status !== 401) { const d = await res.json().catch(() => ({})); alert(d.error || 'Failed to delete review.'); }
+      } catch (e) { alert('Connection error.'); }
+    }
 
     // ================================================================
     // P&L REPORTS (Chart.js)
@@ -2403,7 +2615,9 @@
 
     function setPnlPeriod(period) {
       pnlPeriod = period;
-      document.querySelectorAll('.period-btn').forEach(b => {
+      // Scope to the P&L toggle — an unscoped '.period-btn' query also matched
+      // the Reviews filter pills and stripped their active highlight.
+      document.querySelectorAll('.period-toggle .period-btn').forEach(b => {
         b.classList.toggle('active', b.dataset.period === period);
       });
       loadPnlStats();
@@ -2416,12 +2630,13 @@
     async function loadPnlStats() {
       const emptyEl = document.getElementById('pnlEmpty');
       if (emptyEl) emptyEl.classList.remove('show');
-      if (!window.Chart) return;
       try {
         const res = await fetch('/api/admin/stats/pnl?period=' + pnlPeriod);
         if (!res.ok) return;
         const data = await res.json();
 
+        // Summary cards populate regardless of whether Chart.js loaded — the
+        // old `if (!window.Chart) return` up-front blanked the whole tab.
         document.getElementById('pnlRevenue').textContent = fmtRs(data.summary.revenue);
         document.getElementById('pnlCost').textContent = fmtRs(data.summary.cost);
         document.getElementById('pnlProfit').textContent = fmtRs(data.summary.profit);
@@ -2434,6 +2649,7 @@
           if (emptyEl) emptyEl.classList.add('show');
           return;
         }
+        if (!window.Chart) return; // chart lib failed to load — keep the summary
 
         const ctx = document.getElementById('pnlChart').getContext('2d');
         if (pnlChart) pnlChart.destroy();
@@ -2579,13 +2795,13 @@
       if (name === 'reports') { loadPnlStats(); loadSalesSummary(); }
       if (name === 'reviews') loadReviews();
     }
-    function switchTab(el, tabName) { switchSection(tabName); }
 
     // ================================================================
     // INIT
     // ================================================================
     setupQuickUpload();
     setupFormFrontUpload();
+    setupFormBackUpload();
     checkAuth();
 
     // Keep keyboard focus within the password dialog; Escape restores focus.
@@ -2600,16 +2816,14 @@
       else if (!e.shiftKey && (document.activeElement === last || !modal.contains(document.activeElement))) { e.preventDefault(); first.focus(); }
     });
 
-    // Allow Enter to submit login
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' && !isLoggedIn) handleLogin();
-    });
+    // (Change-password Enter submit is bound in openChangePasswordModal() —
+    // the modal markup lives after this script, so it doesn't exist yet here.)
   </script>
 
   <!-- CHANGE PASSWORD MODAL -->
   <div id="changePwModal" role="dialog" aria-modal="true" aria-label="Change password" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.4);backdrop-filter:blur(4px);align-items:center;justify-content:center;">
     <div style="background:#FFFFFF;border:1px solid #E5E7EB;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,0.12);padding:2rem;max-width:400px;width:90%;position:relative;">
-      <button onclick="closeChangePasswordModal()" style="position:absolute;top:12px;right:12px;background:none;border:none;color:#999;font-size:1.2rem;cursor:pointer;">✕</button>
+      <button onclick="closeChangePasswordModal()" style="position:absolute;top:12px;right:12px;background:none;border:none;color:#999;font-size:1.2rem;cursor:pointer;" aria-label="Close"><svg class="icon" style="width:18px;height:18px;"><use href="#i-x"/></svg></button>
       <h3 style="font-family:'Anton',sans-serif;letter-spacing:0.06em;margin-bottom:1rem;">Change Password</h3>
       <div id="changePwError" style="color:#EF4444;font-size:0.8rem;margin-bottom:0.8rem;display:none;"></div>
       <label style="display:block;font-size:0.7rem;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:0.3rem;">Current Password</label>

@@ -148,11 +148,99 @@ harden against login-CSRF phishing.
 - 🟢 24/24 e2e tests, 0 npm vulnerabilities, setup gate closed, CSP correct
 - 🟡 Admin password rotation recommended if not already changed (§6)
 
-## Remaining work (see `AUDIT.md` for the live queue)
+---
 
-1. **FE-H2** (long-term): replace inline handlers with event delegation, then drop
-   `'unsafe-inline'` + `script-src-attr` properly.
-2. FE-M/L queue: URL routing/history, cart & wishlist persistence, focus/Escape
-   a11y, silent product-load failure handling, login-CSRF hardening.
-3. Housekeeping: delete the stale `kage-culture.vercel.app` project (different team);
-   push any local-only docs commits with a fresh token when convenient.
+## 8. Feature removal — KAGE Animals & Clan Spin the Wheel — 2026-10-10
+
+**Request:** mirror the previous session's removal of two experimental features.
+
+**Commit `6bbb64c` (pushed to `arena/69aa2172-kage-culture`):**
+- Deleted `/kage-animals` page + route and `/api/spin` endpoints (404 verified).
+- Removed `spin` / `sticker` DB helpers for new DBs (existing Turso tables retained for safety).
+- Deleted 33 associated media files (`animal-*.jpg`, stickers, etc.).
+- Kept `KAGE Clothes` (`kage-animals*` was not clothing), `animal-*.jpg` product images used by Goofy Wears, clan-join CTA, og:image, and admin spinner CSS deliberately retained (checked via grep).
+
+**Verification:** `GET /kage-animals` 404, `GET /api/spin` 404, 33 media deletions.
+
+---
+
+## 9. Admin dashboard deep audit, SVG migration & Add-Product hardening — 2026-10-10
+
+**Scope:** `public/admin.html` (2,626 lines → 2,839 after fixes) + backing routes (`routes/admin.js`, `routes/orders.js`, `routes/products.js`), full static read-through + live server boot with real orders to prove each fault (sql.js in-memory, UTC host, same string-compare semantics as Turso/SQLite).
+
+**Audit result:** `ADMIN_DASHBOARD_FAULTS.md` — **27 faults found: 5 high, 9 medium, 13 minor**, plus 7 add-product-specific faults discovered in a second pass. All proven live before fixing.
+
+### What was DONE (commits `ae021f8` + `09fd6cb`) — fixes shipped & verified
+
+#### Backend — data integrity (verified live)
+| Fault | What was wrong | What was done | Live proof |
+|---|---|---|---|
+| **H1** Revenue Today = 0 forever | `admin.js` built ISO boundaries `…T00:00:00.000Z` but `orders.created_at` is `… HH:MM:SS` (space). SQLite string-compare ` ' ' < 'T'` excluded every row on the boundary date. | `toTs()` formats boundaries as `'YYYY-MM-DD HH:MM:SS'` matching storage; week start moved to **Monday** (was Sunday, mismatched P&L weekly buckets - N11). | 1 order today → `revenueToday 0→650` (was always 0), `revenueWeek`/`Month` no longer miss the 1st/Sunday |
+| **H2** Cancelled = revenue | `SUM(total)` and P&L scanned all rows; only `bestProduct` excluded cancelled → 3 inconsistent revenue numbers | `WHERE status != ?` (param-bound `'cancelled'`) on dashboard revenue, all 3 sales windows, and P&L scan | Cancel → `dashboard.revenue 650→0`, `sales.revenueToday 650→0`, `pnl {0,0,0}` (was 650/160/490) |
+| **H3** Stock inflation | Cancel restored stock, but `Reset to Pending` never re-decremented → `10→8→cancel→10→reset→10→cancel→12` | `orders.js`: leaving `cancelled` re-decrements (floor 0) | Cycle `10→8→10→8→10` **balanced** (was 10→12) |
+| **Products POST ignored `unit_cost`** | Backend always estimated `max(50, price×0.55)` even when admin typed a cost → P&L profit wrong | POST now honors `unit_cost` when supplied; only estimates when absent | Create `unit_cost=455` → stored 455 (was 550) |
+| **Weak validation** | `price=abc`, `stock_qty=xyz` could be sent; names/descriptions uncapped; sizes could be malformed | POST/PUT: `price` finite >0, `stock_qty`/`unit_cost` ≥0 numbers, `sizes` must parse as array, caps `name 120`/`fit 60`/`desc 2000`; PUT validates **before** touching files (invalid edit no longer deletes old image or orphans upload) | `price=abc→400`, `stock_qty=xyz→400`, `PUT price=abc→400`, `sale>=price→400` |
+| **CSV export dead** | `GET /api/orders/export/csv` worked but no UI | Added **Export CSV** button to Orders toolbar (respects status filter) | `HTTP 200` with status filter |
+
+#### Frontend `public/admin.html` — behavior & UI
+| Fault | Fix |
+|---|---|
+| **H4** Stale image on edit | `editProduct()` now calls `resetForm()` first (clears `formImageBlob`, previews, banners); `resetForm` hides live-card; create re-shows it after reset |
+| **H5** Double login POST | Removed global Enter handler; one handler per field + `btn.disabled` re-entrancy guard (was 2 concurrent `POST /api/admin/login` per Enter against 10/min limit) |
+| **M1** `awaiting_verification` raw/unstyled | Added label to dashboard map + `.status-awaiting_verification` CSS |
+| **M2** Session expiry | Fetch wrapper bounces to login on any mid-session 401; mutation alerts skip when already redirected |
+| **M3** P&L gated on Chart.js | Fetch + summary cards run first; only chart render checks `window.Chart` (was `if (!window.Chart) return` before fetch) |
+| **M4** Reviews pills cleared | `setPnlPeriod` scoped to `.period-toggle .period-btn` (was unscoped `.period-btn`) |
+| **M5** `loadProducts` no `res.ok` | Added `res.ok` + `Array.isArray` check + Retry button |
+| **M6** Status emails on misclick | `updateOrderStatus` now `confirm()` every transition (states customer will be emailed) |
+| **M7** Payment state-blind | Menu state-aware: non-COD `Verify/Remove Verification`, COD `Mark COD Confirmed/Undo`; row shows `Payment Verified` badge |
+| **M8** Stock editor dead | Rendered `stock-qty-display` quantity in product list opening inline editor; empty save = no change (was silently 0); removed dead `restockProduct` |
+| **N3** Category twice | Removed subtitle category (column kept) |
+| **N4** 5 cards in 4-col grid | `repeat(4,1fr)` → `repeat(auto-fit, minmax(150px,1fr))` |
+| **N5** Logout ignored failures | Checks response, alerts, refreshes missing CSRF cookie first |
+| **N6** Silent review failures | `approve/reject/delete` alert on failure |
+| **N7** Inconsistent Enter | Email + password each submit; change-password modal Enter submits (bound in `openChangePasswordModal`) |
+| **N8/N12** Dead tab strip | Hidden `.tabs`/`.tab` markup, CSS and `switchTab()` removed |
+| **N9** No order search | Search input by order #, name, phone, email (client-side) |
+| **N10** Raw totals | `fmtRs()` for order/product/live-card totals |
+| **N13** Hard-coded `<5` | Low-stock label set from `lowStockThreshold` returned by API |
+
+#### Add-Product flow — 7 faults found & fixed
+1. **Advanced fields hidden on create** → every new product silently became `category: anime` with untracked stock. `#extraFields` now always `display: contents`.
+2. **Unit Cost discarded** (backend, see above).
+3. **No client-side sale-price check** → validated against regular price before submit.
+4. **Double-submit** (Enter in fields re-fired `handleSaveProduct`) → `btn.disabled` guard.
+5. **Stale live-card** after Cancel/Reset → `resetForm` clears it; create shows it after reset.
+6. **Quick Upload** hard-coded `anime` + 5-size default → added **Category + Size selects**, sends `sizes` explicitly.
+7. **Uncapped/invalid API input** → backend 400s + caps (see above).
+8. **Front "Choose different" dead** (area click-guard swallowed it) → direct `onclick` added (commit `09fd6cb`).
+9. **Back image raw + no drag&drop** (stored raw `File`, could exceed 8 MB; drop navigated away) → new `handleFormBackImage` with **WebP compression**, validation, `preview-meta`, `backImgError` element, and `setupFormBackUpload` (click/keyboard/drag) wired in `INIT`; `resetForm` clears it (commit `09fd6cb`).
+
+#### Icons — emoji → SVG
+All pictographic glyphs replaced: sidebar 7, View Store, stat cards 5, upload cameras 2, status menu, sort arrows, stock editor, review actions, both live-card checks, modal close, rating stars (`★` → SVG). New **21-symbol inline sprite** (`#i-grid`, `#i-box`, `#i-zap`, `#i-plus`, `#i-cart`, `#i-star`/`#i-star-fill`, `#i-trending-up`, `#i-store`, `#i-camera`, `#i-clock`, `#i-alert`, `#i-dollar`, `#i-check`, `#i-x`, `#i-rotate`, `#i-arrow-down`/`#i-arrow-up`, `#i-download`, `#i-truck`, `#i-check-circle`, `#i-credit-card`) + `icon()` / `starRating()` helpers (`stroke: currentColor`, `fill: currentColor` for filled stars). **Emoji scan of `admin.html` → 0**.
+
+#### Verification (fresh run after all fixes)
+- `npm test` → **33/33 API + 8/8 DOM scenarios passed** (jsdom reports no script errors).
+- `node --check` on extracted inline script → clean.
+- Live boot (port 3000, sql.js, UTC): **H1 ✓** (`revenueToday 650`), **H2 ✓** (cancel→0 everywhere), **H3 ✓** (balanced cycle), **unit_cost ✓** (455 honored), **4 validation 400s ✓**, **CSV 200 ✓**, **`awaiting_verification` flow ✓**, **back/front upload ✓**, **emoji scan CLEAN ✓**.
+
+---
+
+## What STILL NEEDS TO BE DONE (priority order)
+
+### 🔴 High — data / correctness (remaining)
+- **Legacy P&L cost fallback:** Rows created **before** this fix still estimate cost as `55% × price (min Rs 50)` because `unit_cost`/line-item `cost` were never stored. New products are correct. Optional data migration: backfill `products.unit_cost` and `orders.items_json[].cost` from price history or manual count, or document as "estimates for pre-2026-10-10 orders".
+- **Backend `/api/upload` & `POST /api/admin/create` are endpoint-only:** No UI calls them; they are not broken but are dead surface. Either add UI (admin user management) or remove/document as intentional.
+
+### 🟠 Medium — UX / hardening
+- **FE-H2 CSP migration (long-term):** `server.js` still needs `scriptSrcAttr 'unsafe-inline'` because both pages use hundreds of inline `onclick` handlers. Replace with delegated listeners (like gallery dots/filter panel) **together** with dropping the directive — removing only the CSP allowance breaks all clicks (incident 2026-09-23). Do not mark done without a browser/CSP migration.
+- **Keyboard/focus polish for dynamic controls:** Primary overlays now trap focus + Escape (cart/wishlist/drawers, admin password modal), but dynamically rendered non-native controls (filter chips, size dots rendered after AJAX) merit a full keyboard/browser pass.
+- **Stats endpoint test coverage:** Existing suites do not assert `stats/sales` vs cancelled/UTC-window behavior. Add server-side tests for `awaiting_verification` badge, cancelled-excluded revenue, and Monday-week semantics.
+
+### 🟡 Low — housekeeping / perf
+- **Housekeeping:** Delete stale `kage-culture.vercel.app` project (different Vercel team, confuses prod URL).
+- **SEO / metadata:** Storefront is client-rendered (`pushState` now added 2026-10-10), but canonical/OG tags are still static; per-product server-rendered metadata remains open.
+- **L2 cold-start:** `vercel.json` bundles `public/**` (9.3 MB mp4s + `vendor/chart.umd.min.js`) into the lambda. Moving videos off-repo/CDN remains a cold-start optimization.
+- **Admin password rotation:** If the bootstrap password from §6 was never changed by the owner, rotate immediately (it passed through chat).
+
+**Do NOT mark these done without explicit verification** (browser pass at 320/390/768px + CSP header check + prod Turso smoke if data migration touches orders).

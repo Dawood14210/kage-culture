@@ -144,6 +144,12 @@ module.exports = function createOrderRoutes(db) {
       if (status === 'cancelled' && order.status !== 'cancelled') {
         let items = []; try { items = JSON.parse(order.items_json || '[]'); } catch (e) { items = []; }
         for (const it of items) { const p = await db.prepare('SELECT id, stock_qty FROM products WHERE id = ?').get(it.id); if (!p || p.stock_qty == null) continue; await db.prepare('UPDATE products SET stock_qty = ?, in_stock = ? WHERE id = ?').run(Number(p.stock_qty) + (Number(it.qty) || 1), 1, it.id); }
+      } else if (order.status === 'cancelled' && status !== 'cancelled') {
+        // Reactivating a cancelled order must take the units back out of stock,
+        // otherwise cancel → reset → cancel cycles inflate inventory forever.
+        // Floor at 0 so concurrent sales can never drive stock negative.
+        let items = []; try { items = JSON.parse(order.items_json || '[]'); } catch (e) { items = []; }
+        for (const it of items) { const p = await db.prepare('SELECT id, stock_qty FROM products WHERE id = ?').get(it.id); if (!p || p.stock_qty == null) continue; const newQty = Math.max(0, Number(p.stock_qty) - (Number(it.qty) || 1)); await db.prepare('UPDATE products SET stock_qty = ?, in_stock = ? WHERE id = ?').run(newQty, newQty > 0 ? 1 : 0, it.id); }
       }
       const oldStatus = order.status;
       await db.prepare('UPDATE orders SET status = ? WHERE id = ?').run(status, id);

@@ -25,8 +25,8 @@ const ON_VERCEL = !!process.env.VERCEL;
 // Pure-JS in-memory store (no WASM required)
 // Used when sql.js fails (e.g. WASM not found on Vercel).
 // ----------------------------------------------------------------
-let memStore = { admin: [], products: [], orders: [], newsletter_subscribers: [], customers: [], coming_soon_signups: [], spin_tickets: [], sticker_collection: [] };
-let memAutoId = { admin: 0, products: 0, orders: 0, newsletter_subscribers: 0, coming_soon_signups: 0, spin_tickets: 0, sticker_collection: 0 };
+let memStore = { admin: [], products: [], orders: [], newsletter_subscribers: [], customers: [], coming_soon_signups: [] };
+let memAutoId = { admin: 0, products: 0, orders: 0, newsletter_subscribers: 0, coming_soon_signups: 0 };
 
 function memPrepare(sql) {
   const trimmed = sql.trim();
@@ -449,26 +449,6 @@ async function createSchema(exec) {
     )
   `);
   await exec(`
-    CREATE TABLE IF NOT EXISTS spin_tickets (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      email TEXT NOT NULL,
-      spins_remaining INTEGER NOT NULL DEFAULT 0,
-      total_spins_earned INTEGER NOT NULL DEFAULT 0,
-      total_spins_used INTEGER NOT NULL DEFAULT 0,
-      total_shirts INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
-  await exec(`
-    CREATE TABLE IF NOT EXISTS sticker_collection (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      email TEXT NOT NULL,
-      animal TEXT NOT NULL,
-      count INTEGER NOT NULL DEFAULT 1,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
-  await exec(`
     CREATE TABLE IF NOT EXISTS password_reset_tokens (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_type TEXT NOT NULL,
@@ -487,7 +467,6 @@ async function createSchema(exec) {
   await exec('CREATE INDEX IF NOT EXISTS idx_reviews_status ON reviews(status)');
   await exec('CREATE INDEX IF NOT EXISTS idx_products_category ON products(category)');
   await exec('CREATE INDEX IF NOT EXISTS idx_customers_email ON customers(email)');
-  await exec('CREATE INDEX IF NOT EXISTS idx_spin_tickets_email ON spin_tickets(email)');
   await exec('CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_hash ON password_reset_tokens(token_hash)');
 }
 
@@ -527,10 +506,6 @@ async function doInit() {
       if (!hasPayVerified) await tursoClient.execute('ALTER TABLE orders ADD COLUMN payment_verified INTEGER DEFAULT 0');
       const hasCodConfirmed = orderInfo.rows.some(r => r.name === 'cod_confirmed');
       if (!hasCodConfirmed) await tursoClient.execute('ALTER TABLE orders ADD COLUMN cod_confirmed INTEGER DEFAULT 0');
-      // Spin tickets migration
-      const spinInfo = await tursoClient.execute('PRAGMA table_info(spin_tickets)');
-      const hasTotalShirts = spinInfo.rows.some(r => r.name === 'total_shirts');
-      if (!hasTotalShirts) await tursoClient.execute('ALTER TABLE spin_tickets ADD COLUMN total_shirts INTEGER DEFAULT 0');
       // Create indexes
       await tursoClient.execute('CREATE INDEX IF NOT EXISTS idx_orders_email ON orders(email)');
       await tursoClient.execute('CREATE INDEX IF NOT EXISTS idx_orders_order_number ON orders(order_number)');
@@ -539,7 +514,6 @@ async function doInit() {
       await tursoClient.execute('CREATE INDEX IF NOT EXISTS idx_reviews_status ON reviews(status)');
       await tursoClient.execute('CREATE INDEX IF NOT EXISTS idx_products_category ON products(category)');
       await tursoClient.execute('CREATE INDEX IF NOT EXISTS idx_customers_email ON customers(email)');
-      await tursoClient.execute('CREATE INDEX IF NOT EXISTS idx_spin_tickets_email ON spin_tickets(email)');
       await tursoClient.execute('CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_hash ON password_reset_tokens(token_hash)');
       activeBackend = 'turso';
       return;
@@ -567,7 +541,7 @@ async function doInit() {
   //
   // On Vercel the pure-JS in-memory store resets on every cold start AND its
   // regex "SQL" shim mangles queries (GROUP BY / ORDER BY / multi-arg UPDATE
-  // WHEREs; DELETE always reports 0 changes) — orders, stats, clan and spin
+  // WHEREs; DELETE always reports 0 changes) — orders, stats and clan
   // logic would all quietly misbehave. That is worse than a visible outage.
   if (ON_VERCEL) {
     module.exports._initialized = false; // allow retry once env is fixed

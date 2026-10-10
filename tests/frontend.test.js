@@ -97,12 +97,7 @@ async function ready(win) {
     await wait(100);
     assert.equal(deepLink.window.document.querySelector('#detailName').textContent, 'Cheese God');
     assert.equal(deepLink.window.document.querySelector('.hero-media img').getAttribute('src'), '/images/hero.jpg');
-    const spirit = page(storeHtml, '/kage-animals/white-fox'); windows.push(spirit);
-    await ready(spirit.window);
-    await wait(100);
-    assert.equal(spirit.window.document.querySelector('#page-spirit-detail').classList.contains('active'), true);
-    assert.match(spirit.window.document.getElementById('spirit-content').innerHTML, /\/images\/fox-hero.jpg/);
-    console.log('✅ Product and spirit deep links, media, and browser Back work');
+    console.log('✅ Product deep links, media, and browser Back work');
 
     const bad = await fetch(origin + '/does-not-exist');
     assert.equal(bad.status, 404);
