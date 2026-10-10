@@ -361,6 +361,58 @@ DevTools-device-mode pass on iPhone SE / 390px widths before calling it done.
 
 ---
 
+## Frontend repair pass — 2026-10-10
+
+- Admin product search/category now render the filtered list; order filtering/sorting retain
+  fetched orders and include `awaiting_verification`. Sale prices can be cleared from the
+  admin form; API validates discounts and returns the real catalog stock state.
+- Storefront now filters Goofy Wears correctly, includes low-price stickers, clamps
+  pagination after filters, shows real sale badges, and never offers zero-stock items.
+  Catalog failures display an alert and block shopping instead of selling mock data.
+  Cart/wishlist persist as IDs and quantities, then hydrate against current API prices
+  and inventory (unavailable/removed products are dropped).
+- Client pages/products/collections use URLs + Back/deep-link restoration; unknown paths
+  return HTTP 404. Relative media paths were made root-relative for deep links.
+  Canonical/OG and password-reset defaults now point to the documented production host.
+- Returns messaging now matches the 7-day policy. Checkout payment listeners and gallery
+  swipe listeners no longer multiply. Cart badge animation, keyboard-operable review
+  stars, navigable links, and Escape/focus management for drawers/dialogs were improved.
+  Theme background, money formatting, and repeated confirmation-spin popup were fixed.
+- `npm audit fix` cleared four new production dependency advisories (1 critical, 2 high,
+  1 moderate). `npm test` → 33/33 API + 8/8 DOM-level scenarios; production audit → 0.
+  **Production verification is still needed.**
+
+### ✅ Browser-based responsive repair — 2026-10-10
+
+Captured real headless Chromium renders of storefront and authenticated admin at 320,
+390, 600, 768 and 1440 CSS px. Fixed defects that DOM-only tests had missed:
+
+- Storefront mobile CSS hid `.nav-icons` including its hamburger, making all navigation
+  unreachable. Keep the hamburger plus cart/wishlist visible, enlarge their touch targets,
+  track `aria-expanded`, allow Escape to dismiss, and constrain the dropdown height on
+  short screens. Header wordmark lettering is now readable at phone sizes.
+- Filter, cart and wishlist drawers were positioned offscreen by fixed desktop offsets;
+  at ≤768px their `width:100%` exceeded the offset and covered the page even while
+  closed. Translate by their own width instead. Verified closed rects start at the
+  viewport edge, while opened drawers occupy the viewport at 320/390/768px.
+- Admin had an extra closing `</div>` that put its tab content outside `.main-content`;
+  authenticated Products/Orders/Reports displayed beside the header in a narrow column.
+  Fixed nesting and made `.main-wrapper` grow to fill the desktop flex row. Phones now
+  get a section selector plus password/logout controls instead of a hidden-only sidebar.
+- Fixed white-on-white admin labels (product names/prices, upload prompts, P&L headings),
+  a stray CSS brace, and the 320px Reports period buttons that forced horizontal overflow.
+- Chromium checks of the authenticated dashboard and all major tabs at 320, 390, 768 and
+  1440px now show document width matching viewport. Storefront menu, Escape, cart and
+  filter interactions were exercised at 320/390/768px; `npm test` passes 33/33 API
+  and 8/8 DOM scenarios. Production and physical-device QA remain separate.
+
+Still open: **FE-H2** (remove inline handlers and `'unsafe-inline'` together — removing
+only the CSP allowance breaks all clicks), remaining keyboard polish for dynamically
+rendered non-native controls, broader SEO/server-rendered metadata, and L2 video
+cold-start optimization. Do not mark these done without a browser/CSP migration.
+
+---
+
 ## Remaining work (priority order)
 
 *API-side queue (C1, H1–H4, M1–M7, L1/L3–L7) completed 2026-09-23. FE-criticals
@@ -391,22 +443,17 @@ DevTools-device-mode pass on iPhone SE / 390px widths before calling it done.
 - **FE-H2.** Drop script `'unsafe-inline'` via event delegation (long-term).
 
 ### 🟡 Medium
-- **FE-M1.** URL routing/history (pushState, deep links, real 404) — unblocks the
-  sitemap half of L6.
-- **FE-M2.** Persist cart (and wishlist) to localStorage. *(Note: the wishlist heart
-  red-fill + pop animation shipped 2026-09-25; localStorage persistence itself is
-  still open.)* *(Wishlist heart color +
-  pop animation shipped 2026-09-25 — persistence itself still open.)*
-- **FE-M3.** De-duplicate checkout payment-radio listeners.
-- **FE-M4.** Fix cart-badge bump selector.
-- **FE-M5.** A11y: focusable nav/tiles, Escape + focus-trap on all overlays. *(✅ `user-scalable=no` removed from admin + responsive hardening shipped 2026-09-25 — see Completed work; focus-trap/Esc coverage still open.)*
-- **FE-M7.** Surface product-load failures instead of silently serving the fallback
-  catalog.
+- **FE-M1.** ✅ pushState, Back, product/collection deep links, HTTP 404 (2026-10-10).
+- **FE-M2.** ✅ cart/wishlist localStorage IDs rehydrated from the live API (2026-10-10).
+- **FE-M3.** ✅ one delegated payment-radio listener; gallery swipe listener also guarded.
+- **FE-M4.** ✅ cart badge animation targets `cartCount`.
+- **FE-M5.** ✅ native links/review buttons and Escape/focus trap for primary overlays;
+  ⬜ dynamic controls/remaining dialog semantics merit a full keyboard/browser pass.
+- **FE-M7.** ✅ catalog failures are visible and disable cart/checkout until retry.
 
 ### 🔵 Low
 - **FE-M6.** Micro-typography legibility (topbar/wordmark).
-- **FE-M8.** manifest `background_color` vs light theme; `fmt()` on totals; spin popup
-  re-trigger on confirmation re-render.
+- **FE-M8.** ✅ manifest background, formatted totals and confirmation popup fixed (2026-10-10).
 - **L2.** ~~Untracked product images/videos (9.3 MB of mp4s)~~ ✅ committed
   2026-09-23 (commit 663df0c) and pushed to `Dawood14210/kage-culture`. Residual:
   `vercel.json` bundles all of `public/**` (incl. 9.3 MB mp4s + vendor Chart.js) into
@@ -425,5 +472,5 @@ DevTools-device-mode pass on iPhone SE / 390px widths before calling it done.
 7. ~~FE-C1 + FE-C2 — broken storefront flows customers hit every day~~ ✅ done (24/24 tests)
 8. ~~FE-C3 + FE-C4 — CSP-blocked admin chart; reachable-but-dead password reset~~ ✅ done
 9. ~~FE-H1 (esc the grid attrs)~~ ✅ done; FE-H2 long-term alongside event delegation
-10. FE-M1 + FE-M2 — routing and cart persistence (biggest UX wins)
-11. Remaining FE-Ms in order, then L2 (deployment decision)
+10. ~~FE-M1 + FE-M2 — routing and cart persistence~~ ✅ done (2026-10-10)
+11. FE-H2 CSP migration, remaining a11y/visual checks, then L2 (deployment decision)

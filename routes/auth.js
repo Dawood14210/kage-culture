@@ -116,7 +116,7 @@ module.exports = function createAuthRoutes(db, SESSION_SECRET) {
       const tokenHash = hashToken(rawToken);
       const expiresAt = new Date(Date.now() + config.RESET_TOKEN_EXPIRY_MS).toISOString().replace('T', ' ').slice(0, 19);
       await db.prepare('INSERT INTO password_reset_tokens (user_type, user_id, token_hash, expires_at) VALUES (?, ?, ?, ?)').run(type, user.id, tokenHash, expiresAt);
-      const resetUrl = `${process.env.SITE_URL || 'https://kage-culture.vercel.app'}/reset-password?token=${rawToken}&type=${type}`;
+      const resetUrl = `${process.env.SITE_URL || 'https://kage-culture-ruby.vercel.app'}/reset-password?token=${rawToken}&type=${type}`;
       const html = `
   <div style="font-family:'Archivo',Arial,sans-serif;background:#D9D4C8;padding:32px;color:#1A1815;">
     <div style="max-width:560px;margin:0 auto;background:#FFF;border-radius:12px;padding:32px;border:1px solid #BDB6A6;">

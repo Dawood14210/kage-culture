@@ -11,14 +11,14 @@
   <meta name="author" content="KAGE Culture" />
 
   <!-- Canonical -->
-  <link rel="canonical" href="https://kage-culture.vercel.app" />
+  <link rel="canonical" href="https://kage-culture-ruby.vercel.app" />
 
   <!-- Open Graph -->
   <meta property="og:type" content="website" />
   <meta property="og:title" content="KAGE Culture — Engineered Fit. Original Art." />
   <meta property="og:description" content="Premium streetwear. Anime inspired. Built for everyday." />
   <meta property="og:image" content="/images/animal-white-tiger.jpg" />
-  <meta property="og:url" content="https://kage-culture.vercel.app" />
+  <meta property="og:url" content="https://kage-culture-ruby.vercel.app" />
   <meta property="og:site_name" content="KAGE Culture" />
 
   <!-- Twitter -->
@@ -43,8 +43,8 @@
     "@context": "https://schema.org",
     "@type": "Organization",
     "name": "KAGE Culture",
-    "url": "https://kage-culture.vercel.app",
-    "logo": "https://kage-culture.vercel.app/images/icon-512.png",
+    "url": "https://kage-culture-ruby.vercel.app",
+    "logo": "https://kage-culture-ruby.vercel.app/images/icon-512.png",
     "description": "Premium streetwear. Anime inspired. Built for everyday.",
     "sameAs": [
       "https://www.instagram.com/kageculture"
@@ -275,7 +275,7 @@
     /* Brush-style 影 — Zen Brush sumi-ink typeface with a faded ink-wash edge */
     .kage-logo .kanji {
       font-family: 'Zen Brush', 'Noto Serif JP', serif;
-      font-size: 24px;
+      font-size: 27px;
       font-weight: 400;
       color: var(--accent);
       line-height: 0.9;
@@ -287,14 +287,14 @@
       display: flex; flex-direction: column; align-items: center; margin-top: 2px;
     }
     .kage-logo .kage {
-      font-family: var(--font-display); font-size: 9px;
+      font-family: var(--font-display); font-size: 13px;
       font-weight: 800;
-      letter-spacing: 0.3em; color: #0A0A0A; line-height: 1;
+      letter-spacing: 0.16em; color: #0A0A0A; line-height: 1;
     }
     .kage-logo .kage .accent { color: var(--accent); }
     .kage-logo .culture {
-      font-family: var(--font-body); font-size: 4.5px;
-      letter-spacing: 0.35em; color: var(--text-dim); margin-top: 0px; line-height: 1;
+      font-family: var(--font-body); font-size: 8px;
+      letter-spacing: 0.12em; color: var(--text-secondary); margin-top: 0px; line-height: 1;
     }
 
     .nav-links {
@@ -310,7 +310,7 @@
       z-index: 100;
       list-style: none;
     }
-    .nav-links.open { display: flex; }
+    .nav-links.open { display: flex; max-height: calc(100dvh - 75px); overflow-y: auto; overscroll-behavior: contain; }
     .nav-links a { padding: 10px 12px; min-height: 40px; width: 100%; display: flex; align-items: center; font-size: 0.8rem; border-radius: var(--radius-sm); transition: background var(--transition-fast), color var(--transition-fast); }
     .nav-links a:hover { background: var(--bg-secondary); color: var(--text-primary); }
     .nav-links a::after { display: none; }
@@ -1301,7 +1301,8 @@
 
     .filter-drawer {
       position: fixed;
-      top: 0; right: -420px;
+      top: 0; right: 0;
+      transform: translateX(100%);
       width: 420px;
       max-width: 90vw;
       height: 100%;
@@ -1309,10 +1310,10 @@
       z-index: 2000;
       display: flex;
       flex-direction: column;
-      transition: right var(--transition-med);
+      transition: transform var(--transition-med);
       box-shadow: -5px 0 30px rgba(0,0,0,0.1);
     }
-    .filter-drawer.open { right: 0; }
+    .filter-drawer.open { transform: translateX(0); }
 
     .filter-drawer-header {
       display: flex;
@@ -1653,15 +1654,16 @@
     }
     .cart-overlay.open { display: block; }
     .cart-drawer {
-      position: fixed; top: 0; right: -400px;
+      position: fixed; top: 0; right: 0;
+      transform: translateX(100%);
       width: 400px; max-width: 90vw; height: 100%;
       background: var(--bg-primary);
       border-left: 1px solid var(--border-color);
       z-index: 3001;
       display: flex; flex-direction: column;
-      transition: right var(--transition-med);
+      transition: transform var(--transition-med);
     }
-    .cart-drawer.open { right: 0; }
+    .cart-drawer.open { transform: translateX(0); }
     .cart-header {
       display: flex; justify-content: space-between; align-items: center;
       padding: var(--spacing-md); border-bottom: 1px solid var(--border-color);
@@ -2526,7 +2528,13 @@
       .nav-links a { padding: 10px 0; min-height: 44px; width: 100%; display: flex; align-items: center; font-size: 0.85rem; }
       .hamburger { margin: 0; padding: 8px; border-right: none; order: 2; }
       .nav-search { display: none; }
-      .nav-icons { display: none; }
+      /* Keep primary actions reachable; the menu toggle is inside .nav-icons. */
+      .nav-icons { display: flex; margin-left: auto; gap: 0; }
+      .nav-icons > .nav-icon { display: none; }
+      .nav-icons > #wishlistNav,
+      .nav-icons > .nav-icon[title="Cart"] { display: flex; }
+      .nav-icon { min-width: 42px; min-height: 44px; }
+      .hamburger { min-width: 44px; min-height: 44px; }
       .mobile-search { display: block; }
       .mobile-icons-row { display: flex; align-items: center; gap: var(--spacing-md); padding-top: var(--spacing-md); margin-top: var(--spacing-sm); border-top: 1px solid var(--border-color); justify-content: center; }
       .hero-tile:nth-child(n+4) { display: none; }
@@ -3171,8 +3179,9 @@
     .review-form input:focus, .review-form textarea:focus { outline: none; border-color: var(--accent); }
     .review-verify { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; }
     .star-input { display: flex; gap: 0.2rem; font-size: 1.6rem; cursor: pointer; user-select: none; }
-    .star-input span { color: var(--border-color); transition: color 0.15s ease, transform 0.15s ease; }
-    .star-input span:hover, .star-input span.selected { color: #f5b301; transform: scale(1.08); }
+    .star-input button { background:none; border:0; font:inherit; cursor:pointer; padding:0 0.15rem; min-width:36px; min-height:44px; }
+    .star-input button { color: var(--border-color); transition: color 0.15s ease, transform 0.15s ease; }
+    .star-input button:hover, .star-input button.selected { color: #f5b301; transform: scale(1.08); }
     .review-error { font-size: 0.8rem; color: var(--accent); }
 
     /* Low stock urgency (real inventory only) */
@@ -3857,16 +3866,16 @@
         </span>
       </div>
 
-      <ul class="nav-links" id="navLinks" role="menubar" aria-label="Main navigation">
-        <li><a data-nav="about" role="menuitem" onclick="navigateTo('about'); closeMenu();">About</a></li>
-        <li><a data-nav="all" role="menuitem" onclick="navigateTo('home'); closeMenu();">Home</a></li>
-        <li><a data-nav="anime" role="menuitem" onclick="navigateTo('collection', 'anime'); closeMenu();">Anime Shirts</a></li>
-        <li><a data-nav="streetwear" role="menuitem" onclick="navigateTo('collection', 'streetwear'); closeMenu();">Streetwear</a></li>
-        <li><a data-nav="kage-animals" role="menuitem" onclick="navigateTo('kage-animals'); closeMenu();">KAGE Animals</a></li>
-        <li><a data-nav="kage-clothes" role="menuitem" onclick="navigateTo('kage-clothes'); closeMenu();">KAGE Clothes</a></li>
-        <li><a data-nav="custom-stickers" role="menuitem" onclick="navigateTo('custom-stickers'); closeMenu();">Custom Stickers</a></li>
-        <li><a data-nav="tracking" role="menuitem" onclick="navigateTo('tracking'); closeMenu();">Track Order</a></li>
-        <li><a class="nav-admin" onclick="openAdminLogin(); closeMenu();" title="Admin">Admin</a></li>
+      <ul class="nav-links" id="navLinks" aria-label="Main navigation">
+        <li><a data-nav="about" href="/about" onclick="navigateTo('about'); closeMenu(); return false;">About</a></li>
+        <li><a data-nav="all" href="/" onclick="navigateTo('home'); closeMenu(); return false;">Home</a></li>
+        <li><a data-nav="anime" href="/collection/anime" onclick="navigateTo('collection', 'anime'); closeMenu(); return false;">Anime Shirts</a></li>
+        <li><a data-nav="streetwear" href="/collection/streetwear" onclick="navigateTo('collection', 'streetwear'); closeMenu(); return false;">Streetwear</a></li>
+        <li><a data-nav="kage-animals" href="/kage-animals" onclick="navigateTo('kage-animals'); closeMenu(); return false;">KAGE Animals</a></li>
+        <li><a data-nav="kage-clothes" href="/kage-clothes" onclick="navigateTo('kage-clothes'); closeMenu(); return false;">KAGE Clothes</a></li>
+        <li><a data-nav="custom-stickers" href="/custom-stickers" onclick="navigateTo('custom-stickers'); closeMenu(); return false;">Custom Stickers</a></li>
+        <li><a data-nav="tracking" href="/tracking" onclick="navigateTo('tracking'); closeMenu(); return false;">Track Order</a></li>
+        <li><a class="nav-admin" href="/admin" onclick="openAdminLogin(); closeMenu(); return false;" title="Admin">Admin</a></li>
         <li class="mobile-search"><input type="search" id="mobileSearch" placeholder="Search drops…" oninput="onSearchInput(this.value)" /></li>
         <li class="mobile-icons-row">
           <button class="nav-icon" onclick="navigateTo('tracking'); closeMenu();" title="Track Order" aria-label="Track Order"><img src="/images/track-order.png" alt="" width="22" height="22" /></button>
@@ -3897,14 +3906,15 @@
   </header>
 
   <main id="mainContent" aria-label="Main content">
+  <div id="productLoadError" role="alert" hidden style="padding:1rem 2rem;background:#FFF1EE;color:#75251C;text-align:center;">The catalog could not load. Shopping is temporarily unavailable. <button type="button" class="btn btn-sm btn-outline" onclick="loadProductsFromAPI()">Retry</button></div>
   <!-- HOME PAGE -->
   <div class="page active" id="page-home">
     <!-- HERO — CAMPAIGN IMAGE LAYOUT -->
     <section class="hero-strip">
       <picture class="hero-media">
-        <source srcset="images/hero-700.webp 700w, images/hero.webp 1376w" sizes="100vw" type="image/webp" />
-        <source srcset="images/hero-700.jpg 700w, images/hero.jpg 1376w" sizes="100vw" type="image/jpeg" />
-        <img src="images/hero.jpg" alt="KAGE CULTURE campaign — model wearing the white EVERYONE oversized tee, with two motion-blurred pedestrians walking past on a warm beige backdrop" fetchpriority="high" />
+        <source srcset="/images/hero-700.webp 700w, /images/hero.webp 1376w" sizes="100vw" type="image/webp" />
+        <source srcset="/images/hero-700.jpg 700w, /images/hero.jpg 1376w" sizes="100vw" type="image/jpeg" />
+        <img src="/images/hero.jpg" alt="KAGE CULTURE campaign — model wearing the white EVERYONE oversized tee, with two motion-blurred pedestrians walking past on a warm beige backdrop" fetchpriority="high" />
       </picture>
 
       <!-- Spray-paint border around the hero photo -->
@@ -3933,24 +3943,24 @@
       <div class="category-band">
         <div class="container">
           <div class="category-strip">
-            <a class="cat-tile reveal" onclick="navigateTo('collection', 'anime')">
-              <span class="cat-thumb"><img src="images/cat-anime-shirts.jpg" alt="Anime Shirts" loading="lazy" style="object-position: center 65%;" /></span>
+            <a class="cat-tile reveal" href="/collection/anime" onclick="navigateTo('collection', 'anime'); return false;">
+              <span class="cat-thumb"><img src="/images/cat-anime-shirts.jpg" alt="Anime Shirts" loading="lazy" style="object-position: center 65%;" /></span>
               <span class="cat-info">
                 <span class="cat-name">Anime Shirts</span>
                 <span class="cat-desc">Original art on premium cotton. Each piece is wearable fandom.</span>
                 <span class="cat-shop">Explore <i><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg></i></span>
               </span>
             </a>
-            <a class="cat-tile reveal" onclick="navigateTo('kage-animals')">
-              <span class="cat-thumb"><img src="images/cat-kage-animals.jpg" alt="KAGE Animals" loading="lazy" /></span>
+            <a class="cat-tile reveal" href="/kage-animals" onclick="navigateTo('kage-animals'); return false;">
+              <span class="cat-thumb"><img src="/images/cat-kage-animals.jpg" alt="KAGE Animals" loading="lazy" /></span>
               <span class="cat-info">
                 <span class="cat-name">KAGE Animals</span>
                 <span class="cat-desc">Four spirits. Collect all four sticker animals by purchasing shirts.</span>
                 <span class="cat-shop">Explore <i><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg></i></span>
               </span>
             </a>
-            <a class="cat-tile reveal" onclick="navigateTo('custom-stickers')">
-              <span class="cat-thumb"><img src="images/cat-custom-stickers.jpg" alt="Custom Stickers" loading="lazy" /></span>
+            <a class="cat-tile reveal" href="/custom-stickers" onclick="navigateTo('custom-stickers'); return false;">
+              <span class="cat-thumb"><img src="/images/cat-custom-stickers.jpg" alt="Custom Stickers" loading="lazy" /></span>
               <span class="cat-info">
                 <span class="cat-name">Custom Stickers</span>
                 <span class="cat-desc">Your design, our print. Peel-proof vinyl, any size.</span>
@@ -3973,8 +3983,8 @@
         </div>
         <div class="vibes-image">
           <picture>
-            <source type="image/webp" srcset="images/vibes.webp" />
-            <img src="images/vibes.jpg" alt="Back view of the BEHIND graphic tee — KAGE CULTURE model in an oversized black tee, blurred pedestrians walking past in a studio" loading="lazy" />
+            <source type="image/webp" srcset="/images/vibes.webp" />
+            <img src="/images/vibes.jpg" alt="Back view of the BEHIND graphic tee — KAGE CULTURE model in an oversized black tee, blurred pedestrians walking past in a studio" loading="lazy" />
           </picture>
         </div>
       </div>
@@ -3997,7 +4007,7 @@
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2l9 5v10l-9 5-9-5V7l9-5zM2 7l10 5 10-5M12 12v10"/></svg>
             </div>
             <h4>Easy Returns</h4>
-            <p>Within 15 days, no questions asked.</p>
+            <p>Request returns within 7 days; conditions apply.</p>
           </div>
           <div class="why-item reveal">
             <div class="why-icon">
@@ -4025,7 +4035,7 @@
             <p class="section-label">Most Popular</p>
             <h2 class="section-title">BEST SELLERS</h2>
           </div>
-          <a class="bestsellers-viewall" onclick="navigateTo('collection', 'all')">View All <i><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg></i></a>
+          <a class="bestsellers-viewall" href="/collection/all" onclick="navigateTo('collection', 'all'); return false;">View All <i><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg></i></a>
         </div>
         <div class="product-grid" id="bestSellersGrid"></div>
       </div>
@@ -4109,13 +4119,13 @@
           <div class="footer-col footer-help">
             <h4>Help</h4>
             <ul>
-              <li><a onclick="navigateTo('about')">About</a></li>
-              <li><a onclick="navigateTo('contact')">Contact</a></li>
-              <li><a onclick="navigateTo('tracking')">Track Order</a></li>
-              <li><a onclick="navigateTo('shipping')">Shipping</a></li>
-              <li><a onclick="navigateTo('returns')">Returns & Refunds</a></li>
-              <li><a onclick="navigateTo('privacy')">Privacy Policy</a></li>
-              <li><a onclick="navigateTo('terms')">Terms of Service</a></li>
+              <li><a href="/about" onclick="navigateTo('about'); return false;">About</a></li>
+              <li><a href="/contact" onclick="navigateTo('contact'); return false;">Contact</a></li>
+              <li><a href="/tracking" onclick="navigateTo('tracking'); return false;">Track Order</a></li>
+              <li><a href="/shipping" onclick="navigateTo('shipping'); return false;">Shipping</a></li>
+              <li><a href="/returns" onclick="navigateTo('returns'); return false;">Returns & Refunds</a></li>
+              <li><a href="/privacy" onclick="navigateTo('privacy'); return false;">Privacy Policy</a></li>
+              <li><a href="/terms" onclick="navigateTo('terms'); return false;">Terms of Service</a></li>
             </ul>
           </div>
           <div class="footer-social">
@@ -4156,8 +4166,8 @@
             <span class="payment-icon">Bank Transfer</span>
           </div>
           <div class="footer-bottom-links">
-            <a onclick="navigateTo('privacy')">Privacy</a>
-            <a onclick="navigateTo('terms')">Terms</a>
+            <a href="/privacy" onclick="navigateTo('privacy'); return false;">Privacy</a>
+            <a href="/terms" onclick="navigateTo('terms'); return false;">Terms</a>
           </div>
         </div>
       </div>
@@ -4193,7 +4203,7 @@
       </form>
       <div class="tracking-error" id="rstError" style="display:none;"></div>
       <div id="rstMsg" style="display:none; margin-top:0.8rem; font-size:0.85rem; color:var(--accent);"></div>
-      <p style="margin-top:1rem;"><a onclick="navigateTo('home')" style="color: var(--accent); cursor: pointer; font-size: 0.85rem;">← Back to Shop</a></p>
+      <p style="margin-top:1rem;"><a href="/" onclick="navigateTo('home'); return false;" style="color: var(--accent); cursor: pointer; font-size: 0.85rem;">← Back to Shop</a></p>
     </div>
   </div>
 
@@ -4266,7 +4276,7 @@
         <div class="confirm-items" id="confItems"></div>
         <div class="confirm-next">
           <p>We'll confirm your order by email or phone shortly. Keep your order number handy.</p>
-          <p style="text-align:center;margin-bottom:0.6rem;"><a class="track-order-link" onclick="goTrackOrder()">Track your order anytime <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg></a></p>
+          <p style="text-align:center;margin-bottom:0.6rem;"><a class="track-order-link" href="/tracking" onclick="goTrackOrder(); return false;">Track your order anytime <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg></a></p>
           <button class="btn btn-primary" onclick="navigateTo('home'); initShop('all')">Continue Shopping</button>
         </div>
       </div>
@@ -4419,7 +4429,7 @@ n      <!-- Action buttons -->
           <p class="review-form-note">Only customers with a <strong>delivered</strong> order can review — we verify your order number and phone to keep reviews authentic.</p>
           <form class="review-form" onsubmit="submitReview(event)">
             <div class="star-input" id="starInput">
-              <span data-v="1">★</span><span data-v="2">★</span><span data-v="3">★</span><span data-v="4">★</span><span data-v="5">★</span>
+              <button type="button" data-v="1" aria-label="1 star rating" aria-pressed="false">★</button><button type="button" data-v="2" aria-label="2 star rating" aria-pressed="false">★</button><button type="button" data-v="3" aria-label="3 star rating" aria-pressed="false">★</button><button type="button" data-v="4" aria-label="4 star rating" aria-pressed="false">★</button><button type="button" data-v="5" aria-label="5 star rating" aria-pressed="false">★</button>
             </div>
             <input type="text" id="rvName" placeholder="Your name (optional)" maxlength="60" />
             <textarea id="rvComment" placeholder="What did you think? Fit, quality, feel…" rows="3" maxlength="1000"></textarea>
@@ -4439,6 +4449,8 @@ n      <!-- Action buttons -->
       <button class="btn btn-primary" onclick="detailAddToCart()">Add to Cart</button>
     </div>
   </div>
+
+  <div class="page" id="page-not-found"><div class="container tracking-page"><h1>Page not found</h1><p>That link doesn't lead to a KAGE page.</p><button class="btn btn-primary" onclick="navigateTo('home')">Back to shop</button></div></div>
 
   <!-- CART -->
   <div class="cart-overlay" id="cartOverlay" onclick="toggleCart()"></div>
@@ -4473,17 +4485,17 @@ n      <!-- Action buttons -->
         <div class="account-sidebar">
           <div class="account-card">
             <h3>Profile</h3>
-            <div class="acct-field"><label>Name</label><input type="text" id="acctNameInput" /></div>
-            <div class="acct-field"><label>Phone</label><input type="tel" id="acctPhone" /></div>
-            <div class="acct-field"><label>Address</label><input type="text" id="acctAddress" /></div>
-            <div class="acct-field"><label>City</label><input type="text" id="acctCity" /></div>
+            <div class="acct-field"><label for="acctNameInput">Name</label><input type="text" id="acctNameInput" /></div>
+            <div class="acct-field"><label for="acctPhone">Phone</label><input type="tel" id="acctPhone" /></div>
+            <div class="acct-field"><label for="acctAddress">Address</label><input type="text" id="acctAddress" /></div>
+            <div class="acct-field"><label for="acctCity">City</label><input type="text" id="acctCity" /></div>
             <button class="acct-btn" onclick="saveAccountProfile()">Save Changes</button>
             <div class="acct-msg" id="acctProfileMsg"></div>
           </div>
           <div class="account-card">
             <h3>Change Password</h3>
-            <div class="acct-field"><label>Current Password</label><input type="password" id="acctCurrentPw" /></div>
-            <div class="acct-field"><label>New Password</label><input type="password" id="acctNewPw" placeholder="Min. 6 characters" /></div>
+            <div class="acct-field"><label for="acctCurrentPw">Current Password</label><input type="password" id="acctCurrentPw" /></div>
+            <div class="acct-field"><label for="acctNewPw">New Password</label><input type="password" id="acctNewPw" placeholder="Min. 6 characters" /></div>
             <button class="acct-btn" onclick="changeAccountPassword()">Update Password</button>
             <div class="acct-msg" id="acctPwMsg"></div>
           </div>
@@ -4532,7 +4544,7 @@ n    <!-- CONTENT PAGES -->
           <h3 style="color: var(--text-primary); font-size: 1rem; margin: var(--spacing-lg) 0 var(--spacing-sm);">Defective Items</h3>
           <p>If you received a defective or wrong item, contact us within 48 hours with photos. We'll cover return shipping and send a replacement or full refund.</p>
         </div>
-        <p style="margin-top: var(--spacing-xl);"><a onclick="navigateTo('home')" style="color: var(--accent); cursor: pointer; font-size: 0.85rem;">← Back to Shop</a></p>
+        <p style="margin-top: var(--spacing-xl);"><a href="/" onclick="navigateTo('home'); return false;" style="color: var(--accent); cursor: pointer; font-size: 0.85rem;">← Back to Shop</a></p>
       </div>
     </div>
 
@@ -4566,7 +4578,7 @@ n    <!-- CONTENT PAGES -->
             <li style="padding: 0.3rem 0;"><strong style="color: var(--text-primary);">JazzCash</strong> — send payment to <strong style="color: var(--text-primary);">0322-8042633</strong></li>
           </ul>
         </div>
-        <p style="margin-top: var(--spacing-xl);"><a onclick="navigateTo('home')" style="color: var(--accent); cursor: pointer; font-size: 0.85rem;">← Back to Shop</a></p>
+        <p style="margin-top: var(--spacing-xl);"><a href="/" onclick="navigateTo('home'); return false;" style="color: var(--accent); cursor: pointer; font-size: 0.85rem;">← Back to Shop</a></p>
       </div>
     </div>
 
@@ -4578,7 +4590,7 @@ n    <!-- CONTENT PAGES -->
           <p style="margin-bottom: var(--spacing-md);">Last updated: August 2026</p>
 
           <h3 style="color: var(--text-primary); font-size: 1rem; margin: var(--spacing-lg) 0 var(--spacing-sm);">1. Acceptance of Terms</h3>
-          <p>By accessing and using the KAGE Culture website (kage-culture.vercel.app), you agree to be bound by these Terms of Service.</p>
+          <p>By accessing and using the KAGE Culture website (kage-culture-ruby.vercel.app), you agree to be bound by these Terms of Service.</p>
 
           <h3 style="color: var(--text-primary); font-size: 1rem; margin: var(--spacing-lg) 0 var(--spacing-sm);">2. Products & Pricing</h3>
           <p>All product descriptions, images, and specifications are as accurate as possible. Colors may vary slightly due to screen settings. Prices are in Pakistani Rupees (PKR) and include applicable taxes. We reserve the right to modify prices without prior notice.</p>
@@ -4595,7 +4607,7 @@ n    <!-- CONTENT PAGES -->
           <h3 style="color: var(--text-primary); font-size: 1rem; margin: var(--spacing-lg) 0 var(--spacing-sm);">6. Contact</h3>
           <p>For questions about these terms, contact us via WhatsApp at <a href="https://wa.me/923228042633" style="color: var(--accent);" target="_blank">+92 322 804 2633</a>.</p>
         </div>
-        <p style="margin-top: var(--spacing-xl);"><a onclick="navigateTo('home')" style="color: var(--accent); cursor: pointer; font-size: 0.85rem;">← Back to Shop</a></p>
+        <p style="margin-top: var(--spacing-xl);"><a href="/" onclick="navigateTo('home'); return false;" style="color: var(--accent); cursor: pointer; font-size: 0.85rem;">← Back to Shop</a></p>
       </div>
     </div>
 
@@ -4628,7 +4640,7 @@ n    <!-- CONTENT PAGES -->
           <h3 style="color: var(--text-primary); font-size: 1rem; margin: var(--spacing-lg) 0 var(--spacing-sm);">Your Rights</h3>
           <p>You may request access to, correction of, or deletion of your personal data by contacting us via WhatsApp at <a href="https://wa.me/923228042633" style="color: var(--accent);" target="_blank">+92 322 804 2633</a>.</p>
         </div>
-        <p style="margin-top: var(--spacing-xl);"><a onclick="navigateTo('home')" style="color: var(--accent); cursor: pointer; font-size: 0.85rem;">← Back to Shop</a></p>
+        <p style="margin-top: var(--spacing-xl);"><a href="/" onclick="navigateTo('home'); return false;" style="color: var(--accent); cursor: pointer; font-size: 0.85rem;">← Back to Shop</a></p>
       </div>
     </div>
 
@@ -4653,8 +4665,8 @@ n    <!-- CONTENT PAGES -->
             <!-- Hero: model mid-kick with KAGE lettering + circular ring overlay (right column) -->
             <div class="about-hero">
               <picture>
-                <source type="image/webp" srcset="images/about-hero-500.webp 600w, images/about-hero.webp 1024w" sizes="(max-width: 768px) 92vw, (max-width: 900px) 55vw, 60vw" />
-                <img class="about-hero-img" src="images/about-hero.jpg" srcset="images/about-hero-500.jpg 600w, images/about-hero.jpg 1024w" sizes="(max-width: 768px) 92vw, (max-width: 900px) 55vw, 60vw" alt="Kage Culture model mid-kick in an oversized black t-shirt with red graphic art and loose denim, set against metallic KAGE split-letter typography, a circular ring frame, and graffiti detailing" loading="lazy" onerror="this.style.display='none'; document.getElementById('aboutHeroFallback').style.display='flex';" />
+                <source type="image/webp" srcset="/images/about-hero-500.webp 600w, /images/about-hero.webp 1024w" sizes="(max-width: 768px) 92vw, (max-width: 900px) 55vw, 60vw" />
+                <img class="about-hero-img" src="/images/about-hero.jpg" srcset="/images/about-hero-500.jpg 600w, /images/about-hero.jpg 1024w" sizes="(max-width: 768px) 92vw, (max-width: 900px) 55vw, 60vw" alt="Kage Culture model mid-kick in an oversized black t-shirt with red graphic art and loose denim, set against metallic KAGE split-letter typography, a circular ring frame, and graffiti detailing" loading="lazy" onerror="this.style.display='none'; document.getElementById('aboutHeroFallback').style.display='flex';" />
               </picture>
               <div class="about-hero-fallback" id="aboutHeroFallback">
                 <span class="about-ring" aria-hidden="true"></span>
@@ -4693,7 +4705,7 @@ n    <!-- CONTENT PAGES -->
         <!-- Spirit Detail Page -->
     <div class="page" id="page-spirit-detail">
       <div class="spirit-detail-page">
-        <a class="spirit-back-link" onclick="navigateTo('kage-animals')">← Back to KAGE Animals</a>
+        <a class="spirit-back-link" href="/kage-animals" onclick="navigateTo('kage-animals'); return false;">← Back to KAGE Animals</a>
         <div id="spirit-content"></div>
       </div>
     </div>
@@ -4712,7 +4724,7 @@ n    <!-- CONTENT PAGES -->
           <div class="collection-cards">
             <div class="collection-card">
               <div class="collection-card-img">
-                <img class="kage-portrait" src="images/animal-bear.jpg" alt="Bear — The Foundation" />
+                <img class="kage-portrait" src="/images/animal-bear.jpg" alt="Bear — The Foundation" />
                 <span class="coming-soon-tag">Coming Soon</span>
               </div>
               <div class="collection-card-body">
@@ -4724,7 +4736,7 @@ n    <!-- CONTENT PAGES -->
             </div>
             <div class="collection-card">
               <div class="collection-card-img">
-                <img class="kage-portrait" src="images/animal-white-tiger.jpg" alt="White Tiger — The Presence" />
+                <img class="kage-portrait" src="/images/animal-white-tiger.jpg" alt="White Tiger — The Presence" />
                 <span class="coming-soon-tag">Coming Soon</span>
               </div>
               <div class="collection-card-body">
@@ -4736,7 +4748,7 @@ n    <!-- CONTENT PAGES -->
             </div>
             <div class="collection-card">
               <div class="collection-card-img">
-                <img class="kage-portrait" src="images/animal-black-panther.jpg" alt="Black Panther — The Silence" />
+                <img class="kage-portrait" src="/images/animal-black-panther.jpg" alt="Black Panther — The Silence" />
                 <span class="coming-soon-tag">Coming Soon</span>
               </div>
               <div class="collection-card-body">
@@ -4748,7 +4760,7 @@ n    <!-- CONTENT PAGES -->
             </div>
             <div class="collection-card">
               <div class="collection-card-img">
-                <img class="kage-portrait" src="images/animal-white-fox.jpg" alt="White Fox — The Intelligence" />
+                <img class="kage-portrait" src="/images/animal-white-fox.jpg" alt="White Fox — The Intelligence" />
                 <span class="coming-soon-tag">Coming Soon</span>
               </div>
               <div class="collection-card-body">
@@ -4873,7 +4885,7 @@ n    <!-- CONTENT PAGES -->
             </div>
           </div>
         </div>
-        <p style="margin-top: var(--spacing-xl);"><a onclick="navigateTo('home')" style="color: var(--accent); cursor: pointer; font-size: 0.85rem;">← Back to Shop</a></p>
+        <p style="margin-top: var(--spacing-xl);"><a href="/" onclick="navigateTo('home'); return false;" style="color: var(--accent); cursor: pointer; font-size: 0.85rem;">← Back to Shop</a></p>
       </div>
     </div>
 
@@ -4934,6 +4946,35 @@ n    <!-- CONTENT PAGES -->
     ];
 
     let cart = [];
+    let shopStateReady = false;
+    function persistShopState() {
+      if (!shopStateReady) return;
+      try {
+        localStorage.setItem('kageCart', JSON.stringify(cart.map(i => ({ id: i.id, size: i.size, qty: i.qty }))));
+        localStorage.setItem('kageWishlist', JSON.stringify([...wishlist]));
+      } catch (e) { /* private mode / storage disabled */ }
+    }
+    function restoreShopState() {
+      try {
+        const saved = JSON.parse(localStorage.getItem('kageCart') || '[]');
+        cart = Array.isArray(saved) ? saved.slice(0, 50).map(i => {
+          const p = allProducts.find(x => x.id === Number(i.id));
+          if (!p || !isAvailable(p) || !p.sizes.includes(i.size)) return null;
+          const qty = Math.min(99, p.stock_qty ?? 99, Math.max(0, Math.floor(Number(i.qty) || 0)));
+          return qty ? { ...p, size: i.size, qty } : null;
+        }).filter(Boolean) : [];
+        const ids = JSON.parse(localStorage.getItem('kageWishlist') || '[]');
+        wishlist.clear();
+        if (Array.isArray(ids)) ids.forEach(id => {
+          const p = allProducts.find(x => x.id === Number(id));
+          if (p) wishlist.add(p.id);
+        });
+      } catch (e) { cart = []; wishlist.clear(); }
+      shopStateReady = true;
+      document.getElementById('wishlistCount').textContent = wishlist.size;
+      document.getElementById('wishlistCountMobile').textContent = wishlist.size;
+      updateCartUI();
+    }
     let currentProduct = null;
     let detailQty = 1;
     let detailSize = 'L';
@@ -4955,8 +4996,8 @@ n    <!-- CONTENT PAGES -->
     const HEART_SVG = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>';
     const filterState = {
       cats: new Set(['Anime-Inspired', 'Japanese Art', 'Typography']),
-      priceMin: 500,
-      priceMax: 2000,
+      priceMin: 0,
+      priceMax: 10000,
       size: '',
       collection: ''
     };
@@ -5018,6 +5059,8 @@ n    <!-- CONTENT PAGES -->
     }
 
     // Real low-stock flag — only rendered when stock_qty is a real number at or below 5.
+    function isAvailable(p) { return p.in_stock !== false && (p.stock_qty == null || Number(p.stock_qty) > 0); }
+
     function lowStockBadge(p) {
       const s = p.stock_qty;
       if (s != null && s !== '' && s > 0 && s <= 5) return `<span class="low-stock-flag">Only ${s} left</span>`;
@@ -5043,7 +5086,7 @@ n    <!-- CONTENT PAGES -->
       if (!productsLoadedFromApi) return true;
       return allProducts.some(p => {
         const stocked = p.in_stock !== false;
-        if (filter === 'sale') return stocked && (p.on_sale || (p.sale_price && p.sale_price < p.price));
+        if (filter === 'sale') return stocked && (p.on_sale || (p.sale_price && p.sale_price < p.original_price));
         return stocked && p.collection === filter;
       });
     }
@@ -5058,7 +5101,39 @@ n    <!-- CONTENT PAGES -->
       if (msgEl) msgEl.textContent = '';
       if (emailEl) emailEl.value = '';
     }
-    function navigateTo(page, filter) {
+    let restoringHistory = false;
+    function routeFor(page, filter) {
+      if (page === 'home') return '/';
+      if (page === 'collection' || page === 'collections') return '/collection/' + encodeURIComponent(filter || 'all');
+      if (page === 'product' && currentProduct) return '/product/' + currentProduct.id;
+      if (page === 'spirit-detail') return '/kage-animals/' + openedSpiritId;
+      if (page === 'reset') return location.pathname === '/reset-password' ? location.pathname + location.search : '/reset-password';
+      return '/' + page;
+    }
+    function restoreRouteFromLocation() {
+      restoringHistory = true;
+      try {
+        const path = decodeURIComponent(location.pathname);
+        if (path === '/') navigateTo('home');
+        else if (path.startsWith('/product/')) {
+          const id = Number(path.slice('/product/'.length));
+          if (Number.isInteger(id) && allProducts.some(p => p.id === id)) openProductDetail(id);
+          else navigateTo('not-found');
+        } else if (path.startsWith('/kage-animals/')) {
+          const id = path.slice('/kage-animals/'.length);
+          if (Object.prototype.hasOwnProperty.call(SPIRITS, id)) openSpirit(id);
+          else navigateTo('not-found');
+        } else if (path.startsWith('/collection/')) {
+          navigateTo('collection', path.slice('/collection/'.length));
+        } else if (path === '/reset-password') { navigateTo('reset'); initPasswordReset(); }
+        else if (['about','contact','shipping','returns','privacy','terms','tracking','kage-animals','kage-clothes','custom-stickers','account','coming-soon'].includes(path.slice(1))) navigateTo(path.slice(1));
+        else navigateTo('not-found');
+      } catch (e) { navigateTo('not-found'); }
+      finally { restoringHistory = false; }
+    }
+    window.addEventListener('popstate', restoreRouteFromLocation);
+
+    function navigateTo(page, filter, options = {}) {
       document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
       let target = page;
       if (page === 'collection' || page === 'collections') {      // Graphic Tees always routes to the Coming Soon page. Other categories
@@ -5082,6 +5157,16 @@ n    <!-- CONTENT PAGES -->
         mainEl.appendChild(t);
       }
       t.classList.add('active');
+      if (!restoringHistory && !options.skipHistory) {
+        const url = routeFor(page, filter);
+        if (url !== location.pathname + location.search) history.pushState(null, '', url);
+      }
+      // Keep share previews and canonical tags aligned with the visible SPA route.
+      const canonicalUrl = 'https://kage-culture-ruby.vercel.app' + location.pathname;
+      document.querySelector('link[rel="canonical"]').href = canonicalUrl;
+      document.querySelector('meta[property="og:url"]').content = canonicalUrl;
+      document.title = target === 'home' ? 'KAGE CULTURE — Engineered Fit. Original Art.'
+        : ((target === 'product' && currentProduct) ? currentProduct.name : target.replace(/-/g, ' ')) + ' | KAGE CULTURE';
       window.scrollTo({ top: 0 });
       closeFilterDrawer();
       // Toggle body class for KAGE Animals page footer hiding
@@ -5121,8 +5206,8 @@ n    <!-- CONTENT PAGES -->
     function startCheckout() {
       const d = document.getElementById('cartDrawer');
       if (d.classList.contains('open')) toggleCart();
+      if (!productsLoadedFromApi) { showToast('Shop temporarily unavailable. Please retry loading products.'); return; }
       if (!cart.length) { showToast('Your cart is empty.'); return; }
-      renderCheckout();
       navigateTo('checkout');
     }
 
@@ -5152,21 +5237,24 @@ n    <!-- CONTENT PAGES -->
         </div>`;
       }).join('');
       const shipping = 150;
-      document.getElementById('coSubtotal').textContent = 'Rs. ' + sub;
+      document.getElementById('coSubtotal').textContent = 'Rs. ' + fmt(sub);
       document.getElementById('coShipping').textContent = 'Rs. ' + shipping;
-      document.getElementById('coTotal').textContent = 'Rs. ' + (sub + shipping);
-      // Show/hide payment reference field
-      document.querySelectorAll('input[name="payMethod"]').forEach(r => {
-        r.addEventListener('change', () => {
-          const refGroup = document.getElementById('paymentRefGroup');
-          refGroup.style.display = (r.value === 'jazzcash' || r.value === 'bank') ? 'block' : 'none';
-        });
-      });
+      document.getElementById('coTotal').textContent = 'Rs. ' + fmt(sub + shipping);
+      updatePaymentRefVisibility();
     }
+
+    function updatePaymentRefVisibility() {
+      const selected = document.querySelector('input[name="payMethod"]:checked');
+      document.getElementById('paymentRefGroup').style.display = selected && selected.value !== 'cod' ? 'block' : 'none';
+    }
+    document.getElementById('page-checkout').addEventListener('change', e => {
+      if (e.target.matches('input[name="payMethod"]')) updatePaymentRefVisibility();
+    });
 
     async function placeOrder() {
       const errEl = document.getElementById('checkoutError');
       errEl.style.display = 'none';
+      if (!productsLoadedFromApi) { errEl.textContent = 'Shop temporarily unavailable. Please retry loading products.'; errEl.style.display = 'block'; return; }
       const f = {
         name: document.getElementById('coName').value.trim(),
         email: document.getElementById('coEmail').value.trim(),
@@ -5207,7 +5295,6 @@ n    <!-- CONTENT PAGES -->
           lastOrder = data;
           cart = [];
           updateCartUI();
-          renderConfirmation(data);
           navigateTo('confirmation');
         } else {
           errEl.textContent = data.error || 'Could not place the order. Please try again.';
@@ -5221,6 +5308,7 @@ n    <!-- CONTENT PAGES -->
       btn.textContent = 'Place Order';
     }
 
+    let spinPopupShownForOrder = null;
     function renderConfirmation(order) {
       document.getElementById('confName').textContent = order.customer_name;
       document.getElementById('confNumber').textContent = order.order_number;
@@ -5229,7 +5317,7 @@ n    <!-- CONTENT PAGES -->
       const payLabel = order.payment_method === 'bank' ? 'Bank Transfer' : order.payment_method === 'jazzcash' ? 'JazzCash' : 'Cash on Delivery';
       document.getElementById('confPayment').textContent = order.payment_ref ? `${payLabel} (Ref: ${order.payment_ref})` : payLabel;
       document.getElementById('confAddress').textContent = order.address + ', ' + order.city;
-      document.getElementById('confTotal').textContent = 'Rs. ' + order.total;
+      document.getElementById('confTotal').textContent = 'Rs. ' + fmt(order.total);
       document.getElementById('confItems').innerHTML = (order.items || []).map(it => `
         <div class="conf-item">
           <span>${esc(it.name)}${it.size ? ' \u00b7 Size ' + esc(it.size) : ''} \u00d7 ${it.qty}</span>
@@ -5238,17 +5326,20 @@ n    <!-- CONTENT PAGES -->
 
       // Show spin wheel popup after order if the customer has spins
       const email = order.email || '';
-      if (email) openSpinPopup(email);
+      if (email && spinPopupShownForOrder !== order.order_number) {
+        spinPopupShownForOrder = order.order_number;
+        openSpinPopup(email);
+      }
     }
 
     /* ================================================================
        SPIN-THE-WHEEL SYSTEM
        ================================================================ */
     const KAGE_ANIMALS = [
-      { id: 'bear',         emoji: '\ud83d\udc3b', name: 'Bear',         color: '#3B82F6', rarity: 'Common',    weight: 45, img: 'images/animal-bear.webp', imgFallback: 'images/animal-bear-sm.jpg' },
-      { id: 'black-panther',emoji: '\ud83d\udc08', name: 'Black Panther',color: '#22C55E', rarity: 'Uncommon',  weight: 25, img: 'images/animal-black-panther.webp', imgFallback: 'images/animal-black-panther-sm.jpg' },
-      { id: 'white-fox',    emoji: '\ud83e\udd8a', name: 'White Fox',    color: '#EF4444', rarity: 'Rare',      weight: 20, img: 'images/animal-white-fox.webp', imgFallback: 'images/animal-white-fox-sm.jpg' },
-      { id: 'white-tiger',  emoji: '\ud83d\udc2f', name: 'White Tiger',  color: '#9333EA', rarity: 'Mythic',    weight: 10, img: 'images/animal-white-tiger.webp', imgFallback: 'images/animal-white-tiger-sm.jpg' }
+      { id: 'bear',         emoji: '\ud83d\udc3b', name: 'Bear',         color: '#3B82F6', rarity: 'Common',    weight: 45, img: '/images/animal-bear.webp', imgFallback: '/images/animal-bear-sm.jpg' },
+      { id: 'black-panther',emoji: '\ud83d\udc08', name: 'Black Panther',color: '#22C55E', rarity: 'Uncommon',  weight: 25, img: '/images/animal-black-panther.webp', imgFallback: '/images/animal-black-panther-sm.jpg' },
+      { id: 'white-fox',    emoji: '\ud83e\udd8a', name: 'White Fox',    color: '#EF4444', rarity: 'Rare',      weight: 20, img: '/images/animal-white-fox.webp', imgFallback: '/images/animal-white-fox-sm.jpg' },
+      { id: 'white-tiger',  emoji: '\ud83d\udc2f', name: 'White Tiger',  color: '#9333EA', rarity: 'Mythic',    weight: 10, img: '/images/animal-white-tiger.webp', imgFallback: '/images/animal-white-tiger-sm.jpg' }
     ];
     let spinEmail = '';
     let spinState = null; // { spins_remaining, collection, unique_count, has_all_four }
@@ -5474,68 +5565,70 @@ n    <!-- CONTENT PAGES -->
       "bear": {
         name: "Bear", subtitle: "The Foundation", kanji: "影",
         brand: "KAGE", animalLabel: "THE LONE BEAR",
-        video: "images/bear.mp4",
+        video: "/images/bear.mp4",
         desc: 'Unshakable. The bear does not move for anyone. Raw power wrapped in patience. Represents <strong>KAGE</strong>: consistency, strength, and the refusal to fold under pressure.',
-        hero: "images/bear-hero.jpg",
-        gallery: ["images/bear-1.jpg", "images/bear-2.jpg", "images/bear-3.jpg"],
+        hero: "/images/bear-hero.jpg",
+        gallery: ["/images/bear-1.jpg", "/images/bear-2.jpg", "/images/bear-3.jpg"],
         stats: [
           { icon: "🐻", label: "Power", value: "Stillness", desc: "Absolute calm that hides overwhelming strength and speed. Strikes with silence. Leaves an impact." },
           { icon: "🎯", label: "Style", value: "Focus · Grace · Strength", desc: "Every move is calculated. Every action has meaning. No wasted motion." },
           { icon: "影", label: "Name", value: "KAGE — 影 (Shadow)", desc: "A name that carries legacy. Not given. Earned." }
         ],
         quote: "A lone soul with calm power and deadly focus. KAGE is not seen — KAGE is felt.",
-        quoteBg: "images/bear-banner.jpg"
+        quoteBg: "/images/bear-banner.jpg"
       },
       "white-tiger": {
         name: "White Tiger", subtitle: "The Presence", kanji: "影",
         brand: "KAGE", animalLabel: "THE WHITE TIGER",
-        video: "images/whiteTiger.mp4",
+        video: "/images/whiteTiger.mp4",
         desc: 'Rare and impossible to ignore. The white tiger walks into a room and the energy shifts. Represents KAGE\'s commitment to standing out — not by being loud, but by being undeniable.',
-        hero: "images/white-tiger-hero.jpg",
-        gallery: ["images/white-tiger-1.jpg", "images/white-tiger-2.jpg", "images/white-tiger-3.jpg"],
+        hero: "/images/white-tiger-hero.jpg",
+        gallery: ["/images/white-tiger-1.jpg", "/images/white-tiger-2.jpg", "/images/white-tiger-3.jpg"],
         stats: [
           { icon: "🐯", label: "Power", value: "Stillness", desc: "Absolute calm that hides overwhelming strength and speed. Strikes with silence. Leaves an impact." },
           { icon: "🎯", label: "Style", value: "Focus · Grace · Strength · Discipline", desc: "Every move is calculated. Every action has meaning. No wasted motion." },
           { icon: "影", label: "Name", value: "KAGE — 影 (Shadow)", desc: "A name that carries legacy. Not given. Earned." }
         ],
         quote: "A lone soul with calm power and deadly focus. KAGE is not seen — KAGE is felt.",
-        quoteBg: "images/white-tiger-banner.jpg"
+        quoteBg: "/images/white-tiger-banner.jpg"
       },
       "black-panther": {
         name: "Black Panther", subtitle: "The Silence", kanji: "影",
         brand: "KAGE", animalLabel: "THE BLACK PANTHER",
-        video: "images/blackPanther.mp4",
+        video: "/images/blackPanther.mp4",
         desc: 'Moves in the dark. Strikes before you see it. The panther represents the <strong>KAGE</strong> mindset — calculated, precise, and always three steps ahead. No wasted energy. No wasted words.',
-        hero: "images/black-panther-hero.jpg",
-        gallery: ["images/black-panther-1.jpg", "images/black-panther-2.jpg", "images/black-panther-3.jpg"],
+        hero: "/images/black-panther-hero.jpg",
+        gallery: ["/images/black-panther-1.jpg", "/images/black-panther-2.jpg", "/images/black-panther-3.jpg"],
         stats: [
           { icon: "🌑", label: "Power", value: "Stealth", desc: "Moves in darkness. Strikes before you see it. Presence felt long after it vanishes." },
           { icon: "🎯", label: "Style", value: "Silence · Precision · Calm", desc: "Every move is calculated. Every action has meaning. No wasted motion." },
           { icon: "影", label: "Name", value: "KAGE — 影 (Shadow)", desc: "A name that carries legacy. Not given. Earned." }
         ],
         quote: "A shadow that hunts in silence. KAGE is not seen — KAGE is felt.",
-        quoteBg: "images/black-panther-banner.jpg"
+        quoteBg: "/images/black-panther-banner.jpg"
       },
       "white-fox": {
         name: "White Fox", subtitle: "The Intelligence", kanji: "影",
         brand: "KAGE", animalLabel: "THE WHITE FOX",
-        video: "images/whiteFox.mp4",
+        video: "/images/whiteFox.mp4",
         desc: 'Outsmarts everything in its path. The fox does not fight — it outmanoeuvres. Represents the creative mind behind KAGE: the design, the strategy, and the ability to turn obstacles into opportunities.',
-        hero: "images/fox-hero.jpg",
-        gallery: ["images/fox-1.jpg", "images/fox-2.jpg", "images/fox-3.jpg"],
+        hero: "/images/fox-hero.jpg",
+        gallery: ["/images/fox-1.jpg", "/images/fox-2.jpg", "/images/fox-3.jpg"],
         stats: [
           { icon: "🦊", label: "Power", value: "Cunning", desc: "Outsmarts everything in its path. The fox does not fight — it outmanoeuvres." },
           { icon: "🎯", label: "Style", value: "Sharp · Clean · Strategic", desc: "Every move is calculated. Every action has meaning. No wasted motion." },
           { icon: "影", label: "Name", value: "KAGE — 影 (Shadow)", desc: "A name that carries legacy. Not given. Earned." }
         ],
         quote: "A mind sharper than any blade. KAGE is not seen — KAGE is felt.",
-        quoteBg: "images/fox-banner.jpg"
+        quoteBg: "/images/fox-banner.jpg"
       }
     };
 
+    let openedSpiritId = 'white-tiger';
     function openSpirit(id) {
       var s = SPIRITS[id];
       if (!s) return;
+      openedSpiritId = id;
       var allImages = [s.hero].concat(s.gallery);
       var editorialHTML = allImages.map(function(src, i) {
         var h = '<img class="spirit-editorial-img" src="' + esc(src) + '" alt="' + esc(s.name) + ' editorial ' + (i+1) + '" loading="lazy" />';
@@ -5559,10 +5652,10 @@ n    <!-- CONTENT PAGES -->
       'bear':        { label: 'COMMON · 45%', color: '#60A5FA' }
     };
     var spiritPortraits = {
-      'white-tiger': 'images/animal-white-tiger-sm.jpg',
-      'white-fox':   'images/animal-white-fox-sm.jpg',
-      'black-panther':'images/animal-black-panther-sm.jpg',
-      'bear':        'images/animal-bear-sm.jpg'
+      'white-tiger': '/images/animal-white-tiger-sm.jpg',
+      'white-fox':   '/images/animal-white-fox-sm.jpg',
+      'black-panther':'/images/animal-black-panther-sm.jpg',
+      'bear':        '/images/animal-bear-sm.jpg'
     };
 
     // Build desktop selector cards
@@ -5730,8 +5823,8 @@ n    <!-- CONTENT PAGES -->
     function initShop(filter) {
       currentCollectionFilter = filter || 'all';
       currentPage = 1;
-      const titles = { 'all':'FEATURED DROPS | NEW ARRIVALS','new':'NEW ARRIVALS','anime':'ANIME SHIRTS','streetwear':'STREETWEAR','sale':'ON SALE','the-vault':'THE VAULT COLLECTION','iron-code':'IRON CODE COLLECTION','after-hours':'AFTER HOURS COLLECTION' };
-      const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.','anime':'Anime-inspired art on premium cotton. Each piece is unique — one size, one chance.','streetwear':'Bold silhouettes. Limited pieces. Built for those who take up space.','sale':'Limited-time markdowns. When it\'s gone, it\'s gone.','the-vault':'Power without effort.','iron-code':'Relentless self-made strength.','after-hours':'Quiet, terrifying precision.' };
+      const titles = { 'all':'FEATURED DROPS | NEW ARRIVALS','new':'NEW ARRIVALS','anime':'ANIME SHIRTS','streetwear':'STREETWEAR','goofy-wears':'GOOFY WEARS','sale':'ON SALE','the-vault':'THE VAULT COLLECTION','iron-code':'IRON CODE COLLECTION','after-hours':'AFTER HOURS COLLECTION' };
+      const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.','anime':'Anime-inspired art on premium cotton. Each piece is unique — one size, one chance.','streetwear':'Bold silhouettes. Limited pieces. Built for those who take up space.','goofy-wears':'Stickers with personality.','sale':'Limited-time markdowns. When it\'s gone, it\'s gone.','the-vault':'Power without effort.','iron-code':'Relentless self-made strength.','after-hours':'Quiet, terrifying precision.' };
       document.getElementById('collectionTitle').textContent = titles[filter] || titles.all;
       document.getElementById('collectionDesc').textContent = descs[filter] || '';
       const eb = document.getElementById('shopEyebrow');
@@ -5747,9 +5840,9 @@ n    <!-- CONTENT PAGES -->
       const filter = currentCollectionFilter;
       let f = [...allProducts];
       if (filter && filter !== 'all') {
-        if (filter === 'new') f = f.filter(p => p.id <= 3);
+        if (filter === 'new') f = f.slice(0, 8);
         else if (filter === 'sale') f = f.filter(p => p.on_sale || (p.sale_price && p.sale_price < p.price));
-        else if (['anime','streetwear'].includes(filter)) f = f.filter(p => p.collection === filter);
+        else if (['anime','streetwear','goofy-wears'].includes(filter)) f = f.filter(p => p.collection === filter);
         else if (['the-vault','iron-code','after-hours'].includes(filter)) f = f.filter(p => p.collections && p.collections.includes(filter));
       }
       if (searchQuery.trim()) {
@@ -5776,7 +5869,7 @@ n    <!-- CONTENT PAGES -->
     function countActiveFilters() {
       let c = 0;
       if (filterState.cats.size > 0 && filterState.cats.size < 3) c += 3 - filterState.cats.size;
-      if (filterState.priceMin > 500 || filterState.priceMax < 2000) c += 1;
+      if (filterState.priceMin > 0 || filterState.priceMax < 10000) c += 1;
       if (filterState.size) c += 1;
       if (filterState.collection) c += 1;
       return c;
@@ -5787,6 +5880,7 @@ n    <!-- CONTENT PAGES -->
       const grid = document.getElementById('collectionGrid');
       const total = filtered.length;
       const totalPages = Math.max(1, Math.ceil(total / perPage));
+      currentPage = Math.min(currentPage, totalPages);
       const start = (currentPage - 1) * perPage;
       const pageItems = filtered.slice(start, start + perPage);
 
@@ -5825,7 +5919,7 @@ n    <!-- CONTENT PAGES -->
             <div class="fit-label">${esc(p.style || p.fit)}</div>
             ${starsHtml(p.rating, p.review_count)}
             <div class="price">${priceHtml}</div>
-            ${p.in_stock === false
+            ${!isAvailable(p)
               ? '<button class="quick-add" disabled>Out of Stock</button>'
               : `<button class="quick-add" onclick="event.stopPropagation();quickAdd(${p.id})">Add to Cart</button>`}
           </div>
@@ -5887,6 +5981,7 @@ n    <!-- CONTENT PAGES -->
       }
       document.getElementById('wishlistCount').textContent = wishlist.size;
       var mc = document.getElementById('wishlistCountMobile'); if (mc) mc.textContent = wishlist.size;
+      persistShopState();
       if (wishlistOnly) renderCollectionGrid();
     }
     function toggleWishlistFilter() {
@@ -5896,10 +5991,18 @@ n    <!-- CONTENT PAGES -->
       if (isOpen) {
         overlay.classList.remove('open');
         drawer.classList.remove('open');
+        document.body.style.overflow = '';
+        drawer._previousFocus?.focus();
       } else {
+        drawer._previousFocus = document.activeElement;
+        drawer.setAttribute('role', 'dialog');
+        drawer.setAttribute('aria-modal', 'true');
+        drawer.setAttribute('aria-label', 'Favourites');
+        document.body.style.overflow = 'hidden';
         overlay.classList.add('open');
         drawer.classList.add('open');
         renderWishlistDrawer();
+        setTimeout(() => drawer.querySelector('.cart-close')?.focus(), 100);
       }
     }
     function renderWishlistDrawer() {
@@ -5922,7 +6025,7 @@ n    <!-- CONTENT PAGES -->
     function quickAdd(id) {
       const p = allProducts.find(x => x.id === id);
       if (!p) return;
-      if (p.in_stock === false) { showToast(p.name + ' is currently out of stock.'); return; }
+      if (!isAvailable(p)) { showToast(p.name + ' is currently out of stock.'); return; }
       const size = (p.sizes && p.sizes.length) ? p.sizes[0] : 'L';
       addToCart(p, size, 1);
       showToast(p.name + ' added to cart (' + size + ')');
@@ -5997,8 +6100,8 @@ n    <!-- CONTENT PAGES -->
     function renderHomeProductCard(p) {
       const imgs = (p.images && p.images.length) ? p.images : (p.image ? [p.image] : []);
       const img = imgs[0] || '';
-      const discount = (p.sale_price && p.price && p.sale_price < p.price)
-        ? Math.round((1 - p.sale_price / p.price) * 100)
+      const discount = (p.sale_price && p.original_price && p.sale_price < p.original_price)
+        ? Math.round((1 - p.sale_price / p.original_price) * 100)
         : 0;
       const displayPrice = p.sale_price || p.price;
       const isWishlisted = wishlist && wishlist.has(p.id);
@@ -6010,14 +6113,14 @@ n    <!-- CONTENT PAGES -->
               ${HEART_SVG}
             </button>
             ${discount > 0 ? `<span class="product-discount-badge">-${discount}%</span>` : ''}
-            ${lowStockBadge(p)}
+            ${isAvailable(p) ? lowStockBadge(p) : '<span class="sale-flag">SOLD OUT</span>'}
           </div>
           <div class="product-card-body">
             <h3>${esc(p.name)}</h3>
             <p class="fit-label">${esc(p.fit || p.category || '')}</p>
             ${starsHtml(p.rating, p.review_count)}
             <p class="price">
-              ${discount > 0 ? `<span class="original">Rs. ${p.price}</span> <span class="sale">Rs. ${displayPrice}</span>` : `Rs. ${p.price}`}
+              ${discount > 0 ? `<span class="original">Rs. ${p.original_price}</span> <span class="sale">Rs. ${displayPrice}</span>` : `Rs. ${p.price}`}
             </p>
             <button class="quick-view-btn" onclick="event.stopPropagation();openProductDetail(${p.id})">Quick View</button>
           </div>
@@ -6134,14 +6237,14 @@ n    <!-- CONTENT PAGES -->
         <div class="filter-section" data-group="price">
           <h4>Price Range</h4>
           <div class="price-display">
-            <span class="price-min-display">Rs. 500</span>
-            <span class="price-max-display">Rs. 2,000</span>
+            <span class="price-min-display">Rs. 0</span>
+            <span class="price-max-display">Rs. 10,000</span>
           </div>
           <div class="slider-container">
             <div class="slider-track"></div>
             <div class="slider-range"></div>
-            <input type="range" class="price-min" min="500" max="2000" value="500" step="50" />
-            <input type="range" class="price-max" min="500" max="2000" value="2000" step="50" />
+            <input type="range" class="price-min" min="0" max="10000" value="0" step="50" />
+            <input type="range" class="price-max" min="0" max="10000" value="10000" step="50" />
           </div>
         </div>
         <div class="filter-section" data-group="size">
@@ -6245,8 +6348,8 @@ n    <!-- CONTENT PAGES -->
 
     function resetFilters() {
       filterState.cats = new Set(['Anime-Inspired', 'Japanese Art', 'Typography']);
-      filterState.priceMin = 500;
-      filterState.priceMax = 2000;
+      filterState.priceMin = 0;
+      filterState.priceMax = 10000;
       filterState.size = '';
       filterState.collection = '';
       filterState.sort = 'featured';
@@ -6328,7 +6431,7 @@ n    <!-- CONTENT PAGES -->
       // Reflect stock state on both Add-to-Cart buttons (main + sticky bar)
       const mainBtn = document.getElementById('addToCartBtn');
       const stickyBtn = document.querySelector('#stickyCartBar .btn');
-      const oos = p.in_stock === false;
+      const oos = !isAvailable(p);
       [mainBtn, stickyBtn].forEach(b => {
         if (!b) return;
         b.disabled = oos;
@@ -6354,6 +6457,8 @@ n    <!-- CONTENT PAGES -->
 
     function setupGallerySwipe() {
       const el = document.getElementById('detailMainImage');
+      if (el._swipeSetup) return;
+      el._swipeSetup = true;
       let sx = 0, sy = 0, drag = false, ct = 0;
       const tk = document.getElementById('galleryTrack');
       el.addEventListener('touchstart', function(e) {
@@ -6420,7 +6525,7 @@ n    <!-- CONTENT PAGES -->
       e.preventDefault();
       const errEl = document.getElementById('rvError');
       if (!currentProduct) return;
-      const selected = document.querySelector('#starInput span.selected');
+      const selected = document.querySelector('#starInput button.selected');
       const rating = selected ? Number(selected.dataset.v) : 0;
       const comment = document.getElementById('rvComment').value.trim();
       const order = document.getElementById('rvOrder').value.trim();
@@ -6440,7 +6545,7 @@ n    <!-- CONTENT PAGES -->
         const data = await res.json().catch(() => ({}));
         if (res.ok) {
           e.target.reset();
-          document.querySelectorAll('#starInput span').forEach(s => s.classList.remove('selected'));
+          document.querySelectorAll('#starInput button').forEach(s => { s.classList.remove('selected'); s.setAttribute('aria-pressed', 'false'); });
           errEl.style.color = '#1a7f37';
           errEl.textContent = data.message || 'Thanks for your review! It will appear once approved.';
           errEl.style.display = 'block';
@@ -6460,10 +6565,10 @@ n    <!-- CONTENT PAGES -->
       const wrap = document.getElementById('starInput');
       if (!wrap) return;
       wrap.addEventListener('click', function (e) {
-        const s = e.target.closest('span[data-v]');
+        const s = e.target.closest('button[data-v]');
         if (!s) return;
         const v = Number(s.dataset.v);
-        wrap.querySelectorAll('span').forEach((x, i) => x.classList.toggle('selected', i < v));
+        wrap.querySelectorAll('button').forEach((x, i) => { x.classList.toggle('selected', i < v); x.setAttribute('aria-pressed', String(i === v - 1)); });
       });
     })();
 
@@ -6652,20 +6757,24 @@ n    <!-- CONTENT PAGES -->
 
     // Cart
     function addToCart(product, size, qty) {
-      if (product.in_stock === false) { showToast(product.name + ' is currently out of stock.'); return; }
+      if (!productsLoadedFromApi) { showToast('Shop temporarily unavailable. Please retry loading products.'); return; }
+      if (!isAvailable(product)) { showToast(product.name + ' is currently out of stock.'); return; }
       const e = cart.find(i => i.id === product.id && i.size === size);
       if (e) {
-        if (e.qty + qty > 99) { e.qty = 99; showToast('Maximum 99 per item.'); }
+        if (e.qty + qty > Math.min(99, product.stock_qty ?? 99)) { showToast('Not enough stock available.'); return; }
         else e.qty += qty;
       } else {
+        if (qty > Math.min(99, product.stock_qty ?? 99)) { showToast('Not enough stock available.'); return; }
         cart.push({ ...product, size, qty: Math.min(99, qty) });
       }
       updateCartUI();
-      document.querySelector('.badge').classList.add('bump');
-      setTimeout(() => document.querySelector('.badge').classList.remove('bump'), 300);
+      const badge = document.getElementById('cartCount');
+      badge.classList.add('bump');
+      setTimeout(() => badge.classList.remove('bump'), 300);
     }
     function updateCartUI() {
       const c = cart.reduce((s,i) => s + i.qty, 0);
+      persistShopState();
       document.getElementById('cartCount').textContent = c;
       var mcc = document.getElementById('cartCountMobile'); if (mcc) mcc.textContent = c;
       const items = document.getElementById('cartItems'), footer = document.getElementById('cartFooter');
@@ -6676,12 +6785,12 @@ n    <!-- CONTENT PAGES -->
         const t = item.price * item.qty; sub += t;
         return `<div class="cart-item"><div class="cart-item-image"><img src="${esc(item.images[0])}" alt="${esc(item.name)}" /></div><div class="cart-item-info"><h4>${esc(item.name)}</h4><div class="cart-item-meta">Size: ${esc(item.size)} · ${esc(item.fit)}</div><div class="cart-item-price">Rs. ${t}</div></div><div style="display:flex;flex-direction:column;align-items:flex-end;gap:0.3rem;"><div class="cart-item-qty"><button onclick="changeCartQty(${i},-1)">−</button><span>${item.qty}</span><button onclick="changeCartQty(${i},1)">+</button></div><button class="cart-item-remove" onclick="removeFromCart(${i})">Remove</button></div></div>`;
       }).join('');
-      document.getElementById('cartSubtotal').textContent = 'Rs. ' + sub;
+      document.getElementById('cartSubtotal').textContent = 'Rs. ' + fmt(sub);
     }
     function removeFromCart(i) { cart.splice(i,1); updateCartUI(); }
     function changeCartQty(i,d) {
       if (cart[i].qty + d <= 0) { removeFromCart(i); return; }
-      if (cart[i].qty + d > 99) { showToast('Maximum 99 per item.'); return; }
+      if (cart[i].qty + d > Math.min(99, cart[i].stock_qty ?? 99)) { showToast('Not enough stock available.'); return; }
       cart[i].qty += d; updateCartUI();
     }
     function toggleCart() {
@@ -6704,8 +6813,17 @@ n    <!-- CONTENT PAGES -->
     // Mobile menu
     const hamburger = document.getElementById('hamburger');
     const navLinks = document.getElementById('navLinks');
-    hamburger.addEventListener('click', () => { hamburger.classList.toggle('active'); navLinks.classList.toggle('open'); });
-    function closeMenu() { hamburger.classList.remove('active'); navLinks.classList.remove('open'); }
+    hamburger.setAttribute('aria-expanded', 'false');
+    hamburger.setAttribute('aria-controls', 'navLinks');
+    hamburger.addEventListener('click', () => {
+      const open = navLinks.classList.toggle('open');
+      hamburger.classList.toggle('active', open);
+      hamburger.setAttribute('aria-expanded', String(open));
+    });
+    function closeMenu() {
+      hamburger.classList.remove('active'); navLinks.classList.remove('open');
+      hamburger.setAttribute('aria-expanded', 'false');
+    }
 
     // ================================================================
     // PARALLAX WATERMARK
@@ -6740,8 +6858,9 @@ n    <!-- CONTENT PAGES -->
     async function loadProductsFromAPI() {
       try {
         const res = await fetch('/api/products');
-        if (!res.ok) return;
+        if (!res.ok) throw new Error('Catalog request failed');
         const data = await res.json();
+        if (!Array.isArray(data)) throw new Error('Invalid catalog');
         // Map server products onto the hardcoded catalog art by name so
         // seeded items keep their rich visuals (SVG tees) instead of grey tiles.
         const artByAlt = {};
@@ -6749,8 +6868,7 @@ n    <!-- CONTENT PAGES -->
         allProducts = data.map(p => {
           const imgs = [p.front_image, p.back_image, ...(p.extra_images || [])].filter(Boolean);
           const art = artByAlt[(p.name || '').trim().toLowerCase()];
-          const artSale = (art && art.on_sale && art.sale_price) ? art.sale_price : null;
-          const effective = p.sale_price || artSale || p.price;
+          const effective = p.sale_price && p.sale_price < p.price ? p.sale_price : p.price;
           return {
             id: p.id,
             name: p.name,
@@ -6766,9 +6884,9 @@ n    <!-- CONTENT PAGES -->
             desc: p.description || '',
             sizes: p.sizes || ['S','M','L','XL','XXL'],
             images: imgs.length ? imgs : (art ? art.images : [placeholderImg(p.name)]),
-            in_stock: p.in_stock !== false,
-            on_sale: !!(p.on_sale || artSale),
-            sale_price: p.sale_price || artSale,
+            in_stock: p.in_stock !== false && (p.stock_qty == null || Number(p.stock_qty) > 0),
+            on_sale: !!(p.sale_price && p.sale_price < p.price),
+            sale_price: p.sale_price && p.sale_price < p.price ? p.sale_price : null,
             created_at: p.created_at || null,
             order_count: p.order_count || 0,
             stock_qty: p.stock_qty,
@@ -6778,20 +6896,30 @@ n    <!-- CONTENT PAGES -->
           };
         });
         productsLoadedFromApi = true;
+        document.getElementById('productLoadError').hidden = true;
+        restoreShopState();
         renderCollectionGrid();
-        updateCartUI();
         initHomePageSections();
-      } catch(e) {}
+      } catch(e) {
+        console.error('Could not load catalog:', e);
+        productsLoadedFromApi = false;
+        allProducts = [];
+        document.getElementById('productLoadError').hidden = false;
+        renderCollectionGrid();
+        initHomePageSections();
+      }
     }
 
     // ---------- Admin login modal (subtle entry to the existing /admin) ----------
     function openAdminLogin() {
+      document.getElementById('adminLoginOverlay')._previousFocus = document.activeElement;
       document.getElementById('adminLoginOverlay').classList.add('open');
       document.getElementById('adminLoginError').style.display = 'none';
       setTimeout(() => document.getElementById('adminLoginEmail').focus(), 60);
     }
     function closeAdminLogin() {
       document.getElementById('adminLoginOverlay').classList.remove('open');
+      document.getElementById('adminLoginOverlay')._previousFocus?.focus();
     }
     async function submitAdminLogin() {
       const email = document.getElementById('adminLoginEmail').value.trim();
@@ -6884,6 +7012,7 @@ n    <!-- CONTENT PAGES -->
     }
 
     function openCustModal() {
+      document.getElementById('custOverlay')._previousFocus = document.activeElement;
       document.getElementById('custOverlay').classList.add('open');
       showCustLogin();
       setTimeout(() => document.getElementById('custLoginEmail').focus(), 80);
@@ -6892,6 +7021,7 @@ n    <!-- CONTENT PAGES -->
       document.getElementById('custOverlay').classList.remove('open');
       document.getElementById('custLoginError').style.display = 'none';
       document.getElementById('custSignupError').style.display = 'none';
+      document.getElementById('custOverlay')._previousFocus?.focus();
     }
     function showCustLogin() {
       document.getElementById('custLoginView').style.display = '';
@@ -6987,6 +7117,7 @@ n    <!-- CONTENT PAGES -->
         currentCustomer = data.customer;
         updateAccountUI();
         closeCustModal();
+        if (location.pathname === '/account') { navigateTo('account', null, { skipHistory: true }); loadAccountPage(); }
         showToast('Welcome back, ' + (currentCustomer.name || 'Clan Member') + '!');
       } catch (e) {
         errEl.textContent = 'Something went wrong. Please try again.'; errEl.style.display = 'block';
@@ -7013,6 +7144,7 @@ n    <!-- CONTENT PAGES -->
         currentCustomer = data.customer;
         updateAccountUI();
         closeCustModal();
+        if (location.pathname === '/account') { navigateTo('account', null, { skipHistory: true }); loadAccountPage(); }
         showToast('Account created! Welcome, ' + (currentCustomer.name || 'Clan Member') + '!');
       } catch (e) {
         errEl.textContent = 'Something went wrong. Please try again.'; errEl.style.display = 'block';
@@ -7039,11 +7171,12 @@ n    <!-- CONTENT PAGES -->
       // Load orders
       try {
         const res = await fetch('/api/customers/orders');
-        if (res.ok) {
-          const data = await res.json();
-          renderAccountOrders(data.orders);
-        }
-      } catch (e) {}
+        if (!res.ok) throw new Error('Order history unavailable');
+        const data = await res.json();
+        renderAccountOrders(data.orders);
+      } catch (e) {
+        document.getElementById('acctOrders').textContent = 'Could not load your orders. Please try again later.';
+      }
     }
 
     function renderAccountOrders(orders) {
@@ -7115,16 +7248,30 @@ n    <!-- CONTENT PAGES -->
       setTimeout(() => { msg.textContent = ''; }, 3000);
     }
 
-    setupFilters(); updateCartUI(); initWatermarkParallax(); navigateTo('home');
-    loadProductsFromAPI();
-    checkCustomerAuth();
-
-    // FE-C4: password-reset email links land on /reset-password?token=...&type=...
-    // (the server's catch-all route serves this SPA shell for that path)
-    if (window.location.pathname === '/reset-password') {
-      navigateTo('reset');
-      initPasswordReset();
-    }
+    document.addEventListener('keydown', e => {
+      const open = [
+        ['#adminLoginOverlay.open .admin-login-card', closeAdminLogin],
+        ['#custOverlay.open .cust-card', closeCustModal],
+        ['#clanPopup.show', closeClanPopup],
+        ['#filterDrawer.open', closeFilterDrawer],
+        ['#wishlistDrawer.open', toggleWishlistFilter],
+        ['#cartDrawer.open', toggleCart]
+      ].map(([selector, close]) => ({ el: document.querySelector(selector), close })).find(x => x.el);
+      if (!open) { if (e.key === 'Escape' && navLinks.classList.contains('open')) { closeMenu(); hamburger.focus(); } return; }
+      if (e.key === 'Escape') { e.preventDefault(); open.close(); return; }
+      if (e.key !== 'Tab') return;
+      const focusables = [...open.el.querySelectorAll('a[href], button:not(:disabled), input:not(:disabled), select, textarea, [tabindex]:not([tabindex="-1"])')]
+        .filter(el => el.getClientRects().length);
+      if (!focusables.length) return;
+      const first = focusables[0], last = focusables[focusables.length - 1];
+      if (e.shiftKey && (document.activeElement === first || !open.el.contains(document.activeElement))) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && (document.activeElement === last || !open.el.contains(document.activeElement))) { e.preventDefault(); first.focus(); }
+    });
+    setupFilters(); updateCartUI(); initWatermarkParallax(); navigateTo('home', null, { skipHistory: true });
+    const initialPath = location.pathname;
+    Promise.all([loadProductsFromAPI(), checkCustomerAuth()]).then(() => {
+      if (location.pathname === initialPath && initialPath !== '/') restoreRouteFromLocation();
+    });
 
     // Auto-refresh the grid when the tab regains focus (e.g. after an admin upload)
     document.addEventListener('visibilitychange', () => {
@@ -7237,8 +7384,8 @@ n    <!-- CONTENT PAGES -->
         <label for="custLoginPassword">Password</label>
         <input type="password" id="custLoginPassword" placeholder="Enter password" autocomplete="current-password" />
         <button class="cust-btn" id="custLoginBtn" onclick="submitCustLogin()">Sign In</button>
-        <p style="text-align:center;margin-top:0.5rem;font-size:0.72rem;"><a onclick="requestCustomerPasswordReset()" style="color:var(--accent);cursor:pointer;">Forgot password?</a></p>
-        <p class="cust-switch">Don't have an account? <a onclick="showCustSignup()">Create one</a></p>
+        <p style="text-align:center;margin-top:0.5rem;font-size:0.72rem;"><a href="#" onclick="requestCustomerPasswordReset(); return false;" style="color:var(--accent);cursor:pointer;">Forgot password?</a></p>
+        <p class="cust-switch">Don't have an account? <a href="#" onclick="showCustSignup(); return false;">Create one</a></p>
       </div>
       <div id="custSignupView" style="display:none;">
         <h3>Create Account</h3>
@@ -7251,7 +7398,7 @@ n    <!-- CONTENT PAGES -->
         <label for="custSignupPassword">Password</label>
         <input type="password" id="custSignupPassword" placeholder="Min. 6 characters" autocomplete="new-password" />
         <button class="cust-btn" id="custSignupBtn" onclick="submitCustSignup()">Create Account</button>
-        <p class="cust-switch">Already have an account? <a onclick="showCustLogin()">Sign in</a></p>
+        <p class="cust-switch">Already have an account? <a href="#" onclick="showCustLogin(); return false;">Sign in</a></p>
       </div>
     </div>
   </div>
