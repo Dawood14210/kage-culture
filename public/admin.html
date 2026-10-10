@@ -560,6 +560,21 @@
       .tab { white-space:nowrap; }
     }
 
+    /* Size chips + per-size stock inputs (product form) */
+    .size-chip-group { display:flex; flex-wrap:wrap; gap:0.4rem; }
+    .size-chip {
+      min-width:52px; min-height:40px; padding:0.4rem 0.9rem;
+      background:var(--bg-elevated); border:1px solid var(--border-dark); color:var(--text-secondary);
+      font-family:'Archivo',sans-serif; font-size:0.8rem; font-weight:600; cursor:pointer;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+    }
+    .size-chip:hover { border-color:var(--accent); color:var(--text-primary); }
+    .size-chip[aria-pressed="true"] { background:var(--text-primary); border-color:var(--text-primary); color:var(--white); }
+    .size-chip:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+    .size-stock-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(120px, 1fr)); gap:0.6rem; }
+    .size-stock-cell { margin:0; }
+    .size-stock-empty { font-size:0.75rem; color:var(--text-muted); }
+
     /* ===== ADD PRODUCT FORM (Simplified) ===== */
     /* Advanced fields are always visible — hiding Category/Stock/Size on create
        silently forced every new product into "Anime Shirts" with untracked stock. */
@@ -1275,21 +1290,23 @@
               </div>
               <div style="font-size:0.65rem;color:var(--text-dim);margin-top:0.2rem;">What you pay per piece — drives Profit &amp; Loss in Reports.</div>
             </div>
-            <div>
-              <label>Stock Quantity (units)</label>
-              <input type="number" id="prodStockQty" min="0" step="1" placeholder="e.g. 10 — leave empty if unknown" inputmode="numeric" />
-              <div style="font-size:0.65rem;color:var(--text-dim);margin-top:0.2rem;">Real inventory count. Drives the "Only N left" urgency badges — leave empty until you've counted stock.</div>
+            <div class="full-width">
+              <label>Sizes Offered</label>
+              <div id="prodSizeChips" class="size-chip-group" role="group" aria-label="Sizes offered">
+                <button type="button" class="size-chip" data-size="S" aria-pressed="false">S</button>
+                <button type="button" class="size-chip" data-size="M" aria-pressed="false">M</button>
+                <button type="button" class="size-chip" data-size="L" aria-pressed="true">L</button>
+                <button type="button" class="size-chip" data-size="XL" aria-pressed="false">XL</button>
+                <button type="button" class="size-chip" data-size="XXL" aria-pressed="false">XXL</button>
+              </div>
+              <div style="font-size:0.65rem;color:var(--text-dim);margin-top:0.2rem;">Select every size you sell this design in. Customers pick a size on the product page.</div>
             </div>
             <div class="full-width">
-              <label>Shirt Size (single piece)</label>
-              <select id="prodSize">
-                <option value="S">S</option>
-                <option value="M">M</option>
-                <option value="L" selected>L</option>
-                <option value="XL">XL</option>
-                <option value="XXL">XXL</option>
-              </select>
-              <div style="font-size:0.65rem;color:var(--text-dim);margin-top:0.2rem;">Each shirt is a unique single piece. The size you select is the size the customer will receive — no size picker on the storefront.</div>
+              <label>Stock per Size (units)</label>
+              <div id="prodSizeStock" class="size-stock-grid">
+                <label class="size-stock-cell"><span>L</span><input type="number" min="0" step="1" inputmode="numeric" data-size="L" placeholder="e.g. 10" /></label>
+              </div>
+              <div id="prodSizeStockNote" style="font-size:0.65rem;color:var(--text-dim);margin-top:0.4rem;">Real inventory count for each size. Drives the "Only N left" badges. Leave every box empty if you are not tracking stock yet.</div>
             </div>
             <div>
               <label>Back Image (optional)</label>
@@ -1804,7 +1821,9 @@
         const catLabel = { 'anime':'Anime Shirts', 'streetwear':'Streetwear', 'goofy-wears':'Goofy Wears' }[p.category] || p.category;
         const stockLabel = p.in_stock ? 'In Stock' : 'Sold Out';
         const stockClass = p.in_stock ? 'active' : '';
-        const qtyText = (p.stock_qty != null && p.stock_qty !== '') ? p.stock_qty : '—';
+        const qtyText = p.size_stock
+          ? Object.entries(p.size_stock).map(([size, qty]) => `${esc(size)} ${qty}`).join(' · ')
+          : ((p.stock_qty != null && p.stock_qty !== '') ? p.stock_qty : '—');
         const isSelected = selectedProductIds.has(Number(p.id));
 
         html += `
@@ -1821,7 +1840,7 @@
             <div class="stock-toggle">
               <button class="toggle-switch ${stockClass}" onclick="toggleStock(${p.id})" aria-label="Toggle stock availability for ${esc(p.name)}"></button>
               <span class="stock-label">${stockLabel}</span>
-              <span class="stock-qty-display" onclick="startStockEdit(${p.id}, this)" title="Click to edit stock quantity">${qtyText}</span>
+              <span class="stock-qty-display" onclick="startStockEdit(${p.id}, this)" title="${p.size_stock ? 'Click to edit stock for each size' : 'Click to edit stock quantity'}">${qtyText}</span>
             </div>
             <div class="actions">
               <button onclick="editProduct(${p.id})">Edit</button>
@@ -1893,12 +1912,21 @@
       document.getElementById('prodPrice').value = p.price;
       document.getElementById('prodSalePrice').value = p.sale_price || '';
       document.getElementById('prodUnitCost').value = p.unit_cost || '';
-      document.getElementById('prodStockQty').value = (p.stock_qty != null && p.stock_qty !== '') ? p.stock_qty : '';
       document.getElementById('prodDesc').value = p.description || '';
 
-      // Size (single piece)
-      const sz = (p.sizes && p.sizes.length) ? p.sizes[0] : 'L';
-      document.getElementById('prodSize').value = sz;
+      // Sizes and stock. A product tracked per size shows each size's count. A
+      // legacy single count shows on its only size; with several sizes it stays
+      // shared until each size is entered.
+      const productSizes = (p.sizes && p.sizes.length) ? p.sizes : ['L'];
+      setFormSizes(productSizes);
+      const legacyCount = (p.stock_qty != null && p.stock_qty !== '') ? Number(p.stock_qty) : null;
+      if (p.size_stock) {
+        renderSizeStockInputs(p.size_stock, '');
+      } else if (productSizes.length === 1) {
+        renderSizeStockInputs({ [productSizes[0]]: legacyCount }, '');
+      } else {
+        renderSizeStockInputs({}, legacyCount != null ? `This product has ${legacyCount} units shared across all sizes. Enter a count for each size to split it.` : '');
+      }
 
       // Show the advanced fields when editing
       document.getElementById('extraFields').classList.add('show');
@@ -1924,6 +1952,52 @@
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
+    // ================================================================
+    // PRODUCT SIZES + PER-SIZE STOCK (product form)
+    // ================================================================
+    const STANDARD_SIZES = ['S', 'M', 'L', 'XL', 'XXL'];
+
+    function selectedSizes() {
+      return Array.from(document.querySelectorAll('#prodSizeChips .size-chip[aria-pressed="true"]')).map(b => b.dataset.size);
+    }
+    // Chips for the standard sizes plus any size the product already has (e.g. "One Size").
+    function setFormSizes(sizes) {
+      const all = [...STANDARD_SIZES];
+      sizes.forEach(sz => { if (!all.includes(sz)) all.push(sz); });
+      document.getElementById('prodSizeChips').innerHTML = all.map(sz =>
+        `<button type="button" class="size-chip" data-size="${esc(sz)}" aria-pressed="${sizes.includes(sz)}">${esc(sz)}</button>`
+      ).join('');
+    }
+    // Read the typed quantities so they survive a re-render.
+    function readSizeStockInputs() {
+      const values = {};
+      document.querySelectorAll('#prodSizeStock input[data-size]').forEach(inp => { values[inp.dataset.size] = inp.value.trim(); });
+      return values;
+    }
+    function renderSizeStockInputs(values, note) {
+      const grid = document.getElementById('prodSizeStock');
+      const sizes = selectedSizes();
+      grid.innerHTML = sizes.length
+        ? sizes.map(sz => {
+            const v = values[sz];
+            const shown = (v === undefined || v === null) ? '' : String(v);
+            return `<label class="size-stock-cell"><span>${esc(sz)}</span><input type="number" min="0" step="1" inputmode="numeric" data-size="${esc(sz)}" value="${esc(shown)}" placeholder="e.g. 10" /></label>`;
+          }).join('')
+        : '<div class="size-stock-empty">Pick at least one size.</div>';
+      document.getElementById('prodSizeStockNote').textContent = note || 'Real inventory count for each size. Drives the "Only N left" badges. Leave every box empty if you are not tracking stock yet.';
+    }
+    // Whole-number check for a typed quantity; returns the number or null.
+    function parseSizeQty(text) {
+      if (!/^\d+$/.test(text)) return null;
+      return Number(text);
+    }
+    document.getElementById('prodSizeChips').addEventListener('click', (e) => {
+      const chip = e.target.closest('.size-chip');
+      if (!chip) return;
+      chip.setAttribute('aria-pressed', chip.getAttribute('aria-pressed') === 'true' ? 'false' : 'true');
+      renderSizeStockInputs(readSizeStockInputs(), '');
+    });
+
     function resetForm() {
       document.getElementById('editId').value = '';
       document.getElementById('productForm').reset();
@@ -1931,7 +2005,6 @@
       document.getElementById('prodCategory').value = 'anime';
       document.getElementById('prodFit').value = 'Regular';
       document.getElementById('prodUnitCost').value = '';
-      document.getElementById('prodStockQty').value = '';
       document.getElementById('backPreview').innerHTML = '          <span class="hint" style="color:var(--text-muted)">Tap to upload back view</span>';
       document.getElementById('backUploadArea').classList.remove('has-image');
       const backErr = document.getElementById('backImgError');
@@ -1942,8 +2015,9 @@
       document.getElementById('formSuccess').style.display = 'none';
       document.getElementById('formError').style.display = 'none';
       currentImageFiles = { front: null, back: null };
-      // Reset size
-      document.getElementById('prodSize').value = 'L';
+      // Reset sizes and stock inputs to the default single size
+      setFormSizes(['L']);
+      renderSizeStockInputs({}, '');
       // Hide the "live in shop" confirmation card along with everything else
       document.getElementById('formLiveCard').classList.remove('show');
     }
@@ -2148,13 +2222,33 @@
       const unitCost = document.getElementById('prodUnitCost').value;
       if (unitCost) formData.append('unit_cost', unitCost);
 
-      const stockQty = document.getElementById('prodStockQty').value;
-      if (stockQty !== '' && stockQty != null) formData.append('stock_qty', stockQty);
-
       formData.append('description', document.getElementById('prodDesc').value.trim());
 
-      const singleSize = document.getElementById('prodSize').value || 'L';
-      formData.append('sizes', JSON.stringify([singleSize]));
+      const sizesOffered = selectedSizes();
+      if (!sizesOffered.length) {
+        errorEl.textContent = 'Pick at least one size.';
+        errorEl.style.display = 'block';
+        return;
+      }
+      formData.append('sizes', JSON.stringify(sizesOffered));
+
+      // Stock per size: all or nothing. Empty boxes mean "not tracked" (create)
+      // or "keep the current count" (edit).
+      const typed = readSizeStockInputs();
+      const filledSizes = sizesOffered.filter(sz => typed[sz] !== undefined && typed[sz] !== '');
+      if (filledSizes.length) {
+        const counts = {};
+        for (const sz of sizesOffered) {
+          const q = parseSizeQty(typed[sz] || '');
+          if (q === null) {
+            errorEl.textContent = typed[sz] ? `Stock for size ${sz} must be a whole number.` : `Enter a stock quantity for size ${sz}, or leave every size empty.`;
+            errorEl.style.display = 'block';
+            return;
+          }
+          counts[sz] = q;
+        }
+        formData.append('size_stock', JSON.stringify(counts));
+      }
 
       // Picture (compressed to WebP client-side) and back image
       if (formImageBlob) formData.append('front_image', formImageBlob, 'pic-' + Date.now() + '.webp');
@@ -2627,6 +2721,8 @@
     function startStockEdit(id, span) {
       const p = products.find(x => x.id === id);
       if (!p) return;
+      // Per-size stock is edited in the product form, where each size is set separately.
+      if (p.size_stock) { editProduct(id); return; }
       const current = (p.stock_qty != null && p.stock_qty !== '') ? p.stock_qty : '';
       span.outerHTML = '<div class="stock-qty-cell" data-editing="' + id + '">' +
         '<input class="stock-qty-input" type="number" min="0" step="1" value="' + current + '" onkeydown="if(event.key===\'Enter\')saveStockEdit(' + id + ');if(event.key===\'Escape\')cancelStockEdit(' + id + ');" autofocus />' +

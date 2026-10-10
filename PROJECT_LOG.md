@@ -263,3 +263,16 @@ All pictographic glyphs replaced: sidebar 7, View Store, stat cards 5, upload ca
 - Added `DELETE /api/products/batch` before the `/:id` route; it requires admin auth and CSRF, validates positive unique IDs, rejects missing products, and best-effort removes associated images.
 - Quick Upload now collects `stock_qty`; blank remains untracked inventory and `0` marks the product sold out. Product create/update/inline stock APIs reject fractional counts instead of silently flooring them.
 - Verification: `npm test` → **38/38 API + 10/10 frontend**; `npm audit --omit=dev` → **0 vulnerabilities**; `git diff --check` clean.
+
+---
+
+## 12. Multiple sizes per product with per-size stock (2026-10-10)
+
+- **Data:** new table `product_size_stock(product_id, size, stock_qty)` created by `createSchema` (`CREATE TABLE IF NOT EXISTS`, so it applies on Turso and sql.js at boot with no ALTER). A product with rows is tracked per size; `products.stock_qty` is then the sum of its rows. Products without rows keep the old behaviour (one shared count, or untracked when NULL), so no data migration is needed.
+- **Shared helpers:** `utils/sizes.js` (size parsing, per-size validation, row sync, reconcile on size edits).
+- **API:** `POST`/`PUT /api/products` accept `size_stock` (JSON object, one whole-number count per offered size). Every product read returns `size_stock` (`null` when not tracked per size). Editing `sizes` keeps counts for sizes that stay and drops removed ones. A bare `stock_qty` on a per-size product returns 400, and `PATCH /stock-qty` only works for single-size products.
+- **Orders:** every line's size must be offered by the product. Per-size lines use a guarded per-size decrement. A failed order now restores units already taken by earlier lines. Cancel and reactivate adjust the ordered size's count.
+- **Storefront:** the product page shows a size picker (sold-out sizes disabled, quantity capped per size). Cart add, cart quantity, quick add and saved-cart restore all check the size's own count. A single size shows as plain text; "One Size" (stickers) hides the block.
+- **Admin:** the product form has size chips and a count per selected size (all-or-nothing). Editing loads each size's count. The product list shows per-size counts, and inline quick-edit opens the editor for per-size products. Quick Upload is unchanged (single size, one count).
+- **Test change:** the existing order tests used a size the seeded product does not offer (`M` on a size-`L` product, and no size on the stock test). They now use `L`, because an order line must name an offered size.
+- Verification: `npm test` → **51/51 API + 12/12 frontend**. Not yet checked in a real browser (no browser is installed in the sandbox); the picker and admin chips still need a visual pass at 320/390/768px.

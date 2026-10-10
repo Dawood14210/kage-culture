@@ -450,30 +450,6 @@
     }
 
     /* ================================================================
-       HERO BANNER — LIGHT
-       ================================================================ */
-    .hero-banner {
-      background: var(--bg-primary);
-      text-align: center;
-      padding: 3rem var(--spacing-lg) 2rem;
-    }
-    .hero-banner .hero-logo {
-      font-family: var(--font-display);
-      font-size: clamp(2rem, 6vw, 4rem);
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      line-height: 1;
-      color: var(--text-primary);
-    }
-    .hero-banner .hero-headline {
-      font-family: var(--font-body);
-      font-size: 1rem;
-      color: var(--text-muted);
-      margin: var(--spacing-sm) 0 var(--spacing-md);
-      font-weight: 400;
-    }
-
-    /* ================================================================
        KAGE CATEGORIES — anime shirts, custom stickers
        ================================================================ */
     .category-band {
@@ -1583,6 +1559,10 @@
     }
     .size-btn:hover { border-color: var(--text-primary); color: var(--text-primary); }
     .size-btn.selected { border-color: var(--text-primary); color: var(--text-primary); }
+    .size-picker { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+    .size-btn:disabled { opacity: 0.4; cursor: not-allowed; text-decoration: line-through; }
+    .size-btn:disabled:hover { border-color: var(--border-color); color: var(--text-muted); }
+    .size-single { font-size: 0.95rem; font-weight: 700; padding: 0.5rem 0.8rem; background: rgba(0,0,0,0.03); border: 1px solid var(--border-color); display: inline-block; border-radius: 8px; }
 
     .qty-btn {
       width: 44px; height: 44px;
@@ -1739,11 +1719,6 @@
     }
 
     /* ================================================================
-       HERO BANNER LOGO (override for g-red)
-       ================================================================ */
-    .hero-logo .g-red { color: var(--accent); }
-
-    /* ================================================================
        NAV SEARCH / SALE LINK / MOBILE SEARCH
        ================================================================ */
     .nav-links { gap: 1.25rem; }
@@ -1805,10 +1780,30 @@
        Full-bleed 16:9 campaign photo, spray-paint border, overlaid CTAs.
        ================================================================ */
     .hero-strip {
-      position: relative;
       width: 100%;
       overflow: hidden;
       background: var(--bg-primary);
+      /* The header is fixed: its measured height (--header-h, set by script) plus a gap keeps the photo clear of it. */
+      padding-top: calc(var(--header-h, 120px) + 1rem);
+    }
+    .hero-frame { position: relative; }
+    .hero-copy {
+      text-align: center;
+      padding: clamp(1.5rem, 4vw, 2.5rem) var(--spacing-md) clamp(2rem, 5vw, 3rem);
+    }
+    .hero-title {
+      font-family: var(--font-display);
+      font-size: clamp(1.6rem, 4.5vw, 2.75rem);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      line-height: 1.05;
+      color: var(--text-primary);
+      margin: 0 0 var(--spacing-sm);
+    }
+    .hero-sub {
+      font-size: 0.95rem;
+      color: var(--text-muted);
+      margin: 0 0 var(--spacing-md);
     }
 
     /* Campaign photo — full-bleed, fills the entire spray-paint boundary */
@@ -2537,7 +2532,6 @@
       .hamburger { min-width: 44px; min-height: 44px; }
       .mobile-search { display: block; }
       .mobile-icons-row { display: flex; align-items: center; gap: var(--spacing-md); padding-top: var(--spacing-md); margin-top: var(--spacing-sm); border-top: 1px solid var(--border-color); justify-content: center; }
-      .hero-tile:nth-child(n+4) { display: none; }
 
       .collections-grid { grid-template-columns: 1fr; }
       .footer-main { grid-template-columns: 1fr; }
@@ -3353,11 +3347,12 @@
   <!-- HOME PAGE -->
   <div class="page active" id="page-home">
     <!-- HERO — CAMPAIGN IMAGE LAYOUT -->
-    <section class="hero-strip">
+    <section class="hero-strip" aria-labelledby="heroTitle">
+      <div class="hero-frame">
       <picture class="hero-media">
         <source srcset="/images/hero-700.webp 700w, /images/hero.webp 1376w" sizes="100vw" type="image/webp" />
         <source srcset="/images/hero-700.jpg 700w, /images/hero.jpg 1376w" sizes="100vw" type="image/jpeg" />
-        <img src="/images/hero.jpg" alt="KAGE CULTURE campaign — model wearing the white EVERYONE oversized tee, with two motion-blurred pedestrians walking past on a warm beige backdrop" fetchpriority="high" />
+        <img src="/images/hero.jpg" alt="KAGE Culture campaign: a model in a white oversized tee printed with EVERYONE, mid-kick in front of a light wall covered in graffiti lettering" fetchpriority="high" />
       </picture>
 
       <!-- Spray-paint border around the hero photo -->
@@ -3377,8 +3372,13 @@
         <circle cx="62" cy="470" r="1.8" fill="#1A1815" opacity="0.4" filter="url(#heroSprayFx)" />
         <circle cx="1552" cy="640" r="2.8" fill="#1A1815" opacity="0.55" filter="url(#heroSprayFx)" />
       </svg>
+      </div>
 
-
+      <div class="hero-copy">
+        <h1 class="hero-title" id="heroTitle">Engineered Fit. Original Art.</h1>
+        <p class="hero-sub">Anime inspired. Built for everyday.</p>
+        <a class="btn btn-primary" href="/collection/all" onclick="navigateTo('collection', 'all'); return false;">Shop the Drops</a>
+      </div>
     </section>
 
     <!-- KAGE CATEGORIES — anime shirts, custom stickers -->
@@ -3737,10 +3737,10 @@
           <div class="detail-rating" id="detailRating"></div>
           <div class="detail-urgency" id="detailUrgency"></div>
           <p class="detail-desc" id="detailDesc"></p>
-          <div>
+          <div id="detailSizeBlock">
             <label style="font-size:0.7rem;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;display:block;margin-bottom:0.4rem;">Size</label>
-            <div id="detailSizeDisplay" style="font-size:0.95rem;font-weight:700;padding:0.5rem 0.8rem;background:rgba(0,0,0,0.03);border:1px solid var(--border-color);display:inline-block;border-radius:8px;">L</div>
-            <div style="font-size:0.7rem;color:var(--text-gray);margin-top:0.3rem;">This is the only size available for this piece.</div>
+            <div id="detailSizePicker" class="size-picker" role="group" aria-label="Choose size"></div>
+            <div id="detailSizeNote" style="font-size:0.7rem;color:var(--text-gray);margin-top:0.3rem;"></div>
           </div>
           <div>
             <label style="font-size:0.7rem;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;display:block;margin-bottom:0.4rem;">Quantity</label>
@@ -4287,8 +4287,8 @@ n    <!-- CONTENT PAGES -->
         const saved = JSON.parse(localStorage.getItem('kageCart') || '[]');
         cart = Array.isArray(saved) ? saved.slice(0, 50).map(i => {
           const p = allProducts.find(x => x.id === Number(i.id));
-          if (!p || !isAvailable(p) || !p.sizes.includes(i.size)) return null;
-          const qty = Math.min(99, p.stock_qty ?? 99, Math.max(0, Math.floor(Number(i.qty) || 0)));
+          if (!p || !sizeAvailable(p, i.size) || !p.sizes.includes(i.size)) return null;
+          const qty = Math.min(maxQtyFor(p, i.size), Math.max(0, Math.floor(Number(i.qty) || 0)));
           return qty ? { ...p, size: i.size, qty } : null;
         }).filter(Boolean) : [];
         const ids = JSON.parse(localStorage.getItem('kageWishlist') || '[]');
@@ -4388,6 +4388,27 @@ n    <!-- CONTENT PAGES -->
 
     // Real low-stock flag — only rendered when stock_qty is a real number at or below 5.
     function isAvailable(p) { return p.in_stock !== false && (p.stock_qty == null || Number(p.stock_qty) > 0); }
+
+    // ---------- Per-size stock ----------
+    // p.size_stock is {size: units} for products tracked per size, or null
+    // when the product uses one shared stock count (p.stock_qty).
+    function sizeQty(p, size) {
+      return (p.size_stock && Object.prototype.hasOwnProperty.call(p.size_stock, size)) ? (Number(p.size_stock[size]) || 0) : null;
+    }
+    function sizeAvailable(p, size) {
+      if (!isAvailable(p)) return false;
+      if (p.size_stock) return (sizeQty(p, size) || 0) > 0;
+      return true;
+    }
+    function maxQtyFor(p, size) {
+      const q = p.size_stock ? (sizeQty(p, size) || 0) : (p.stock_qty ?? 99);
+      return Math.min(99, Math.max(0, Number(q) || 0));
+    }
+    function anySizeAvailable(p) { return (p.sizes || []).some(s => sizeAvailable(p, s)); }
+    function defaultSizeFor(p) {
+      const sizes = (p.sizes && p.sizes.length) ? p.sizes : ['L'];
+      return sizes.find(s => sizeAvailable(p, s)) || sizes[0];
+    }
 
     function lowStockBadge(p) {
       const s = p.stock_qty;
@@ -4891,10 +4912,9 @@ n    <!-- CONTENT PAGES -->
     function quickAdd(id) {
       const p = allProducts.find(x => x.id === id);
       if (!p) return;
-      if (!isAvailable(p)) { showToast(p.name + ' is currently out of stock.'); return; }
-      const size = (p.sizes && p.sizes.length) ? p.sizes[0] : 'L';
-      addToCart(p, size, 1);
-      showToast(p.name + ' added to cart (' + size + ')');
+      if (!anySizeAvailable(p)) { showToast(p.name + ' is currently out of stock.'); return; }
+      const size = defaultSizeFor(p);
+      if (addToCart(p, size, 1)) showToast(p.name + ' added to cart (' + size + ')');
     }
     function showToast(msg) {
       let t = document.getElementById('toast');
@@ -5068,27 +5088,6 @@ n    <!-- CONTENT PAGES -->
       loadRecentlyViewed();
     }
 
-    // ---------- Hero tiles ----------
-    function heroTileSVG(i, name) {
-      const reds = ['#4A4433', '#554E3C', '#5A5240', '#3F3A2E', '#625B47', '#48422F'];
-      const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 500">
-        <defs><linearGradient id="hg${i}" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stop-color="#141414"/><stop offset="1" stop-color="${reds[i % reds.length]}"/>
-        </linearGradient></defs>
-        <rect width="400" height="500" fill="url(#hg${i})"/>
-        <text x="200" y="320" text-anchor="middle" font-family="Noto Serif JP, serif" font-weight="900" font-size="210" fill="rgba(74,68,51,0.14)">影</text>
-        <text x="200" y="365" text-anchor="middle" font-family="Archivo, sans-serif" font-weight="700" font-size="17" letter-spacing="4" fill="rgba(255,255,255,0.92)">${esc(name).toUpperCase()}</text>
-        <circle cx="${90 + i * 45}" cy="${80 + i * 25}" r="12" fill="rgba(255,255,255,0.4)"/>
-      </svg>`;
-      return 'data:image/svg+xml,' + encodeURIComponent(svg);
-    }
-    function buildHero() {
-      const wrap = document.getElementById('heroTiles');
-      if (!wrap) return;
-      const items = allProducts.slice(0, 6);
-      wrap.innerHTML = items.map((p, i) => `<div class="hero-tile" style="background-image:url('${esc(heroTileSVG(i, p.name))}')"><span class="hero-tile-kanji">影</span></div>`).join('');
-    }
-
     // ---------- Filter panel (sidebar + drawer share one markup) ----------
     function filterPanelHTML() {
       return `
@@ -5257,7 +5256,7 @@ n    <!-- CONTENT PAGES -->
     function openProductDetail(productId) {
       const p = allProducts.find(x => x.id === productId);
       if (!p) return;
-      currentProduct = p; detailQty = 1; detailSize = (p.sizes && p.sizes.length) ? p.sizes[0] : 'L'; detailAngle = 0;
+      currentProduct = p; detailQty = 1; detailSize = defaultSizeFor(p); detailAngle = 0;
       navigateTo('product');
       document.getElementById('detailName').textContent = p.name;
       document.getElementById('detailPrice').innerHTML = detailPriceHtml(p);
@@ -5282,22 +5281,12 @@ n    <!-- CONTENT PAGES -->
       } else dc.style.display = 'none';
       const th = document.getElementById('detailThumbnails');
       th.innerHTML = p.images.map((img,i) => `<div class="detail-thumb ${i===0?'active':''}" role="button" tabindex="0" aria-label="View image ${i+1}" onclick="switchDetailAngle(${i})" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();switchDetailAngle(${i});}"><img src="${esc(img)}" alt="View ${i+1}" /></div>`).join('');
-      // Display fixed size — hide entirely for stickers (goofy-wears)
-      const szDisplay = document.getElementById('detailSizeDisplay');
-      const szContainer = szDisplay ? szDisplay.parentElement : null;
-      const szLabel = szContainer ? szContainer.previousElementSibling : null;
-      const isSticker = p.collection === 'goofy-wears';
-      if (szContainer) szContainer.style.display = isSticker ? 'none' : '';
-      if (szLabel && szLabel.tagName === 'LABEL') szLabel.style.display = isSticker ? 'none' : '';
-      // Also hide the "only size" note
-      const szNote = szContainer ? szContainer.nextElementSibling : null;
-      if (szNote && szNote.textContent.includes('only size')) szNote.style.display = isSticker ? 'none' : '';
-      if (szDisplay) szDisplay.textContent = detailSize;
+      renderSizePicker(p);
       setupGallerySwipe();
       // Reflect stock state on both Add-to-Cart buttons (main + sticky bar)
       const mainBtn = document.getElementById('addToCartBtn');
       const stickyBtn = document.querySelector('#stickyCartBar .btn');
-      const oos = !isAvailable(p);
+      const oos = !anySizeAvailable(p);
       [mainBtn, stickyBtn].forEach(b => {
         if (!b) return;
         b.disabled = oos;
@@ -5318,8 +5307,49 @@ n    <!-- CONTENT PAGES -->
       if (dot) switchDetailAngle(parseInt(dot.dataset.idx, 10));
     });
 
-    function detailChangeQty(d) { detailQty = Math.max(1, Math.min(99, detailQty + d)); document.getElementById('detailQty').textContent = detailQty; }
+    function detailChangeQty(d) {
+      const cap = currentProduct ? Math.max(1, maxQtyFor(currentProduct, detailSize)) : 99;
+      detailQty = Math.max(1, Math.min(cap, detailQty + d));
+      document.getElementById('detailQty').textContent = detailQty;
+    }
     function detailAddToCart() { if (currentProduct) addToCart(currentProduct, detailSize, detailQty); }
+
+    // Size picker on the product page. One size is shown as plain text; several
+    // sizes become selectable buttons, with sold-out sizes disabled.
+    function renderSizePicker(p) {
+      const block = document.getElementById('detailSizeBlock');
+      const picker = document.getElementById('detailSizePicker');
+      const note = document.getElementById('detailSizeNote');
+      if (!block || !picker || !note) return;
+      const sizes = (p.sizes && p.sizes.length) ? p.sizes : ['L'];
+      // Stickers are sold as "One Size" — nothing to choose, so the block is hidden.
+      const oneSizeOnly = sizes.length === 1 && sizes[0] === 'One Size';
+      block.style.display = oneSizeOnly ? 'none' : '';
+      if (oneSizeOnly) { picker.innerHTML = ''; note.textContent = ''; return; }
+      if (sizes.length === 1) {
+        picker.innerHTML = `<div class="size-single">${esc(sizes[0])}</div>`;
+        note.textContent = 'This is the only size available for this piece.';
+        return;
+      }
+      picker.innerHTML = sizes.map(s => {
+        const avail = sizeAvailable(p, s);
+        const selected = s === detailSize;
+        return `<button type="button" class="size-btn${selected ? ' selected' : ''}" data-size="${esc(s)}" aria-pressed="${selected}"${avail ? '' : ' disabled'} title="${avail ? esc(s) : 'Sold out in ' + esc(s)}">${esc(s)}</button>`;
+      }).join('');
+      const left = sizeQty(p, detailSize);
+      note.textContent = (left != null && left > 0 && left <= 5) ? `Only ${left} left in size ${detailSize}` : '';
+    }
+    function selectDetailSize(size) {
+      if (!currentProduct || !(currentProduct.sizes || []).includes(size) || !sizeAvailable(currentProduct, size)) return;
+      detailSize = size;
+      detailQty = Math.max(1, Math.min(detailQty, maxQtyFor(currentProduct, size)));
+      document.getElementById('detailQty').textContent = detailQty;
+      renderSizePicker(currentProduct);
+    }
+    document.addEventListener('click', (e) => {
+      const btn = e.target.closest('#detailSizePicker .size-btn');
+      if (btn && !btn.disabled) selectDetailSize(btn.dataset.size);
+    });
 
     function setupGallerySwipe() {
       const el = document.getElementById('detailMainImage');
@@ -5623,20 +5653,23 @@ n    <!-- CONTENT PAGES -->
 
     // Cart
     function addToCart(product, size, qty) {
-      if (!productsLoadedFromApi) { showToast('Shop temporarily unavailable. Please retry loading products.'); return; }
-      if (!isAvailable(product)) { showToast(product.name + ' is currently out of stock.'); return; }
+      if (!productsLoadedFromApi) { showToast('Shop temporarily unavailable. Please retry loading products.'); return false; }
+      if (!isAvailable(product)) { showToast(product.name + ' is currently out of stock.'); return false; }
+      if (!sizeAvailable(product, size)) { showToast(product.name + ' is sold out in size ' + size + '.'); return false; }
+      const cap = maxQtyFor(product, size);
       const e = cart.find(i => i.id === product.id && i.size === size);
       if (e) {
-        if (e.qty + qty > Math.min(99, product.stock_qty ?? 99)) { showToast('Not enough stock available.'); return; }
-        else e.qty += qty;
+        if (e.qty + qty > cap) { showToast('Not enough stock available.'); return false; }
+        e.qty += qty;
       } else {
-        if (qty > Math.min(99, product.stock_qty ?? 99)) { showToast('Not enough stock available.'); return; }
+        if (qty > cap) { showToast('Not enough stock available.'); return false; }
         cart.push({ ...product, size, qty: Math.min(99, qty) });
       }
       updateCartUI();
       const badge = document.getElementById('cartCount');
       badge.classList.add('bump');
       setTimeout(() => badge.classList.remove('bump'), 300);
+      return true;
     }
     function updateCartUI() {
       const c = cart.reduce((s,i) => s + i.qty, 0);
@@ -5656,7 +5689,7 @@ n    <!-- CONTENT PAGES -->
     function removeFromCart(i) { cart.splice(i,1); updateCartUI(); }
     function changeCartQty(i,d) {
       if (cart[i].qty + d <= 0) { removeFromCart(i); return; }
-      if (cart[i].qty + d > Math.min(99, cart[i].stock_qty ?? 99)) { showToast('Not enough stock available.'); return; }
+      if (cart[i].qty + d > maxQtyFor(cart[i], cart[i].size)) { showToast('Not enough stock available.'); return; }
       cart[i].qty += d; updateCartUI();
     }
     function toggleCart() {
@@ -5756,6 +5789,7 @@ n    <!-- CONTENT PAGES -->
             created_at: p.created_at || null,
             order_count: p.order_count || 0,
             stock_qty: p.stock_qty,
+            size_stock: p.size_stock || null,
             sold_count: p.sold_count || 0,
             avg_rating: (p.avg_rating != null && p.review_count > 0) ? p.avg_rating : null,
             review_count: p.review_count || 0
@@ -6208,7 +6242,6 @@ n    <!-- CONTENT PAGES -->
     // HEADER SCROLL EFFECT
     // ================================================================
     const siteHeader = document.querySelector('.site-header');
-    const heroScrollCue = document.getElementById('heroScrollCue');
     if (siteHeader) {
       let lastScrollY = 0;
       window.addEventListener('scroll', () => {
@@ -6218,12 +6251,16 @@ n    <!-- CONTENT PAGES -->
         } else {
           siteHeader.style.boxShadow = 'none';
         }
-        // Fade the hero scroll cue out once the user starts scrolling
-        if (heroScrollCue) {
-          heroScrollCue.classList.toggle('fade-out', y > 12);
-        }
         lastScrollY = y;
       }, { passive: true });
+    }
+
+    // Publish the fixed header's real height (it wraps onto two rows on phones).
+    if (siteHeader) {
+      const syncHeaderHeight = () => document.documentElement.style.setProperty('--header-h', siteHeader.offsetHeight + 'px');
+      syncHeaderHeight();
+      if (window.ResizeObserver) new ResizeObserver(syncHeaderHeight).observe(siteHeader);
+      else window.addEventListener('resize', syncHeaderHeight);
     }
 
     // ================================================================

@@ -7,10 +7,32 @@ const { requireCsrf } = require('../middleware/csrf');
 const { requireAuth, requireCustomerAuth } = require('../middleware/auth');
 const { orderLimiter } = require('../middleware/rateLimit');
 const { sendOrderConfirmation, sendStatusUpdate } = require('../utils/email');
+const sizeStock = require('../utils/sizes');
 
 module.exports = function createOrderRoutes(db) {
   const router = express.Router();
   const normPhone = (s) => String(s || '').replace(/\D/g, '').slice(-10);
+
+  // Put back (direction +1) or take out (direction -1) one order line's units.
+  // Per-size lines adjust that size's row; legacy lines adjust the shared pool.
+  // Removing floors at 0 so concurrent sales can never drive stock negative.
+  async function adjustLineStock(db, it, direction) {
+    const qty = Number(it.qty) || 1;
+    const p = await db.prepare('SELECT id, stock_qty FROM products WHERE id = ?').get(it.id);
+    if (!p) return;
+    const perSize = await sizeStock.loadSizeStock(db, p.id);
+    if (perSize) {
+      if (!Object.prototype.hasOwnProperty.call(perSize, it.size)) return;
+      const next = Math.max(0, (perSize[it.size] || 0) + direction * qty);
+      await db.prepare('UPDATE product_size_stock SET stock_qty = ? WHERE product_id = ? AND size = ?').run(next, p.id, it.size);
+      await sizeStock.syncProductStock(db, p.id);
+      if (direction > 0) await db.prepare('UPDATE products SET in_stock = 1 WHERE id = ?').run(p.id);
+      return;
+    }
+    if (p.stock_qty == null) return;
+    const newQty = direction > 0 ? Number(p.stock_qty) + qty : Math.max(0, Number(p.stock_qty) - qty);
+    await db.prepare('UPDATE products SET stock_qty = ?, in_stock = ? WHERE id = ?').run(newQty, direction > 0 || newQty > 0 ? 1 : 0, p.id);
+  }
 
   // POST place order (public)
   router.post('/api/orders', orderLimiter, requireCsrf, async (req, res) => {
@@ -26,12 +48,18 @@ module.exports = function createOrderRoutes(db) {
         const id = parseInt(it.id, 10); const qty = Math.min(99, Math.max(1, parseInt(it.qty, 10) || 1)); const size = String(it.size || '').slice(0, 10);
         const p = await db.prepare('SELECT * FROM products WHERE id = ?').get(id);
         if (!p || !p.in_stock) { skipped.push(it); continue; }
-        const stock = (p.stock_qty != null && p.stock_qty !== '') ? Number(p.stock_qty) : null;
-        if (stock != null && qty > stock) return res.status(400).json({ error: `Only ${stock} ${stock === 1 ? 'unit' : 'units'} of "${p.name}" left in stock. Please reduce the quantity.` });
+        if (!sizeStock.parseSizeColumn(p.sizes).includes(size)) return res.status(400).json({ error: `Size "${size}" is not offered for "${p.name}". Please review your cart.` });
+        // Per-size products check the requested size's own count; legacy products use the shared pool.
+        const perSize = await sizeStock.loadSizeStock(db, p.id);
+        const stock = perSize ? (perSize[size] || 0) : ((p.stock_qty != null && p.stock_qty !== '') ? Number(p.stock_qty) : null);
+        if (stock != null && qty > stock) {
+          if (perSize && stock === 0) return res.status(400).json({ error: `"${p.name}" is sold out in size ${size}. Please review your cart.` });
+          return res.status(400).json({ error: `Only ${stock} ${stock === 1 ? 'unit' : 'units'} of "${p.name}"${perSize ? ` in size ${size}` : ''} left in stock. Please reduce the quantity.` });
+        }
         const unit = (p.sale_price && p.sale_price < p.price) ? p.sale_price : p.price; const lineTotal = unit * qty;
         const unitCost = (p.unit_cost && p.unit_cost > 0) ? p.unit_cost : Math.round(unit * 0.55);
         subtotal += lineTotal;
-        lineItems.push({ id: p.id, name: p.name, size, qty, unit: Math.round(unit), total: Math.round(lineTotal), cost: Math.round(unitCost) * qty, image: p.front_image || null, stock });
+        lineItems.push({ id: p.id, name: p.name, size, qty, unit: Math.round(unit), total: Math.round(lineTotal), cost: Math.round(unitCost) * qty, image: p.front_image || null, stock, perSize: !!perSize });
       }
       if (skipped.length > 0) return res.status(400).json({ error: 'Some items in your cart are unavailable or out of stock. Please review your cart.' });
       if (lineItems.length === 0) return res.status(400).json({ error: 'Your cart is empty.' });
@@ -48,16 +76,38 @@ module.exports = function createOrderRoutes(db) {
       // availability check above and now, the UPDATE matches 0 rows and we
       // reject the order. (Backends report `changes`; a backend without it
       // is assumed to have applied the guarded UPDATE.)
+      // Lines already decremented are restored if a later line fails, so a
+      // rejected order never leaves stock consumed.
+      const applied = [];
+      const restoreApplied = async () => {
+        for (const a of applied.reverse()) {
+          if (a.perSize) {
+            await db.prepare('UPDATE product_size_stock SET stock_qty = stock_qty + ? WHERE product_id = ? AND size = ?').run(a.qty, a.id, a.size);
+            await sizeStock.syncProductStock(db, a.id);
+          } else {
+            await db.prepare('UPDATE products SET stock_qty = stock_qty + ?, in_stock = 1 WHERE id = ?').run(a.qty, a.id);
+          }
+        }
+      };
       for (const it of lineItems) {
         if (it.stock == null) continue;
-        const upd = await db.prepare('UPDATE products SET stock_qty = stock_qty - ? WHERE id = ? AND stock_qty >= ?').run(it.qty, it.id, it.qty);
-        const changed = upd && upd.changes != null ? Number(upd.changes) : 1;
-        if (!changed) {
-          // Roll back the just-inserted order so no phantom order remains.
-          try { await db.prepare('DELETE FROM orders WHERE id = ?').run(result.lastInsertRowid); } catch (_) {}
-          return res.status(400).json({ error: `Sorry — "${it.name}" just sold out or has fewer units left than requested. Please review your cart.` });
+        let changed;
+        if (it.perSize) {
+          // Guarded per-size decrement: the WHERE clause rejects the sale if that size ran out meanwhile.
+          const upd = await db.prepare('UPDATE product_size_stock SET stock_qty = stock_qty - ? WHERE product_id = ? AND size = ? AND stock_qty >= ?').run(it.qty, it.id, it.size, it.qty);
+          changed = upd && upd.changes != null ? Number(upd.changes) : 1;
+          if (changed) { applied.push({ id: it.id, size: it.size, qty: it.qty, perSize: true }); await sizeStock.syncProductStock(db, it.id); }
+        } else {
+          const upd = await db.prepare('UPDATE products SET stock_qty = stock_qty - ? WHERE id = ? AND stock_qty >= ?').run(it.qty, it.id, it.qty);
+          changed = upd && upd.changes != null ? Number(upd.changes) : 1;
+          if (changed) { applied.push({ id: it.id, qty: it.qty, perSize: false }); await db.prepare('UPDATE products SET in_stock = ? WHERE id = ? AND stock_qty <= 0').run(0, it.id); }
         }
-        await db.prepare('UPDATE products SET in_stock = ? WHERE id = ? AND stock_qty <= 0').run(0, it.id);
+        if (!changed) {
+          // Roll back the just-inserted order and any earlier decrements so no phantom order remains.
+          try { await restoreApplied(); } catch (_) {}
+          try { await db.prepare('DELETE FROM orders WHERE id = ?').run(result.lastInsertRowid); } catch (_) {}
+          return res.status(400).json({ error: `Sorry — "${it.name}"${it.perSize ? ` (size ${it.size})` : ''} just sold out or has fewer units left than requested. Please review your cart.` });
+        }
       }
 
       const order = await db.prepare('SELECT * FROM orders WHERE id = ?').get(result.lastInsertRowid);
@@ -143,13 +193,13 @@ module.exports = function createOrderRoutes(db) {
       if (!order) return res.status(404).json({ error: 'Order not found' });
       if (status === 'cancelled' && order.status !== 'cancelled') {
         let items = []; try { items = JSON.parse(order.items_json || '[]'); } catch (e) { items = []; }
-        for (const it of items) { const p = await db.prepare('SELECT id, stock_qty FROM products WHERE id = ?').get(it.id); if (!p || p.stock_qty == null) continue; await db.prepare('UPDATE products SET stock_qty = ?, in_stock = ? WHERE id = ?').run(Number(p.stock_qty) + (Number(it.qty) || 1), 1, it.id); }
+        for (const it of items) { await adjustLineStock(db, it, +1); }
       } else if (order.status === 'cancelled' && status !== 'cancelled') {
         // Reactivating a cancelled order must take the units back out of stock,
         // otherwise cancel → reset → cancel cycles inflate inventory forever.
         // Floor at 0 so concurrent sales can never drive stock negative.
         let items = []; try { items = JSON.parse(order.items_json || '[]'); } catch (e) { items = []; }
-        for (const it of items) { const p = await db.prepare('SELECT id, stock_qty FROM products WHERE id = ?').get(it.id); if (!p || p.stock_qty == null) continue; const newQty = Math.max(0, Number(p.stock_qty) - (Number(it.qty) || 1)); await db.prepare('UPDATE products SET stock_qty = ?, in_stock = ? WHERE id = ?').run(newQty, newQty > 0 ? 1 : 0, it.id); }
+        for (const it of items) { await adjustLineStock(db, it, -1); }
       }
       const oldStatus = order.status;
       await db.prepare('UPDATE orders SET status = ? WHERE id = ?').run(status, id);

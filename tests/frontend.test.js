@@ -97,7 +97,45 @@ async function ready(win) {
     await wait(100);
     assert.equal(deepLink.window.document.querySelector('#detailName').textContent, 'Cheese God');
     assert.equal(deepLink.window.document.querySelector('.hero-media img').getAttribute('src'), '/images/hero.jpg');
+    // Hero copy and CTA: headline is shown, the button goes to the full collection, and the header height is published for the hero offset.
+    assert.equal(deepLink.window.document.querySelector('.hero-title').textContent, 'Engineered Fit. Original Art.');
+    assert.equal(deepLink.window.document.querySelector('.hero-copy .btn').getAttribute('href'), '/collection/all');
+    assert.match(deepLink.window.document.querySelector('.hero-copy .btn').getAttribute('onclick'), /navigateTo\('collection', 'all'\)/);
+    assert.notEqual(deepLink.window.document.documentElement.style.getPropertyValue('--header-h'), '');
     console.log('✅ Product deep links, media, and browser Back work');
+
+    // Per-size stock: a product offering S/M/L with S=2, M=0 (sold out), L=5.
+    const db = require('../database');
+    const sizeTee = await db.prepare('INSERT INTO products (name, category, fit, price, sizes, stock_qty, in_stock, extra_images) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+      .run('Frontend Size Tee', 'anime', 'Regular', 1000, JSON.stringify(['S', 'M', 'L']), 7, 1, '[]');
+    const sizeTeeId = Number(sizeTee.lastInsertRowid);
+    for (const [size, qty] of [['S', 2], ['M', 0], ['L', 5]]) {
+      await db.prepare('INSERT INTO product_size_stock (product_id, size, stock_qty) VALUES (?, ?, ?)').run(sizeTeeId, size, qty);
+    }
+    const sized = page(storeHtml, `/product/${sizeTeeId}`); windows.push(sized);
+    await ready(sized.window);
+    await wait(100);
+    const sw = sized.window, sd = sw.document;
+    assert.equal(sd.querySelector('#detailName').textContent, 'Frontend Size Tee');
+    assert.deepEqual([...sd.querySelectorAll('#detailSizePicker .size-btn')].map(b => b.dataset.size), ['S', 'M', 'L']);
+    assert.equal(sd.querySelector('[data-size="M"]').disabled, true, 'sold-out size is disabled');
+    assert.equal(sd.querySelector('.size-btn.selected').dataset.size, 'S', 'defaults to the first available size');
+    sd.querySelector('[data-size="L"]').click();
+    assert.equal(sw.eval('detailSize'), 'L');
+    assert.equal(sd.querySelector('.size-btn.selected').dataset.size, 'L');
+    for (let i = 0; i < 9; i++) sw.detailChangeQty(1);
+    assert.equal(sd.getElementById('detailQty').textContent, '5', 'quantity stops at the size count');
+    sd.querySelector('[data-size="S"]').click();
+    assert.equal(sd.getElementById('detailQty').textContent, '2', 'quantity follows the new size count');
+    sw.detailAddToCart();
+    assert.equal(sw.eval('cart.length'), 1);
+    assert.equal(sw.eval('cart[0].size'), 'S');
+    assert.equal(sw.eval('cart[0].qty'), 2);
+    sw.detailAddToCart();
+    assert.equal(sw.eval('cart[0].qty'), 2, 'cannot add past the size count');
+    assert.equal(sd.getElementById('toast').textContent, 'Not enough stock available.');
+    assert.equal(sw.eval('addToCart(allProducts.find(p => p.id === ' + sizeTeeId + '), "M", 1)'), false, 'sold-out size cannot be added');
+    console.log('✅ Per-size product page: sold-out sizes disabled, quantity capped per size');
 
     const bad = await fetch(origin + '/does-not-exist');
     assert.equal(bad.status, 404);
@@ -165,6 +203,37 @@ async function ready(win) {
     }
     console.log('✅ Quick Upload validates and submits stock quantity');
 
+    // Admin form: sizes chips and per-size counts are sent as one payload.
+    aw.eval('products = ' + JSON.stringify(await (await fetch(origin + '/api/products')).json()) + '; filterProducts()');
+    const sizeTeeAdmin = aw.eval('products.find(p => p.name === "Frontend Size Tee")');
+    assert.ok(sizeTeeAdmin && sizeTeeAdmin.size_stock, 'admin sees the per-size counts');
+    aw.editProduct(sizeTeeAdmin.id);
+    assert.deepEqual([...ad.querySelectorAll('#prodSizeChips .size-chip[aria-pressed="true"]')].map(b => b.dataset.size), ['S', 'M', 'L']);
+    assert.equal(ad.querySelector('#prodSizeStock [data-size="M"]').value, '0');
+    ad.querySelector('#prodSizeStock [data-size="L"]').value = '9';
+    let sentBody = null;
+    const savedFetch = aw.fetch;
+    try {
+      aw.fetch = (url, options) => {
+        if (options && options.method === 'PUT') { sentBody = options.body; return Promise.resolve({ ok: false, status: 400, json: async () => ({ error: 'expected test response' }) }); }
+        return savedFetch(url, options);
+      };
+      await aw.handleSaveProduct({ preventDefault() {} });
+      assert.equal(sentBody.get('size_stock'), JSON.stringify({ S: 2, M: 0, L: 9 }));
+      assert.equal(sentBody.get('sizes'), JSON.stringify(['S', 'M', 'L']));
+      assert.equal(sentBody.has('stock_qty'), false, 'no bare total is sent');
+      // A half-filled size list must be rejected before any request is made.
+      ad.querySelector('#prodSizeStock [data-size="M"]').value = '';
+      sentBody = null;
+      await aw.handleSaveProduct({ preventDefault() {} });
+      assert.equal(sentBody, null);
+      assert.match(ad.getElementById('formError').textContent, /size M/);
+    } finally {
+      aw.fetch = savedFetch;
+    }
+    aw.resetForm();
+    console.log('✅ Admin product form sends sizes and a count per size');
+
     ad.getElementById('productSearch').value = 'NoMatch987';
     aw.filterProducts();
     assert.equal(ad.querySelectorAll('#productList .product-row:not(.header-row)').length, 0);
@@ -195,7 +264,7 @@ async function ready(win) {
     console.log('✅ Mobile navigation and admin tab layout stay reachable');
 
     assert.deepEqual(errors, []);
-    console.log('\n10/10 frontend scenarios passed');
+    console.log('\n12/12 frontend scenarios passed');
   } finally {
     windows.forEach(win => win.window.close());
     await new Promise(resolve => server.close(resolve));

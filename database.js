@@ -387,6 +387,16 @@ async function createSchema(exec) {
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
+  // Per-size stock. A product with rows here is tracked per size and its
+  // products.stock_qty is the sum of these rows (see utils/sizes.js).
+  await exec(`
+    CREATE TABLE IF NOT EXISTS product_size_stock (
+      product_id INTEGER NOT NULL,
+      size TEXT NOT NULL,
+      stock_qty INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (product_id, size)
+    )
+  `);
   await exec(`
     CREATE TABLE IF NOT EXISTS reviews (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
