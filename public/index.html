@@ -348,6 +348,8 @@
       display: flex; align-items: center; justify-content: center;
     }
     .nav-icon:hover { color: var(--accent); }
+    /* Desktop-only search toggle (shown by the ≥1024px header rules) */
+    .nav-search-toggle { display: none; }
     .nav-icon.active { color: var(--accent); }
     .nav-icon img { display: block; } /* raster icon (track order) sits like the stroke SVGs */
     .nav-icon .badge {
@@ -3258,49 +3260,59 @@
        DESKTOP HOMEPAGE REFINEMENTS — 1025px and up
        ================================================================ */
     @media (min-width: 1024px) {
-      /* --- Header: larger logo, constrained 1280px layout --- */
+      /* --- Header: ONE row — [logo] [nav links, centred] [search + wishlist + account + cart] --- */
       .site-header .container.nav-inner {
         max-width: 1280px;
         padding: 0 32px;
-        gap: 24px;
+        gap: 10px;
+        flex-wrap: nowrap;
+        height: 67px; /* 27px top bar + 67px row + 1px border = 95px */
+        justify-content: space-between;
       }
-      /* Horizontal nav visible on desktop (hamburger is hidden via existing media rule) */
+      /* Nav links fill the middle and centre themselves in the free space */
       .nav-links {
         display: flex !important;
         position: static;
+        flex: 1 1 auto;
+        min-width: 0;
         flex-direction: row;
+        justify-content: center;
         width: auto;
         padding: 0;
         border: none;
         box-shadow: none;
         border-radius: 0;
         background: transparent;
-        gap: 1.5rem;
+        gap: 0.4rem;
         z-index: auto;
         max-height: none;
         overflow: visible;
-        margin: 0 auto;
+        margin: 0;
       }
       .nav-links li.mobile-search,
       .nav-links li.mobile-icons-row { display: none !important; }
       .nav-links a {
-        padding: 8px 4px;
+        padding: 8px 1px;
         min-height: 44px;
         width: auto;
-        font-size: 0.78rem;
+        font-size: 0.66rem;
         font-weight: 700;
-        letter-spacing: 0.1em;
+        letter-spacing: 0.02em;
         text-transform: uppercase;
         background: transparent !important;
         border-radius: 0;
         white-space: nowrap;
       }
       .hamburger { display: none; }
+      .nav-icons { flex: 0 0 auto; gap: 0; }
       .nav-icons > .nav-icon { display: flex !important; }
+      /* Track Order is already a nav link on desktop, so its duplicate icon is dropped here */
+      .nav-icons > .nav-icon[title="Track Order"] { display: none !important; }
 
-      /* Logo ~68px tall (kanji 32.4 + 4 gap + wordmark 32 = 68.4px, no vertical padding) */
+      /* Logo: 68px tall (kanji 32.4 + 4 gap + wordmark 32px), no vertical padding */
       .kage-logo {
-        padding: 0 28px 0 0;
+        flex: 0 0 auto;
+        padding: 0 16px 0 0;
       }
       .kage-logo .kanji {
         font-size: 36px;
@@ -3317,20 +3329,21 @@
         margin-top: 2px;
       }
 
-      /* Search bar: its own centred row under the logo + nav (the nav is too
-         wide to share a row with a floating search, so it wrapped on top of it). */
-      .site-header .container.nav-inner { flex-wrap: wrap; row-gap: 12px; }
+      /* Search: the field is hidden until the icon button opens it. While open it
+         covers the nav links (which are hidden), so it never overlaps them. */
       .nav-search {
-        position: relative;
-        left: auto;
-        top: auto;
-        transform: none;
-        order: 10;
-        flex: 0 0 100%;
-        max-width: 360px;
-        min-width: 280px;
-        margin: 0 auto 12px;
+        visibility: hidden;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity var(--transition-fast);
       }
+      .site-header.search-open .nav-search {
+        visibility: visible;
+        opacity: 1;
+        pointer-events: auto;
+      }
+      .site-header.search-open .nav-links { visibility: hidden; }
+      .nav-search-toggle { display: flex !important; }
 
 
       /* --- Consistent section vertical rhythm (72px top/bottom) --- */
@@ -3658,11 +3671,12 @@
       </ul>
 
       <div class="nav-search">
-        <input type="search" id="searchInput" placeholder="Search drops…" oninput="onSearchInput(this.value)" />
+        <input type="search" id="searchInput" placeholder="Search drops…" oninput="onSearchInput(this.value)" onkeydown="searchKeydown(event)" onblur="searchBlur()" aria-label="Search drops" />
         <span class="nav-search-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></span>
               </div>
 
               <div class="nav-icons">
+                <button class="nav-icon nav-search-toggle" id="searchToggle" type="button" onclick="toggleDesktopSearch()" title="Search" aria-label="Search" aria-controls="searchInput" aria-expanded="false"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></button>
                 <button class="nav-icon" onclick="navigateTo('tracking')" title="Track Order" aria-label="Track Order"><img src="/images/track-order.png" alt="" width="22" height="22" /></button>
                 <button class="nav-icon" id="wishlistNav" onclick="toggleWishlistFilter()" title="Wishlist" aria-label="Wishlist"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg><span class="badge" id="wishlistCount">0</span></button>
                 <button class="nav-icon" id="customerAccountBtn" onclick="handleAccountClick()" title="Account" aria-label="Account"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></button>
@@ -5179,6 +5193,38 @@ n    <!-- CONTENT PAGES -->
     }
 
     // ---------- Search ----------
+    // ---------- Desktop header search: icon button opens the field (≥1024px) ----------
+    function setDesktopSearch(open) {
+      const header = document.getElementById('siteHeader');
+      const btn = document.getElementById('searchToggle');
+      const input = document.getElementById('searchInput');
+      if (!header || !btn || !input) return;
+      header.classList.toggle('search-open', open);
+      btn.setAttribute('aria-expanded', String(open));
+      if (open) input.focus();
+    }
+    function toggleDesktopSearch() {
+      const header = document.getElementById('siteHeader');
+      setDesktopSearch(!(header && header.classList.contains('search-open')));
+    }
+    // Escape closes the field when it is empty and returns focus to the icon button
+    function searchKeydown(e) {
+      if (e.key === 'Escape' && !e.target.value) {
+        setDesktopSearch(false);
+        const btn = document.getElementById('searchToggle');
+        if (btn) btn.focus();
+      }
+    }
+    // Blur closes the field when it is empty (focus staying in the header, e.g. on the icon button, keeps it open)
+    function searchBlur() {
+      setTimeout(() => {
+        const header = document.getElementById('siteHeader');
+        const input = document.getElementById('searchInput');
+        if (!header || !input) return;
+        if (!input.value && !header.contains(document.activeElement)) setDesktopSearch(false);
+      }, 0);
+    }
+
     function onSearchInput(v) {
       searchQuery = v || '';
       currentPage = 1;
