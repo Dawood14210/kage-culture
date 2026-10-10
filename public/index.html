@@ -3317,17 +3317,21 @@
         margin-top: 2px;
       }
 
-      /* Search bar: moderate 320–400px width, centred */
+      /* Search bar: its own centred row under the logo + nav (the nav is too
+         wide to share a row with a floating search, so it wrapped on top of it). */
+      .site-header .container.nav-inner { flex-wrap: wrap; row-gap: 12px; }
       .nav-search {
-        position: absolute;
-        left: 50%;
-        top: 50%;
-        transform: translate(-50%, -50%);
-        width: min(360px, calc(100% - 640px));
-        max-width: 380px;
+        position: relative;
+        left: auto;
+        top: auto;
+        transform: none;
+        order: 10;
+        flex: 0 0 100%;
+        max-width: 360px;
         min-width: 280px;
-        margin: 0;
+        margin: 0 auto 12px;
       }
+
 
       /* --- Consistent section vertical rhythm (72px top/bottom) --- */
       #page-home .category-band,
@@ -3562,6 +3566,13 @@
       #page-home .bestsellers-viewall {
         min-height: 44px;
       }
+    }
+
+    /* Footer bottom links (Privacy / Terms): 44px tap targets at every width */
+    .footer-bottom-links a {
+      min-height: 44px;
+      display: inline-flex;
+      align-items: center;
     }
 
   </style>
