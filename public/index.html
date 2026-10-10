@@ -28,10 +28,10 @@
   <meta name="twitter:image" content="/images/animal-white-tiger.jpg" />
 
   <!-- Favicon -->
-  <link rel="icon" href="/favicon.ico" sizes="any" />
-  <link rel="icon" type="image/png" href="/favicon-32x32.png" sizes="32x32" />
-  <link rel="icon" type="image/png" href="/favicon-16x16.png" sizes="16x16" />
-  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+  <link rel="icon" href="/favicon.ico" sizes="any">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="manifest" href="/manifest.json" />
   <meta name="theme-color" content="#D9D4C8" />
   <meta name="msapplication-TileColor" content="#4A4433" />
@@ -212,6 +212,7 @@
        ================================================================ */
     .site-header {
       position: fixed; top: 0; left: 0; width: 100%; z-index: 1000;
+      height: 95px;
       background: var(--bg-primary);
       border-bottom: 1px solid var(--border-subtle);
       transition: all var(--transition-med);
@@ -262,6 +263,7 @@
 
     .site-header .nav-inner {
           padding: 0;
+          height: 67px;
           position: relative;
           display: flex;
           align-items: center;
@@ -272,30 +274,11 @@
           font-family: 'Noto Serif JP', 'Archivo', sans-serif;
           line-height: 1; user-select: none; cursor: pointer; flex-shrink: 0;
         }
-    /* Brush-style 影 — Zen Brush sumi-ink typeface with a faded ink-wash edge */
-    .kage-logo .kanji {
-      font-family: 'Zen Brush', 'Noto Serif JP', serif;
-      font-size: 27px;
-      font-weight: 400;
-      color: var(--accent);
-      line-height: 0.9;
-      opacity: 0.88;
-      -webkit-mask-image: radial-gradient(ellipse 78% 78% at 50% 50%, #000 60%, rgba(0,0,0,0.75) 82%, transparent 100%);
-      mask-image: radial-gradient(ellipse 78% 78% at 50% 50%, #000 60%, rgba(0,0,0,0.75) 82%, transparent 100%);
-    }
-    .kage-logo .wordmark-wrap {
-      display: flex; flex-direction: column; align-items: center; margin-top: 2px;
-    }
-    .kage-logo .kage {
-      font-family: var(--font-display); font-size: 13px;
-      font-weight: 800;
-      letter-spacing: 0.16em; color: #0A0A0A; line-height: 1;
-    }
-    .kage-logo .kage .accent { color: var(--accent); }
-    .kage-logo .culture {
-      font-family: var(--font-body); font-size: 8px;
-      letter-spacing: 0.12em; color: var(--text-secondary); margin-top: 0px; line-height: 1;
-    }
+    .kage-logo img {
+          height: 44px;
+          width: auto;
+          display: block;
+        }
 
     .nav-links {
       display: none;
@@ -2584,7 +2567,6 @@
     @media (max-width: 640px) {
       .site-header .nav-inner { padding: 10px 16px; }
       .kage-logo { padding: 0 4px; }
-      .kage-logo .culture { white-space: nowrap; text-align: center; }
     }
 
     /* Ultra-narrow phones (≤360px): stop the header from overflowing —
@@ -3309,24 +3291,9 @@
       /* Track Order is already a nav link on desktop, so its duplicate icon is dropped here */
       .nav-icons > .nav-icon[title="Track Order"] { display: none !important; }
 
-      /* Logo: 68px tall (kanji 32.4 + 4 gap + wordmark 32px), no vertical padding */
       .kage-logo {
         flex: 0 0 auto;
         padding: 0 16px 0 0;
-      }
-      .kage-logo .kanji {
-        font-size: 36px;
-        line-height: 0.9;
-      }
-      .kage-logo .wordmark-wrap { margin-top: 4px; }
-      .kage-logo .kage {
-        font-size: 20px;
-        letter-spacing: 0.18em;
-      }
-      .kage-logo .culture {
-        font-size: 10px;
-        letter-spacing: 0.16em;
-        margin-top: 2px;
       }
 
       /* Search: the field is hidden until the icon button opens it. While open it
@@ -3645,11 +3612,7 @@
 
     <div class="container nav-inner">
       <div class="kage-logo" onclick="navigateTo('home')" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();navigateTo('home');}">
-        <span class="kanji">影</span>
-        <span class="wordmark-wrap">
-          <span class="kage">K<span class="accent">A</span>GE</span>
-          <span class="culture">— CULTURE —</span>
-        </span>
+        <img src="/images/logo/kage-horizontal-light.svg" alt="Kage Culture" width="1030" height="352" fetchpriority="high" decoding="async">
       </div>
 
       <ul class="nav-links" id="navLinks" aria-label="Main navigation">

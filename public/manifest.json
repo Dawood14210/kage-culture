@@ -4,8 +4,8 @@
   "description": "Premium streetwear. Anime inspired. Built for everyday.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#D9D4C8",
-  "theme_color": "#D9D4C8",
+  "background_color": "#D8D4C8",
+  "theme_color": "#D8D4C8",
   "orientation": "any",
   "icons": [
     {
