@@ -1583,6 +1583,10 @@
     }
     .size-btn:hover { border-color: var(--text-primary); color: var(--text-primary); }
     .size-btn.selected { border-color: var(--text-primary); color: var(--text-primary); }
+    .size-picker { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+    .size-btn:disabled { opacity: 0.4; cursor: not-allowed; text-decoration: line-through; }
+    .size-btn:disabled:hover { border-color: var(--border-color); color: var(--text-muted); }
+    .size-single { font-size: 0.95rem; font-weight: 700; padding: 0.5rem 0.8rem; background: rgba(0,0,0,0.03); border: 1px solid var(--border-color); display: inline-block; border-radius: 8px; }
 
     .qty-btn {
       width: 44px; height: 44px;
@@ -3737,10 +3741,10 @@
           <div class="detail-rating" id="detailRating"></div>
           <div class="detail-urgency" id="detailUrgency"></div>
           <p class="detail-desc" id="detailDesc"></p>
-          <div>
+          <div id="detailSizeBlock">
             <label style="font-size:0.7rem;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;display:block;margin-bottom:0.4rem;">Size</label>
-            <div id="detailSizeDisplay" style="font-size:0.95rem;font-weight:700;padding:0.5rem 0.8rem;background:rgba(0,0,0,0.03);border:1px solid var(--border-color);display:inline-block;border-radius:8px;">L</div>
-            <div style="font-size:0.7rem;color:var(--text-gray);margin-top:0.3rem;">This is the only size available for this piece.</div>
+            <div id="detailSizePicker" class="size-picker" role="group" aria-label="Choose size"></div>
+            <div id="detailSizeNote" style="font-size:0.7rem;color:var(--text-gray);margin-top:0.3rem;"></div>
           </div>
           <div>
             <label style="font-size:0.7rem;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;display:block;margin-bottom:0.4rem;">Quantity</label>
@@ -4287,8 +4291,8 @@ n    <!-- CONTENT PAGES -->
         const saved = JSON.parse(localStorage.getItem('kageCart') || '[]');
         cart = Array.isArray(saved) ? saved.slice(0, 50).map(i => {
           const p = allProducts.find(x => x.id === Number(i.id));
-          if (!p || !isAvailable(p) || !p.sizes.includes(i.size)) return null;
-          const qty = Math.min(99, p.stock_qty ?? 99, Math.max(0, Math.floor(Number(i.qty) || 0)));
+          if (!p || !sizeAvailable(p, i.size) || !p.sizes.includes(i.size)) return null;
+          const qty = Math.min(maxQtyFor(p, i.size), Math.max(0, Math.floor(Number(i.qty) || 0)));
           return qty ? { ...p, size: i.size, qty } : null;
         }).filter(Boolean) : [];
         const ids = JSON.parse(localStorage.getItem('kageWishlist') || '[]');
@@ -4388,6 +4392,27 @@ n    <!-- CONTENT PAGES -->
 
     // Real low-stock flag — only rendered when stock_qty is a real number at or below 5.
     function isAvailable(p) { return p.in_stock !== false && (p.stock_qty == null || Number(p.stock_qty) > 0); }
+
+    // ---------- Per-size stock ----------
+    // p.size_stock is {size: units} for products tracked per size, or null
+    // when the product uses one shared stock count (p.stock_qty).
+    function sizeQty(p, size) {
+      return (p.size_stock && Object.prototype.hasOwnProperty.call(p.size_stock, size)) ? (Number(p.size_stock[size]) || 0) : null;
+    }
+    function sizeAvailable(p, size) {
+      if (!isAvailable(p)) return false;
+      if (p.size_stock) return (sizeQty(p, size) || 0) > 0;
+      return true;
+    }
+    function maxQtyFor(p, size) {
+      const q = p.size_stock ? (sizeQty(p, size) || 0) : (p.stock_qty ?? 99);
+      return Math.min(99, Math.max(0, Number(q) || 0));
+    }
+    function anySizeAvailable(p) { return (p.sizes || []).some(s => sizeAvailable(p, s)); }
+    function defaultSizeFor(p) {
+      const sizes = (p.sizes && p.sizes.length) ? p.sizes : ['L'];
+      return sizes.find(s => sizeAvailable(p, s)) || sizes[0];
+    }
 
     function lowStockBadge(p) {
       const s = p.stock_qty;
@@ -4891,10 +4916,9 @@ n    <!-- CONTENT PAGES -->
     function quickAdd(id) {
       const p = allProducts.find(x => x.id === id);
       if (!p) return;
-      if (!isAvailable(p)) { showToast(p.name + ' is currently out of stock.'); return; }
-      const size = (p.sizes && p.sizes.length) ? p.sizes[0] : 'L';
-      addToCart(p, size, 1);
-      showToast(p.name + ' added to cart (' + size + ')');
+      if (!anySizeAvailable(p)) { showToast(p.name + ' is currently out of stock.'); return; }
+      const size = defaultSizeFor(p);
+      if (addToCart(p, size, 1)) showToast(p.name + ' added to cart (' + size + ')');
     }
     function showToast(msg) {
       let t = document.getElementById('toast');
@@ -5257,7 +5281,7 @@ n    <!-- CONTENT PAGES -->
     function openProductDetail(productId) {
       const p = allProducts.find(x => x.id === productId);
       if (!p) return;
-      currentProduct = p; detailQty = 1; detailSize = (p.sizes && p.sizes.length) ? p.sizes[0] : 'L'; detailAngle = 0;
+      currentProduct = p; detailQty = 1; detailSize = defaultSizeFor(p); detailAngle = 0;
       navigateTo('product');
       document.getElementById('detailName').textContent = p.name;
       document.getElementById('detailPrice').innerHTML = detailPriceHtml(p);
@@ -5282,22 +5306,12 @@ n    <!-- CONTENT PAGES -->
       } else dc.style.display = 'none';
       const th = document.getElementById('detailThumbnails');
       th.innerHTML = p.images.map((img,i) => `<div class="detail-thumb ${i===0?'active':''}" role="button" tabindex="0" aria-label="View image ${i+1}" onclick="switchDetailAngle(${i})" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();switchDetailAngle(${i});}"><img src="${esc(img)}" alt="View ${i+1}" /></div>`).join('');
-      // Display fixed size — hide entirely for stickers (goofy-wears)
-      const szDisplay = document.getElementById('detailSizeDisplay');
-      const szContainer = szDisplay ? szDisplay.parentElement : null;
-      const szLabel = szContainer ? szContainer.previousElementSibling : null;
-      const isSticker = p.collection === 'goofy-wears';
-      if (szContainer) szContainer.style.display = isSticker ? 'none' : '';
-      if (szLabel && szLabel.tagName === 'LABEL') szLabel.style.display = isSticker ? 'none' : '';
-      // Also hide the "only size" note
-      const szNote = szContainer ? szContainer.nextElementSibling : null;
-      if (szNote && szNote.textContent.includes('only size')) szNote.style.display = isSticker ? 'none' : '';
-      if (szDisplay) szDisplay.textContent = detailSize;
+      renderSizePicker(p);
       setupGallerySwipe();
       // Reflect stock state on both Add-to-Cart buttons (main + sticky bar)
       const mainBtn = document.getElementById('addToCartBtn');
       const stickyBtn = document.querySelector('#stickyCartBar .btn');
-      const oos = !isAvailable(p);
+      const oos = !anySizeAvailable(p);
       [mainBtn, stickyBtn].forEach(b => {
         if (!b) return;
         b.disabled = oos;
@@ -5318,8 +5332,49 @@ n    <!-- CONTENT PAGES -->
       if (dot) switchDetailAngle(parseInt(dot.dataset.idx, 10));
     });
 
-    function detailChangeQty(d) { detailQty = Math.max(1, Math.min(99, detailQty + d)); document.getElementById('detailQty').textContent = detailQty; }
+    function detailChangeQty(d) {
+      const cap = currentProduct ? Math.max(1, maxQtyFor(currentProduct, detailSize)) : 99;
+      detailQty = Math.max(1, Math.min(cap, detailQty + d));
+      document.getElementById('detailQty').textContent = detailQty;
+    }
     function detailAddToCart() { if (currentProduct) addToCart(currentProduct, detailSize, detailQty); }
+
+    // Size picker on the product page. One size is shown as plain text; several
+    // sizes become selectable buttons, with sold-out sizes disabled.
+    function renderSizePicker(p) {
+      const block = document.getElementById('detailSizeBlock');
+      const picker = document.getElementById('detailSizePicker');
+      const note = document.getElementById('detailSizeNote');
+      if (!block || !picker || !note) return;
+      const sizes = (p.sizes && p.sizes.length) ? p.sizes : ['L'];
+      // Stickers are sold as "One Size" — nothing to choose, so the block is hidden.
+      const oneSizeOnly = sizes.length === 1 && sizes[0] === 'One Size';
+      block.style.display = oneSizeOnly ? 'none' : '';
+      if (oneSizeOnly) { picker.innerHTML = ''; note.textContent = ''; return; }
+      if (sizes.length === 1) {
+        picker.innerHTML = `<div class="size-single">${esc(sizes[0])}</div>`;
+        note.textContent = 'This is the only size available for this piece.';
+        return;
+      }
+      picker.innerHTML = sizes.map(s => {
+        const avail = sizeAvailable(p, s);
+        const selected = s === detailSize;
+        return `<button type="button" class="size-btn${selected ? ' selected' : ''}" data-size="${esc(s)}" aria-pressed="${selected}"${avail ? '' : ' disabled'} title="${avail ? esc(s) : 'Sold out in ' + esc(s)}">${esc(s)}</button>`;
+      }).join('');
+      const left = sizeQty(p, detailSize);
+      note.textContent = (left != null && left > 0 && left <= 5) ? `Only ${left} left in size ${detailSize}` : '';
+    }
+    function selectDetailSize(size) {
+      if (!currentProduct || !(currentProduct.sizes || []).includes(size) || !sizeAvailable(currentProduct, size)) return;
+      detailSize = size;
+      detailQty = Math.max(1, Math.min(detailQty, maxQtyFor(currentProduct, size)));
+      document.getElementById('detailQty').textContent = detailQty;
+      renderSizePicker(currentProduct);
+    }
+    document.addEventListener('click', (e) => {
+      const btn = e.target.closest('#detailSizePicker .size-btn');
+      if (btn && !btn.disabled) selectDetailSize(btn.dataset.size);
+    });
 
     function setupGallerySwipe() {
       const el = document.getElementById('detailMainImage');
@@ -5623,20 +5678,23 @@ n    <!-- CONTENT PAGES -->
 
     // Cart
     function addToCart(product, size, qty) {
-      if (!productsLoadedFromApi) { showToast('Shop temporarily unavailable. Please retry loading products.'); return; }
-      if (!isAvailable(product)) { showToast(product.name + ' is currently out of stock.'); return; }
+      if (!productsLoadedFromApi) { showToast('Shop temporarily unavailable. Please retry loading products.'); return false; }
+      if (!isAvailable(product)) { showToast(product.name + ' is currently out of stock.'); return false; }
+      if (!sizeAvailable(product, size)) { showToast(product.name + ' is sold out in size ' + size + '.'); return false; }
+      const cap = maxQtyFor(product, size);
       const e = cart.find(i => i.id === product.id && i.size === size);
       if (e) {
-        if (e.qty + qty > Math.min(99, product.stock_qty ?? 99)) { showToast('Not enough stock available.'); return; }
-        else e.qty += qty;
+        if (e.qty + qty > cap) { showToast('Not enough stock available.'); return false; }
+        e.qty += qty;
       } else {
-        if (qty > Math.min(99, product.stock_qty ?? 99)) { showToast('Not enough stock available.'); return; }
+        if (qty > cap) { showToast('Not enough stock available.'); return false; }
         cart.push({ ...product, size, qty: Math.min(99, qty) });
       }
       updateCartUI();
       const badge = document.getElementById('cartCount');
       badge.classList.add('bump');
       setTimeout(() => badge.classList.remove('bump'), 300);
+      return true;
     }
     function updateCartUI() {
       const c = cart.reduce((s,i) => s + i.qty, 0);
@@ -5656,7 +5714,7 @@ n    <!-- CONTENT PAGES -->
     function removeFromCart(i) { cart.splice(i,1); updateCartUI(); }
     function changeCartQty(i,d) {
       if (cart[i].qty + d <= 0) { removeFromCart(i); return; }
-      if (cart[i].qty + d > Math.min(99, cart[i].stock_qty ?? 99)) { showToast('Not enough stock available.'); return; }
+      if (cart[i].qty + d > maxQtyFor(cart[i], cart[i].size)) { showToast('Not enough stock available.'); return; }
       cart[i].qty += d; updateCartUI();
     }
     function toggleCart() {
@@ -5756,6 +5814,7 @@ n    <!-- CONTENT PAGES -->
             created_at: p.created_at || null,
             order_count: p.order_count || 0,
             stock_qty: p.stock_qty,
+            size_stock: p.size_stock || null,
             sold_count: p.sold_count || 0,
             avg_rating: (p.avg_rating != null && p.review_count > 0) ? p.avg_rating : null,
             review_count: p.review_count || 0

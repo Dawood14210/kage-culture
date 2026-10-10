@@ -8,6 +8,7 @@ const config = require('../config');
 const { requireCsrf } = require('../middleware/csrf');
 const { requireAuth } = require('../middleware/auth');
 const { persistImage, removeImage } = require('../utils/helpers');
+const sizeStock = require('../utils/sizes');
 
 function respondToProductWriteError(err, res) {
   console.error('products route failed:', err && err.message ? err.message : err);
@@ -48,10 +49,11 @@ module.exports = function createProductRoutes(db) {
         const a = revAgg[r.product_id] || (revAgg[r.product_id] = { sum: 0, n: 0 });
         a.sum += Number(r.rating) || 0; a.n += 1;
       }
+      const sizeStockById = await sizeStock.loadAllSizeStock(db);
       const parsed = products.map(p => {
         const agg = revAgg[p.id];
         const stock = (p.stock_qty != null && p.stock_qty !== '') ? Number(p.stock_qty) : null;
-        return { ...p, sizes: JSON.parse(p.sizes || '["S","M","L","XL","XXL"]'), extra_images: JSON.parse(p.extra_images || '[]'), collections: JSON.parse(p.collections || '[]'), on_sale: Boolean(p.on_sale), in_stock: Boolean(p.in_stock) && (stock == null || stock > 0), stock_qty: stock, sold_count: sold[p.id] || 0, order_count: sold[p.id] || 0, avg_rating: agg ? Math.round((agg.sum / agg.n) * 10) / 10 : null, review_count: agg ? agg.n : 0 };
+        return { ...p, sizes: sizeStock.parseSizeColumn(p.sizes), extra_images: JSON.parse(p.extra_images || '[]'), collections: JSON.parse(p.collections || '[]'), on_sale: Boolean(p.on_sale), in_stock: Boolean(p.in_stock) && (stock == null || stock > 0), stock_qty: stock, size_stock: sizeStockById.get(Number(p.id)) || null, sold_count: sold[p.id] || 0, order_count: sold[p.id] || 0, avg_rating: agg ? Math.round((agg.sum / agg.n) * 10) / 10 : null, review_count: agg ? agg.n : 0 };
       });
       res.json(parsed);
     } catch (err) { console.error('products route failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
@@ -62,7 +64,8 @@ module.exports = function createProductRoutes(db) {
     try {
       const p = await db.prepare('SELECT * FROM products WHERE id = ?').get(req.params.id);
       if (!p) return res.status(404).json({ error: 'Product not found' });
-      p.sizes = JSON.parse(p.sizes || '["S","M","L","XL","XXL"]'); p.extra_images = JSON.parse(p.extra_images || '[]'); p.collections = JSON.parse(p.collections || '[]'); p.on_sale = Boolean(p.on_sale); p.in_stock = Boolean(p.in_stock) && (p.stock_qty == null || Number(p.stock_qty) > 0);
+      p.sizes = sizeStock.parseSizeColumn(p.sizes); p.extra_images = JSON.parse(p.extra_images || '[]'); p.collections = JSON.parse(p.collections || '[]'); p.on_sale = Boolean(p.on_sale); p.in_stock = Boolean(p.in_stock) && (p.stock_qty == null || Number(p.stock_qty) > 0);
+      p.size_stock = await sizeStock.loadSizeStock(db, p.id);
       res.json(p);
     } catch (err) { console.error('products route failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
   });
@@ -70,7 +73,7 @@ module.exports = function createProductRoutes(db) {
   // POST create product (admin only)
   router.post('/api/products', requireCsrf, requireAuth, upload.fields([{ name: 'front_image', maxCount: 1 }, { name: 'back_image', maxCount: 1 }, { name: 'extra_images', maxCount: 4 }]), async (req, res) => {
     try {
-      const { name, category, fit, price, sale_price, description, sizes, in_stock, stock_qty, unit_cost } = req.body;
+      const { name, category, fit, price, sale_price, description, sizes, in_stock, stock_qty, unit_cost, size_stock } = req.body;
       const cleanName = String(name || '').trim().slice(0, 120);
       if (!cleanName || !category || price === undefined || price === '' || price === null) return res.status(400).json({ error: 'Name, category, and price are required.' });
       const priceVal = Number(price);
@@ -89,11 +92,15 @@ module.exports = function createProductRoutes(db) {
         if (!Number.isFinite(c) || c < 0) return res.status(400).json({ error: 'Unit cost must be a non-negative number.' });
         unitCostVal = c;
       }
-      let sizesParsed = ['S', 'M', 'L', 'XL', 'XXL'];
+      let sizesParsed = [...sizeStock.DEFAULT_SIZES];
       if (sizes) {
-        try { const parsed = JSON.parse(sizes); if (!Array.isArray(parsed) || !parsed.length) throw new Error('bad'); sizesParsed = parsed.map(String).slice(0, 6); }
-        catch (e) { return res.status(400).json({ error: 'Invalid sizes format.' }); }
+        sizesParsed = sizeStock.parseSizesInput(sizes);
+        if (!sizesParsed) return res.status(400).json({ error: 'Invalid sizes format.' });
       }
+      // Per-size stock: when given, it is authoritative and the total is its sum.
+      const sizeStockInput = sizeStock.parseSizeStockInput(size_stock, sizesParsed);
+      if (sizeStockInput.error) return res.status(400).json({ error: sizeStockInput.error });
+      if (sizeStockInput.value) stockQty = sizeStock.totalOf(sizeStockInput.value);
       // Persist images only AFTER the body validates, so a 400 never orphans uploads.
       const frontImage = req.files?.front_image?.[0] ? await persistImage(req.files.front_image[0].buffer, req.files.front_image[0].originalname) : null;
       const backImage = req.files?.back_image?.[0] ? await persistImage(req.files.back_image[0].buffer, req.files.back_image[0].originalname) : null;
@@ -106,8 +113,10 @@ module.exports = function createProductRoutes(db) {
       // when none was provided.
       const estCost = unitCostVal != null ? unitCostVal : Math.max(50, Math.round(priceVal * 0.55));
       const result = await db.prepare('INSERT INTO products (name, category, fit, price, sale_price, on_sale, description, sizes, front_image, back_image, extra_images, in_stock, unit_cost, stock_qty) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(cleanName, category, String(fit || '').trim().slice(0, 60), priceVal, salePriceVal, onSale, String(description || '').slice(0, 2000), JSON.stringify(sizesParsed), frontImage, backImage, JSON.stringify(extraImages), inStock, estCost, stockQty);
+      if (sizeStockInput.value) await sizeStock.replaceSizeStock(db, result.lastInsertRowid, sizeStockInput.value);
       const product = await db.prepare('SELECT * FROM products WHERE id = ?').get(result.lastInsertRowid);
-      product.sizes = JSON.parse(product.sizes || '[]'); product.extra_images = JSON.parse(product.extra_images || '[]'); product.collections = JSON.parse(product.collections || '[]'); product.on_sale = Boolean(product.on_sale); product.in_stock = Boolean(product.in_stock);
+      product.sizes = sizeStock.parseSizeColumn(product.sizes); product.extra_images = JSON.parse(product.extra_images || '[]'); product.collections = JSON.parse(product.collections || '[]'); product.on_sale = Boolean(product.on_sale); product.in_stock = Boolean(product.in_stock);
+      product.size_stock = await sizeStock.loadSizeStock(db, product.id);
       res.status(201).json(product);
     } catch (err) { respondToProductWriteError(err, res); }
   });
@@ -117,7 +126,7 @@ module.exports = function createProductRoutes(db) {
     try {
       const existing = await db.prepare('SELECT * FROM products WHERE id = ?').get(req.params.id);
       if (!existing) return res.status(404).json({ error: 'Product not found' });
-      const { name, category, fit, price, sale_price, description, sizes, in_stock, unit_cost, stock_qty, remove_front, remove_back } = req.body;
+      const { name, category, fit, price, sale_price, description, sizes, in_stock, unit_cost, stock_qty, remove_front, remove_back, size_stock } = req.body;
       // Validate the body BEFORE touching files: a rejected request must not
       // delete the existing images or orphan freshly uploaded ones.
       const finalName = name !== undefined && String(name).trim() ? String(name).trim().slice(0, 120) : existing.name;
@@ -148,12 +157,24 @@ module.exports = function createProductRoutes(db) {
       const finalInStock = in_stock !== undefined ? (in_stock === 'true' || in_stock === true ? 1 : 0) : existing.in_stock;
       let sizesParsed;
       if (sizes !== undefined) {
-        try { const parsed = JSON.parse(sizes); if (!Array.isArray(parsed) || !parsed.length) throw new Error('bad'); sizesParsed = parsed.map(String).slice(0, 6); }
-        catch (e) { return res.status(400).json({ error: 'Invalid sizes format.' }); }
+        sizesParsed = sizeStock.parseSizesInput(sizes);
+        if (!sizesParsed) return res.status(400).json({ error: 'Invalid sizes format.' });
       } else {
-        try { sizesParsed = JSON.parse(existing.sizes || '["S","M","L","XL","XXL"]'); } catch (e) { sizesParsed = null; }
-        if (!Array.isArray(sizesParsed) || !sizesParsed.length) sizesParsed = ['S', 'M', 'L', 'XL', 'XXL'];
+        sizesParsed = sizeStock.parseSizeColumn(existing.sizes);
       }
+      // Stock plan for this save:
+      //  * size_stock given       -> replace each size's quantity (every size required)
+      //  * already tracked per size -> keep each kept size's quantity, new sizes start at 0
+      //  * otherwise               -> legacy shared pool (finalStockQty above)
+      const existingSizeStock = await sizeStock.loadSizeStock(db, existing.id);
+      const sizeStockInput = sizeStock.parseSizeStockInput(size_stock, sizesParsed);
+      if (sizeStockInput.error) return res.status(400).json({ error: sizeStockInput.error });
+      let nextSizeStock = sizeStockInput.value;
+      if (!nextSizeStock && existingSizeStock) {
+        if (stock_qty !== undefined && stock_qty !== '' && stock_qty !== null) return res.status(400).json({ error: 'This product tracks stock per size. Enter a quantity for each size.' });
+        nextSizeStock = sizeStock.reconcileSizeStock(existingSizeStock, sizesParsed);
+      }
+      if (nextSizeStock) finalStockQty = sizeStock.totalOf(nextSizeStock);
       let frontImage = existing.front_image ?? null; let backImage = existing.back_image ?? null;
       if (req.files?.front_image?.[0]) { const newUrl = await persistImage(req.files.front_image[0].buffer, req.files.front_image[0].originalname); if (existing.front_image) await removeImage(existing.front_image); frontImage = newUrl; } else if (remove_front === 'true') { if (existing.front_image) await removeImage(existing.front_image); frontImage = null; }
       if (req.files?.back_image?.[0]) { const newUrl = await persistImage(req.files.back_image[0].buffer, req.files.back_image[0].originalname); if (existing.back_image) await removeImage(existing.back_image); backImage = newUrl; } else if (remove_back === 'true') { if (existing.back_image) await removeImage(existing.back_image); backImage = null; }
@@ -161,8 +182,10 @@ module.exports = function createProductRoutes(db) {
       if (req.files?.extra_images) { for (const f of req.files.extra_images) { extraImages.push(await persistImage(f.buffer, f.originalname)); } }
       const now = new Date().toISOString().replace('T', ' ').slice(0, 19);
       await db.prepare('UPDATE products SET name=?, category=?, fit=?, price=?, sale_price=?, on_sale=?, description=?, sizes=?, front_image=?, back_image=?, extra_images=?, in_stock=?, unit_cost=?, stock_qty=?, updated_at=? WHERE id=?').run(finalName, finalCategory, finalFit, finalPrice, salePriceVal, onSale, finalDesc, JSON.stringify(sizesParsed), frontImage, backImage, JSON.stringify(extraImages), finalStockQty === 0 ? 0 : finalInStock, finalUnitCost, finalStockQty, now, req.params.id);
+      if (nextSizeStock) await sizeStock.replaceSizeStock(db, existing.id, nextSizeStock);
       const updated = await db.prepare('SELECT * FROM products WHERE id = ?').get(req.params.id);
-      updated.sizes = JSON.parse(updated.sizes || '[]'); updated.extra_images = JSON.parse(updated.extra_images || '[]'); updated.collections = JSON.parse(updated.collections || '[]'); updated.on_sale = Boolean(updated.on_sale); updated.in_stock = Boolean(updated.in_stock);
+      updated.sizes = sizeStock.parseSizeColumn(updated.sizes); updated.extra_images = JSON.parse(updated.extra_images || '[]'); updated.collections = JSON.parse(updated.collections || '[]'); updated.on_sale = Boolean(updated.on_sale); updated.in_stock = Boolean(updated.in_stock);
+      updated.size_stock = await sizeStock.loadSizeStock(db, existing.id);
       res.json(updated);
     } catch (err) { respondToProductWriteError(err, res); }
   });
@@ -186,6 +209,7 @@ module.exports = function createProductRoutes(db) {
 
       const deletedIds = [];
       for (const product of productsToDelete) {
+        await db.prepare('DELETE FROM product_size_stock WHERE product_id = ?').run(product.id);
         const result = await db.prepare('DELETE FROM products WHERE id = ?').run(product.id);
         if (result && result.changes != null && Number(result.changes) === 0) continue;
         deletedIds.push(Number(product.id));
@@ -224,6 +248,7 @@ module.exports = function createProductRoutes(db) {
       if (existing.front_image) await removeImage(existing.front_image); if (existing.back_image) await removeImage(existing.back_image);
       let extraImages = []; try { extraImages = JSON.parse(existing.extra_images || '[]'); } catch (e) { extraImages = []; }
       for (const img of extraImages) await removeImage(img);
+      await db.prepare('DELETE FROM product_size_stock WHERE product_id = ?').run(req.params.id);
       await db.prepare('DELETE FROM products WHERE id = ?').run(req.params.id);
       res.json({ success: true });
     } catch (err) { console.error('products route failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
@@ -251,6 +276,16 @@ module.exports = function createProductRoutes(db) {
       const parsedQty = Number(stock_qty);
       if (stock_qty == null || stock_qty === '' || !Number.isSafeInteger(parsedQty) || parsedQty < 0) return res.status(400).json({ error: 'Stock quantity must be a non-negative whole number.' });
       const qty = parsedQty;
+      const perSize = await sizeStock.loadSizeStock(db, id);
+      if (perSize) {
+        // A single total cannot be split across several sizes; those are edited per size.
+        const sizes = sizeStock.parseSizeColumn(existing.sizes);
+        if (sizes.length !== 1) return res.status(400).json({ error: 'This product tracks stock per size. Edit the product to set each size.' });
+        await sizeStock.replaceSizeStock(db, id, { [sizes[0]]: qty });
+        await db.prepare('UPDATE products SET in_stock = ? WHERE id = ?').run(qty > 0 ? 1 : 0, id);
+        const tracked = await db.prepare('SELECT stock_qty, in_stock FROM products WHERE id = ?').get(id);
+        return res.json({ success: true, stock_qty: Number(tracked.stock_qty), in_stock: Boolean(tracked.in_stock) });
+      }
       await db.prepare('UPDATE products SET stock_qty = ?, in_stock = ? WHERE id = ?').run(qty, qty > 0 ? 1 : 0, id);
       const updated = await db.prepare('SELECT * FROM products WHERE id = ?').get(id);
       res.json({ success: true, stock_qty: updated.stock_qty, in_stock: Boolean(updated.in_stock) });

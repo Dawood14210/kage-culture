@@ -134,7 +134,7 @@ async function main() {
       body: {
         name: 'Test Buyer', email: 'buyer@kage.test', phone: '03001234567', address: '1 Test St', city: 'Lahore',
         payment_method: 'cod',
-        items: [{ id: 1, qty: 1, size: 'M' }]
+        items: [{ id: 1, qty: 1, size: 'L' }]
       },
       headers: { 'X-CSRF-Token': csrf.token, Cookie: csrf.cookie }
     });
@@ -183,7 +183,7 @@ async function main() {
       body: {
         name: 'Test Buyer', email: 'buyer2@kage.test', phone: '03001234568', address: '1 Test St', city: 'Lahore',
         payment_method: 'cod',
-        items: [{ id: 1, qty: 99 }]
+        items: [{ id: 1, qty: 99, size: 'L' }]
       },
       headers: { 'X-CSRF-Token': csrf.token, Cookie: csrf.cookie }
     });
@@ -636,6 +636,142 @@ async function main() {
     assert.equal(r.json.on_sale, false);
     const list = await request(PORT, 'GET', '/api/products');
     assert.equal(list.json.find(x => x.id === 4).sale_price, null);
+  });
+
+  // ---------------------------------------------------------------
+  // Per-size stock: sizes offered, stock per size, order + cancel accounting
+  // ---------------------------------------------------------------
+  console.log('\nPer-size stock:');
+  const adminHeaders = async () => { const csrf = await getCsrf(); return { Cookie: `${adminCookie}; ${csrf.cookie}`, 'X-CSRF-Token': csrf.token }; };
+  const placeOrder = async (items, email) => {
+    const csrf = await getCsrf();
+    return request(PORT, 'POST', '/api/orders', {
+      body: { name: 'Size Buyer', email, phone: '03005550000', address: '1 Test St', city: 'Lahore', payment_method: 'cod', items },
+      headers: { 'X-CSRF-Token': csrf.token, Cookie: csrf.cookie }
+    });
+  };
+  const getProduct = async (id) => (await request(PORT, 'GET', `/api/products/${id}`)).json;
+  const sizeProductId = { id: null };
+
+  await check('admin creates a product with a stock count per size', async () => {
+    const r = await request(PORT, 'POST', '/api/products', {
+      body: { name: 'Per Size Tee', category: 'anime', price: 1000, sizes: JSON.stringify(['S', 'M', 'L']), size_stock: JSON.stringify({ S: 2, M: 0, L: 5 }) },
+      headers: await adminHeaders()
+    });
+    assert.strictEqual(r.status, 201, JSON.stringify(r.json));
+    sizeProductId.id = r.json.id;
+    assert.deepStrictEqual(r.json.sizes, ['S', 'M', 'L']);
+    assert.deepStrictEqual(r.json.size_stock, { S: 2, M: 0, L: 5 });
+    assert.strictEqual(Number(r.json.stock_qty), 7, 'total is the sum of the sizes');
+    const listed = (await request(PORT, 'GET', '/api/products')).json.find((x) => x.id === sizeProductId.id);
+    assert.deepStrictEqual(listed.size_stock, { S: 2, M: 0, L: 5 });
+  });
+
+  await check('per-size stock must cover every size and no unknown size', async () => {
+    const headers = await adminHeaders();
+    const missing = await request(PORT, 'POST', '/api/products', {
+      body: { name: 'Missing Size Tee', category: 'anime', price: 1000, sizes: JSON.stringify(['S', 'M']), size_stock: JSON.stringify({ S: 1 }) }, headers
+    });
+    assert.strictEqual(missing.status, 400);
+    assert.match(missing.json.error, /size M/);
+    const unknown = await request(PORT, 'POST', '/api/products', {
+      body: { name: 'Unknown Size Tee', category: 'anime', price: 1000, sizes: JSON.stringify(['S']), size_stock: JSON.stringify({ S: 1, XXL: 2 }) }, headers
+    });
+    assert.strictEqual(unknown.status, 400);
+    assert.match(unknown.json.error, /XXL/);
+  });
+
+  await check('a bare stock total cannot be split across several sizes', async () => {
+    const headers = await adminHeaders();
+    const r = await request(PORT, 'PATCH', `/api/products/${sizeProductId.id}/stock-qty`, { body: { stock_qty: 9 }, headers });
+    assert.strictEqual(r.status, 400);
+    assert.match(r.json.error, /per size/);
+    const put = await request(PORT, 'PUT', `/api/products/${sizeProductId.id}`, { body: { stock_qty: 9 }, headers });
+    assert.strictEqual(put.status, 400);
+    assert.match(put.json.error, /per size/);
+  });
+
+  await check('ordering a sold-out size is rejected', async () => {
+    const r = await placeOrder([{ id: sizeProductId.id, qty: 1, size: 'M' }], 'size1@kage.test');
+    assert.strictEqual(r.status, 400);
+    assert.match(r.json.error, /sold out in size M/);
+  });
+
+  await check('ordering a size the product does not offer is rejected', async () => {
+    const r = await placeOrder([{ id: sizeProductId.id, qty: 1, size: 'XXL' }], 'size2@kage.test');
+    assert.strictEqual(r.status, 400);
+    assert.match(r.json.error, /not offered/);
+  });
+
+  let sizeOrderNumber = '';
+  await check('order decrements only the ordered size', async () => {
+    const r = await placeOrder([{ id: sizeProductId.id, qty: 2, size: 'L' }], 'size3@kage.test');
+    assert.strictEqual(r.status, 201, JSON.stringify(r.json));
+    sizeOrderNumber = r.json.order_number;
+    const p = await getProduct(sizeProductId.id);
+    assert.deepStrictEqual(p.size_stock, { S: 2, M: 0, L: 3 });
+    assert.strictEqual(Number(p.stock_qty), 5);
+  });
+
+  await check('ordering more than one size has left is rejected with the size named', async () => {
+    const r = await placeOrder([{ id: sizeProductId.id, qty: 4, size: 'L' }], 'size4@kage.test');
+    assert.strictEqual(r.status, 400);
+    assert.match(r.json.error, /Only 3 units .* in size L/);
+  });
+
+  await check('a failed multi-size order restores the sizes it already took', async () => {
+    const r = await placeOrder([{ id: sizeProductId.id, qty: 1, size: 'S' }, { id: sizeProductId.id, qty: 99, size: 'L' }], 'size5@kage.test');
+    assert.strictEqual(r.status, 400);
+    const p = await getProduct(sizeProductId.id);
+    assert.deepStrictEqual(p.size_stock, { S: 2, M: 0, L: 3 }, 'S must be back to 2');
+    const orders = await dbModule.prepare('SELECT COUNT(*) AS c FROM orders WHERE email = ?').get('size5@kage.test');
+    assert.strictEqual(Number(orders.c), 0, 'no phantom order');
+  });
+
+  await check('cancelling and reactivating an order returns and retakes the size units', async () => {
+    const row = await dbModule.prepare('SELECT id FROM orders WHERE order_number = ?').get(sizeOrderNumber);
+    const headers = await adminHeaders();
+    const cancel = await request(PORT, 'PATCH', `/api/orders/${row.id}/status`, { body: { status: 'cancelled' }, headers });
+    assert.strictEqual(cancel.status, 200, JSON.stringify(cancel.json));
+    assert.deepStrictEqual((await getProduct(sizeProductId.id)).size_stock, { S: 2, M: 0, L: 5 });
+    const reopen = await request(PORT, 'PATCH', `/api/orders/${row.id}/status`, { body: { status: 'pending' }, headers });
+    assert.strictEqual(reopen.status, 200, JSON.stringify(reopen.json));
+    assert.deepStrictEqual((await getProduct(sizeProductId.id)).size_stock, { S: 2, M: 0, L: 3 });
+  });
+
+  await check('editing sizes keeps counts for kept sizes and drops removed ones', async () => {
+    const r = await request(PORT, 'PUT', `/api/products/${sizeProductId.id}`, { body: { sizes: JSON.stringify(['S', 'L', 'XL']) }, headers: await adminHeaders() });
+    assert.strictEqual(r.status, 200, JSON.stringify(r.json));
+    assert.deepStrictEqual(r.json.size_stock, { S: 2, L: 3, XL: 0 });
+    assert.strictEqual(Number(r.json.stock_qty), 5);
+  });
+
+  await check('editing with per-size stock replaces each size count', async () => {
+    const r = await request(PORT, 'PUT', `/api/products/${sizeProductId.id}`, { body: { size_stock: JSON.stringify({ S: 1, L: 1, XL: 4 }) }, headers: await adminHeaders() });
+    assert.strictEqual(r.status, 200, JSON.stringify(r.json));
+    assert.deepStrictEqual(r.json.size_stock, { S: 1, L: 1, XL: 4 });
+    assert.strictEqual(Number(r.json.stock_qty), 6);
+  });
+
+  await check('a single-size product keeps quick stock edits working per size', async () => {
+    const headers = await adminHeaders();
+    const created = await request(PORT, 'POST', '/api/products', {
+      body: { name: 'Single Size Tee', category: 'anime', price: 900, sizes: JSON.stringify(['M']), size_stock: JSON.stringify({ M: 3 }) }, headers
+    });
+    assert.strictEqual(created.status, 201, JSON.stringify(created.json));
+    const r = await request(PORT, 'PATCH', `/api/products/${created.json.id}/stock-qty`, { body: { stock_qty: 6 }, headers });
+    assert.strictEqual(r.status, 200, JSON.stringify(r.json));
+    assert.strictEqual(Number(r.json.stock_qty), 6);
+    assert.deepStrictEqual((await getProduct(created.json.id)).size_stock, { M: 6 });
+    await request(PORT, 'DELETE', `/api/products/${created.json.id}`, { headers });
+  });
+
+  await check('deleting a per-size product removes its size rows', async () => {
+    const headers = await adminHeaders();
+    const r = await request(PORT, 'DELETE', `/api/products/${sizeProductId.id}`, { headers });
+    assert.strictEqual(r.status, 200, JSON.stringify(r.json));
+    const left = await dbModule.prepare('SELECT COUNT(*) AS c FROM product_size_stock WHERE product_id = ?').get(sizeProductId.id);
+    assert.strictEqual(Number(left.c), 0);
   });
 
   // ---------------------------------------------------------------
