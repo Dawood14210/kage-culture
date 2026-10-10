@@ -60,6 +60,8 @@
 - ✅ **Frontend repair (2026-10-10):** admin filters, stock/sale contract, Goofy Wears
   catalog, pagination, API failure state, cart/wishlist persistence, history/deep links,
   return messaging, dialog keyboard access, and dependency advisories addressed.
-  Run `npm test` for 33 API + 7 DOM-level scenarios; see `AUDIT.md` for details.
+  Product image writes support Vercel's store-prefixed Blob token and fail clearly
+  without storage; `npm test` covers 38 API + 10 DOM-level scenarios, including
+  bulk product deletion and Quick Upload stock quantities. See `AUDIT.md`.
 - ⬜ Remaining: FE-H2 CSP migration (do not drop unsafe-inline without replacing
   handlers), browser/device visual QA, dynamic-control a11y, FE-M6 typography, L2 media.

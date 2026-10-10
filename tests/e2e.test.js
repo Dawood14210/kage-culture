@@ -428,6 +428,188 @@ async function main() {
 
   // Frontend/API contract: stock and sale editing must agree with checkout.
   console.log('\nCatalog contract:');
+  await check('admin can create a product with an image, unit cost and stock', async () => {
+    const oldVercel = process.env.VERCEL;
+    const oldBlobToken = process.env.BLOB_READ_WRITE_TOKEN;
+    const oldKageBlobToken = process.env.kage_READ_WRITE_TOKEN;
+    delete process.env.VERCEL;
+    delete process.env.BLOB_READ_WRITE_TOKEN;
+    delete process.env.kage_READ_WRITE_TOKEN; // exercise local upload storage deterministically
+    let productId = null;
+    try {
+      const csrf = await getCsrf();
+      const form = new FormData();
+      form.append('name', 'Regression Product');
+      form.append('category', 'goofy-wears');
+      form.append('fit', 'Sticker');
+      form.append('price', '299');
+      form.append('description', 'Create-product regression test');
+      form.append('sizes', JSON.stringify(['One Size']));
+      form.append('unit_cost', '80');
+      form.append('stock_qty', '2');
+      form.append('front_image', new Blob([Buffer.from('test-webp-image')], { type: 'image/webp' }), 'regression.webp');
+      const response = await fetch(`http://127.0.0.1:${PORT}/api/products`, {
+        method: 'POST',
+        headers: { Cookie: `${adminCookie}; ${csrf.cookie}`, 'X-CSRF-Token': csrf.token },
+        body: form
+      });
+      const product = await response.json();
+      assert.strictEqual(response.status, 201, JSON.stringify(product));
+      productId = product.id;
+      assert.strictEqual(product.name, 'Regression Product');
+      assert.strictEqual(product.category, 'goofy-wears');
+      assert.strictEqual(Number(product.unit_cost), 80);
+      assert.strictEqual(Number(product.stock_qty), 2);
+      assert.ok(product.front_image && product.front_image.startsWith('/uploads/'), 'image must be persisted');
+    } finally {
+      try {
+        if (productId != null) {
+          const csrf = await getCsrf();
+          const removed = await request(PORT, 'DELETE', `/api/products/${productId}`, {
+            headers: { Cookie: `${adminCookie}; ${csrf.cookie}`, 'X-CSRF-Token': csrf.token }
+          });
+          assert.strictEqual(removed.status, 200, JSON.stringify(removed.json));
+        }
+      } finally {
+        if (oldVercel === undefined) delete process.env.VERCEL;
+        else process.env.VERCEL = oldVercel;
+        if (oldBlobToken === undefined) delete process.env.BLOB_READ_WRITE_TOKEN;
+        else process.env.BLOB_READ_WRITE_TOKEN = oldBlobToken;
+        if (oldKageBlobToken === undefined) delete process.env.kage_READ_WRITE_TOKEN;
+        else process.env.kage_READ_WRITE_TOKEN = oldKageBlobToken;
+      }
+    }
+  });
+
+  await check('batch product delete is authenticated, CSRF-protected and removes selected rows', async () => {
+    const insertProduct = () => dbModule.prepare(`
+      INSERT INTO products (name, category, fit, price, sizes, stock_qty, extra_images)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run('Batch Delete Test', 'anime', 'Regular', 100, JSON.stringify(['L']), 1, '[]');
+    const ids = [];
+    try {
+      ids.push(Number((await insertProduct()).lastInsertRowid));
+      ids.push(Number((await insertProduct()).lastInsertRowid));
+      const csrf = await getCsrf();
+      const noCsrf = await request(PORT, 'DELETE', '/api/products/batch', {
+        body: { ids }, headers: { Cookie: adminCookie }
+      });
+      assert.strictEqual(noCsrf.status, 403);
+      const noAuth = await request(PORT, 'DELETE', '/api/products/batch', {
+        body: { ids }, headers: { Cookie: csrf.cookie, 'X-CSRF-Token': csrf.token }
+      });
+      assert.strictEqual(noAuth.status, 401);
+      const removed = await request(PORT, 'DELETE', '/api/products/batch', {
+        body: { ids: [ids[0], ids[1], ids[0]] },
+        headers: { Cookie: `${adminCookie}; ${csrf.cookie}`, 'X-CSRF-Token': csrf.token }
+      });
+      assert.strictEqual(removed.status, 200, JSON.stringify(removed.json));
+      assert.strictEqual(removed.json.deletedCount, 2);
+      assert.deepStrictEqual(removed.json.deletedIds.sort((a, b) => a - b), ids.slice().sort((a, b) => a - b));
+      for (const id of ids) {
+        const product = await request(PORT, 'GET', `/api/products/${id}`);
+        assert.strictEqual(product.status, 404);
+      }
+      const tooMany = await request(PORT, 'DELETE', '/api/products/batch', {
+        body: { ids: Array.from({ length: 101 }, (_, i) => i + 1) },
+        headers: { Cookie: `${adminCookie}; ${csrf.cookie}`, 'X-CSRF-Token': csrf.token }
+      });
+      assert.strictEqual(tooMany.status, 400);
+    } finally {
+      for (const id of ids) await dbModule.prepare('DELETE FROM products WHERE id = ?').run(id);
+    }
+  });
+
+  await check('product stock quantities reject fractions instead of silently rounding', async () => {
+    const csrf = await getCsrf();
+    const headers = { Cookie: `${adminCookie}; ${csrf.cookie}`, 'X-CSRF-Token': csrf.token };
+    const created = await request(PORT, 'POST', '/api/products', {
+      body: { name: 'Fractional Stock Test', category: 'anime', price: 100, stock_qty: 1.5 }, headers
+    });
+    assert.strictEqual(created.status, 400);
+    assert.match(created.json.error, /whole number/);
+    const updated = await request(PORT, 'PUT', '/api/products/1', { body: { stock_qty: 1.5 }, headers });
+    assert.strictEqual(updated.status, 400);
+    assert.match(updated.json.error, /whole number/);
+    const stock = await request(PORT, 'PATCH', '/api/products/1/stock-qty', { body: { stock_qty: 1.5 }, headers });
+    assert.strictEqual(stock.status, 400);
+    assert.match(stock.json.error, /whole number/);
+  });
+
+  await check('Vercel product creation explains missing Blob storage', async () => {
+    const oldVercel = process.env.VERCEL;
+    const oldBlobToken = process.env.BLOB_READ_WRITE_TOKEN;
+    const oldKageBlobToken = process.env.kage_READ_WRITE_TOKEN;
+    const csrf = await getCsrf();
+    process.env.VERCEL = '1';
+    delete process.env.BLOB_READ_WRITE_TOKEN;
+    delete process.env.kage_READ_WRITE_TOKEN;
+    try {
+      const form = new FormData();
+      form.append('name', 'No-storage Regression Product');
+      form.append('category', 'anime');
+      form.append('price', '500');
+      form.append('sizes', JSON.stringify(['L']));
+      form.append('front_image', new Blob([Buffer.from('test-webp-image')], { type: 'image/webp' }), 'regression.webp');
+      const response = await fetch(`http://127.0.0.1:${PORT}/api/products`, {
+        method: 'POST',
+        headers: { Cookie: `${adminCookie}; ${csrf.cookie}`, 'X-CSRF-Token': csrf.token },
+        body: form
+      });
+      const body = await response.json();
+      assert.strictEqual(response.status, 503, JSON.stringify(body));
+      assert.strictEqual(body.code, 'IMAGE_STORAGE_UNAVAILABLE');
+      assert.match(body.error, /BLOB_READ_WRITE_TOKEN/);
+    } finally {
+      if (oldVercel === undefined) delete process.env.VERCEL;
+      else process.env.VERCEL = oldVercel;
+      if (oldBlobToken === undefined) delete process.env.BLOB_READ_WRITE_TOKEN;
+      else process.env.BLOB_READ_WRITE_TOKEN = oldBlobToken;
+      if (oldKageBlobToken === undefined) delete process.env.kage_READ_WRITE_TOKEN;
+      else process.env.kage_READ_WRITE_TOKEN = oldKageBlobToken;
+    }
+  });
+
+  await check('Vercel uses the store-prefixed read-write token from its quickstart', async () => {
+    const oldVercel = process.env.VERCEL;
+    const oldBlobToken = process.env.BLOB_READ_WRITE_TOKEN;
+    const oldKageBlobToken = process.env.kage_READ_WRITE_TOKEN;
+    const Module = require('module');
+    const originalLoad = Module._load;
+    const calls = [];
+    process.env.VERCEL = '1';
+    delete process.env.BLOB_READ_WRITE_TOKEN;
+    process.env.kage_READ_WRITE_TOKEN = 'test-prefixed-store-token';
+    Module._load = function(request, parent, isMain) {
+      if (request === '@vercel/blob') {
+        return {
+          put: async (pathname, buffer, options) => {
+            calls.push(['put', pathname, options]);
+            return { url: `https://test.public.blob.vercel-storage.com/${pathname}` };
+          },
+          del: async (url, options) => { calls.push(['del', url, options]); }
+        };
+      }
+      return originalLoad.call(this, request, parent, isMain);
+    };
+    try {
+      const { persistImage, removeImage } = require('../utils/helpers');
+      const url = await persistImage(Buffer.from('mock-image'), 'mock.webp');
+      await removeImage(url);
+      assert.strictEqual(calls.length, 2);
+      assert.strictEqual(calls[0][2].access, 'public');
+      assert.strictEqual(calls[0][2].token, 'test-prefixed-store-token');
+      assert.strictEqual(calls[1][2].token, 'test-prefixed-store-token');
+    } finally {
+      Module._load = originalLoad;
+      if (oldVercel === undefined) delete process.env.VERCEL;
+      else process.env.VERCEL = oldVercel;
+      if (oldBlobToken === undefined) delete process.env.BLOB_READ_WRITE_TOKEN;
+      else process.env.BLOB_READ_WRITE_TOKEN = oldBlobToken;
+      if (oldKageBlobToken === undefined) delete process.env.kage_READ_WRITE_TOKEN;
+      else process.env.kage_READ_WRITE_TOKEN = oldKageBlobToken;
+    }
+  });
   await check('zero-stock products are unavailable in the catalog', async () => {
     const r = await request(PORT, 'GET', '/api/products');
     assert.strictEqual(r.status, 200);

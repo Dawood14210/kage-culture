@@ -4,9 +4,18 @@
 const express = require('express');
 const multer = require('multer');
 const path = require('path');
+const config = require('../config');
 const { requireCsrf } = require('../middleware/csrf');
 const { requireAuth } = require('../middleware/auth');
 const { persistImage, removeImage } = require('../utils/helpers');
+
+function respondToProductWriteError(err, res) {
+  console.error('products route failed:', err && err.message ? err.message : err);
+  if (err && err.publicMessage) {
+    return res.status(err.status || 500).json({ error: err.publicMessage, code: err.code });
+  }
+  return res.status(500).json({ error: 'Something went wrong. Please try again.' });
+}
 
 // Same filter as /api/upload must use — only real image types get through.
 const upload = multer({
@@ -71,8 +80,8 @@ module.exports = function createProductRoutes(db) {
       let stockQty = null;
       if (stock_qty !== undefined && stock_qty !== '' && stock_qty !== null) {
         const q = Number(stock_qty);
-        if (!Number.isFinite(q) || q < 0) return res.status(400).json({ error: 'Stock quantity must be a non-negative number.' });
-        stockQty = Math.floor(q);
+        if (!Number.isSafeInteger(q) || q < 0) return res.status(400).json({ error: 'Stock quantity must be a non-negative whole number.' });
+        stockQty = q;
       }
       let unitCostVal = null;
       if (unit_cost !== undefined && unit_cost !== '' && unit_cost !== null) {
@@ -100,7 +109,7 @@ module.exports = function createProductRoutes(db) {
       const product = await db.prepare('SELECT * FROM products WHERE id = ?').get(result.lastInsertRowid);
       product.sizes = JSON.parse(product.sizes || '[]'); product.extra_images = JSON.parse(product.extra_images || '[]'); product.collections = JSON.parse(product.collections || '[]'); product.on_sale = Boolean(product.on_sale); product.in_stock = Boolean(product.in_stock);
       res.status(201).json(product);
-    } catch (err) { console.error('products route failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
+    } catch (err) { respondToProductWriteError(err, res); }
   });
 
   // PUT update product (admin only)
@@ -133,8 +142,8 @@ module.exports = function createProductRoutes(db) {
       let finalStockQty = existing.stock_qty;
       if (stock_qty !== undefined && stock_qty !== '' && stock_qty !== null) {
         const q = Number(stock_qty);
-        if (!Number.isFinite(q) || q < 0) return res.status(400).json({ error: 'Stock quantity must be a non-negative number.' });
-        finalStockQty = Math.floor(q);
+        if (!Number.isSafeInteger(q) || q < 0) return res.status(400).json({ error: 'Stock quantity must be a non-negative whole number.' });
+        finalStockQty = q;
       }
       const finalInStock = in_stock !== undefined ? (in_stock === 'true' || in_stock === true ? 1 : 0) : existing.in_stock;
       let sizesParsed;
@@ -155,7 +164,56 @@ module.exports = function createProductRoutes(db) {
       const updated = await db.prepare('SELECT * FROM products WHERE id = ?').get(req.params.id);
       updated.sizes = JSON.parse(updated.sizes || '[]'); updated.extra_images = JSON.parse(updated.extra_images || '[]'); updated.collections = JSON.parse(updated.collections || '[]'); updated.on_sale = Boolean(updated.on_sale); updated.in_stock = Boolean(updated.in_stock);
       res.json(updated);
-    } catch (err) { console.error('products route failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
+    } catch (err) { respondToProductWriteError(err, res); }
+  });
+
+  // DELETE a selected batch of products (admin only)
+  // Kept before /:id so Express doesn't treat "batch" as a product ID.
+  router.delete('/api/products/batch', requireCsrf, requireAuth, async (req, res) => {
+    try {
+      const rawIds = req.body && req.body.ids;
+      if (!Array.isArray(rawIds) || rawIds.length === 0) return res.status(400).json({ error: 'Select at least one product to delete.' });
+      if (rawIds.length > config.MAX_BATCH_PRODUCT_DELETE) return res.status(400).json({ error: `You can delete up to ${config.MAX_BATCH_PRODUCT_DELETE} products at a time.` });
+      const ids = [...new Set(rawIds.map(value => typeof value === 'string' && value.trim() ? Number(value) : value))];
+      if (ids.some(id => !Number.isSafeInteger(id) || id <= 0)) return res.status(400).json({ error: 'Product IDs must be positive whole numbers.' });
+
+      const productsToDelete = [];
+      for (const id of ids) {
+        const product = await db.prepare('SELECT * FROM products WHERE id = ?').get(id);
+        if (product) productsToDelete.push(product);
+      }
+      if (productsToDelete.length !== ids.length) return res.status(409).json({ error: 'Some selected products no longer exist. Refresh the list and try again.' });
+
+      const deletedIds = [];
+      for (const product of productsToDelete) {
+        const result = await db.prepare('DELETE FROM products WHERE id = ?').run(product.id);
+        if (result && result.changes != null && Number(result.changes) === 0) continue;
+        deletedIds.push(Number(product.id));
+      }
+
+      // Product rows are removed first; image cleanup is best-effort so a Blob
+      // outage cannot leave deleted products stuck in the admin list.
+      const imagesToClean = new Set();
+      for (const product of productsToDelete) {
+        if (!deletedIds.includes(Number(product.id))) continue;
+        if (product.front_image) imagesToClean.add(product.front_image);
+        if (product.back_image) imagesToClean.add(product.back_image);
+        try {
+          const extras = JSON.parse(product.extra_images || '[]');
+          if (Array.isArray(extras)) extras.forEach(image => { if (image) imagesToClean.add(image); });
+        } catch (_) {}
+      }
+      for (const image of imagesToClean) {
+        try { await removeImage(image); }
+        catch (err) { console.error('batch product image cleanup failed:', err && err.message ? err.message : err); }
+      }
+
+      if (deletedIds.length !== ids.length) return res.status(409).json({ error: 'Some selected products were deleted by another request. Refresh the list and try again.', deletedIds });
+      res.json({ success: true, deletedCount: deletedIds.length, deletedIds });
+    } catch (err) {
+      console.error('batch product delete failed:', err && err.message ? err.message : err);
+      res.status(500).json({ error: 'Something went wrong deleting the selected products. Please try again.' });
+    }
   });
 
   // DELETE product (admin only)
@@ -190,8 +248,9 @@ module.exports = function createProductRoutes(db) {
       const existing = await db.prepare('SELECT * FROM products WHERE id = ?').get(id);
       if (!existing) return res.status(404).json({ error: 'Product not found' });
       const { stock_qty } = req.body;
-      if (stock_qty == null || stock_qty === '' || isNaN(Number(stock_qty))) return res.status(400).json({ error: 'stock_qty must be a number' });
-      const qty = Math.max(0, Math.floor(Number(stock_qty)));
+      const parsedQty = Number(stock_qty);
+      if (stock_qty == null || stock_qty === '' || !Number.isSafeInteger(parsedQty) || parsedQty < 0) return res.status(400).json({ error: 'Stock quantity must be a non-negative whole number.' });
+      const qty = parsedQty;
       await db.prepare('UPDATE products SET stock_qty = ?, in_stock = ? WHERE id = ?').run(qty, qty > 0 ? 1 : 0, id);
       const updated = await db.prepare('SELECT * FROM products WHERE id = ?').get(id);
       res.json({ success: true, stock_qty: updated.stock_qty, in_stock: Boolean(updated.in_stock) });

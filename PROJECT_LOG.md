@@ -244,3 +244,22 @@ All pictographic glyphs replaced: sidebar 7, View Store, stat cards 5, upload ca
 - **Admin password rotation:** If the bootstrap password from §6 was never changed by the owner, rotate immediately (it passed through chat).
 
 **Do NOT mark these done without explicit verification** (browser pass at 320/390/768px + CSP header check + prod Turso smoke if data migration touches orders).
+
+---
+
+## 10. Admin product creation — Vercel image storage diagnostic (2026-10-10)
+
+- Product creation succeeds in a local multipart API test. On Vercel, product creation always uploads its required front image; if `BLOB_READ_WRITE_TOKEN` is missing, `persistImage()` previously fell through to the serverless filesystem and the route returned an unhelpful generic 500.
+- `persistImage()` now refuses local-file persistence on Vercel and returns an actionable 503 when Blob storage is unconfigured; Blob upload failures return a safe 502 message that calls out the required Public store and matching token, while provider details remain in server logs. Product create/update and `/api/upload` return these safe storage errors to the admin UI.
+- `.env.example` and `DEPLOY.md` now mark a Public Blob store as required for product images on Vercel. The helper accepts both `BLOB_READ_WRITE_TOKEN` and Vercel's store-prefixed `kage_READ_WRITE_TOKEN`, passing the chosen token to uploads and deletes. Local dev remains `./uploads` plus the in-memory sql.js DB.
+- Regression coverage: admin product create with image/cost/stock, plus Vercel-without-Blob error path. `npm test` → **35/35 API + 8/8 frontend**; `npm audit --omit=dev` → **0 vulnerabilities**.
+- **Deployment action still required:** connect a Vercel Blob store, verify `BLOB_READ_WRITE_TOKEN` is present in Production (and Preview if applicable), then redeploy. Do not paste the token into chat.
+
+---
+
+## 11. Batch product deletion + inventory quantity fix (2026-10-10)
+
+- Added selection checkboxes and a select-visible control to the Products list, with selected count, confirmation, stale-selection handling, and an API limit of 100 products per deletion.
+- Added `DELETE /api/products/batch` before the `/:id` route; it requires admin auth and CSRF, validates positive unique IDs, rejects missing products, and best-effort removes associated images.
+- Quick Upload now collects `stock_qty`; blank remains untracked inventory and `0` marks the product sold out. Product create/update/inline stock APIs reject fractional counts instead of silently flooring them.
+- Verification: `npm test` → **38/38 API + 10/10 frontend**; `npm audit --omit=dev` → **0 vulnerabilities**; `git diff --check` clean.

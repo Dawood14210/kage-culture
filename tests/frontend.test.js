@@ -112,6 +112,59 @@ async function ready(win) {
     const aw = admin.window, ad = aw.document;
     const products = await (await fetch(origin + '/api/products')).json();
     aw.eval('products = ' + JSON.stringify(products) + '; filterProducts()');
+    ad.getElementById('productSearch').value = '';
+    aw.filterProducts();
+    const rowSelect = ad.querySelector('#productList .product-row:not(.header-row) .product-select');
+    assert.ok(rowSelect, 'product rows should have selection checkboxes');
+    rowSelect.checked = true;
+    rowSelect.dispatchEvent(new aw.Event('change', { bubbles: true }));
+    assert.equal(aw.eval('selectedProductIds.size'), 1);
+    assert.equal(ad.getElementById('bulkDeleteProductsBtn').disabled, false);
+    const selectVisible = ad.getElementById('selectVisibleProducts');
+    selectVisible.checked = true;
+    selectVisible.dispatchEvent(new aw.Event('change', { bubbles: true }));
+    assert.equal(aw.eval('selectedProductIds.size'), products.length);
+    selectVisible.checked = false;
+    selectVisible.dispatchEvent(new aw.Event('change', { bubbles: true }));
+    assert.equal(aw.eval('selectedProductIds.size'), 0);
+    ad.getElementById('productSearch').value = products[0].name;
+    aw.filterProducts();
+    const filteredCount = ad.querySelectorAll('#productList .product-row:not(.header-row)').length;
+    assert.ok(filteredCount > 0 && filteredCount < products.length, 'search should narrow the rows before select-visible');
+    selectVisible.checked = true;
+    selectVisible.dispatchEvent(new aw.Event('change', { bubbles: true }));
+    assert.equal(aw.eval('selectedProductIds.size'), filteredCount);
+    selectVisible.checked = false;
+    selectVisible.dispatchEvent(new aw.Event('change', { bubbles: true }));
+    assert.equal(aw.eval('selectedProductIds.size'), 0);
+    ad.getElementById('productSearch').value = '';
+    aw.filterProducts();
+    console.log('✅ Admin batch-delete selection follows the visible product list');
+
+    const originalAdminFetch = aw.fetch;
+    let quickUploadBody = null;
+    try {
+      aw.eval('quickImageBlob = new Blob(["mock image"], { type: "image/webp" }); quickImageName = "quantity-test.webp"');
+      ad.getElementById('quickPrice').value = '500';
+      ad.getElementById('quickStockQty').value = '1.5';
+      aw.fetch = () => { throw new Error('invalid quantity must stop before upload'); };
+      await aw.handleQuickUpload();
+      assert.match(ad.getElementById('quickError').textContent, /whole number/);
+      ad.getElementById('quickStockQty').value = '7';
+      aw.fetch = (url, options) => {
+        if (url === '/api/products' && options && options.method === 'POST') {
+          quickUploadBody = options.body;
+          return Promise.resolve({ ok: false, status: 400, json: async () => ({ error: 'expected test response' }) });
+        }
+        return originalAdminFetch(url, options);
+      };
+      await aw.handleQuickUpload();
+      assert.equal(quickUploadBody.get('stock_qty'), '7');
+    } finally {
+      aw.fetch = originalAdminFetch;
+    }
+    console.log('✅ Quick Upload validates and submits stock quantity');
+
     ad.getElementById('productSearch').value = 'NoMatch987';
     aw.filterProducts();
     assert.equal(ad.querySelectorAll('#productList .product-row:not(.header-row)').length, 0);
@@ -142,7 +195,7 @@ async function ready(win) {
     console.log('✅ Mobile navigation and admin tab layout stay reachable');
 
     assert.deepEqual(errors, []);
-    console.log('\n8/8 frontend scenarios passed');
+    console.log('\n10/10 frontend scenarios passed');
   } finally {
     windows.forEach(win => win.window.close());
     await new Promise(resolve => server.close(resolve));

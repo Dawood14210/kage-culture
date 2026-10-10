@@ -265,12 +265,22 @@
     }
 
     /* ===== PRODUCT LIST ===== */
+    .product-bulk-toolbar {
+      display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between;
+      gap:0.65rem; margin:0.65rem 0; padding:0.65rem 0.8rem;
+      background:var(--bg-card); border:1px solid var(--border-dark); border-radius:var(--radius-sm);
+    }
+    .product-bulk-select { display:inline-flex; align-items:center; gap:0.45rem; font-size:0.75rem; color:var(--text-secondary); cursor:pointer; }
+    .product-select { width:18px; height:18px; margin:0; accent-color:var(--accent); cursor:pointer; }
+    .product-bulk-count { font-size:0.72rem; color:var(--text-muted); }
+    .bulk-delete-btn { min-height:36px; padding:0.4rem 0.75rem; border:1px solid var(--red); border-radius:var(--radius-sm); background:var(--red-subtle); color:var(--red); font:600 0.72rem 'Archivo',sans-serif; cursor:pointer; }
+    .bulk-delete-btn:disabled { opacity:0.5; cursor:not-allowed; }
     .product-list {
       background: var(--bg-card); border:1px solid var(--border-dark);
     }
     .product-row {
       display:grid;
-      grid-template-columns:60px 1fr 100px 100px 100px auto;
+      grid-template-columns:28px 54px minmax(120px, 1fr) 90px 105px 130px auto;
       gap:0.5rem; align-items:center;
       padding:0.8rem 1rem; border-bottom:1px solid var(--border-subtle);
       font-size:0.8rem; transition: background 0.15s;
@@ -535,13 +545,15 @@
     @media (max-width:768px) {
       .form-grid { grid-template-columns:1fr; }
       .product-row {
-        grid-template-columns:40px 1fr;
+        grid-template-columns:28px 42px minmax(0,1fr);
         gap:0.3rem; padding:0.6rem;
       }
-      .product-row .header-row { display:none; }
-      .product-row .p-category { grid-column:2; }
-      .product-row .p-price { grid-column:2; }
-      .product-row .stock-toggle { grid-column:1/-1; justify-content:flex-end; }
+      .product-row.header-row { display:none; }
+      .product-row .thumb { grid-column:2; grid-row:1 / span 3; width:38px; height:38px; }
+      .product-row .product-name-cell { grid-column:3; grid-row:1; min-width:0; }
+      .product-row .p-price { grid-column:3; grid-row:2; }
+      .product-row .p-category { grid-column:3; grid-row:3; }
+      .product-row .stock-toggle { grid-column:1/-1; justify-content:flex-start; }
       .product-row .actions { grid-column:1/-1; justify-content:flex-end; }
       .dash-header { flex-wrap:wrap; gap:0.5rem; }
       .tabs { overflow-x:auto; }
@@ -886,6 +898,9 @@
     /* Quick Upload: category + size selectors (previously hard-coded to Anime/5 sizes) */
     .quick-fields { display:grid; grid-template-columns:1fr 1fr; gap:0.8rem; margin-top:1.2rem; }
     .quick-panel select { width:100%; padding:0.55rem 0.7rem; font-size:0.8rem; background:var(--bg-elevated); border:1px solid var(--border); color:var(--text-primary); outline:none; border-radius:var(--radius-sm); cursor:pointer; }
+    .quick-stock-field { margin-top:1.2rem; }
+    .quick-stock-field input { width:100%; padding:0.55rem 0.7rem; font-size:0.8rem; background:var(--bg-elevated); border:1px solid var(--border); color:var(--text-primary); outline:none; border-radius:var(--radius-sm); }
+    .quick-stock-hint { margin-top:0.3rem; font-size:0.68rem; color:var(--text-muted); line-height:1.4; }
     .quick-panel select:focus { border-color:var(--accent); }
 
     /* Sales summary */
@@ -925,7 +940,8 @@
       .product-row{display:flex;flex-wrap:wrap;gap:0.4rem 0.9rem;align-items:center;}
       .product-row.header-row{display:none;}
       .product-row .thumb{width:38px;height:38px;}
-      .product-row .p-name{min-width:140px;flex:1 1 auto;}
+      .product-row>.product-select{flex:0 0 18px;}
+      .product-row .product-name-cell{min-width:140px;flex:1 1 auto;}
       .product-row .actions{margin-left:auto;}
       .pnl-summary{grid-template-columns:1fr;}
       .filter-toolbar input[type=text]{min-width:0;width:100%;}
@@ -1089,7 +1105,7 @@
       <div class="tab-content" id="tab-upload">
         <div class="quick-wrap">
           <div class="quick-title">Quick Upload</div>
-          <p class="quick-sub">Add a product live to the shop with just a photo and a price.</p>
+          <p class="quick-sub">Add a product live with a photo, price, category, size and optional stock count.</p>
           <div class="quick-success" id="quickSuccess"></div>
           <div class="quick-error" id="quickError"></div>
           <div class="quick-panel">
@@ -1137,6 +1153,11 @@
                 </select>
               </div>
             </div>
+            <div class="quick-stock-field">
+              <label class="field-label" for="quickStockQty">Stock Quantity</label>
+              <input type="number" id="quickStockQty" min="0" step="1" placeholder="e.g. 10" inputmode="numeric" />
+              <div class="quick-stock-hint">Enter the available units. Leave blank only if you are not tracking stock; enter 0 to mark it sold out.</div>
+            </div>
             <div class="quick-actions">
               <button type="button" id="quickUploadBtn" onclick="handleQuickUpload()">Upload</button>
             </div>
@@ -1165,8 +1186,14 @@
           </select>
           <button class="filter-clear-btn" onclick="clearProductFilters()">Clear</button>
         </div>
+        <div class="product-bulk-toolbar">
+          <label class="product-bulk-select"><input id="selectVisibleProducts" class="product-select" type="checkbox" onchange="toggleSelectVisibleProducts(this.checked)" /> Select visible</label>
+          <span id="selectedProductCount" class="product-bulk-count" aria-live="polite">0 selected</span>
+          <button type="button" id="bulkDeleteProductsBtn" class="bulk-delete-btn" onclick="deleteSelectedProducts()" disabled>Delete selected (0)</button>
+        </div>
         <div class="product-list" id="productList">
           <div class="product-row header-row">
+            <span></span>
             <span></span>
             <span>Name</span>
             <span>Price</span>
@@ -1390,6 +1417,8 @@
     // ================================================================
     let isLoggedIn = false;
     let products = [];
+    let selectedProductIds = new Set();
+    let visibleProductIds = [];
     let currentImageFiles = { front: null, back: null };
 
     // CSRF token helper
@@ -1678,28 +1707,95 @@
         const data = await res.json();
         if (!Array.isArray(data)) throw new Error('Unexpected products payload');
         products = data;
+        const currentIds = new Set(products.map(p => Number(p.id)));
+        selectedProductIds = new Set([...selectedProductIds].filter(id => currentIds.has(Number(id))));
         filterProducts();
       } catch (err) {
         document.getElementById('productList').innerHTML = '<div class="empty-state">Failed to load products. <button type="button" onclick="loadProducts()">Retry</button></div>';
       }
     }
 
+    function updateProductSelectionUI() {
+      const count = selectedProductIds.size;
+      const countEl = document.getElementById('selectedProductCount');
+      const deleteBtn = document.getElementById('bulkDeleteProductsBtn');
+      const selectVisible = document.getElementById('selectVisibleProducts');
+      if (countEl) countEl.textContent = count + ' selected';
+      if (deleteBtn) {
+        deleteBtn.disabled = count === 0;
+        deleteBtn.textContent = 'Delete selected (' + count + ')';
+      }
+      if (selectVisible) {
+        const selectedVisible = visibleProductIds.filter(id => selectedProductIds.has(id)).length;
+        selectVisible.checked = visibleProductIds.length > 0 && selectedVisible === visibleProductIds.length;
+        selectVisible.indeterminate = selectedVisible > 0 && selectedVisible < visibleProductIds.length;
+        selectVisible.disabled = visibleProductIds.length === 0;
+      }
+    }
+
+    function toggleProductSelection(id, checked) {
+      const productId = Number(id);
+      if (checked) selectedProductIds.add(productId);
+      else selectedProductIds.delete(productId);
+      updateProductSelectionUI();
+    }
+
+    function toggleSelectVisibleProducts(checked) {
+      visibleProductIds.forEach(id => {
+        if (checked) selectedProductIds.add(id);
+        else selectedProductIds.delete(id);
+      });
+      renderProductList(products.filter(p => visibleProductIds.includes(Number(p.id))));
+    }
+
+    async function deleteSelectedProducts() {
+      const ids = [...selectedProductIds];
+      if (!ids.length) return;
+      if (!confirm('Delete ' + ids.length + ' selected product' + (ids.length === 1 ? '' : 's') + '? This cannot be undone.')) return;
+      const button = document.getElementById('bulkDeleteProductsBtn');
+      if (button) { button.disabled = true; button.textContent = 'Deleting…'; }
+      try {
+        const res = await fetch('/api/products/batch', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ids })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          if (res.status !== 401) alert(data.error || 'Failed to delete selected products.');
+          if (res.status === 409) await loadProducts();
+          return;
+        }
+        const deleted = new Set((data.deletedIds || ids).map(Number));
+        products = products.filter(p => !deleted.has(Number(p.id)));
+        deleted.forEach(id => selectedProductIds.delete(id));
+        filterProducts();
+        refreshStatsIfNeeded();
+      } catch (err) {
+        alert('Connection error while deleting selected products.');
+      } finally {
+        updateProductSelectionUI();
+      }
+    }
+
     function renderProductList(list2) {
       const arr = list2 || products;
       const list = document.getElementById('productList');
+      visibleProductIds = arr.map(p => Number(p.id));
       if (arr.length === 0) {
         list.innerHTML = `
           <div class="product-row header-row">
-            <span></span><span>Name</span><span>Price</span><span>Category</span><span>Stock</span><span>Actions</span>
+            <span></span><span></span><span>Name</span><span>Price</span><span>Category</span><span>Stock</span><span>Actions</span>
           </div>
           <div class="empty-state">${products.length ? "No products match your filters." : "No products yet. Add your first product!"}</div>
         `;
+        updateProductSelectionUI();
         return;
       }
 
       let html = `
         <div class="product-row header-row">
-          <span></span><span>Name</span><span>Price</span><span>Category</span><span>Stock</span><span>Actions</span>
+          <span></span><span></span><span>Name</span><span>Price</span><span>Category</span><span>Stock</span><span>Actions</span>
         </div>
       `;
 
@@ -1709,19 +1805,21 @@
         const stockLabel = p.in_stock ? 'In Stock' : 'Sold Out';
         const stockClass = p.in_stock ? 'active' : '';
         const qtyText = (p.stock_qty != null && p.stock_qty !== '') ? p.stock_qty : '—';
+        const isSelected = selectedProductIds.has(Number(p.id));
 
         html += `
           <div class="product-row" data-id="${p.id}">
+            <input class="product-select" type="checkbox" aria-label="Select ${esc(p.name)}" ${isSelected ? 'checked' : ''} onchange="toggleProductSelection(${p.id}, this.checked)" />
             <div class="thumb">
               ${thumbSrc ? `<img src="${esc(thumbSrc)}" alt="${esc(p.name)}" />` : '—'}
             </div>
-            <div>
+            <div class="product-name-cell">
               <div class="p-name">${esc(p.name)}</div>
             </div>
             <div class="p-price">${fmtRs(p.sale_price || p.price)}</div>
             <div class="p-category">${esc(catLabel)}</div>
             <div class="stock-toggle">
-              <button class="toggle-switch ${stockClass}" onclick="toggleStock(${p.id})"></button>
+              <button class="toggle-switch ${stockClass}" onclick="toggleStock(${p.id})" aria-label="Toggle stock availability for ${esc(p.name)}"></button>
               <span class="stock-label">${stockLabel}</span>
               <span class="stock-qty-display" onclick="startStockEdit(${p.id}, this)" title="Click to edit stock quantity">${qtyText}</span>
             </div>
@@ -1734,6 +1832,7 @@
       });
 
       list.innerHTML = html;
+      updateProductSelectionUI();
     }
 
     // ================================================================
@@ -1765,6 +1864,7 @@
         const res = await fetch('/api/products/' + id, { method: 'DELETE' });
         if (res.ok) {
           products = products.filter(p => p.id !== id);
+          selectedProductIds.delete(Number(id));
           filterProducts();
           refreshStatsIfNeeded();
         } else {
@@ -2257,6 +2357,13 @@
         errorEl.style.display = 'block';
         return;
       }
+      const stockInput = document.getElementById('quickStockQty');
+      const stockValue = stockInput ? stockInput.value.trim() : '';
+      if (stockValue !== '' && (!Number.isSafeInteger(Number(stockValue)) || Number(stockValue) < 0)) {
+        errorEl.textContent = 'Stock quantity must be a whole number of zero or more.';
+        errorEl.style.display = 'block';
+        return;
+      }
 
       const formData = new FormData();
       formData.append('name', productNameFromFile(quickImageName));
@@ -2266,6 +2373,7 @@
       formData.append('fit', 'Regular');
       formData.append('price', String(price));
       formData.append('sizes', JSON.stringify([(quickSz && quickSz.value) || 'L']));
+      if (stockValue !== '') formData.append('stock_qty', String(Number(stockValue)));
       formData.append('front_image', quickImageBlob, 'drop-' + Date.now() + '.webp');
 
       quickUploading = true;
@@ -2286,6 +2394,7 @@
           document.getElementById('liveCard').classList.add('show');
           clearImageSelection();
           priceInput.value = '';
+          if (stockInput) stockInput.value = '';
           loadProducts(); // keep the Products tab in sync
           refreshStatsIfNeeded();
         } else {
