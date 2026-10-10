@@ -450,30 +450,6 @@
     }
 
     /* ================================================================
-       HERO BANNER — LIGHT
-       ================================================================ */
-    .hero-banner {
-      background: var(--bg-primary);
-      text-align: center;
-      padding: 3rem var(--spacing-lg) 2rem;
-    }
-    .hero-banner .hero-logo {
-      font-family: var(--font-display);
-      font-size: clamp(2rem, 6vw, 4rem);
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      line-height: 1;
-      color: var(--text-primary);
-    }
-    .hero-banner .hero-headline {
-      font-family: var(--font-body);
-      font-size: 1rem;
-      color: var(--text-muted);
-      margin: var(--spacing-sm) 0 var(--spacing-md);
-      font-weight: 400;
-    }
-
-    /* ================================================================
        KAGE CATEGORIES — anime shirts, custom stickers
        ================================================================ */
     .category-band {
@@ -1743,11 +1719,6 @@
     }
 
     /* ================================================================
-       HERO BANNER LOGO (override for g-red)
-       ================================================================ */
-    .hero-logo .g-red { color: var(--accent); }
-
-    /* ================================================================
        NAV SEARCH / SALE LINK / MOBILE SEARCH
        ================================================================ */
     .nav-links { gap: 1.25rem; }
@@ -1809,10 +1780,30 @@
        Full-bleed 16:9 campaign photo, spray-paint border, overlaid CTAs.
        ================================================================ */
     .hero-strip {
-      position: relative;
       width: 100%;
       overflow: hidden;
       background: var(--bg-primary);
+      /* The header is fixed: its measured height (--header-h, set by script) plus a gap keeps the photo clear of it. */
+      padding-top: calc(var(--header-h, 120px) + 1rem);
+    }
+    .hero-frame { position: relative; }
+    .hero-copy {
+      text-align: center;
+      padding: clamp(1.5rem, 4vw, 2.5rem) var(--spacing-md) clamp(2rem, 5vw, 3rem);
+    }
+    .hero-title {
+      font-family: var(--font-display);
+      font-size: clamp(1.6rem, 4.5vw, 2.75rem);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      line-height: 1.05;
+      color: var(--text-primary);
+      margin: 0 0 var(--spacing-sm);
+    }
+    .hero-sub {
+      font-size: 0.95rem;
+      color: var(--text-muted);
+      margin: 0 0 var(--spacing-md);
     }
 
     /* Campaign photo — full-bleed, fills the entire spray-paint boundary */
@@ -2541,7 +2532,6 @@
       .hamburger { min-width: 44px; min-height: 44px; }
       .mobile-search { display: block; }
       .mobile-icons-row { display: flex; align-items: center; gap: var(--spacing-md); padding-top: var(--spacing-md); margin-top: var(--spacing-sm); border-top: 1px solid var(--border-color); justify-content: center; }
-      .hero-tile:nth-child(n+4) { display: none; }
 
       .collections-grid { grid-template-columns: 1fr; }
       .footer-main { grid-template-columns: 1fr; }
@@ -3357,11 +3347,12 @@
   <!-- HOME PAGE -->
   <div class="page active" id="page-home">
     <!-- HERO — CAMPAIGN IMAGE LAYOUT -->
-    <section class="hero-strip">
+    <section class="hero-strip" aria-labelledby="heroTitle">
+      <div class="hero-frame">
       <picture class="hero-media">
         <source srcset="/images/hero-700.webp 700w, /images/hero.webp 1376w" sizes="100vw" type="image/webp" />
         <source srcset="/images/hero-700.jpg 700w, /images/hero.jpg 1376w" sizes="100vw" type="image/jpeg" />
-        <img src="/images/hero.jpg" alt="KAGE CULTURE campaign — model wearing the white EVERYONE oversized tee, with two motion-blurred pedestrians walking past on a warm beige backdrop" fetchpriority="high" />
+        <img src="/images/hero.jpg" alt="KAGE Culture campaign: a model in a white oversized tee printed with EVERYONE, mid-kick in front of a light wall covered in graffiti lettering" fetchpriority="high" />
       </picture>
 
       <!-- Spray-paint border around the hero photo -->
@@ -3381,8 +3372,13 @@
         <circle cx="62" cy="470" r="1.8" fill="#1A1815" opacity="0.4" filter="url(#heroSprayFx)" />
         <circle cx="1552" cy="640" r="2.8" fill="#1A1815" opacity="0.55" filter="url(#heroSprayFx)" />
       </svg>
+      </div>
 
-
+      <div class="hero-copy">
+        <h1 class="hero-title" id="heroTitle">Engineered Fit. Original Art.</h1>
+        <p class="hero-sub">Anime inspired. Built for everyday.</p>
+        <a class="btn btn-primary" href="/collection/all" onclick="navigateTo('collection', 'all'); return false;">Shop the Drops</a>
+      </div>
     </section>
 
     <!-- KAGE CATEGORIES — anime shirts, custom stickers -->
@@ -5092,27 +5088,6 @@ n    <!-- CONTENT PAGES -->
       loadRecentlyViewed();
     }
 
-    // ---------- Hero tiles ----------
-    function heroTileSVG(i, name) {
-      const reds = ['#4A4433', '#554E3C', '#5A5240', '#3F3A2E', '#625B47', '#48422F'];
-      const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 500">
-        <defs><linearGradient id="hg${i}" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stop-color="#141414"/><stop offset="1" stop-color="${reds[i % reds.length]}"/>
-        </linearGradient></defs>
-        <rect width="400" height="500" fill="url(#hg${i})"/>
-        <text x="200" y="320" text-anchor="middle" font-family="Noto Serif JP, serif" font-weight="900" font-size="210" fill="rgba(74,68,51,0.14)">影</text>
-        <text x="200" y="365" text-anchor="middle" font-family="Archivo, sans-serif" font-weight="700" font-size="17" letter-spacing="4" fill="rgba(255,255,255,0.92)">${esc(name).toUpperCase()}</text>
-        <circle cx="${90 + i * 45}" cy="${80 + i * 25}" r="12" fill="rgba(255,255,255,0.4)"/>
-      </svg>`;
-      return 'data:image/svg+xml,' + encodeURIComponent(svg);
-    }
-    function buildHero() {
-      const wrap = document.getElementById('heroTiles');
-      if (!wrap) return;
-      const items = allProducts.slice(0, 6);
-      wrap.innerHTML = items.map((p, i) => `<div class="hero-tile" style="background-image:url('${esc(heroTileSVG(i, p.name))}')"><span class="hero-tile-kanji">影</span></div>`).join('');
-    }
-
     // ---------- Filter panel (sidebar + drawer share one markup) ----------
     function filterPanelHTML() {
       return `
@@ -6267,7 +6242,6 @@ n    <!-- CONTENT PAGES -->
     // HEADER SCROLL EFFECT
     // ================================================================
     const siteHeader = document.querySelector('.site-header');
-    const heroScrollCue = document.getElementById('heroScrollCue');
     if (siteHeader) {
       let lastScrollY = 0;
       window.addEventListener('scroll', () => {
@@ -6277,12 +6251,16 @@ n    <!-- CONTENT PAGES -->
         } else {
           siteHeader.style.boxShadow = 'none';
         }
-        // Fade the hero scroll cue out once the user starts scrolling
-        if (heroScrollCue) {
-          heroScrollCue.classList.toggle('fade-out', y > 12);
-        }
         lastScrollY = y;
       }, { passive: true });
+    }
+
+    // Publish the fixed header's real height (it wraps onto two rows on phones).
+    if (siteHeader) {
+      const syncHeaderHeight = () => document.documentElement.style.setProperty('--header-h', siteHeader.offsetHeight + 'px');
+      syncHeaderHeight();
+      if (window.ResizeObserver) new ResizeObserver(syncHeaderHeight).observe(siteHeader);
+      else window.addEventListener('resize', syncHeaderHeight);
     }
 
     // ================================================================

@@ -97,6 +97,11 @@ async function ready(win) {
     await wait(100);
     assert.equal(deepLink.window.document.querySelector('#detailName').textContent, 'Cheese God');
     assert.equal(deepLink.window.document.querySelector('.hero-media img').getAttribute('src'), '/images/hero.jpg');
+    // Hero copy and CTA: headline is shown, the button goes to the full collection, and the header height is published for the hero offset.
+    assert.equal(deepLink.window.document.querySelector('.hero-title').textContent, 'Engineered Fit. Original Art.');
+    assert.equal(deepLink.window.document.querySelector('.hero-copy .btn').getAttribute('href'), '/collection/all');
+    assert.match(deepLink.window.document.querySelector('.hero-copy .btn').getAttribute('onclick'), /navigateTo\('collection', 'all'\)/);
+    assert.notEqual(deepLink.window.document.documentElement.style.getPropertyValue('--header-h'), '');
     console.log('✅ Product deep links, media, and browser Back work');
 
     // Per-size stock: a product offering S/M/L with S=2, M=0 (sold out), L=5.
