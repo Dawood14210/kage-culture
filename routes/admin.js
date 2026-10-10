@@ -32,7 +32,9 @@ module.exports = function createAdminRoutes(db) {
     try {
       const prodCount = (await db.prepare('SELECT COUNT(*) as c FROM products').get()).c;
       const orderCount = (await db.prepare('SELECT COUNT(*) as c FROM orders').get()).c;
-      const revenue = (await db.prepare('SELECT COALESCE(SUM(total), 0) as s FROM orders').get()).s;
+      // Cancelled orders are not revenue — exclude them so the dashboard card
+      // matches reality (it previously counted refunds as sales).
+      const revenue = (await db.prepare("SELECT COALESCE(SUM(total), 0) as s FROM orders WHERE status != ?").get('cancelled')).s;
       const pendingOrders = (await db.prepare("SELECT COUNT(*) as c FROM orders WHERE status = 'pending'").get()).c;
       const deliveredOrders = (await db.prepare("SELECT COUNT(*) as c FROM orders WHERE status = 'delivered'").get()).c;
       const outOfStock = (await db.prepare('SELECT COUNT(*) as c FROM products WHERE in_stock = 0').get()).c;
@@ -46,12 +48,19 @@ module.exports = function createAdminRoutes(db) {
   router.get('/api/admin/stats/sales', requireAuth, async (req, res) => {
     try {
       const now = new Date();
-      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
-      const weekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay()).toISOString();
-      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-      const revToday = (await db.prepare('SELECT COALESCE(SUM(total), 0) as s FROM orders WHERE created_at >= ?').get(todayStart)).s;
-      const revWeek = (await db.prepare('SELECT COALESCE(SUM(total), 0) as s FROM orders WHERE created_at >= ?').get(weekStart)).s;
-      const revMonth = (await db.prepare('SELECT COALESCE(SUM(total), 0) as s FROM orders WHERE created_at >= ?').get(monthStart)).s;
+      // Boundaries MUST use the same 'YYYY-MM-DD HH:MM:SS' format as the stored
+      // created_at column (ISO 'T'/'Z' strings compared lexicographically against
+      // space-separated ones drop every row on the boundary date — Revenue Today
+      // was permanently 0). Boundaries are the UTC instant of the local day/week/
+      // month start, formatted to match storage. Week starts Monday, matching the
+      // P&L weekly buckets.
+      const toTs = (d) => d.toISOString().replace('T', ' ').slice(0, 19);
+      const todayStart = toTs(new Date(now.getFullYear(), now.getMonth(), now.getDate()));
+      const weekStart = toTs(new Date(now.getFullYear(), now.getMonth(), now.getDate() - ((now.getDay() || 7) - 1)));
+      const monthStart = toTs(new Date(now.getFullYear(), now.getMonth(), 1));
+      const revToday = (await db.prepare("SELECT COALESCE(SUM(total), 0) as s FROM orders WHERE status != ? AND created_at >= ?").get('cancelled', todayStart)).s;
+      const revWeek = (await db.prepare("SELECT COALESCE(SUM(total), 0) as s FROM orders WHERE status != ? AND created_at >= ?").get('cancelled', weekStart)).s;
+      const revMonth = (await db.prepare("SELECT COALESCE(SUM(total), 0) as s FROM orders WHERE status != ? AND created_at >= ?").get('cancelled', monthStart)).s;
       const statusCounts = (await db.prepare('SELECT status, COUNT(*) as c FROM orders GROUP BY status').all());
       const byStatus = {}; statusCounts.forEach(r => { byStatus[r.status] = r.c; });
       const allOrders = (await db.prepare('SELECT items_json FROM orders WHERE status != ?').all('cancelled'));
@@ -67,7 +76,8 @@ module.exports = function createAdminRoutes(db) {
   router.get('/api/admin/stats/pnl', requireAuth, async (req, res) => {
     try {
       const period = ['daily', 'weekly', 'monthly'].includes(req.query.period) ? req.query.period : 'daily';
-      const orders = await db.prepare('SELECT total, created_at, items_json FROM orders ORDER BY created_at ASC, id ASC').all();
+      // Cancelled orders must not contribute revenue, cost or profit.
+      const orders = await db.prepare("SELECT total, created_at, items_json FROM orders WHERE status != ? ORDER BY created_at ASC, id ASC").all('cancelled');
       const pad = (n) => String(n).padStart(2, '0');
       const dayKey = (d) => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
       const monthKey = (d) => d.getFullYear() + '-' + pad(d.getMonth() + 1);
