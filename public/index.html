@@ -241,7 +241,7 @@
     .topbar-track {
       display: flex;
       width: max-content;
-      animation: topbar-marquee 28s linear infinite;
+      animation: topbar-marquee 24s linear infinite;
       will-change: transform;
     }
     .topbar-group { display: flex; align-items: center; }
@@ -257,11 +257,11 @@
       to { transform: translateX(-50%); }
     }
     @media (prefers-reduced-motion: reduce) {
-      .topbar-track { animation: none; }
+      .topbar-track { animation-play-state: paused; }
     }
 
     .site-header .nav-inner {
-          padding: 0 0;
+          padding: 0;
           position: relative;
           display: flex;
           align-items: center;
@@ -1783,9 +1783,10 @@
       width: 100%;
       overflow: hidden;
       background: var(--bg-primary);
-      /* The header is fixed: its measured height (--header-h, set by script) plus a gap keeps the photo clear of it. */
-      padding-top: calc(var(--header-h, 120px) + 1rem);
+      /* The header is fixed: clear it by its measured height (--header-h, set by script) plus a 12px gap. */
+      padding-top: calc(var(--header-h, 80px) + 12px);
     }
+    #page-home.page { padding-top: 0; }
     .hero-frame { position: relative; }
     .hero-copy {
       text-align: center;
@@ -2428,7 +2429,7 @@
       align-items: center;
       justify-content: center;
       z-index: 999;
-      box-shadow: 0 4px 20px rgba(37,211,102,0.4);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.18);
       transition: all var(--transition-med);
       animation: whatsappPulse 2s ease-in-out infinite;
     }
@@ -2441,19 +2442,23 @@
       height: 28px;
     }
     @keyframes whatsappPulse {
-      0%, 100% { box-shadow: 0 4px 20px rgba(37,211,102,0.4); }
-      50% { box-shadow: 0 4px 30px rgba(37,211,102,0.6), 0 0 0 8px rgba(37,211,102,0.1); }
+      0%, 100% { box-shadow: 0 2px 8px rgba(0,0,0,0.18); }
+      50% { box-shadow: 0 2px 12px rgba(0,0,0,0.22), 0 0 0 6px rgba(37,211,102,0.12); }
     }
     @media (max-width: 768px) {
       .whatsapp-float {
-        /* Hovered above the mobile sticky-cart bar (70px) so the
-           two never overlap on product pages. */
-        bottom: 86px;
-        right: 16px;
+        bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+        right: calc(16px + env(safe-area-inset-right, 0px));
         width: 56px;
         height: 56px;
       }
+      /* Product pages show the 70px sticky cart bar along the bottom edge; lift the button above it there. */
+      body:has(#page-product.active) .whatsapp-float {
+        bottom: calc(86px + env(safe-area-inset-bottom, 0px));
+      }
       .whatsapp-float svg { width: 26px; height: 26px; }
+      /* Footer keeps its last lines clear of the floating button. */
+      .site-footer { padding-bottom: calc(var(--spacing-md) + 76px + env(safe-area-inset-bottom, 0px)); }
     }
     /* Keep page-bottom content clear of the floating WhatsApp button
        on touch layouts (it sits over the last row otherwise). */
@@ -2528,7 +2533,7 @@
       .nav-icons > .nav-icon { display: none; }
       .nav-icons > #wishlistNav,
       .nav-icons > .nav-icon[title="Cart"] { display: flex; }
-      .nav-icon { min-width: 42px; min-height: 44px; }
+      .nav-icon { min-width: 44px; min-height: 44px; }
       .hamburger { min-width: 44px; min-height: 44px; }
       .mobile-search { display: block; }
       .mobile-icons-row { display: flex; align-items: center; gap: var(--spacing-md); padding-top: var(--spacing-md); margin-top: var(--spacing-sm); border-top: 1px solid var(--border-color); justify-content: center; }
@@ -2570,6 +2575,14 @@
       .nav-links li { min-height: 0; }
       .nav-links li:has(.nav-icon) { min-height: 44px; }
       .nav-links li:has(.mobile-search) { min-height: 0; }
+    }
+
+    /* Mobile header gutters: 16px sides keep the logo off the screen edge,
+       10px above and below centres the logo row. */
+    @media (max-width: 640px) {
+      .site-header .nav-inner { padding: 10px 16px; }
+      .kage-logo { padding: 0 4px; }
+      .kage-logo .culture { white-space: nowrap; text-align: center; }
     }
 
     /* Ultra-narrow phones (≤360px): stop the header from overflowing —
