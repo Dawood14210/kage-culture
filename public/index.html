@@ -3253,7 +3253,284 @@
       min-height: 40px;
     }
     .coming-soon-back:hover { color: var(--accent); }
-  
+
+    /* ================================================================
+       DESKTOP HOMEPAGE REFINEMENTS — 1025px and up
+       ================================================================ */
+    @media (min-width: 1025px) {
+      /* --- Header: larger logo, constrained 1280px layout --- */
+      .site-header .container.nav-inner {
+        max-width: 1280px;
+        padding: 0 32px;
+        gap: 24px;
+      }
+      /* Horizontal nav visible on desktop (hamburger is hidden via existing media rule) */
+      .nav-links {
+        display: flex !important;
+        position: static;
+        flex-direction: row;
+        width: auto;
+        padding: 0;
+        border: none;
+        box-shadow: none;
+        border-radius: 0;
+        background: transparent;
+        gap: 1.5rem;
+        z-index: auto;
+        max-height: none;
+        overflow: visible;
+        margin: 0 auto;
+      }
+      .nav-links li.mobile-search,
+      .nav-links li.mobile-icons-row { display: none !important; }
+      .nav-links a {
+        padding: 8px 4px;
+        min-height: 44px;
+        width: auto;
+        font-size: 0.78rem;
+        font-weight: 700;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        background: transparent !important;
+        border-radius: 0;
+        white-space: nowrap;
+      }
+      .hamburger { display: none; }
+      .nav-icons > .nav-icon { display: flex !important; }
+
+      /* Larger logo ~68px tall */
+      .kage-logo {
+        padding: 10px 28px 10px 0;
+      }
+      .kage-logo .kanji {
+        font-size: 44px;
+        line-height: 0.9;
+      }
+      .kage-logo .wordmark-wrap { margin-top: 4px; }
+      .kage-logo .kage {
+        font-size: 20px;
+        letter-spacing: 0.18em;
+      }
+      .kage-logo .culture {
+        font-size: 10px;
+        letter-spacing: 0.16em;
+        margin-top: 2px;
+      }
+
+      /* Search bar: moderate 320–400px width, centred */
+      .nav-search {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        width: min(360px, calc(100% - 640px));
+        max-width: 380px;
+        min-width: 280px;
+        margin: 0;
+      }
+
+      /* --- Consistent section vertical rhythm (72px top/bottom) --- */
+      #page-home .category-band,
+      #page-home .section-vibes,
+      #page-home .section-why,
+      #page-home .section-products {
+        padding-top: 72px;
+        padding-bottom: 72px;
+      }
+      #page-home .section-categories { padding: 0; }
+
+      /* Tighten internal margins that were doubling the gaps */
+      #page-home .vibes-desc { margin-bottom: var(--spacing-lg); }
+      #page-home .vibes-title { margin-bottom: var(--spacing-sm); }
+      #page-home .product-grid { margin-top: 24px; }
+      #page-home .bestsellers-head { margin-bottom: 0; }
+
+      /* --- Dark category section (navy/olive band) --- */
+      #page-home .category-band { padding: 64px 0; }
+      #page-home .category-strip {
+        grid-template-columns: repeat(2, auto);
+        justify-content: center;
+        justify-items: center;
+        gap: 100px;
+      }
+      #page-home .cat-tile {
+        flex-direction: column;
+        text-align: center;
+        gap: var(--spacing-md);
+        max-width: 260px;
+      }
+      #page-home .cat-thumb {
+        width: 170px;
+        height: 170px;
+      }
+      #page-home .cat-info { align-items: center; }
+      #page-home .cat-name {
+        font-size: 19px;
+        letter-spacing: 0.14em;
+      }
+      #page-home .cat-desc {
+        font-size: 14px;
+        max-width: 240px;
+        line-height: 1.5;
+      }
+
+      /* --- Trust badges: bigger, higher contrast --- */
+      #page-home .why-grid {
+        gap: 40px;
+      }
+      #page-home .why-item h4 {
+        font-size: 0.9rem;
+        letter-spacing: 0.1em;
+        color: var(--text-primary);
+      }
+      #page-home .why-item p {
+        font-size: 14px;
+        line-height: 1.5;
+        color: var(--text-secondary);
+        max-width: 200px;
+      }
+      #page-home .why-icon {
+        width: 64px;
+        height: 64px;
+      }
+      #page-home .why-icon svg { width: 26px; height: 26px; }
+
+      /* --- Product grids: responsive, center when sparse --- */
+      #page-home .product-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(240px, 280px));
+        justify-content: center;
+        gap: 24px;
+      }
+      /* Product meta & price 14px minimum */
+      #page-home .product-grid .product-card-body h3 {
+        font-size: 0.95rem;
+      }
+      #page-home .product-grid .product-card-body .fit-label {
+        font-size: 0.8rem;
+        color: var(--text-secondary);
+      }
+      #page-home .product-grid .product-card-body .price {
+        font-size: 14px;
+      }
+      #page-home .product-grid .product-card-body .price .original {
+        font-size: 13px;
+      }
+      /* Quick View: clear outlined button, full width, 44px tall, always visible on desktop */
+      #page-home .product-grid .quick-view-btn {
+        opacity: 1 !important;
+        transform: none !important;
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 44px;
+        padding: 10px 14px;
+        margin-top: 12px;
+        border: 2px solid var(--accent);
+        background: transparent;
+        color: var(--accent);
+        font-family: var(--font-body);
+        font-size: 0.72rem;
+        font-weight: 700;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        border-radius: var(--radius-sm);
+        cursor: pointer;
+        transition: background var(--transition-fast), color var(--transition-fast);
+      }
+      #page-home .product-grid .quick-view-btn:hover {
+        background: var(--accent);
+        color: #FFF;
+      }
+
+      /* --- Footer Help links: tighter 8–12px gap --- */
+      #page-home .footer-col ul { gap: 10px; }
+      #page-home .footer-col ul a { font-size: 0.82rem; }
+    }
+
+    /* ================================================================
+       MOBILE HOMEPAGE SPACING & READABILITY — up to ~480px
+       ================================================================ */
+    @media (max-width: 480px) {
+      /* Consistent 48px top/bottom padding for all homepage sections */
+      #page-home .hero-copy {
+        padding: 24px var(--spacing-md) 0;
+      }
+      #page-home .category-band,
+      #page-home .section-vibes,
+      #page-home .section-why,
+      #page-home .section-products {
+        padding-top: 48px;
+        padding-bottom: 48px;
+      }
+      #page-home .section-categories { padding: 0; }
+      #page-home .category-band .container,
+      #page-home .vibes-grid {
+        gap: 0;
+      }
+      /* Two dark category tiles stacked at 24–32px spacing */
+      #page-home .category-strip {
+        grid-template-columns: 1fr;
+        gap: 28px;
+      }
+      /* Trust badges: 2x2 grid, 13px description, line-height 1.4 */
+      #page-home .why-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 24px;
+      }
+      #page-home .why-item p {
+        font-size: 13px;
+        line-height: 1.4;
+        max-width: none;
+      }
+      #page-home .why-item h4 {
+        font-size: 13px;
+      }
+      /* Product cards: QUICK VIEW clear outlined button, full width, 44px */
+      #page-home .product-grid .quick-view-btn {
+        opacity: 1 !important;
+        transform: none !important;
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 44px;
+        padding: 10px 12px;
+        margin-top: 10px;
+        border: 2px solid var(--accent);
+        background: transparent;
+        color: var(--accent);
+        font-size: 0.72rem;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        border-radius: var(--radius-sm);
+        cursor: pointer;
+        transition: background var(--transition-fast), color var(--transition-fast);
+      }
+      #page-home .product-grid .quick-view-btn:active {
+        background: var(--accent);
+        color: #FFF;
+      }
+      #page-home .bestsellers-head { margin-bottom: 4px; }
+      /* Footer Help: ~36px top spacing */
+      #page-home .site-footer {
+        padding-top: 0;
+        padding-bottom: 24px;
+      }
+      #page-home .site-footer .footer-main {
+        margin-bottom: var(--spacing-md);
+        padding-top: 36px;
+      }
+      /* Tap targets ≥ 44×44 */
+      #page-home .vibes-cta,
+      #page-home .btn,
+      #page-home .bestsellers-viewall {
+        min-height: 44px;
+      }
+    }
+
   </style>
 
 </head>
@@ -5005,7 +5282,7 @@ n    <!-- CONTENT PAGES -->
       const displayPrice = p.sale_price || p.price;
       const isWishlisted = wishlist && wishlist.has(p.id);
       return `
-        <div class="product-card" role="link" tabindex="0" aria-label="View ${esc(p.name)}" onclick="openProductDetail(${p.id})" onkeydown="if(event.key==='Enter'&&event.target===this){event.preventDefault();openProductDetail(${p.id});}">
+        <div class="product-card" data-pid="${p.id}" role="link" tabindex="0" aria-label="View ${esc(p.name)}" onclick="openProductDetail(${p.id})" onkeydown="if(event.key==='Enter'&&event.target===this){event.preventDefault();openProductDetail(${p.id});}">
           <div class="product-card-image">
             ${img ? `<img src="${esc(img)}" alt="${esc(p.name)}" loading="lazy" />` : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:var(--text-dim);font-size:0.8rem;">No Image</div>`}
             <button class="product-wishlist ${isWishlisted ? 'active' : ''}" onclick="event.stopPropagation();toggleWishlist(${p.id}, this)" aria-label="Wishlist">
@@ -5528,6 +5805,29 @@ n    <!-- CONTENT PAGES -->
       try { arr = JSON.parse(localStorage.getItem('kageRv') || '[]'); } catch (e) {}
       const items = arr.map(id => allProducts.find(x => String(x.id) === String(id))).filter(Boolean);
       if (!items.length) { section.style.display = 'none'; return; }
+      // Exclude products already shown in Best Sellers so the section isn't redundant.
+      const bsGrid = document.getElementById('bestSellersGrid');
+      if (bsGrid) {
+        const bsIds = new Set();
+        bsGrid.querySelectorAll('[data-pid]').forEach(el => bsIds.add(String(el.dataset.pid)));
+        // Fallback: derive best-seller ids from the same sort used in loadBestSellers().
+        if (!bsIds.size && allProducts.length) {
+          const sorted = [...allProducts].sort((a, b) => {
+            const oa = a.order_count || 0, ob = b.order_count || 0;
+            if (ob !== oa) return ob - oa;
+            const da = a.created_at ? new Date(a.created_at).getTime() : 0;
+            const db = b.created_at ? new Date(b.created_at).getTime() : 0;
+            return db - da;
+          }).slice(0, 8);
+          sorted.forEach(p => bsIds.add(String(p.id)));
+        }
+        const fresh = items.filter(p => !bsIds.has(String(p.id)));
+        if (!fresh.length) { section.style.display = 'none'; return; }
+        section.style.display = '';
+        grid.innerHTML = fresh.map(renderHomeProductCard).join('');
+        initScrollReveal();
+        return;
+      }
       section.style.display = '';
       grid.innerHTML = items.map(renderHomeProductCard).join('');
       initScrollReveal();
