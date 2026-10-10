@@ -3257,7 +3257,7 @@
     /* ================================================================
        DESKTOP HOMEPAGE REFINEMENTS — 1025px and up
        ================================================================ */
-    @media (min-width: 1025px) {
+    @media (min-width: 1024px) {
       /* --- Header: larger logo, constrained 1280px layout --- */
       .site-header .container.nav-inner {
         max-width: 1280px;
@@ -3298,12 +3298,12 @@
       .hamburger { display: none; }
       .nav-icons > .nav-icon { display: flex !important; }
 
-      /* Larger logo ~68px tall */
+      /* Logo ~68px tall (kanji 32.4 + 4 gap + wordmark 32 = 68.4px, no vertical padding) */
       .kage-logo {
-        padding: 10px 28px 10px 0;
+        padding: 0 28px 0 0;
       }
       .kage-logo .kanji {
-        font-size: 44px;
+        font-size: 36px;
         line-height: 0.9;
       }
       .kage-logo .wordmark-wrap { margin-top: 4px; }
@@ -3338,6 +3338,20 @@
         padding-bottom: 72px;
       }
       #page-home .section-categories { padding: 0; }
+      /* Remove doubled gaps: each following section overlaps the previous
+         section's bottom padding by 72px, so content-to-content spacing is
+         72px instead of 144px. The dark band paints above New Vibes so its
+         bottom padding stays visible. */
+      #page-home .category-band { position: relative; z-index: 1; }
+      #page-home #sectionVibes,
+      #page-home #sectionWhy,
+      #page-home #sectionBestSellers,
+      #page-home #sectionRecentlyViewed { margin-top: -72px; }
+      /* The trust-section hairline moves down to the boundary (72px into its box). */
+      #page-home #sectionWhy {
+        border-top: 0;
+        background: linear-gradient(var(--border-subtle), var(--border-subtle)) no-repeat 0 72px / 100% 1px, var(--bg-secondary);
+      }
 
       /* Tighten internal margins that were doubling the gaps */
       #page-home .vibes-desc { margin-bottom: var(--spacing-lg); }
@@ -3407,14 +3421,14 @@
         font-size: 0.95rem;
       }
       #page-home .product-grid .product-card-body .fit-label {
-        font-size: 0.8rem;
+        font-size: 14px;
         color: var(--text-secondary);
       }
       #page-home .product-grid .product-card-body .price {
         font-size: 14px;
       }
       #page-home .product-grid .product-card-body .price .original {
-        font-size: 13px;
+        font-size: 14px;
       }
       /* Quick View: clear outlined button, full width, 44px tall, always visible on desktop */
       #page-home .product-grid .quick-view-btn {
@@ -3522,6 +3536,25 @@
       #page-home .site-footer .footer-main {
         margin-bottom: var(--spacing-md);
         padding-top: 36px;
+      }
+      /* Remove doubled gaps: each following section overlaps the previous
+         section's bottom padding by 48px, so content-to-content spacing is
+         48px instead of 96px. The dark band paints above New Vibes so its
+         bottom padding stays visible. */
+      #page-home .category-band { position: relative; z-index: 1; }
+      #page-home #sectionVibes,
+      #page-home #sectionWhy,
+      #page-home #sectionBestSellers,
+      #page-home #sectionRecentlyViewed { margin-top: -48px; }
+      /* The trust-section hairline moves down to the boundary (48px into its box). */
+      #page-home #sectionWhy {
+        border-top: 0;
+        background: linear-gradient(var(--border-subtle), var(--border-subtle)) no-repeat 0 48px / 100% 1px, var(--bg-secondary);
+      }
+      /* Wishlist heart: 44×44 tap target (was 36×36) */
+      #page-home .product-grid .product-wishlist {
+        width: 44px;
+        height: 44px;
       }
       /* Tap targets ≥ 44×44 */
       #page-home .vibes-cta,
