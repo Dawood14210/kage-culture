@@ -1203,7 +1203,7 @@
                 <div class="uz-error" id="formImgError"></div>
               </div>
               <div class="preview-box" id="frontPreview"></div>
-              <button type="button" class="btn-change" id="formImgChange" style="display:none;">Choose different</button>
+              <button type="button" class="btn-change" id="formImgChange" style="display:none;" onclick="document.getElementById('frontInput').click()">Choose different</button>
             </div>
           </div>
 
@@ -1266,9 +1266,10 @@
             </div>
             <div>
               <label>Back Image (optional)</label>
-              <div class="upload-area" id="backUploadArea" onclick="document.getElementById('backInput').click()">
-                <input type="file" id="backInput" accept="image/*" onchange="previewUpload(this, 'backPreview')" />
+              <div class="upload-area" id="backUploadArea" tabindex="0" role="button" aria-label="Choose back image">
+                <input type="file" id="backInput" accept="image/*" />
                 <div id="backPreview">          <span class="hint" style="color:var(--text-muted)">Tap to upload back view</span></div>
+                <div class="uz-error" id="backImgError"></div>
               </div>
             </div>
           </div>
@@ -1833,6 +1834,8 @@
       document.getElementById('prodStockQty').value = '';
       document.getElementById('backPreview').innerHTML = '          <span class="hint" style="color:var(--text-muted)">Tap to upload back view</span>';
       document.getElementById('backUploadArea').classList.remove('has-image');
+      const backErr = document.getElementById('backImgError');
+      if (backErr) backErr.style.display = 'none';
       clearFormImage();
       document.getElementById('saveBtn').textContent = 'Add Product';
       document.getElementById('cancelBtn').style.display = 'none';
@@ -1848,19 +1851,40 @@
     // ================================================================
     // UPLOAD PREVIEW
     // ================================================================
-    function previewUpload(input, previewId) {
-      const preview = document.getElementById(previewId);
-      const area = input.closest('.upload-area');
-      if (input.files && input.files[0]) {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          preview.innerHTML = `<img src="${e.target.result}" alt="Preview" />`;
-          if (area) area.classList.add('has-image');
-        };
-        reader.readAsDataURL(input.files[0]);
-        // Store file for upload
-        if (previewId === 'frontPreview') currentImageFiles.front = input.files[0];
-        else if (previewId === 'backPreview') currentImageFiles.back = input.files[0];
+    // Back-image upload: same validation + WebP compression as the front image.
+    // (The old previewUpload stored the RAW file — large camera photos could
+    // exceed the 8MB upload limit, and this area had no drag & drop, so dropping
+    // a file made the browser navigate away from the admin.)
+    async function handleFormBackImage(file) {
+      const errEl = document.getElementById('backImgError');
+      errEl.style.display = 'none';
+      if (!file || !file.type.startsWith('image/')) {
+        errEl.textContent = 'That file type is not supported. Please choose a photo (JPEG, PNG or WebP).';
+        errEl.style.display = 'block';
+        return;
+      }
+      const input = document.getElementById('backInput');
+      if (input) input.value = ''; // allow re-picking the same file later
+      const preview = document.getElementById('backPreview');
+      const area = document.getElementById('backUploadArea');
+      const rawUrl = URL.createObjectURL(file);
+      preview.innerHTML = `<img src="${rawUrl}" alt="Back preview" />`;
+      area.classList.add('has-image');
+      try {
+        const optimized = await compressToWebP(file);
+        currentImageFiles.back = optimized.blob;
+        URL.revokeObjectURL(rawUrl);
+        preview.innerHTML = `<img src="${URL.createObjectURL(optimized.blob)}" alt="Back preview" />`;
+        const kb = Math.max(1, Math.round(optimized.blob.size / 1024));
+        const type = optimized.blob.type.includes('webp') ? 'WebP' : 'JPEG';
+        preview.innerHTML += `<div class="preview-meta">Optimized · ${optimized.width}px · ${type} · ${kb} KB</div>`;
+      } catch (err) {
+        currentImageFiles.back = null;
+        URL.revokeObjectURL(rawUrl);
+        preview.innerHTML = '<span class="hint" style="color:var(--text-muted);">Tap to upload back view</span>';
+        area.classList.remove('has-image');
+        errEl.textContent = 'Could not process that image. Please try a different photo.';
+        errEl.style.display = 'block';
       }
     }
 
@@ -1950,6 +1974,29 @@
       area.addEventListener('drop', (e) => {
         const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
         if (f) handleFormFrontImage(f);
+      });
+    }
+
+    function setupFormBackUpload() {
+      const area = document.getElementById('backUploadArea');
+      const input = document.getElementById('backInput');
+      if (!area || !input) return;
+      area.addEventListener('click', () => input.click());
+      area.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); input.click(); }
+      });
+      input.addEventListener('change', () => {
+        if (input.files && input.files[0]) handleFormBackImage(input.files[0]);
+      });
+      ['dragenter', 'dragover'].forEach(ev => {
+        area.addEventListener(ev, (e) => { e.preventDefault(); area.classList.add('dragover'); });
+      });
+      ['dragleave', 'drop'].forEach(ev => {
+        area.addEventListener(ev, (e) => { e.preventDefault(); area.classList.remove('dragover'); });
+      });
+      area.addEventListener('drop', (e) => {
+        const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+        if (f) handleFormBackImage(f);
       });
     }
 
@@ -2754,6 +2801,7 @@
     // ================================================================
     setupQuickUpload();
     setupFormFrontUpload();
+    setupFormBackUpload();
     checkAuth();
 
     // Keep keyboard focus within the password dialog; Escape restores focus.
