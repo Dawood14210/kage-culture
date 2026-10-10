@@ -6,6 +6,7 @@
 module.exports = {
   // Inventory
   LOW_STOCK_THRESHOLD: 5,
+  MAX_BATCH_PRODUCT_DELETE: 100,
 
   // Shipping
   SHIPPING_COST: 150, // Flat delivery charge in PKR

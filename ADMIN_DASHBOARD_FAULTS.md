@@ -78,7 +78,7 @@
 
 | # | Fault | Where |
 |---|---|---|
-| N1 | **Quick-upload products bypass inventory & size logic**: no `sizes` sent → backend defaults to S–XXL (all 5 sizes shown on storefront for what admin thinks is one item); no `stock_qty` → `null` → orders never decrement stock and the product is excluded from the Low-Stock count; `unit_cost` auto-filled with a fabricated `max(50, price×0.55)` estimate. | `routes/products.js:64-75`, `public/admin.html:2059` |
+| N1 | **Quick Upload can still create untracked inventory when quantity is left blank**: it now sends the selected single size and offers a stock quantity field; blank intentionally retains untracked inventory, while `0` marks the item sold out. `unit_cost` remains auto-filled with the existing `max(50, price×0.55)` estimate. | `routes/products.js`, `public/admin.html` |
 | N2 | **P&L "profit" is an estimate presented as exact**: cost falls back to 55% of price (min Rs. 50) whenever `unit_cost`/line-item cost is absent; combined with H2 (cancelled included) the Profit figure can't be trusted. | `routes/admin.js:77-80`, `routes/orders.js:39` |
 | N3 | **Product rows show the category twice** (subtitle under the name *and* a Category column). | `public/admin.html:1597-1610` |
 | N4 | **5 stat cards in a 4-column grid** — Low Stock card is orphaned alone on row 2 at 25% width. | `.dash-stats` `:465-467`, cards `:991-1027` |
@@ -104,7 +104,7 @@
 - **Review routes**: PATCH/DELETE correctly guarded (`requireCsrf, requireAuth`), status enum validated.
 - **`.tabs` hidden strip**: confirmed intentional (sidebar drives navigation) — the stale-active-tab candidate from earlier notes is invisible and harmless.
 - **`verifyPayment`/`codConfirm` not refreshing dashboard stats**: non-issue — neither changes any value the stat cards display.
-- **Frontend test suite**: 8/8 and API suite 33/33 pass (they don't cover the faults above; the stats endpoints are untested for cancelled/UTC-window behavior).
+- **Frontend test suite**: 10/10 and API suite 38/38 pass (they do not cover every dashboard fault; stats endpoint edge cases remain untested).
 
 ---
 
@@ -117,7 +117,8 @@
 | H2 cancelled counted as revenue | `status != 'cancelled'` (param-bound) on dashboard revenue, all 3 sales windows, and P&L order scan | cancel → dashboard `0`, sales `0`, P&L `{0,0,0}` |
 | H3 stock inflation cycle | `routes/orders.js`: leaving `cancelled` re-decrements stock (floor 0) | cycle 10→8→cancel→10→pending→8→cancel→**10 — balanced** |
 | AP: `unit_cost` discarded on create | POST now accepts `unit_cost`, estimate only as fallback | created with `unit_cost=455` → stored 455 (was 55% of price) |
-| AP: weak validation | POST/PUT: price must be finite >0, stock_qty/unit_cost non-negative numbers, sizes must parse — all 400; caps on name(120)/fit(60)/description(2000) | `price=abc`→400, `stock_qty=xyz`→400, `PUT price=abc`→400, `sale>=price`→400 |
+| AP: weak validation | POST/PUT: price must be finite >0, stock_qty a non-negative whole number, unit_cost non-negative, sizes must parse — invalid values return 400; caps on name(120)/fit(60)/description(2000) | `price=abc`→400, `stock_qty=xyz`/`1.5`→400, `PUT price=abc`→400, `sale>=price`→400 |
+| Batch product deletion | Authenticated/CSRF-protected `DELETE /api/products/batch`, validates IDs and a 100-item cap, removes products then best-effort cleans their images | duplicate IDs delete each product once; missing products return 409; invalid/oversized input returns 400 |
 | AP: files mutated before validation | PUT validates the body **before** persisting/removing images (invalid edits no longer delete the old image or orphan uploads) | — |
 | N11 week mismatch | Sales week start moved to **Monday** (matches P&L buckets) | — |
 
@@ -135,6 +136,8 @@
 | M7 payment state-blind | menu is now state-aware: non-COD → Verify / Remove Verification; COD → Mark COD Confirmed / Undo; rows show a "Payment Verified" badge |
 | M8 stock editor dead code | quantity rendered in the product list (`.stock-qty-display`) opening the inline editor; empty save = no change (was silently 0); `restockProduct` dead code removed |
 | M9 CSV export unreachable | "Export CSV" button in the Orders toolbar (respects the status filter) |
+| Batch delete | Products list has row selection, select-visible, selected count, and a destructive confirmation; stale selections refresh safely |
+| Quick Upload quantity gap | optional stock quantity is validated and submitted; zero means sold out, blank means untracked inventory |
 | N3 duplicate category cell | subtitle category removed (column kept) |
 | N4 5 cards in 4-col grid | `.dash-stats` uses `repeat(auto-fit, minmax(150px,1fr))` |
 | N5 logout ignores failures | `handleLogout` checks the response, alerts errors, refreshes a missing CSRF cookie first |
@@ -153,12 +156,14 @@
 5. **Stale live-card** — after Cancel/Reset the "Live in shop" card could persist; reset now clears it (create shows it explicitly after reset).
 6. **Quick Upload** hard-coded `category: 'anime'` and the 5-size default — now has Category and Size selects and sends `sizes` explicitly.
 7. **Uncapped/invalid API input** — see backend validation rows.
+8. **Vercel image storage failure surfaced as a generic 500** — without `BLOB_READ_WRITE_TOKEN`, `persistImage()` tried writing to the serverless function filesystem. It now returns an actionable 503; Blob-provider failures return a safe 502 message that instructs admins to check the store is Public and the token matches, while provider details stay in server logs. Vercel product uploads now require a connected Public Blob store; local development continues to use `./uploads`.
+9. **Quick Upload quantity was omitted** — an optional whole-number stock input is now sent as `stock_qty`; `0` marks sold out, and blank is explicitly untracked inventory.
 
 ### Icons
 All emoji glyphs (sidebar ×7, View Store, stat cards ×5, upload cameras ×2, status menu ×7, sort arrows, stock editor, review actions, both live-card checks, modal close, rating stars) replaced with a **21-symbol inline SVG sprite** + `icon()` / `starRating()` helpers (feather-style, `stroke: currentColor`). Emoji scan of `admin.html` returns **zero** pictographic glyphs.
 
 ### Verification
-- `npm test`: **33/33 API + 8/8 frontend** scenarios pass (jsdom reports no script errors).
+- `npm test`: **38/38 API + 10/10 frontend** scenarios pass (jsdom reports no script errors), including multipart product creation, authenticated/CSRF-protected batch deletion, stock integer validation, Quick Upload quantity submission, and Vercel Blob handling.
 - `node --check` on the extracted inline script: clean.
 - Live proof script against a booted server: H1 ✓ H2 ✓ H3 ✓ unit_cost ✓ 4 validation 400s ✓ CSV 200 ✓ `awaiting_verification` flow ✓.
 

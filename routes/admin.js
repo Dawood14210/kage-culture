@@ -114,7 +114,11 @@ module.exports = function createAdminRoutes(db) {
     try {
       if (!req.file) return res.status(400).json({ error: 'No file uploaded.' });
       const url = await persistImage(req.file.buffer, req.file.originalname); res.json({ url });
-    } catch (err) { console.error('upload failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
+    } catch (err) {
+      console.error('upload failed:', err && err.message ? err.message : err);
+      if (err && err.publicMessage) return res.status(err.status || 500).json({ error: err.publicMessage, code: err.code });
+      res.status(500).json({ error: 'Something went wrong. Please try again.' });
+    }
   });
 
   // --- Newsletter ---

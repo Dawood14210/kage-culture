@@ -379,8 +379,10 @@ DevTools-device-mode pass on iPhone SE / 390px widths before calling it done.
   stars, navigable links, and Escape/focus management for drawers/dialogs were improved.
   Theme background, money formatting, and repeated confirmation-spin popup were fixed.
 - `npm audit fix` cleared four new production dependency advisories (1 critical, 2 high,
-  1 moderate). `npm test` → 33/33 API + 8/8 DOM-level scenarios; production audit → 0.
-  **Production verification is still needed.**
+  1 moderate). `npm test` → 38/38 API + 10/10 DOM-level scenarios; production audit → 0.
+  Product-create tests cover local image persistence, missing-token and store-prefixed-token
+  paths; product admin tests cover batch deletion and Quick Upload stock submission.
+  Production verification is still needed.
 
 ### ✅ Browser-based responsive repair — 2026-10-10
 
