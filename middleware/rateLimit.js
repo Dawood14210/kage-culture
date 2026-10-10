@@ -20,14 +20,6 @@ const strictLimiter = rateLimit({
   message: { error: 'Too many attempts. Please try again later.' }
 });
 
-const spinLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: config.RATE_LIMIT_SPIN,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: 'Too many spin requests. Please try again later.' }
-});
-
 const orderLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: config.RATE_LIMIT_ORDERS,
@@ -44,4 +36,4 @@ const resetLimiter = rateLimit({
   message: { error: 'Too many reset requests. Please try again later.' }
 });
 
-module.exports = { globalLimiter, strictLimiter, spinLimiter, orderLimiter, resetLimiter };
+module.exports = { globalLimiter, strictLimiter, orderLimiter, resetLimiter };
