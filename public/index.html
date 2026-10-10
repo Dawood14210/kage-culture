@@ -778,6 +778,36 @@
     @media (hover: none) {
       .product-grid .quick-view-btn { opacity: 1; transform: none; }
     }
+    /* Quick View: clear outlined 44px button, full width, at EVERY width.
+       One rule for the storefront so the mobile and desktop treatments can
+       never drift apart again. */
+    #page-home .product-grid .quick-view-btn {
+      opacity: 1 !important;
+      transform: none !important;
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 44px;
+      padding: 10px 14px;
+      margin-top: 12px;
+      border: 2px solid var(--accent);
+      background: transparent;
+      color: var(--accent);
+      font-family: var(--font-body);
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: background var(--transition-fast), color var(--transition-fast);
+    }
+    #page-home .product-grid .quick-view-btn:hover,
+    #page-home .product-grid .quick-view-btn:active {
+      background: var(--accent);
+      color: #FFF;
+    }
 
     /* ================================================================
        FEATURED COLLECTIONS — ENHANCED
@@ -2445,6 +2475,12 @@
       /* Footer keeps its last lines clear of the floating button. */
       .site-footer { padding-bottom: calc(var(--spacing-md) + 76px + env(safe-area-inset-bottom, 0px)); }
     }
+    /* Above the mobile breakpoint the footer needs 80px of bottom padding so
+       the floating WhatsApp button never covers Privacy Policy or the payment
+       badges. */
+    @media (min-width: 481px) {
+      .site-footer { padding-bottom: 80px; }
+    }
     /* Keep page-bottom content clear of the floating WhatsApp button
        on touch layouts (it sits over the last row otherwise). */
     @media (hover: none) {
@@ -3396,7 +3432,7 @@
       /* --- Product grids: responsive, center when sparse --- */
       #page-home .product-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(240px, 280px));
+        grid-template-columns: repeat(auto-fit, minmax(240px, 280px));
         justify-content: center;
         gap: 24px;
       }
@@ -3414,34 +3450,6 @@
       #page-home .product-grid .product-card-body .price .original {
         font-size: 14px;
       }
-      /* Quick View: clear outlined button, full width, 44px tall, always visible on desktop */
-      #page-home .product-grid .quick-view-btn {
-        opacity: 1 !important;
-        transform: none !important;
-        width: 100%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        min-height: 44px;
-        padding: 10px 14px;
-        margin-top: 12px;
-        border: 2px solid var(--accent);
-        background: transparent;
-        color: var(--accent);
-        font-family: var(--font-body);
-        font-size: 0.72rem;
-        font-weight: 700;
-        letter-spacing: 0.14em;
-        text-transform: uppercase;
-        border-radius: var(--radius-sm);
-        cursor: pointer;
-        transition: background var(--transition-fast), color var(--transition-fast);
-      }
-      #page-home .product-grid .quick-view-btn:hover {
-        background: var(--accent);
-        color: #FFF;
-      }
-
       /* --- Footer Help links: tighter 8–12px gap --- */
       #page-home .footer-col ul { gap: 10px; }
       #page-home .footer-col ul a { font-size: 0.82rem; }
@@ -3451,9 +3459,11 @@
        MOBILE HOMEPAGE SPACING & READABILITY — up to ~480px
        ================================================================ */
     @media (max-width: 480px) {
-      /* Consistent 48px top/bottom padding for all homepage sections */
+      /* Consistent 48px top/bottom padding for all homepage sections.
+         The hero copy also keeps 48px under the "Shop the Drops" button so it
+         clears the dark category band. */
       #page-home .hero-copy {
-        padding: 24px var(--spacing-md) 0;
+        padding: 24px var(--spacing-md) 48px;
       }
       #page-home .category-band,
       #page-home .section-vibes,
@@ -3463,9 +3473,20 @@
         padding-bottom: 48px;
       }
       #page-home .section-categories { padding: 0; }
-      #page-home .category-band .container,
-      #page-home .vibes-grid {
+      #page-home .category-band .container {
         gap: 0;
+      }
+      /* 20px between the New Vibes image and the NEW SEASON label. */
+      #page-home .vibes-grid {
+        gap: 20px;
+      }
+      /* 16px side padding keeps the image off the screen edge. */
+      #page-home .vibes-image {
+        padding: 0 16px;
+      }
+      /* The rounding now belongs to the image inside the padding box. */
+      #page-home .vibes-image img {
+        border-radius: var(--radius-md);
       }
       /* Two dark category tiles stacked at 24–32px spacing */
       #page-home .category-strip {
@@ -3485,32 +3506,6 @@
       #page-home .why-item h4 {
         font-size: 13px;
       }
-      /* Product cards: QUICK VIEW clear outlined button, full width, 44px */
-      #page-home .product-grid .quick-view-btn {
-        opacity: 1 !important;
-        transform: none !important;
-        width: 100%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        min-height: 44px;
-        padding: 10px 12px;
-        margin-top: 10px;
-        border: 2px solid var(--accent);
-        background: transparent;
-        color: var(--accent);
-        font-size: 0.72rem;
-        font-weight: 700;
-        letter-spacing: 0.12em;
-        text-transform: uppercase;
-        border-radius: var(--radius-sm);
-        cursor: pointer;
-        transition: background var(--transition-fast), color var(--transition-fast);
-      }
-      #page-home .product-grid .quick-view-btn:active {
-        background: var(--accent);
-        color: #FFF;
-      }
       #page-home .bestsellers-head { margin-bottom: 4px; }
       /* Footer Help: ~36px top spacing */
       #page-home .site-footer {
@@ -3528,8 +3523,10 @@
       #page-home .category-band { position: relative; z-index: 1; }
       #page-home #sectionVibes,
       #page-home #sectionWhy,
-      #page-home #sectionBestSellers,
       #page-home #sectionRecentlyViewed { margin-top: -48px; }
+      /* Best Sellers keeps its own 48px padding-top, so dropping the overlap
+         leaves a clear 48px between the trust badges and MOST POPULAR. */
+      #page-home #sectionBestSellers { margin-top: 0; }
       /* The trust-section hairline moves down to the boundary (48px into its box). */
       #page-home #sectionWhy {
         border-top: 0;
@@ -3545,6 +3542,30 @@
       #page-home .btn,
       #page-home .bestsellers-viewall {
         min-height: 44px;
+      }
+    }
+
+    /* ================================================================
+       DARK CATEGORY BAND (>=481px) — centre the two tiles on the page
+       ================================================================ */
+    @media (min-width: 481px) {
+      #page-home .category-band .container,
+      #page-home .category-strip {
+        margin-inline: auto;
+      }
+      #page-home .category-strip {
+        justify-content: center;
+      }
+      /* 481-768px stacks the tiles, so centre each tile's own row. */
+      #page-home .cat-tile {
+        justify-content: center;
+      }
+    }
+    /* 769-1023px: the base 3-column strip leaves the pair off-centre, so
+       size both tracks to their content and centre them as a group. */
+    @media (min-width: 769px) and (max-width: 1023px) {
+      #page-home .category-strip {
+        grid-template-columns: repeat(2, auto);
       }
     }
 
