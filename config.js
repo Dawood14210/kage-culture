@@ -8,6 +8,9 @@ module.exports = {
   LOW_STOCK_THRESHOLD: 5,
   MAX_BATCH_PRODUCT_DELETE: 100,
 
+  // Product images: front + back + up to this many extra gallery photos
+  MAX_EXTRA_IMAGES: 4,
+
   // Shipping
   SHIPPING_COST: 150, // Flat delivery charge in PKR
 

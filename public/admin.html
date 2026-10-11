@@ -587,6 +587,14 @@
     .form-grid .upload-area.dragover { border-color: var(--red); background: var(--red-glow); }
     .form-grid .upload-area .preview-box img { max-height: 240px; }
     .form-grid .upload-area .btn-change { margin-top: 0.7rem; }
+    /* Extra gallery photos: thumbnail grid with a remove badge on each photo */
+    .extra-previews { display: flex; flex-wrap: wrap; gap: 0.7rem; margin-bottom: 0.7rem; }
+    .extra-previews:empty { display: none; }
+    .extra-thumb { position: relative; width: 92px; }
+    .extra-thumb img { width: 92px; height: 92px; object-fit: cover; border-radius: var(--radius-sm); border: 1px solid var(--border); display: block; margin: 0; max-width: none; max-height: none; }
+    .extra-thumb button { position: absolute; top: -7px; right: -7px; width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--border); background: var(--bg-card); color: var(--text-primary); font-size: 0.85rem; line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: var(--shadow-sm); padding: 0; }
+    .extra-thumb button:hover { background: var(--red); border-color: var(--red); color: var(--white); }
+    .extra-thumb button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
     #tab-add .live-card { margin-top: 1rem; }
 
     /* ===== REPORTS (P&L) ===== */
@@ -1316,6 +1324,19 @@
                 <div class="uz-error" id="backImgError"></div>
               </div>
             </div>
+            <div class="full-width">
+              <label>More Photos (optional · up to 4)</label>
+              <div class="upload-area" id="extraUploadArea" tabindex="0" role="button" aria-label="Add more photos">
+                <input type="file" id="extraInput" accept="image/*" multiple />
+                <div class="extra-previews" id="extraPreviews"></div>
+                <div id="extraIdle">
+                  <div class="uz-icon"><svg class="icon"><use href="#i-camera"/></svg></div>
+                  <div class="uz-main">Add more photos</div>
+                  <div class="uz-hint">Show extra angles, close-ups or details · up to 4 photos · tap or drag &amp; drop</div>
+                </div>
+                <div class="uz-error" id="extraImgError"></div>
+              </div>
+            </div>
           </div>
 
           <div class="form-actions">
@@ -1437,6 +1458,12 @@
     let selectedProductIds = new Set();
     let visibleProductIds = [];
     let currentImageFiles = { front: null, back: null };
+    // Extra gallery photos (up to 4 on top of front/back). Each item is either
+    // an existing remote photo ({ url, blob: null }) or a fresh upload
+    // ({ url: objectURL, blob }). originalExtraUrls remembers what the product
+    // had when editing started, so removed photos can be deleted server-side.
+    let extraImageItems = [];
+    let originalExtraUrls = [];
 
     // CSRF token helper
     function getCsrfToken() {
@@ -1946,6 +1973,12 @@
         document.getElementById('backUploadArea').classList.add('has-image');
       }
 
+      // Existing gallery photos: editable like new ones — the × on a photo
+      // drops it, and the save sends the removals to the server.
+      originalExtraUrls = (Array.isArray(p.extra_images) ? p.extra_images : []).filter(Boolean);
+      extraImageItems = originalExtraUrls.map(url => ({ url, blob: null }));
+      renderExtraPreviews();
+
       document.getElementById('saveBtn').textContent = 'Update Product';
       document.getElementById('cancelBtn').style.display = 'block';
       switchSection('add');
@@ -2010,6 +2043,7 @@
       const backErr = document.getElementById('backImgError');
       if (backErr) backErr.style.display = 'none';
       clearFormImage();
+      clearFormExtras();
       document.getElementById('saveBtn').textContent = 'Add Product';
       document.getElementById('cancelBtn').style.display = 'none';
       document.getElementById('formSuccess').style.display = 'none';
@@ -2175,6 +2209,115 @@
     }
 
     // ================================================================
+    // EXTRA GALLERY PHOTOS (product form)
+    // ================================================================
+    const MAX_EXTRA_IMAGES = 4;
+
+    function renderExtraPreviews() {
+      const wrap = document.getElementById('extraPreviews');
+      const idle = document.getElementById('extraIdle');
+      if (!wrap) return;
+      wrap.innerHTML = '';
+      extraImageItems.forEach((item, index) => {
+        const thumb = document.createElement('div');
+        thumb.className = 'extra-thumb';
+        const img = document.createElement('img');
+        img.src = item.url;
+        img.alt = 'Extra photo ' + (index + 1);
+        const remove = document.createElement('button');
+        remove.type = 'button';
+        remove.textContent = '×';
+        remove.setAttribute('aria-label', 'Remove extra photo ' + (index + 1));
+        remove.addEventListener('click', (e) => { e.stopPropagation(); removeExtraPhoto(index); });
+        thumb.appendChild(img);
+        thumb.appendChild(remove);
+        wrap.appendChild(thumb);
+      });
+      if (idle) idle.style.display = extraImageItems.length >= MAX_EXTRA_IMAGES ? 'none' : 'block';
+    }
+
+    function removeExtraPhoto(index) {
+      const item = extraImageItems[index];
+      if (!item) return;
+      // Only fresh uploads hold a blob: URL; remote URLs are just dereferenced.
+      if (item.blob && typeof item.url === 'string' && item.url.startsWith('blob:')) URL.revokeObjectURL(item.url);
+      extraImageItems.splice(index, 1);
+      renderExtraPreviews();
+    }
+
+    // Compress every picked/dropped file to WebP (same pipeline as front/back)
+    // and add as many as the remaining capacity allows.
+    async function handleFormExtraFiles(fileList) {
+      const errEl = document.getElementById('extraImgError');
+      errEl.style.display = 'none';
+      const files = Array.from(fileList || []).filter(Boolean);
+      const input = document.getElementById('extraInput');
+      if (input) input.value = ''; // allow re-picking the same files later
+      if (!files.length) return;
+      if (extraImageItems.length >= MAX_EXTRA_IMAGES) {
+        errEl.textContent = `A product can have at most ${MAX_EXTRA_IMAGES} extra photos. Remove one to add another.`;
+        errEl.style.display = 'block';
+        return;
+      }
+      let accepted = 0, skippedType = 0, skippedFull = 0, failed = 0;
+      for (const file of files) {
+        if (!file.type || !file.type.startsWith('image/')) { skippedType++; continue; }
+        if (extraImageItems.length >= MAX_EXTRA_IMAGES) { skippedFull++; continue; }
+        try {
+          const optimized = await compressToWebP(file);
+          extraImageItems.push({ url: URL.createObjectURL(optimized.blob), blob: optimized.blob });
+          accepted++;
+        } catch (err) { failed++; }
+      }
+      renderExtraPreviews();
+      const problems = [];
+      if (skippedType) problems.push(`${skippedType} file${skippedType > 1 ? 's were' : ' was'} not an image`);
+      if (skippedFull) problems.push(`${skippedFull} skipped — max ${MAX_EXTRA_IMAGES} extra photos`);
+      if (failed) problems.push(`${failed} could not be processed`);
+      if (problems.length) {
+        errEl.textContent = 'Some photos were not added: ' + problems.join(' · ') + '.';
+        errEl.style.display = 'block';
+      } else if (!accepted) {
+        errEl.textContent = 'That file type is not supported. Please choose photos (JPEG, PNG or WebP).';
+        errEl.style.display = 'block';
+      }
+    }
+
+    function clearFormExtras() {
+      extraImageItems.forEach(item => {
+        if (item.blob && typeof item.url === 'string' && item.url.startsWith('blob:')) URL.revokeObjectURL(item.url);
+      });
+      extraImageItems = [];
+      originalExtraUrls = [];
+      const errEl = document.getElementById('extraImgError');
+      if (errEl) errEl.style.display = 'none';
+      renderExtraPreviews();
+    }
+
+    function setupFormExtraUpload() {
+      const area = document.getElementById('extraUploadArea');
+      const input = document.getElementById('extraInput');
+      if (!area || !input) return;
+      area.addEventListener('click', (e) => {
+        if (e.target.closest('.extra-thumb')) return; // remove buttons handle themselves
+        input.click();
+      });
+      area.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); input.click(); }
+      });
+      input.addEventListener('change', () => handleFormExtraFiles(input.files));
+      ['dragenter', 'dragover'].forEach(ev => {
+        area.addEventListener(ev, (e) => { e.preventDefault(); area.classList.add('dragover'); });
+      });
+      ['dragleave', 'drop'].forEach(ev => {
+        area.addEventListener(ev, (e) => { e.preventDefault(); area.classList.remove('dragover'); });
+      });
+      area.addEventListener('drop', (e) => {
+        if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) handleFormExtraFiles(e.dataTransfer.files);
+      });
+    }
+
+    // ================================================================
     // SAVE PRODUCT (Create / Update)
     // ================================================================
     async function handleSaveProduct(e) {
@@ -2250,9 +2393,23 @@
         formData.append('size_stock', JSON.stringify(counts));
       }
 
-      // Picture (compressed to WebP client-side) and back image
+      // Picture (compressed to WebP client-side) and back image. Every blob
+      // MUST be appended with an explicit filename: a nameless Blob is sent as
+      // filename="blob", which the server's image-only upload filter rejects
+      // (back-image saves used to fail with "Only image files are allowed").
       if (formImageBlob) formData.append('front_image', formImageBlob, 'pic-' + Date.now() + '.webp');
-      if (currentImageFiles.back) formData.append('back_image', currentImageFiles.back);
+      if (currentImageFiles.back) formData.append('back_image', currentImageFiles.back, 'back-' + Date.now() + '.webp');
+
+      // Extra gallery photos: new uploads, plus (on edit) the removal list for
+      // any existing photo the admin deleted from the form.
+      const newExtras = extraImageItems.filter(item => item.blob);
+      const stamp = Date.now();
+      newExtras.forEach((item, index) => formData.append('extra_images', item.blob, `extra-${stamp}-${index}.webp`));
+      if (editId) {
+        const keptUrls = extraImageItems.filter(item => !item.blob && item.url).map(item => item.url);
+        const removedUrls = originalExtraUrls.filter(url => !keptUrls.includes(url));
+        if (removedUrls.length) formData.append('remove_extra', JSON.stringify(removedUrls));
+      }
 
       btn.disabled = true;
       btn.textContent = editId ? 'Updating…' : 'Adding…';
@@ -3007,6 +3164,7 @@
     setupQuickUpload();
     setupFormFrontUpload();
     setupFormBackUpload();
+    setupFormExtraUpload();
     checkAuth();
 
     // Keep keyboard focus within the password dialog; Escape restores focus.

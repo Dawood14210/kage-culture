@@ -276,3 +276,69 @@ All pictographic glyphs replaced: sidebar 7, View Store, stat cards 5, upload ca
 - **Admin:** the product form has size chips and a count per selected size (all-or-nothing). Editing loads each size's count. The product list shows per-size counts, and inline quick-edit opens the editor for per-size products. Quick Upload is unchanged (single size, one count).
 - **Test change:** the existing order tests used a size the seeded product does not offer (`M` on a size-`L` product, and no size on the stock test). They now use `L`, because an order line must name an offered size.
 - Verification: `npm test` → **51/51 API + 12/12 frontend**. Not yet checked in a real browser (no browser is installed in the sandbox); the picker and admin chips still need a visual pass at 320/390/768px.
+
+---
+
+## 13. Back-image upload fixed + multiple gallery photos in Add/Edit Product (2026-10-11)
+
+**Check requested:** (1) can the admin panel's Add Product upload more than one image? (2) does the back-image upload work? Both were verified live against a booted server before changing anything.
+
+**Findings:**
+- **Back-image upload was broken.** The form compresses the photo to a WebP `Blob` and appended it to the FormData **without a filename** (`formData.append('back_image', blob)`). Browsers serialize a nameless Blob as `filename="blob"`; the image-only multer filter tests `path.extname(originalname)`, which is empty for `"blob"` — so the request was rejected with 400 *“Only image files (JPEG, PNG, GIF, WebP, SVG) are allowed”* and the **entire product save failed** (Add *and* Edit). The front image was unaffected because it was appended with an explicit `.webp` filename. Reproduced end-to-end: the exact frontend request shape returned 400; the same request with a filename returned 201.
+- **Multiple images were already supported by the backend but not exposed in the UI.** `POST/PUT /api/products` accept front + back + up to 4 `extra_images`, and the storefront gallery already renders `[front, back, ...extra_images]` — but the admin form had no way to upload more than front + back.
+
+**Changes:**
+- `public/admin.html`: every image blob is now appended with an explicit filename (back image → `back-<ts>.webp`). New **“More Photos (optional · up to 4)”** upload area in the Add/Edit form: multi-file picker + drag & drop, client-side WebP compression (same pipeline as front/back), thumbnails with a × to remove. When editing, existing gallery photos appear as thumbnails and removing one sends a `remove_extra` list on save.
+- `routes/products.js` PUT: accepts `remove_extra` (JSON array of URLs); only URLs belonging to that product are dropped and their files deleted. The 4-photo gallery cap (`config.MAX_EXTRA_IMAGES`, also used for multer `maxCount`) is enforced when new photos arrive, before anything is persisted — legacy products over the cap stay editable.
+- `server.js`: the JSON error handler moved **after** the routes. It was registered before them, so route-level errors (e.g. an upload-filter rejection) fell through to Express's default HTML stack-trace page instead of clean JSON.
+- Tests: e2e — create with front + back + extras, nameless-upload rejection, update append/remove/cap/invalid `remove_extra`; frontend (jsdom) — every image submits with a real filename and gallery removals send `remove_extra`. `npm test` → **56/56 API + 12/12 frontend**.
+
+---
+
+## 14. Product page gallery/zoom, review UX and tablet gutters (2026-10-11)
+
+Follow-up to §13 (back-image upload fixed in admin). Base: latest master (PR #8 logo swap already merged). Work on `arena/096fe1c7-kage-culture`, PR opened, not merged.
+
+**Part A (admin back image) — root cause:** the form appended the back-image
+`Blob` to the `FormData` **without a filename**; browsers serialize a nameless
+blob as `filename="blob"`, and the image-only multer filter tests
+`path.extname(originalname)` which is empty for `"blob"`, so the whole save was
+rejected with 400 "Only image files…". Front image worked because it was
+appended with an explicit `.webp` name. Fixed in §13; re-verified end-to-end
+(create + PUT edit persist the back image, read-back survives reload, shows on
+the product page). Storage uses the same `persistImage()` as the front image
+(local `./uploads` dev / Vercel Blob prod), 8 MB multer cap, and the JSON error
+handler now sits after the routes so upload rejections surface as a readable
+admin error instead of an Express HTML stack page.
+
+**Part B:** product gallery already builds thumbnails only from images that
+exist; added a tap/click **zoom lightbox** on the main image (Escape / backdrop
+taps close; keyboard-openable).
+
+**Part C:** rating line shows "No reviews yet" with zero approved reviews;
+"Thanks for your review" no longer shows before a submit; "You Might Also
+Like" hides entirely when empty; removed the stray body text node `n`;
+`·` separator only renders when another urgency bit precedes "N sold";
+review order/phone placeholders shortened and stacked ≤640px; "Back to
+collection" is 14px, higher contrast, 44px tap target.
+
+**Part D:** container + header gutters are 16px ≤768px and 24px at 769–1024px
+(product page capped at 1280px, centred); footer Help links get the 10px gap
+and the 80px WhatsApp-clearance bottom padding at all widths >480px.
+
+**Part E:** trust line "Cash on delivery · 7-day returns · Fast delivery" under
+Add to Cart; mobile footer Help links render in two columns.
+
+**Part F:** star picker rewritten — one value drives the fill (`.lit`), pointer
+events (down/move/up + pointercancel/leave) give press-hold/slide previews and
+commit on release, per-star `:hover` is gated behind `@media (hover: hover)`,
+stars are a `radiogroup` with `aria-checked`, arrow-key and roving-tabindex
+support, 44×44 targets, `user-select:none` + transparent tap highlight; review
+fields are `box-sizing:border-box; width:100%` with `resize:vertical`.
+
+Verification: `npm test` → **56/56 API + 14/14 frontend**. Real headless
+Chromium (Sparticuz build) at 360/390/430/768/900/1024/1280/1920: no
+horizontal scroll, header stays 95px; touch-emulation at 390px confirmed
+tap→1..3, hold-5 preview→release selects 5, drag 4→2 ends at 2, no sticky
+highlight. Screenshots in `/home/user/screenshots/` (product 390/900 + zoom,
+back-image and footer shots).

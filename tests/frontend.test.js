@@ -24,6 +24,10 @@ function page(html, path = '/', { storage = {}, offline = false } = {}) {
       w.IntersectionObserver = class { observe() {} unobserve() {} disconnect() {} };
       w.HTMLMediaElement.prototype.play = () => Promise.resolve();
       w.HTMLMediaElement.prototype.pause = () => {};
+      // jsdom lacks object URLs, which the admin upload previews use.
+      let objectUrlSeq = 0;
+      w.URL.createObjectURL = () => 'blob:mock-object-url-' + (++objectUrlSeq);
+      w.URL.revokeObjectURL = () => {};
       for (const [key, value] of Object.entries(storage)) w.localStorage.setItem(key, value);
       w.fetch = (url, options) => {
         if (offline && url === '/api/products') return Promise.reject(new Error('offline'));
@@ -160,22 +164,37 @@ async function ready(win) {
         }
         return originalStoreFetch(url, options);
       };
+      // The picker is a radiogroup: one value drives a continuous fill from
+      // star 1 (.lit), never isolated lit stars.
+      assert.equal(d.getElementById('starInput').getAttribute('role'), 'radiogroup');
+      assert.ok(starButtons.every(b => b.getAttribute('role') === 'radio'));
       for (let rating = 1; rating <= 5; rating++) {
         // Native button click also covers keyboard activation (Enter/Space).
         starButtons[rating - 1].click();
-        assert.equal(starButtons.filter(b => b.classList.contains('selected')).length, rating);
-        assert.deepEqual(starButtons.filter(b => b.getAttribute('aria-pressed') === 'true').map(b => Number(b.dataset.v)), [rating]);
+        const lit = starButtons.filter(b => b.classList.contains('lit'));
+        assert.equal(lit.length, rating, 'fill must be continuous from star 1');
+        assert.deepEqual(lit.map(b => Number(b.dataset.v)), Array.from({ length: rating }, (_, i) => i + 1), 'lit stars must be 1..N with no gaps');
+        assert.deepEqual(starButtons.filter(b => b.getAttribute('aria-checked') === 'true').map(b => Number(b.dataset.v)), [rating]);
         d.getElementById('rvOrder').value = 'KAGE-REVIEW';
         d.getElementById('rvPhone').value = '03001234567';
         await w.submitReview({ preventDefault() {}, target: reviewForm });
         assert.equal(sentReviews.at(-1).rating, rating, 'submitted rating must match clicked star');
         assert.equal(sentReviews.at(-1).product_id, 1);
-        assert.equal(starButtons.some(b => b.classList.contains('selected') || b.getAttribute('aria-pressed') === 'true'), false, 'successful submit clears stars');
+        assert.equal(starButtons.some(b => b.classList.contains('lit') || b.getAttribute('aria-checked') === 'true'), false, 'successful submit clears stars');
         assert.match(d.getElementById('rvError').textContent, /pending approval/);
       }
+      // Arrow keys move the selection and keep the fill continuous.
+      starButtons[0].focus();
+      starButtons[0].dispatchEvent(new w.KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+      assert.equal(starButtons.filter(b => b.classList.contains('lit')).length, 1, 'ArrowRight from empty selects 1');
+      starButtons[0].dispatchEvent(new w.KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+      assert.equal(starButtons.filter(b => b.classList.contains('lit')).length, 2, 'ArrowRight again selects 2');
+      starButtons[1].dispatchEvent(new w.KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
+      assert.equal(starButtons.filter(b => b.classList.contains('lit')).length, 1, 'ArrowLeft steps back to 1');
+      w.resetStarInput();
       starButtons[4].click();
       w.openProductDetail(2);
-      assert.equal(starButtons.some(b => b.classList.contains('selected') || b.getAttribute('aria-pressed') === 'true'), false, 'switching product clears draft rating');
+      assert.equal(starButtons.some(b => b.classList.contains('lit') || b.getAttribute('aria-checked') === 'true'), false, 'switching product clears draft rating');
       const count = sentReviews.length;
       await w.submitReview({ preventDefault() {}, target: reviewForm });
       assert.equal(sentReviews.length, count, 'cannot submit without a rating');
@@ -184,6 +203,110 @@ async function ready(win) {
       w.fetch = originalStoreFetch;
     }
     console.log('✅ Review stars 1–5 send the chosen rating; reset and product switching clear the picker');
+
+    // Product page polish: rating line, thank-you message, related section,
+    // zoom view, trust line, placeholders, and no stray text.
+    w.openProductDetail(1);
+    assert.equal(d.getElementById('rvError').style.display, 'none', 'no "Thanks for your review" before anything is submitted');
+    assert.equal(d.getElementById('detailRating').textContent.trim(), 'No reviews yet', 'rating line matches the empty review state');
+    const trustLine = d.querySelector('.detail-trust-line');
+    assert.ok(trustLine, 'trust line exists under Add to Cart');
+    assert.equal(trustLine.textContent, 'Cash on delivery · 7-day returns · Fast delivery');
+    assert.equal(d.getElementById('rvOrder').placeholder, 'Order number', 'short order placeholder');
+    assert.equal(d.getElementById('rvPhone').placeholder, 'Phone used for order', 'short phone placeholder');
+    // Zoom view: tap the main image to open, tap the overlay to close.
+    const zoomOverlay = d.getElementById('imageZoomOverlay');
+    assert.ok(zoomOverlay && zoomOverlay.hidden === true, 'zoom overlay starts closed');
+    d.getElementById('detailMainImage').click();
+    assert.equal(zoomOverlay.hidden, false, 'tapping the main image opens the zoom view');
+    assert.ok(d.getElementById('zoomImage').src, 'zoom shows the current gallery image');
+    zoomOverlay.click();
+    assert.equal(zoomOverlay.hidden, true, 'tapping the overlay closes the zoom view');
+    d.getElementById('detailMainImage').click();
+    d.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    assert.equal(zoomOverlay.hidden, true, 'Escape closes the zoom view');
+    // "You might also like" hides completely (no leftover padding) when empty.
+    const origRelated = w.eval('String(getRelatedProducts)');
+    try {
+      w.eval('getRelatedProducts = () => []');
+      w.openProductDetail(2);
+      assert.equal(d.getElementById('sectionRelated').style.display, 'none', 'empty related section is hidden');
+      w.eval('getRelatedProducts = ' + origRelated);
+      w.openProductDetail(2);
+      assert.notEqual(d.getElementById('sectionRelated').style.display, 'none', 'related section returns with products');
+    } finally {
+      w.eval('getRelatedProducts = ' + origRelated);
+    }
+    // Gallery only renders images that exist (no back-image placeholder).
+    const oneImageProduct = w.eval('allProducts.find(p => p.images.length === 1)');
+    if (oneImageProduct) {
+      w.openProductDetail(oneImageProduct.id);
+      assert.equal(d.querySelectorAll('#detailThumbnails .detail-thumb').length, 1, 'only existing images get thumbnails');
+      assert.equal(d.getElementById('detailDots').style.display, 'none', 'no dots for a single image');
+    }
+    // A product with front + back shows both thumbnails; tapping one swaps
+    // the main image (the admin back-image upload lands here).
+    w.eval('allProducts.push({ id: 999001, name: "Gallery Probe", price: 100, original_price: 100, fit: "Regular", collection: "anime", collections: [], style: [], rating: null, variants: null, desc: "", sizes: ["L"], images: ["/uploads/probe-front.webp", "/uploads/probe-back.webp"], in_stock: true, on_sale: false, sale_price: null, created_at: null, order_count: 0, stock_qty: 5, size_stock: null, sold_count: 0, avg_rating: null, review_count: 0 })');
+    w.openProductDetail(999001);
+    assert.equal(d.querySelectorAll('#galleryTrack img').length, 2, 'front and back images both render');
+    assert.equal(d.querySelectorAll('#detailThumbnails .detail-thumb').length, 2, 'front and back thumbnails both render');
+    w.switchDetailAngle(1);
+    assert.ok(d.querySelectorAll('#detailThumbnails .detail-thumb')[1].classList.contains('active'), 'tapping the back thumbnail switches the main image');
+    assert.equal(d.getElementById('galleryTrack').style.transform, 'translateX(-100%)', 'gallery track moved to the back image');
+    w.eval('allProducts = allProducts.filter(p => p.id !== 999001)');
+    // No stray text nodes anywhere in the body (the old lone "n").
+    const strayText = [...d.body.childNodes].filter(n => n.nodeType === 3 && n.textContent.trim() !== '');
+    assert.deepEqual(strayText.map(n => n.textContent.trim()), [], 'no stray text at the bottom of the page');
+    // Static CSS contracts: urgency separator, back link, gutters, footer.
+    assert.match(storeHtml, /\.urgency-sold:not\(:first-child\)::before \{ content: '· '; \}/, 'sold-count dot only after another urgency item');
+    assert.match(storeHtml, /\.detail-info \.back-link \{[\s\S]*?font-size: 14px;[\s\S]*?min-height: 44px;/, 'back link is 14px with a 44px tap height');
+    assert.match(storeHtml, /@media \(max-width: 1024px\) \{\s*\.container \{ padding-left: 24px; padding-right: 24px; \}/, '24px gutters at 769–1024px');
+    assert.match(storeHtml, /@media \(max-width: 768px\) \{\s*\.container \{ padding-left: 16px; padding-right: 16px; \}/, '16px gutters at ≤768px');
+    assert.match(storeHtml, /\.product-detail-page \{ max-width: var\(--max-width\); margin-left: auto; margin-right: auto; \}/, 'product page capped at 1280px, centred');
+    assert.match(storeHtml, /@media \(min-width: 481px\) \{\s*\.site-footer \{ padding-bottom: 80px; \}/, '80px footer bottom padding above 480px');
+    assert.match(storeHtml, /@media \(min-width: 481px\) \{\s*\.footer-col ul \{ gap: 10px; \}/, 'footer Help links 10px gap above 480px');
+    assert.match(storeHtml, /@media \(max-width: 480px\) \{\s*\.footer-col\.footer-help ul \{[\s\S]*?grid-template-columns: 1fr 1fr;/, 'mobile footer Help links in two columns');
+    assert.match(storeHtml, /\.review-form textarea \{ resize: vertical; \}/, 'textarea resizes vertically only');
+    assert.match(storeHtml, /@media \(hover: hover\) \{\s*\.star-input button:hover/, 'star hover style gated on hover support');
+    assert.match(storeHtml, /\.star-input button \{[^}]*width:44px; height:44px;/, 'star tap targets are 44×44');
+    // Pointer-driven preview: press-and-hold / slide previews 1..N and the
+    // release commits N (touch emulation with stubbed star geometry).
+    const starRects = starButtons.map((b, i) => ({ left: i * 44, right: i * 44 + 44, top: 0, bottom: 44, width: 44, height: 44, x: i * 44, y: 0, toJSON() {} }));
+    starButtons.forEach((b, i) => { b.getBoundingClientRect = () => starRects[i]; });
+    const starWrap = d.getElementById('starInput');
+    const ptr = (type, x) => {
+      const init = { bubbles: true, cancelable: true, clientX: x, clientY: 20 };
+      try { return new w.PointerEvent(type, { ...init, pointerId: 1, pointerType: 'touch' }); }
+      catch (err) { return new w.MouseEvent(type, init); }
+    };
+    // Tap star 3 → stars 1–3 gold.
+    starButtons[2].dispatchEvent(ptr('pointerdown', 90));
+    starWrap.dispatchEvent(ptr('pointerup', 90));
+    assert.equal(starButtons.filter(b => b.classList.contains('lit')).length, 3, 'tap star 3 lights stars 1–3');
+    assert.equal(starButtons[2].getAttribute('aria-checked'), 'true', 'tap commits 3');
+    // Press and hold star 5 → preview 1–5, release selects 5.
+    starButtons[4].dispatchEvent(ptr('pointerdown', 180));
+    assert.equal(starButtons.filter(b => b.classList.contains('lit')).length, 5, 'holding star 5 previews all five');
+    assert.equal(starButtons[4].getAttribute('aria-checked'), 'false', 'a hold is a preview until release');
+    starWrap.dispatchEvent(ptr('pointerup', 180));
+    assert.equal(starButtons[4].getAttribute('aria-checked'), 'true', 'releasing star 5 selects 5');
+    // Select 2, then hold 4 and drag back to 2 → ends at 2.
+    starButtons[1].dispatchEvent(ptr('pointerdown', 50));
+    starWrap.dispatchEvent(ptr('pointerup', 50));
+    assert.equal(starButtons[1].getAttribute('aria-checked'), 'true', 'selected 2');
+    starButtons[3].dispatchEvent(ptr('pointerdown', 140));
+    assert.equal(starButtons.filter(b => b.classList.contains('lit')).length, 4, 'holding 4 previews 1–4');
+    starWrap.dispatchEvent(ptr('pointermove', 60));
+    assert.equal(starButtons.filter(b => b.classList.contains('lit')).length, 2, 'dragging back previews 1–2');
+    starWrap.dispatchEvent(ptr('pointerup', 60));
+    assert.equal(starButtons.filter(b => b.classList.contains('lit')).length, 2, 'release after drag ends at 2');
+    assert.equal(starButtons[1].getAttribute('aria-checked'), 'true', 'committed value is 2');
+    // Cancelled gesture drops the preview without changing the selection.
+    starButtons[4].dispatchEvent(ptr('pointerdown', 180));
+    starWrap.dispatchEvent(ptr('pointercancel', 180));
+    assert.equal(starButtons.filter(b => b.classList.contains('lit')).length, 2, 'pointercancel restores the committed fill');
+    w.resetStarInput();
+    console.log('✅ Product page: rating text, zoom, related section, trust line, stars and gutters behave');
 
     const admin = page(adminHtml, '/admin'); windows.push(admin);
     await wait(100);
@@ -274,6 +397,63 @@ async function ready(win) {
     aw.resetForm();
     console.log('✅ Admin product form sends sizes and a count per size');
 
+    {
+      // Regression: every image blob must be appended WITH a filename. A
+      // nameless Blob arrives at the server as filename="blob", which the
+      // image-only upload filter rejects — that used to break every save
+      // that included a back image.
+      ad.getElementById('prodName').value = 'Back Image Regression';
+      ad.getElementById('prodPrice').value = '250';
+      aw.eval('formImageBlob = new Blob(["mock-front"], { type: "image/webp" })');
+      aw.eval('currentImageFiles.back = new Blob(["mock-back"], { type: "image/webp" })');
+      aw.eval('extraImageItems = [{ url: "blob:mock-new", blob: new Blob(["mock-extra"], { type: "image/webp" }) }]');
+      let sentBody = null;
+      const savedFetch = aw.fetch;
+      try {
+        aw.fetch = (url, options) => {
+          if (options && options.method === 'POST') { sentBody = options.body; return Promise.resolve({ ok: false, status: 400, json: async () => ({ error: 'expected test response' }) }); }
+          return savedFetch(url, options);
+        };
+        await aw.handleSaveProduct({ preventDefault() {} });
+        assert.ok(sentBody instanceof aw.FormData, 'form must be submitted as FormData');
+        const backFile = sentBody.get('back_image');
+        assert.ok(backFile, 'back image must be included in the submission');
+        assert.notEqual(backFile.name, 'blob', 'back image must not be sent without a filename');
+        assert.match(backFile.name, /\.webp$/, 'back image needs an image extension');
+        const extras = sentBody.getAll('extra_images');
+        assert.equal(extras.length, 1, 'the selected extra photo must be included');
+        assert.match(extras[0].name, /\.webp$/, 'extra photos need an image extension');
+        assert.equal(sentBody.has('remove_extra'), false, 'create mode never sends a removal list');
+      } finally {
+        aw.fetch = savedFetch;
+      }
+      aw.resetForm();
+
+      // Edit mode: existing gallery photos appear as removable thumbnails;
+      // removing one sends remove_extra, kept ones are not re-uploaded.
+      aw.eval('products = [{ id: 99999, name: "Gallery Edit Probe", category: "anime", fit: "Regular", price: 100, sale_price: null, unit_cost: null, description: "", sizes: ["L"], stock_qty: null, size_stock: null, front_image: "/uploads/front.webp", back_image: null, extra_images: ["/uploads/keep.webp", "/uploads/drop.webp"] }]');
+      aw.editProduct(99999);
+      assert.equal(ad.querySelectorAll('#extraPreviews .extra-thumb').length, 2, 'both existing gallery photos must be shown');
+      ad.querySelectorAll('#extraPreviews .extra-thumb button')[1].click(); // remove drop.webp
+      assert.equal(ad.querySelectorAll('#extraPreviews .extra-thumb').length, 1, 'the removed photo disappears');
+      sentBody = null;
+      const savedFetch2 = aw.fetch;
+      try {
+        aw.fetch = (url, options) => {
+          if (options && options.method === 'PUT') { sentBody = options.body; return Promise.resolve({ ok: false, status: 400, json: async () => ({ error: 'expected test response' }) }); }
+          return savedFetch2(url, options);
+        };
+        await aw.handleSaveProduct({ preventDefault() {} });
+        assert.equal(sentBody.get('remove_extra'), JSON.stringify(['/uploads/drop.webp']), 'only the removed photo is listed for deletion');
+        assert.equal(sentBody.getAll('extra_images').length, 0, 'kept photos are not re-uploaded');
+        assert.equal(sentBody.has('front_image'), false, 'an unchanged front image is not re-uploaded');
+      } finally {
+        aw.fetch = savedFetch2;
+      }
+      aw.resetForm();
+    }
+    console.log('✅ Admin product form names every image upload and manages gallery photos');
+
     ad.getElementById('productSearch').value = 'NoMatch987';
     aw.filterProducts();
     assert.equal(ad.querySelectorAll('#productList .product-row:not(.header-row)').length, 0);
@@ -304,7 +484,7 @@ async function ready(win) {
     console.log('✅ Mobile navigation and admin tab layout stay reachable');
 
     assert.deepEqual(errors, []);
-    console.log('\n12/12 frontend scenarios passed');
+    console.log('\n14/14 frontend scenarios passed');
   } finally {
     windows.forEach(win => win.window.close());
     await new Promise(resolve => server.close(resolve));
