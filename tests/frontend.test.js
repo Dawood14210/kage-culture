@@ -283,6 +283,46 @@ async function ready(win) {
     // No stray text nodes anywhere in the body (the old lone "n").
     const strayText = [...d.body.childNodes].filter(n => n.nodeType === 3 && n.textContent.trim() !== '');
     assert.deepEqual(strayText.map(n => n.textContent.trim()), [], 'no stray text at the bottom of the page');
+    // Content pages share a centred 720px layout with responsive inline gutters.
+    const contentPageIds = ['returns', 'shipping', 'terms', 'privacy', 'contact'];
+    assert.equal(d.querySelectorAll('.container.content-page').length, contentPageIds.length, 'all five requested pages use the shared content-page class');
+    for (const id of contentPageIds) {
+      const container = d.querySelector(`#page-${id} > .container`);
+      assert.ok(container?.classList.contains('content-page'), `${id} uses the shared content-page container`);
+      assert.equal(container.getAttribute('style'), null, `${id} has no inline layout style`);
+    }
+    assert.doesNotMatch(storeHtml, /style="padding: calc\(104px \+ var\(--spacing-lg\)\) 0 var\(--spacing-xl\); max-width: 720px;"/, 'old zero-gutter inline style is removed');
+    assert.match(storeHtml, /\*\s*,\s*\*::before\s*,\s*\*::after\s*\{[^}]*box-sizing:\s*border-box;/, 'global border-box sizing prevents gutters from widening the viewport');
+    const contentPageRule = storeHtml.match(/\.container\.content-page\s*\{([^}]*)\}/);
+    assert.ok(contentPageRule, 'shared content-page layout rule exists');
+    assert.match(contentPageRule[1], /padding:\s*calc\(104px \+ var\(--spacing-lg\)\)\s+16px\s+var\(--spacing-xl\)/, 'content pages keep their vertical spacing and use 16px mobile gutters');
+    assert.match(contentPageRule[1], /max-width:\s*720px/);
+    assert.match(contentPageRule[1], /margin-left:\s*auto[\s\S]*margin-right:\s*auto/, 'content pages stay centred');
+    const wideContentRule = storeHtml.match(/@media\s*\(min-width:\s*(\d+)px\)\s*\{\s*\.container\.content-page\s*\{([^}]*)\}/);
+    assert.ok(wideContentRule, 'desktop gutter breakpoint exists');
+    const breakpoint = Number(wideContentRule[1]);
+    const desktopGutter = Number(wideContentRule[2].match(/padding-inline:\s*(\d+)px/)?.[1]);
+    const maxWidth = Number(contentPageRule[1].match(/max-width:\s*(\d+)px/)?.[1]);
+    const mobileGutter = Number(contentPageRule[1].match(/padding:\s*calc\(104px\s*\+\s*var\(--spacing-lg\)\)\s+(\d+)px/)?.[1]);
+    for (const width of [360, 414, 768, 1440]) {
+      const gutter = width >= breakpoint ? desktopGutter : mobileGutter;
+      const containerWidth = Math.min(width, maxWidth);
+      const contentWidth = containerWidth - gutter * 2;
+      const edgeInset = (width - containerWidth) / 2 + gutter;
+      assert.ok(contentWidth > 0, `${width}px leaves room for page text`);
+      assert.ok(edgeInset >= gutter && edgeInset < width / 2, `${width}px page text has a positive edge gutter`);
+      assert.ok(containerWidth <= width, `${width}px content container cannot cause horizontal overflow`);
+      assert.equal(gutter, width < 600 ? 16 : 20, `${width}px uses the requested inline padding`);
+    }
+    assert.equal(d.querySelector('#page-tracking > .container')?.className, 'container tracking-page', 'Track Order keeps its original page class and layout');
+    assert.equal(d.querySelector('#page-tracking > .container')?.getAttribute('style'), null, 'Track Order markup is untouched by content-page styles');
+    assert.equal(d.querySelectorAll('.content-page-body').length, 4, 'policy copy shares the extracted text styling');
+    assert.equal(d.querySelectorAll('.content-page h3[style]').length, 0, 'repeated content-page heading styles are no longer inline');
+    assert.equal(d.querySelectorAll('.content-page-back[style]').length, 0, 'repeated back-link paragraph spacing is no longer inline');
+    assert.equal(d.querySelectorAll('.content-page-contact h3').length, 3, 'contact headings share their extracted styling');
+    assert.equal(d.querySelectorAll('.content-page-contact p[style]').length, 0, 'contact paragraphs share their extracted styling');
+    console.log('✅ Returns, shipping, legal and contact pages have responsive gutters at 360/414/768/1440px; Track Order is unchanged');
+
     // Static CSS contracts: urgency separator, back link, gutters, footer.
     assert.match(storeHtml, /\.urgency-sold:not\(:first-child\)::before \{ content: '· '; \}/, 'sold-count dot only after another urgency item');
     assert.match(storeHtml, /\.detail-info \.back-link \{[\s\S]*?font-size: 14px;[\s\S]*?min-height: 44px;/, 'back link is 14px with a 44px tap height');
@@ -551,7 +591,7 @@ async function ready(win) {
     console.log('✅ Mobile navigation and admin tab layout stay reachable');
 
     assert.deepEqual(errors, []);
-    console.log('\n16/16 frontend scenarios passed');
+    console.log('\n17/17 frontend scenarios passed');
   } finally {
     windows.forEach(win => win.window.close());
     await new Promise(resolve => server.close(resolve));

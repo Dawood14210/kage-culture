@@ -459,6 +459,21 @@ the 800px breakpoint). **Open:** the Pants card has no category of its own yet �
 its Explore link points at `/collection/all` as a placeholder; Graphic Tees
 routes to `/collection/graphic-tees`, which intentionally shows Coming Soon.
 
+### ✅ Responsive gutters for policy/contact pages — 2026-10-11
+
+Returns, Shipping, Terms, Privacy and Contact now share `.content-page`. The shared
+layout keeps the original top offset, bottom padding, 720px maximum width and centering,
+with 16px inline padding below 600px and 20px from 600px up. The repeated policy copy,
+heading, back-link and Contact text styles moved into scoped classes without changing
+their declarations. Track Order remains on its existing `.tracking-page` layout.
+
+`tests/frontend.test.js` verifies all five page classes, the responsive gutter/box-model
+contract at 360, 414, 768 and 1440px, and that Track Order remains outside the new styles.
+`npm test` → 57/57 API + 17/17 frontend scenarios. A Chromium screenshot check could not
+launch in this sandbox because system `libnspr4.so`, `libnss3.so` and `libnssutil3.so` are
+missing; the requested-width check is therefore CSS-contract/geometry testing, not a
+browser-rendered visual comparison.
+
 ## Remaining work (priority order)
 
 *API-side queue (C1, H1–H4, M1–M7, L1/L3–L7) completed 2026-09-23. FE-criticals
