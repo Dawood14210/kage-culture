@@ -127,6 +127,8 @@ async function ready(win) {
     assert.equal(shopVisible(), true, 'a collection route reveals the shop grid');
     assert.equal(d.body.classList.contains('showing-shop'), true, 'the homepage marketing sections step aside');
     assert.ok(d.querySelectorAll('#collectionGrid .product-card').length > 0, 'collection grid has cards');
+    w.navigateTo('collection', 'graphic-tees');
+    assert.equal(d.querySelector('#collectionTitle').textContent, 'GRAPHIC TEES');
     d.getElementById('searchInput').value = 'wolf';
     w.onSearchInput('wolf');
     assert.equal(shopVisible(), true, 'typing a search query reveals the grid');
@@ -434,7 +436,7 @@ async function ready(win) {
     assert.match(shippingCopy, /Delivery Charges/);
     assert.match(shippingCopy, /Delivery charges depend on your delivery location\. We will contact you about the delivery charges\./);
     assert.doesNotMatch(shippingCopy, /Location-based rates|Rs\. 150/, 'shipping policy no longer promises an unconfigured fee');
-    assert.match(shippingCopy, /Free-shipping threshold:\s*TODO/, 'missing free-shipping threshold is marked for confirmation');
+    assert.doesNotMatch(shippingCopy, /Free-shipping threshold|\bTODO\b|\[/, 'unconfirmed free-shipping rules are omitted rather than published as placeholders');
     assert.equal(d.getElementById('coShipping').textContent.trim(), 'To be confirmed', 'checkout does not add a delivery charge before confirmation');
     assert.equal(d.querySelector('#page-checkout .co-grand span').textContent.trim(), 'Total before delivery');
     assert.match(d.querySelector('#page-checkout .co-safe').textContent, /contact you about the delivery charges/);
@@ -484,9 +486,9 @@ async function ready(win) {
     assert.match(orderSupport.querySelector('.contact-card-secondary').textContent, /^or\s/);
     assert.match(orderSupport.querySelector('.contact-card-secondary a').getAttribute('href'), /^https:\/\/wa\.me\//);
     assert.equal(contactCards[3].getAttribute('href'), 'mailto:kageculture01@gmail.com', 'Email card uses the footer address in a mailto link');
-    const workingHours = d.querySelector('.contact-working-hours');
-    assert.match(workingHours.textContent, /Working hours:\s*TODO/);
-    assert.match(workingHours.textContent, /hours not provided/);
+    assert.equal(d.querySelector('.contact-working-hours'), null, 'unconfirmed working hours are omitted rather than published as placeholders');
+    const publicContactAndShippingCopy = [d.querySelector('#page-contact').textContent, shippingCopy].join('\n');
+    assert.doesNotMatch(publicContactAndShippingCopy, /\bTODO\b|\[/, 'customer-visible contact and shipping text has no unresolved placeholders');
     w.navigateTo('contact');
     trackLink.click();
     assert.equal(d.getElementById('page-tracking').classList.contains('active'), true, 'Order Support link navigates to the Track Order page');
@@ -644,22 +646,18 @@ async function ready(win) {
     assert.match(storeHtml, /\.card-rating \{[^}]*min-height: 1\.15rem;[^}]*\}/, 'the rating row keeps its line when there are no reviews');
     console.log('✅ Product cards keep a reserved rating row and pin their button to the card bottom');
 
-    // Category strip: four cards in the new order (Graphic Tees, Pants, Anime
-    // Shirts, Custom Stickers); a full-width 2x2 grid below 600px and a single
-    // row of four from 600px up.
+    // Three live category cards stay in a balanced, centered row across devices.
     const catTiles = [...d.querySelectorAll('#page-home .category-strip .cat-tile')];
-    assert.deepEqual(catTiles.map(t => t.querySelector('.cat-name').textContent), ['Graphic Tees', 'Pants', 'Anime Shirts', 'Custom Stickers'], 'category cards keep the requested order');
-    assert.deepEqual(catTiles.map(t => t.querySelector('img').getAttribute('src')), ['/images/graphic-tees.jpg', '/images/pants.jpg', '/images/anime-shirts.jpg', '/images/custom-stickers.jpg'], 'each card keeps its own image');
-    assert.deepEqual(catTiles.map(t => t.getAttribute('href')), ['/collection/graphic-tees', '/collection/all', '/collection/anime', '/custom-stickers'], 'each Explore link points at a real route');
+    assert.deepEqual(catTiles.map(t => t.querySelector('.cat-name').textContent), ['Graphic Tees', 'Anime Shirts', 'Custom Stickers'], 'the category strip contains only the three available categories');
+    assert.deepEqual(catTiles.map(t => t.querySelector('img').getAttribute('src')), ['/images/graphic-tees.jpg', '/images/anime-shirts.jpg', '/images/custom-stickers.jpg'], 'each remaining card keeps its own image');
+    assert.deepEqual(catTiles.map(t => t.getAttribute('href')), ['/collection/graphic-tees', '/collection/anime', '/custom-stickers'], 'each Explore link points at a real route');
     assert.ok(catTiles.every(t => /Explore/.test(t.querySelector('.cat-shop').textContent)), 'every card keeps its Explore link');
     assert.ok(catTiles.every(t => t.querySelector('.cat-desc').textContent.trim().length), 'every card keeps its description');
-    // Breakpoint contracts: mobile-first 2x2 grid with 20px gaps below 600px,
-    // a single row of four equal columns at 600–1023px, and one centred row
-    // capped at 1200px from 1024px up.
-    assert.match(storeHtml, /\.category-strip \{[\s\S]*?grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);[\s\S]*?gap: 20px;/, 'below 600px the strip is a full-width 2x2 grid with 20px gaps');
-    assert.match(storeHtml, /@media \(min-width: 600px\) and \(max-width: 1023px\) \{\s*#page-home \.category-strip \{\s*grid-template-columns: repeat\(4, minmax\(0, 1fr\)\);/, 'from 600px to 1023px the strip is a single row of four');
-    assert.match(storeHtml, /@media \(min-width: 1024px\) \{[\s\S]*?#page-home \.category-strip \{\s*grid-template-columns: repeat\(4, minmax\(0, 1fr\)\);[\s\S]*?max-width: 1200px;/, 'at 1024px and up all four cards stay in one centred row capped at 1200px');
-    console.log('✅ Category strip shows the four cards in the new order; 2x2 below 600px, one row of four above it');
+    assert.match(storeHtml, /\.category-strip \{[\s\S]*?grid-template-columns: repeat\(3, minmax\(0, 1fr\)\);[\s\S]*?gap: 20px;/, 'base layout uses three equal columns');
+    assert.match(storeHtml, /@media \(min-width: 600px\) and \(max-width: 1023px\) \{\s*#page-home \.category-strip \{\s*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\);/, 'tablet layout keeps three equal columns');
+    assert.match(storeHtml, /@media \(min-width: 1024px\) \{[\s\S]*?#page-home \.category-strip \{\s*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\);[\s\S]*?max-width: 1200px;/, 'desktop layout centers three columns and caps the strip at 1200px');
+    assert.match(storeHtml, /@media \(max-width: 599px\) \{[\s\S]*?#page-home \.category-strip \{\s*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\);\s*gap: 12px;[\s\S]*?\.cat-thumb \{\s*width: clamp\(64px, 22vw, 104px\);/, 'phone layout keeps three tiles on one row and scales the circles to fit');
+    console.log('✅ Category strip keeps three balanced cards in one row at phone, tablet and desktop widths');
 
     const admin = page(adminHtml, '/admin'); windows.push(admin);
     await wait(100);
@@ -832,18 +830,20 @@ async function ready(win) {
     // Shared nav order/routes, mobile panel contract, and admin entry points.
     const navLinks = [...d.querySelectorAll('#navLinks > li > a')];
     assert.deepEqual(navLinks.map(a => a.textContent.trim()), [
-      'Home', 'Anime Shirts', 'Graphic Tees', 'Pants', 'Custom Stickers', 'About', 'Contact', 'Track Order'
+      'Home', 'Anime Shirts', 'Graphic Tees', 'Custom Stickers', 'About', 'Contact', 'Track Order'
     ]);
     assert.deepEqual(navLinks.map(a => a.getAttribute('href')), [
-      '/', '/collection/anime', '/collection/graphic-tees', '/collection/all',
+      '/', '/collection/anime', '/collection/graphic-tees',
       '/custom-stickers', '/about', '/contact', '/tracking'
     ]);
+    assert.equal(navLinks.some(a => a.textContent.trim() === 'Pants'), false, 'Pants is absent from desktop and mobile nav markup');
     const cardRoutes = Object.fromEntries([...d.querySelectorAll('#page-home .cat-tile')].map(tile => [
       tile.querySelector('.cat-name').textContent.trim(), tile.getAttribute('href')
     ]));
-    for (const name of ['Anime Shirts', 'Graphic Tees', 'Pants', 'Custom Stickers']) {
+    for (const name of ['Anime Shirts', 'Graphic Tees', 'Custom Stickers']) {
       assert.equal(navLinks.find(a => a.textContent.trim() === name).getAttribute('href'), cardRoutes[name], `${name} nav link matches its homepage card`);
     }
+    assert.equal([...d.querySelectorAll('.site-footer a')].some(a => a.textContent.trim() === 'Pants'), false, 'the footer has no unavailable Pants category');
     const menuActions = d.querySelector('#navLinks .mobile-icons-row');
     assert.deepEqual([...menuActions.querySelectorAll('.nav-icon')].map(button => button.title), ['Track Order'], 'mobile menu keeps only the action missing from the header');
     assert.equal(menuActions.querySelectorAll('[title="Wishlist"], [title="Cart"], [title="Account"]').length, 0, 'mobile menu has no duplicate account/cart/wishlist icons');
@@ -951,7 +951,7 @@ async function ready(win) {
           verifyRequestUrl = String(url);
           return Promise.resolve({ ok: true, status: 200, json: async () => ({ success: true, message: 'Email verified. Your order history is now available.' }) });
         }
-        if (String(url).startsWith('/api/customers/me')) return Promise.resolve({ ok: false, status: 401, json: async () => ({}) });
+        if (String(url).startsWith('/api/customers/me')) return Promise.resolve({ ok: true, status: 200, json: async () => ({ customer: null }) });
         return fetch(origin + url);
       }
     });

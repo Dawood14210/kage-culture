@@ -456,10 +456,8 @@
     }
     .category-strip {
       display: grid;
-      /* Mobile-first: a full-width 2x2 grid with 20px gaps (the 16px side
-         gutters come from .container). From 600px up the media queries
-         below lay all four cards out in a single row. */
-      grid-template-columns: repeat(2, minmax(0, 1fr));
+      /* Three even columns at every width keep the available categories balanced. */
+      grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 20px;
     }
     .cat-tile {
@@ -3350,10 +3348,10 @@
       #page-home .product-grid { margin-top: 24px; }
       #page-home .bestsellers-head { margin-bottom: 0; }
 
-      /* --- Dark category section (olive band): one centred row of four --- */
+      /* --- Dark category section (olive band): one centred row of three --- */
       #page-home .category-band { padding: 64px 0; }
       #page-home .category-strip {
-        grid-template-columns: repeat(4, minmax(0, 1fr));
+        grid-template-columns: repeat(3, minmax(0, 1fr));
         justify-content: center;
         gap: 40px;
         max-width: 1200px;
@@ -3515,13 +3513,12 @@
     }
 
     /* ================================================================
-       DARK CATEGORY BAND (600–1023px) — tablet: all four cards in a
-       single row of equal columns with smaller circles; the copy wraps
-       inside each column, so nothing overlaps at 600px.
+       CATEGORY BAND (600–1023px) — tablet: three balanced columns with
+       smaller circles; the copy wraps inside each column at 600px.
        ================================================================ */
     @media (min-width: 600px) and (max-width: 1023px) {
       #page-home .category-strip {
-        grid-template-columns: repeat(4, minmax(0, 1fr));
+        grid-template-columns: repeat(3, minmax(0, 1fr));
         gap: 16px;
       }
       #page-home .cat-thumb {
@@ -3535,6 +3532,25 @@
       #page-home .cat-desc {
         font-size: 0.72rem;
       }
+    }
+
+    /* Phone: keep all three category tiles on one balanced row without
+       letting their circles or labels exceed the narrow columns. */
+    @media (max-width: 599px) {
+      #page-home .category-strip {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+      }
+      #page-home .cat-tile { gap: var(--spacing-sm); }
+      #page-home .cat-thumb {
+        width: clamp(64px, 22vw, 104px);
+        height: clamp(64px, 22vw, 104px);
+      }
+      #page-home .cat-name {
+        font-size: clamp(0.62rem, 2.8vw, 0.88rem);
+        letter-spacing: 0.04em;
+      }
+      #page-home .cat-desc { font-size: 0.68rem; }
     }
 
     /* Keep the legal links distinct and comfortable to tap at every width. */
@@ -3649,8 +3665,6 @@
     .contact-card-secondary { margin-top: var(--spacing-sm) !important; font-size: 0.8rem !important; }
     .contact-card-secondary a { color: var(--accent); font-weight: 600; text-decoration: underline; text-underline-offset: 2px; }
     .contact-card-secondary a:hover { color: var(--accent-hover); }
-    .contact-working-hours { margin-top: var(--spacing-lg); color: var(--text-muted); font-size: 0.85rem; }
-    .contact-working-hours strong { color: var(--text-primary); }
     @media (max-width: 600px) {
       .content-page-contact { grid-template-columns: 1fr; }
     }
@@ -3734,7 +3748,6 @@
         <li><a data-nav="all" href="/" onclick="navigateTo('home'); closeMenu(); return false;">Home</a></li>
         <li><a data-nav="anime" href="/collection/anime" onclick="navigateTo('collection', 'anime'); closeMenu(); return false;">Anime Shirts</a></li>
         <li><a data-nav="graphic-tees" href="/collection/graphic-tees" onclick="navigateTo('collection', 'graphic-tees'); closeMenu(); return false;">Graphic Tees</a></li>
-        <li><a href="/collection/all" onclick="navigateTo('collection', 'all'); closeMenu(); return false;">Pants</a></li>
         <li><a data-nav="custom-stickers" href="/custom-stickers" onclick="navigateTo('custom-stickers'); closeMenu(); return false;">Custom Stickers</a></li>
         <li><a data-nav="about" href="/about" onclick="navigateTo('about'); closeMenu(); return false;">About</a></li>
         <li><a data-nav="contact" href="/contact" onclick="navigateTo('contact'); closeMenu(); return false;">Contact</a></li>
@@ -3804,7 +3817,7 @@
       </div>
     </section>
 
-    <!-- KAGE CATEGORIES — graphic tees, pants, anime shirts, custom stickers -->
+    <!-- KAGE CATEGORIES — graphic tees, anime shirts, custom stickers -->
     <section class="section-categories" id="sectionCategories">
       <div class="category-band">
         <div class="container">
@@ -3814,14 +3827,6 @@
               <span class="cat-info">
                 <span class="cat-name">Graphic Tees</span>
                 <span class="cat-desc">Bold statement prints on heavyweight oversized fits.</span>
-                <span class="cat-shop">Explore <i><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg></i></span>
-              </span>
-            </a>
-            <a class="cat-tile reveal" href="/collection/all" onclick="navigateTo('collection', 'all'); return false;">
-              <span class="cat-thumb"><img src="/images/pants.jpg" alt="Pants" loading="lazy" /></span>
-              <span class="cat-info">
-                <span class="cat-name">Pants</span>
-                <span class="cat-desc">Relaxed, baggy fits built for everyday wear.</span>
                 <span class="cat-shop">Explore <i><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg></i></span>
               </span>
             </a>
@@ -4374,7 +4379,6 @@
 
           <h3>Delivery Charges</h3>
           <p>Delivery charges depend on your delivery location. We will contact you about the delivery charges.</p>
-          <p><strong style="color: var(--text-primary);">Free-shipping threshold:</strong> TODO — confirm whether a free-shipping threshold applies.</p>
 
           <h3>Cities Currently Served</h3>
           <p>We deliver nationwide across Pakistan, including:</p>
@@ -4596,7 +4600,6 @@
             </span>
           </a>
         </div>
-        <p class="contact-working-hours"><strong>Working hours:</strong> <span>TODO — [hours not provided]</span></p>
         <p class="content-page-back"><a href="/" onclick="navigateTo('home'); return false;" style="color: var(--accent); cursor: pointer; font-size: 0.85rem;">← Back to Shop</a></p>
       </div>
     </div>
@@ -4830,7 +4833,7 @@
       // (which has products in every category) — defer to the grid then.
       if (!productsLoadedFromApi) return true;
       return allProducts.some(p => {
-        const stocked = p.in_stock !== false;
+        const stocked = anySizeAvailable(p);
         if (filter === 'sale') return stocked && (p.on_sale || (p.sale_price && p.sale_price < p.original_price));
         return stocked && p.collection === filter;
       });
@@ -4866,6 +4869,12 @@
           else navigateTo('not-found');
         } else if (path.startsWith('/collection/')) {
           navigateTo('collection', path.slice('/collection/'.length));
+        } else if (path === '/confirmation') {
+          if (lastOrder) navigateTo('confirmation');
+          else {
+            history.replaceState(null, '', '/tracking');
+            navigateTo('tracking', null, { skipHistory: true });
+          }
         } else if (path === '/reset-password') { navigateTo('reset'); initPasswordReset(); }
         else if (path === '/verify-email') { navigateTo('verify'); initEmailVerification(); }
         else if (path === '/account') {
@@ -4886,10 +4895,8 @@
       document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
       const isCollectionRoute = (page === 'collection' || page === 'collections');
       let target = page;
-      if (page === 'collection' || page === 'collections') {      // Graphic Tees always routes to the Coming Soon page. Other categories
-      // only get it when they have zero in-stock products; stocked ones keep
-      // their normal grid.
-        if (filter === 'graphic-tees' || (COMING_SOON_CATS.includes(filter) && !categoryHasLiveProducts(filter))) {
+      if (page === 'collection' || page === 'collections') {
+        if (COMING_SOON_CATS.includes(filter) && !categoryHasLiveProducts(filter)) {
           target = 'coming-soon';
         } else {
           target = 'home';
@@ -5068,46 +5075,6 @@
     }
 
 
-    // NOTIFY ME — inline email capture for Coming Soon cards
-    // ================================================================
-    function notifyMe(btn, category) {
-      var form = btn.parentElement;
-      var emailInput = form.querySelector('input[type=email]');
-      var email = emailInput ? emailInput.value.trim() : '';
-      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-        var errEl = form.parentElement.querySelector('.notify-error');
-        if (!errEl) { errEl = document.createElement('div'); errEl.className = 'notify-error'; form.parentElement.appendChild(errEl); }
-        errEl.textContent = 'Please enter a valid email.';
-        return;
-      }
-      btn.disabled = true;
-      btn.textContent = '...';
-      fetch('/api/coming-soon', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email, category: category })
-      })
-        .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, data: d }; }); })
-        .then(function(res) {
-          var msgEl = form.parentElement.querySelector('.notify-success') || document.createElement('div');
-          msgEl.className = 'notify-success';
-          var errEl2 = form.parentElement.querySelector('.notify-error');
-          if (errEl2) errEl2.textContent = '';
-          if (res.ok || res.data.success) {
-            msgEl.textContent = '\u2713 You\'re on the list! We\'ll let you know when this drops.';
-            form.style.display = 'none';
-          } else {
-            msgEl.textContent = res.data.message || res.data.error || 'Something went wrong.';
-            btn.disabled = false;
-            btn.textContent = 'Notify Me';
-          }
-          if (!msgEl.parentElement) form.parentElement.appendChild(msgEl);
-        })
-        .catch(function() {
-          btn.disabled = false;
-          btn.textContent = 'Notify Me';
-        });
-    }
     function initShop(filter, opts = {}) {
       currentCollectionFilter = filter || 'all';
       currentPage = 1;
@@ -5115,8 +5082,8 @@
       // plain homepage keeps it hidden.
       shopCollectionMode = opts.collection === true;
       applyShopVisibility();
-      const titles = { 'all':'FEATURED DROPS | NEW ARRIVALS','new':'NEW ARRIVALS','anime':'ANIME SHIRTS','streetwear':'STREETWEAR','goofy-wears':'GOOFY WEARS','sale':'ON SALE','the-vault':'THE VAULT COLLECTION','iron-code':'IRON CODE COLLECTION','after-hours':'AFTER HOURS COLLECTION' };
-      const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.','anime':'Anime-inspired art on premium cotton. Each piece is unique — one size, one chance.','streetwear':'Bold silhouettes. Limited pieces. Built for those who take up space.','goofy-wears':'Stickers with personality.','sale':'Limited-time markdowns. When it\'s gone, it\'s gone.','the-vault':'Power without effort.','iron-code':'Relentless self-made strength.','after-hours':'Quiet, terrifying precision.' };
+      const titles = { 'all':'FEATURED DROPS | NEW ARRIVALS','new':'NEW ARRIVALS','anime':'ANIME SHIRTS','graphic-tees':'GRAPHIC TEES','streetwear':'STREETWEAR','goofy-wears':'GOOFY WEARS','sale':'ON SALE','the-vault':'THE VAULT COLLECTION','iron-code':'IRON CODE COLLECTION','after-hours':'AFTER HOURS COLLECTION' };
+      const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.','anime':'Anime-inspired art on premium cotton. Each piece is unique — one size, one chance.','graphic-tees':'Original graphic designs on premium cotton.','streetwear':'Bold silhouettes. Limited pieces. Built for those who take up space.','goofy-wears':'Stickers with personality.','sale':'Limited-time markdowns. When it\'s gone, it\'s gone.','the-vault':'Power without effort.','iron-code':'Relentless self-made strength.','after-hours':'Quiet, terrifying precision.' };
       document.getElementById('collectionTitle').textContent = titles[filter] || titles.all;
       document.getElementById('collectionDesc').textContent = descs[filter] || '';
       const eb = document.getElementById('shopEyebrow');
@@ -5134,7 +5101,7 @@
       if (filter && filter !== 'all') {
         if (filter === 'new') f = f.slice(0, 8);
         else if (filter === 'sale') f = f.filter(p => p.on_sale || (p.sale_price && p.sale_price < p.price));
-        else if (['anime','streetwear','goofy-wears'].includes(filter)) f = f.filter(p => p.collection === filter);
+        else if (['anime','graphic-tees','streetwear','goofy-wears'].includes(filter)) f = f.filter(p => p.collection === filter);
         else if (['the-vault','iron-code','after-hours'].includes(filter)) f = f.filter(p => p.collections && p.collections.includes(filter));
       }
       if (searchQuery.trim()) {
@@ -5452,19 +5419,6 @@
         </div>`;
     }
 
-    // Load New Arrivals (latest products)
-    function loadNewArrivals() {
-      const grid = document.getElementById('newArrivalsGrid');
-      if (!grid || !allProducts.length) return;
-      const sorted = [...allProducts].sort((a, b) => {
-        const da = a.created_at ? new Date(a.created_at).getTime() : 0;
-        const db = b.created_at ? new Date(b.created_at).getTime() : 0;
-        return db - da;
-      }).slice(0, 8);
-      grid.innerHTML = sorted.map(renderHomeProductCard).join('');
-      initScrollReveal();
-    }
-
     // Load Best Sellers (sorted by order count if available, else newest)
     function loadBestSellers() {
       const grid = document.getElementById('bestSellersGrid');
@@ -5481,49 +5435,9 @@
       initScrollReveal();
     }
 
-    // Load Featured Collections
-    function loadCollections() {
-      const grid = document.getElementById('collectionsGrid');
-      if (!grid) return;
-      // Collect unique collections from products that have a collection/drop field
-      const collMap = {};
-      allProducts.forEach(p => {
-        const col = p.collection || p.drop || '';
-        if (col && !collMap[col]) {
-          collMap[col] = { name: col, count: 0, desc: '' };
-        }
-        if (col) collMap[col].count++;
-      });
-      const colls = Object.values(collMap);
-      if (!colls.length) {
-        // Show placeholder collections from admin setup
-        const placeholders = [
-          { name: 'the-vault', label: 'The Vault', desc: 'Limited edition pieces. Once they\u2019re gone, they\u2019re gone.' },
-          { name: 'iron-code', label: 'Iron Code', desc: 'Hardcore anime-inspired graphic drops.' },
-          { name: 'after-hours', label: 'After Hours', desc: 'Night-mode essentials. Dark fits for dark souls.' }
-        ];
-        grid.innerHTML = placeholders.map(c => `
-          <div class="collection-tile reveal" role="link" tabindex="0" aria-label="Explore ${esc(c.label)}" onclick="navigateTo('collection', '${esc(c.name)}')" onkeydown="if(event.key==='Enter'&&event.target===this){event.preventDefault();navigateTo('collection', '${esc(c.name)}');}">
-            <h3>${esc(c.label)}</h3>
-            <p>${esc(c.desc)}</p>
-            <span class="tag">Explore</span>
-          </div>`).join('');
-      } else {
-        grid.innerHTML = colls.map(c => `
-          <div class="collection-tile reveal" role="link" tabindex="0" aria-label="Explore ${esc(c.name.replace(/-/g, ' '))}" onclick="navigateTo('collection', '${esc(c.name)}')" onkeydown="if(event.key==='Enter'&&event.target===this){event.preventDefault();navigateTo('collection', '${esc(c.name)}');}">
-            <h3>${esc(c.name.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase()))}</h3>
-            <p>${c.count} product${c.count !== 1 ? 's' : ''}</p>
-            <span class="tag">Explore</span>
-          </div>`).join('');
-      }
-      initScrollReveal();
-    }
-
     // Initialize all homepage sections after products load
     function initHomePageSections() {
-      loadNewArrivals();
       loadBestSellers();
-      loadCollections();
       loadRecentlyViewed();
     }
 
@@ -6458,9 +6372,9 @@
         const res = await fetch('/api/customers/me');
         if (res.ok) {
           const data = await res.json();
-          currentCustomer = data.customer;
+          currentCustomer = data.customer || null;
           updateAccountUI();
-          updateVerifyBanner(currentCustomer.email_verified !== false);
+          if (currentCustomer) updateVerifyBanner(currentCustomer.email_verified !== false);
         } else {
           currentCustomer = null;
           updateAccountUI();
@@ -6807,8 +6721,13 @@
       if (e.shiftKey && (document.activeElement === first || !open.el.contains(document.activeElement))) { e.preventDefault(); last.focus(); }
       else if (!e.shiftKey && (document.activeElement === last || !open.el.contains(document.activeElement))) { e.preventDefault(); first.focus(); }
     });
-    setupFilters(); updateCartUI(); initWatermarkParallax(); navigateTo('home', null, { skipHistory: true });
+    const requestedPath = location.pathname;
+    if (requestedPath === '/confirmation' && !lastOrder) history.replaceState(null, '', '/tracking');
     const initialPath = location.pathname;
+    setupFilters(); updateCartUI(); initWatermarkParallax();
+    if (initialPath === '/tracking') navigateTo('tracking', null, { skipHistory: true });
+    else if (initialPath === '/confirmation' && lastOrder) navigateTo('confirmation', null, { skipHistory: true });
+    else navigateTo('home', null, { skipHistory: true });
     Promise.all([loadProductsFromAPI(), checkCustomerAuth()]).then(() => {
       if (location.pathname === initialPath && initialPath !== '/') restoreRouteFromLocation();
     });

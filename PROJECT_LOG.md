@@ -1131,3 +1131,61 @@ schema and additive migrations for Turso, sql.js and the in-memory backend.
   admin form after 10 failures; the login response was **429** with
   `Retry-After: 60`, and the page showed: “Too many attempts. Please try again
   later. Try again in about 1 minute.”
+
+---
+
+## 29. Storefront category cleanup, real Graphic Tees routing and orphan confirmation (2026-10-12)
+
+Added focused red-first regressions in `tests/storefront-regressions.test.js`
+for the customer-facing defects, ran them against the existing storefront (the
+Pants nav/tile, four-column strip, dead loaders, TODO copy, Graphic Tees routing,
+and `/confirmation` deep link all failed), then implemented the fixes. A browser
+check also exposed an expected unauthenticated `/api/customers/me` 401 that
+Chrome logged as a console error; that was reproduced separately before fixing.
+
+- **Pants / category strip:** removed the unavailable Pants nav item and home
+  tile; the shared nav markup therefore stays clean in desktop and mobile, and
+  there was no Pants footer link. The three remaining tiles now use equal
+  centered columns at desktop/tablet widths and compact, equal columns with
+  scaled circles on phones. Updated the old four-card test.
+- **Graphic Tees:** category navigation now uses `categoryHasLiveProducts()` for
+  every coming-soon category and uses the regular product grid while stock is
+  available. The grid filter/title/description now recognize `graphic-tees`.
+  The four regular tee demo products (`Rising Vermillion`, `Blade Wolf`, `Neon
+  Fangs`, `Shinobi Mark`) now seed into that exact category. New
+  `normalize_demo_categories_v1` bootstrap migrates only their old default
+  `anime` category, preserving any different category an admin already chose.
+- **Dead loaders:** deleted `loadNewArrivals()`, `loadCollections()` and their
+  calls; `initHomePageSections()` still loads the live Best Sellers and Recently
+  Viewed sections. Removed the shadowed, unused `notifyMe(btn, category)`.
+- **Unconfirmed policy copy:** removed the whole Shipping “Free-shipping
+  threshold” paragraph and Contact “Working hours” paragraph because each
+  suggested bracketed replacement was still a fill-in example. No placeholder
+  value was published. Added page-text assertions against `TODO` and `[`.
+- **Confirmation / routes:** direct `/confirmation` with no order now replaces
+  the current history entry with `/tracking` immediately, activates Track Order
+  without showing Page Not Found, and browser Back returns to the previous
+  route. Kept `/confirmation` as an SPA shell route and added `/coming-soon` to
+  `spaPages` because it is a real page. `kage-clothes` was already absent from
+  server/frontend routes; regression coverage keeps it absent and verifies the
+  stale bare path is 404.
+- **Quiet session bootstrap:** anonymous `GET /api/customers/me` now returns
+  `{ customer: null }` (200), rather than producing a browser console error for
+  an expected 401 on every public route. Protected customer data endpoints
+  remain authenticated.
+
+**Verification**
+
+- `npm test` → **100/100 API scenarios**, shared rate-limit integration suite,
+  all storefront regressions, and **19/19 frontend scenarios**.
+- Headless Chromium 153 at **1440px desktop** and **390px mobile**: confirmed no
+  Pants nav link, exactly three equal-width tiles (about 373px desktop / 111px
+  phone), and no horizontal overflow. Stocked Graphic Tees showed all four
+  seeded products; setting their stock to zero switched to Coming Soon, and
+  restoring stock returned to the grid.
+- Opened 18 SPA routes at both sizes, including direct `/confirmation` →
+  `/tracking` and a history Back check; no console or uncaught page errors.
+  The sandbox cannot reach Google Fonts, so the headless check fulfilled that
+  stylesheet request with an empty successful response rather than reporting a
+  sandbox-only network error.
+- `git diff --check` and JavaScript syntax checks passed.

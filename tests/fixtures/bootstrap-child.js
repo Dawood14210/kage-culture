@@ -31,15 +31,19 @@ const keys = async () => {
   const rows = await db.prepare('SELECT key, value FROM app_settings ORDER BY key').all();
   return Object.fromEntries(rows.map((r) => [r.key, r.value]));
 };
+const categories = async () => {
+  const rows = await db.prepare('SELECT name, category FROM products ORDER BY id').all();
+  return Object.fromEntries(rows.map((r) => [r.name, r.category]));
+};
 const count = async () => Number((await db.prepare('SELECT COUNT(*) as c FROM products').get()).c);
 const emit = (payload) => console.log('RESULT: ' + JSON.stringify(payload));
 
 (async () => {
   switch (command) {
-    // 1. brand-new database → demo catalogue + all three keys
+    // 1. brand-new database → demo catalogue + all bootstrap keys
     case 'seed-fresh': {
       await server.getReady();
-      emit({ products: await count(), keys: await keys() });
+      emit({ products: await count(), keys: await keys(), categories: await categories() });
       return;
     }
 
@@ -97,18 +101,20 @@ const emit = (payload) => console.log('RESULT: ' + JSON.stringify(payload));
     case 'legacy-prep': {
       await server.getReady();
       await db.prepare('DELETE FROM app_settings').run();
+      await db.prepare("UPDATE products SET category = 'anime' WHERE name IN ('Rising Vermillion', 'Blade Wolf', 'Neon Fangs', 'Shinobi Mark')").run();
+      await db.prepare("UPDATE products SET category = 'streetwear' WHERE name = 'Blade Wolf'").run(); // preserve an admin-edited category
       await db.prepare("UPDATE products SET sale_price = NULL, on_sale = 0 WHERE name = 'Rising Vermillion'").run();
       await db.prepare("UPDATE products SET unit_cost = 0 WHERE name = 'Blade Wolf'").run();
       await db.prepare("INSERT INTO products (name, category, fit, price, sale_price, on_sale, description, sizes, unit_cost, stock_qty, in_stock) VALUES ('Admin Custom Tee','anime','Regular',1111,NULL,0,'hand made','[\"L\"]',NULL,5,1)").run();
       await db.save();
-      emit({ products: await count(), keys: await keys(), fingerprint: await fingerprint(), costs: await costs() });
+      emit({ products: await count(), keys: await keys(), fingerprint: await fingerprint(), costs: await costs(), categories: await categories() });
       return;
     }
 
     // Fingerprint WITHOUT running the bootstrap (init only: schema + migrations)
     case 'fingerprint': {
       await db.init();
-      emit({ products: await count(), keys: await keys(), fingerprint: await fingerprint(), costs: await costs() });
+      emit({ products: await count(), keys: await keys(), fingerprint: await fingerprint(), costs: await costs(), categories: await categories() });
       return;
     }
 
@@ -123,6 +129,7 @@ const emit = (payload) => console.log('RESULT: ' + JSON.stringify(payload));
         keys: await keys(),
         fingerprint: await fingerprint(),
         costs: await costs(),
+        categories: await categories(),
         risingVermillion: { sale_price: rv && rv.sale_price, on_sale: rv && rv.on_sale },
         bladeWolfCost: bw && bw.unit_cost,
         customCost: custom && custom.unit_cost

@@ -10,10 +10,10 @@ const DEMO_PRODUCTS = [
   { name: 'Shadow Fit', price: 1499, cost: 820, stock: 4, category: 'anime', fit: 'Compression', size: 'L', desc: '4-way stretch muscle-fit compression shirt.' },
   { name: 'Oni Muscle Tee', price: 1599, cost: 875, stock: 8, category: 'anime', fit: 'Compression', size: 'XL', desc: 'Sleeveless compression with bold contrast panels.' },
   { name: 'Kage Core Compression', price: 1399, cost: 760, stock: 12, category: 'anime', fit: 'Compression', size: 'M', desc: 'Core compression layer — seamless, breathable.' },
-  { name: 'Rising Vermillion', price: 999, sale: 799, cost: 545, stock: 3, category: 'anime', fit: 'Regular', size: 'XL', desc: 'Heavyweight 220GSM cotton tee.' },
-  { name: 'Blade Wolf', price: 1149, cost: 620, stock: 10, category: 'anime', fit: 'Regular', size: 'L', desc: 'Silver ink on black — a lone wolf under a crescent moon.' },
-  { name: 'Neon Fangs', price: 1049, cost: 570, stock: 6, category: 'anime', fit: 'Regular', size: 'M', desc: 'Electric strike — neon clash across heavyweight cotton.' },
-  { name: 'Shinobi Mark', price: 999, cost: 540, stock: 15, category: 'anime', fit: 'Regular', size: 'S', desc: 'Minimalist shinobi crest.' },
+  { name: 'Rising Vermillion', price: 999, sale: 799, cost: 545, stock: 3, category: 'graphic-tees', fit: 'Regular', size: 'XL', desc: 'Heavyweight 220GSM cotton tee.' },
+  { name: 'Blade Wolf', price: 1149, cost: 620, stock: 10, category: 'graphic-tees', fit: 'Regular', size: 'L', desc: 'Silver ink on black — a lone wolf under a crescent moon.' },
+  { name: 'Neon Fangs', price: 1049, cost: 570, stock: 6, category: 'graphic-tees', fit: 'Regular', size: 'M', desc: 'Electric strike — neon clash across heavyweight cotton.' },
+  { name: 'Shinobi Mark', price: 999, cost: 540, stock: 15, category: 'graphic-tees', fit: 'Regular', size: 'S', desc: 'Minimalist shinobi crest.' },
   { name: 'Drift Oversized', price: 1199, cost: 650, stock: 5, category: 'streetwear', fit: 'Oversized', size: 'XL', desc: 'Drop-shoulder, relaxed fit.' },
   { name: 'Wrath Silhouette', price: 1249, sale: 1099, cost: 680, stock: 7, category: 'streetwear', fit: 'Oversized', size: 'L', desc: 'Boxy, cropped oversized fit.' },
   { name: 'Hollow Gaze', price: 1149, cost: 625, stock: 9, category: 'streetwear', fit: 'Oversized', size: 'XXL', desc: 'Extended drop-shoulder with raw hem.' },
@@ -27,6 +27,16 @@ const DEMO_PRODUCTS = [
   { name: 'Duck Off', price: 250, cost: 80, stock: 12, category: 'goofy-wears', fit: 'Sticker', size: 'One Size', desc: 'High-quality vinyl sticker.' },
   { name: 'All-Seeing Eye', price: 300, cost: 100, stock: 0, category: 'goofy-wears', fit: 'Sticker', size: 'One Size', desc: 'Coming soon.' },
   { name: 'Cheese God', price: 250, cost: 80, stock: 10, category: 'goofy-wears', fit: 'Sticker', size: 'One Size', desc: 'Peel-proof, rain-proof.' }
+];
+
+// Previous seed versions grouped these four regular graphic tees under anime.
+// Update only rows still carrying that old default during the one-time upgrade;
+// any different category explicitly chosen by an admin is left alone.
+const LEGACY_CATEGORY_FIXES = [
+  { name: 'Rising Vermillion', from: 'anime', to: 'graphic-tees' },
+  { name: 'Blade Wolf', from: 'anime', to: 'graphic-tees' },
+  { name: 'Neon Fangs', from: 'anime', to: 'graphic-tees' },
+  { name: 'Shinobi Mark', from: 'anime', to: 'graphic-tees' }
 ];
 
 // Same sale prices the seeded products ship with, applied only to rows the
@@ -52,4 +62,4 @@ async function seedDemoProducts(db) {
   return { added, skipped };
 }
 
-module.exports = { DEMO_PRODUCTS, SEED_SALE_SYNCS, seedDemoProducts };
+module.exports = { DEMO_PRODUCTS, LEGACY_CATEGORY_FIXES, SEED_SALE_SYNCS, seedDemoProducts };

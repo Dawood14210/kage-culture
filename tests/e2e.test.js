@@ -408,9 +408,10 @@ async function main() {
     custCookie = cookieHeader(login);
   }
 
-  await check('GET /api/customers/me without session → 401', async () => {
+  await check('GET /api/customers/me without session → empty success without console-error status', async () => {
     const r = await request(PORT, 'GET', '/api/customers/me');
-    assert.strictEqual(r.status, 401);
+    assert.strictEqual(r.status, 200);
+    assert.deepStrictEqual(r.json, { customer: null });
   });
 
   await check('GET /api/customers/me with session → customer object, no password_hash', async () => {
@@ -1670,8 +1671,11 @@ async function main() {
     const file = tempDb('fresh');
     const out = runBootstrap('seed-fresh', file);
     assert.strictEqual(out.products, demoProducts.DEMO_PRODUCTS.length, JSON.stringify(out));
-    assert.deepStrictEqual(Object.keys(out.keys).sort(), ['backfill_unit_costs_v1', 'normalize_emails_v1', 'seed_products_v1', 'sync_seed_sale_prices_v1']);
+    assert.deepStrictEqual(Object.keys(out.keys).sort(), ['backfill_unit_costs_v1', 'normalize_demo_categories_v1', 'normalize_emails_v1', 'seed_products_v1', 'sync_seed_sale_prices_v1']);
     assert.strictEqual(out.keys.seed_products_v1, 'seeded');
+    assert.strictEqual(out.keys.normalize_demo_categories_v1, 'normalized:0', 'fresh products already use their route collection keys');
+    const seededGraphics = demoProducts.DEMO_PRODUCTS.filter(product => product.category === 'graphic-tees').map(product => product.name);
+    assert.deepStrictEqual(Object.entries(out.categories).filter(([, category]) => category === 'graphic-tees').map(([name]) => name), seededGraphics);
     const again = runBootstrap('seed-fresh', file); // second process, same file
     assert.strictEqual(again.products, demoProducts.DEMO_PRODUCTS.length, 'a restart must not duplicate the catalogue');
   });
@@ -1702,7 +1706,7 @@ async function main() {
     assert.strictEqual(Number(restarted.unit_cost), 0, `0 must survive the restart: ${JSON.stringify(restarted)}`);
   });
 
-  await check('an existing production database is only marked done — nothing is re-applied', async () => {
+  await check('legacy graphic-tee categories are corrected without overwriting admin category edits', async () => {
     const file = tempDb('legacy');
     const prepped = runBootstrap('legacy-prep', file);
     assert.ok(prepped.products > 0 && Object.keys(prepped.keys).length === 0, JSON.stringify(prepped).slice(0, 200));
@@ -1711,7 +1715,12 @@ async function main() {
     assert.deepStrictEqual(Object.keys(before.keys), [], 'the fixture DB must have no markers yet');
 
     const after = runBootstrap('legacy-check', file);
-    assert.deepStrictEqual(after.fingerprint, before.fingerprint, 'an existing catalogue must not change by one byte');
+    assert.deepStrictEqual(after.fingerprint, before.fingerprint, 'legacy normalization must not change prices, stock or product names');
+    assert.equal(before.categories['Rising Vermillion'], 'anime', 'fixture reproduces the previous seed classification');
+    for (const name of ['Rising Vermillion', 'Neon Fangs', 'Shinobi Mark']) {
+      assert.equal(after.categories[name], 'graphic-tees', `${name} uses the category key filtered by the storefront`);
+    }
+    assert.equal(after.categories['Blade Wolf'], 'streetwear', 'a non-legacy category chosen by an admin is preserved');
     // Costs: NULL may be filled once, 0 and real numbers must be untouched.
     for (const [name, costBefore] of Object.entries(before.costs)) {
       const costAfter = after.costs[name];
@@ -1724,11 +1733,13 @@ async function main() {
     assert.notStrictEqual(after.customCost, null, 'unit_cost IS NULL rows may be backfilled once');
     assert.strictEqual(after.keys.seed_products_v1, 'existing', 'the seed marker records "existing", not a re-seed');
     assert.strictEqual(after.keys.sync_seed_sale_prices_v1, 'skipped-existing');
+    assert.strictEqual(after.keys.normalize_demo_categories_v1, 'normalized:3', 'only three legacy default categories changed');
     assert.ok(after.keys.backfill_unit_costs_v1, 'the cost step records its own key');
     // …and a further restart changes nothing at all.
     const again = runBootstrap('legacy-check', file);
     assert.deepStrictEqual(again.fingerprint, after.fingerprint, 'a later boot must also be a no-op');
     assert.deepStrictEqual(again.costs, after.costs, 'a later boot must not touch a single cost');
+    assert.deepStrictEqual(again.categories, after.categories, 'the one-off category migration never repeats');
   });
 
   await check('a failed seed does not record its key and is retried next time', async () => {
@@ -1771,10 +1782,12 @@ async function main() {
     const restored = await request(PORT, 'POST', '/api/admin/seed-demo', { headers: await adminHeaders() });
     assert.strictEqual(restored.status, 200, JSON.stringify(restored.json));
     assert.strictEqual(restored.json.added, demoProducts.DEMO_PRODUCTS.length, 'every demo product must come back');
-    assert.strictEqual((await request(PORT, 'GET', '/api/products')).json.length, demoProducts.DEMO_PRODUCTS.length);
+    const products = (await request(PORT, 'GET', '/api/products')).json;
+    assert.strictEqual(products.length, demoProducts.DEMO_PRODUCTS.length);
+    assert.ok(products.some(product => product.category === 'graphic-tees'), 'restored Graphic Tees retain the storefront category key');
     // The bootstrap markers are untouched by a deliberate re-seed.
     const markers = await dbModule.prepare('SELECT key FROM app_settings').all();
-    assert.strictEqual(markers.length, 4, JSON.stringify(markers));
+    assert.strictEqual(markers.length, 5, JSON.stringify(markers));
   });
 
   // ---------------------------------------------------------------
@@ -1957,8 +1970,9 @@ async function main() {
     applyCookies(customerLogout);
     assert.strictEqual((await request(PORT, 'GET', '/api/admin/me', { headers: jarHeaders() })).status, 200,
       'logging the customer out must not log the admin out');
-    assert.strictEqual((await request(PORT, 'GET', '/api/customers/me', { headers: jarHeaders() })).status, 401,
-      'the customer session must be gone');
+    const signedOutCustomer = await request(PORT, 'GET', '/api/customers/me', { headers: jarHeaders() });
+    assert.strictEqual(signedOutCustomer.status, 200, 'session restore uses a non-error empty result for signed-out visitors');
+    assert.deepStrictEqual(signedOutCustomer.json, { customer: null }, 'the customer session must be gone');
 
     // Admin logs out → the customer session must survive.
     applyCookies(await request(PORT, 'POST', '/api/customers/login', { body: { email: 'cust@kage.test', password: 'newpass456' }, headers: jarHeaders() }));

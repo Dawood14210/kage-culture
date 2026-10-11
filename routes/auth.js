@@ -6,7 +6,7 @@ const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const config = require('../config');
 const { requireCsrf } = require('../middleware/csrf');
-const { requireAuth, requireCustomerAuth } = require('../middleware/auth');
+const { requireAuth, requireCustomerAuth, optionalCustomerId } = require('../middleware/auth');
 const { strictLimiter, adminLoginLimiter, customerLoginLimiter, resetLimiter } = require('../middleware/rateLimit');
 const { hashToken, isValidEmail } = require('../utils/helpers');
 const { getSessionSecret } = require('../utils/secret');
@@ -334,10 +334,16 @@ module.exports = function createAuthRoutes(db, SESSION_SECRET = getSessionSecret
   });
 
   // --- Customer: session restore (account page) ---
-  router.get('/api/customers/me', requireCustomerAuth, async (req, res) => {
+  // This is a normal bootstrap probe on every storefront page. Return a quiet
+  // empty result for anonymous visitors instead of a 401 that browsers report
+  // as a console error; protected customer data APIs still require auth.
+  router.get('/api/customers/me', (req, res, next) => {
+    if (!optionalCustomerId(req)) return res.json({ customer: null });
+    return requireCustomerAuth(req, res, next);
+  }, async (req, res) => {
     try {
       const c = await db.prepare('SELECT id, email, name, phone, address, city, email_verified, created_at FROM customers WHERE id = ?').get(req.customerId);
-      if (!c) return res.status(404).json({ error: 'Account not found.' });
+      if (!c) return res.json({ customer: null });
       res.json({ customer: { ...c, email_verified: Number(c.email_verified) === 1 } });
     } catch (err) { console.error('customers/me GET failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
   });

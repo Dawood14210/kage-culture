@@ -161,6 +161,7 @@ function jsonErrorHandler(err, req, res, next) {
 // re-applied and its deliberate unit_cost = 0 overwritten on every deploy.
 const BOOTSTRAP_KEYS = {
   products: 'seed_products_v1',
+  categories: 'normalize_demo_categories_v1',
   salePrices: 'sync_seed_sale_prices_v1',
   unitCosts: 'backfill_unit_costs_v1',
   emails: 'normalize_emails_v1'
@@ -190,6 +191,23 @@ async function seedProductsOnce() {
   const { added } = await demoProducts.seedDemoProducts(db);
   console.log('✅ Seeded ' + added + ' default products');
   return 'seeded';
+}
+
+// Earlier demo seeds stored the regular graphic tees as `anime`, while the
+// storefront routes Graphic Tees using the `graphic-tees` collection key.
+// Correct only those legacy defaults; an admin's other category edits survive.
+async function normalizeDemoCategoriesOnce() {
+  let changed = 0;
+  for (const fix of demoProducts.LEGACY_CATEGORY_FIXES) {
+    const result = await db.prepare('UPDATE products SET category = ? WHERE name = ? AND category = ?')
+      .run(fix.to, fix.name, fix.from);
+    changed += Number(result && result.changes) || 0;
+  }
+  if (changed) {
+    await db.save();
+    console.log(`🗂️  Corrected ${changed} legacy demo product categor${changed === 1 ? 'y' : 'ies'}`);
+  }
+  return 'normalized:' + changed;
 }
 
 async function syncSeedSalePricesOnce() {
@@ -233,6 +251,7 @@ async function bootstrapData() {
   let complete = true;
   for (const [key, step] of [
     [BOOTSTRAP_KEYS.products, seedProductsOnce],
+    [BOOTSTRAP_KEYS.categories, normalizeDemoCategoriesOnce],
     [BOOTSTRAP_KEYS.salePrices, syncSeedSalePricesOnce],
     [BOOTSTRAP_KEYS.unitCosts, backfillUnitCostsOnce],
     [BOOTSTRAP_KEYS.emails, normalizeEmailsOnce]
@@ -274,7 +293,7 @@ async function ensureReady() {
     // the data APIs behind it are the real protection. /admin.html already
     // redirects to /admin above (before static), giving one canonical entry.
     app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin.html')));
-    const spaPages = new Set(['/', '/about', '/contact', '/tracking', '/shipping', '/returns', '/privacy', '/terms', '/account', '/checkout', '/confirmation', '/reset-password', '/verify-email', '/custom-stickers']);
+    const spaPages = new Set(['/', '/about', '/contact', '/tracking', '/shipping', '/returns', '/privacy', '/terms', '/account', '/checkout', '/confirmation', '/reset-password', '/verify-email', '/custom-stickers', '/coming-soon']);
     app.get('*', (req, res) => {
       if (req.path.startsWith('/api/')) return res.status(404).json({ error: 'Not found.' });
       const known = spaPages.has(req.path) || /^\/product\/\d+$/.test(req.path) || /^\/collection\/[a-z0-9-]+$/.test(req.path);
