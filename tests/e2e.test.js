@@ -6,22 +6,33 @@
 // fallback (local only, never on Vercel), then drives it over HTTP.
 // No framework needed — plain node:assert.
 // ================================================================
+process.env.NODE_ENV = process.env.NODE_ENV || 'test'; // allows the dev fallback in utils/secret.js
 process.env.ALLOW_ADMIN_SETUP = 'true'; // tests exercise the gated bootstrap
 process.env.SESSION_SECRET = process.env.SESSION_SECRET || 'test-secret-for-regression-tests';
 // The suite drives all scenarios from one IP in seconds; do not exhaust the
 // storefront's production-wide per-minute request budget during the tests.
 require('../config').RATE_LIMIT_GLOBAL = 1000;
+// The suite places more orders than a single storefront visitor would.
+require('../config').RATE_LIMIT_ORDERS = 1000;
+// Verification/resend share the reset limiter; the suite exercises them repeatedly.
+require('../config').RATE_LIMIT_RESET = 1000;
 
 const assert = require('assert');
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
+const { spawnSync } = require('child_process');
+const demoProducts = require('../utils/demoProducts');
 
 // Fresh module state for every run
 delete require.cache[require.resolve('../database.js')];
 const dbModule = require('../database.js');
 
 const { app, ensureReady } = require('../server.js');
+const productShape = require('../utils/productShape');
+const { readSignedSession } = require('../middleware/auth');
+const serverModule = require('../server.js');
 
 const BASE = 'http://127.0.0.1:0';
 
@@ -51,6 +62,85 @@ function cookieHeader(res) {
   const sc = res.headers['set-cookie'] || [];
   return sc.map((c) => c.split(';')[0]).join('; ');
 }
+
+// The dev-mode email log prints the links inside each email; capture the
+// verification URL a request triggered so the suite can "open" it like a user.
+async function captureEmailLog(fn) {
+  const lines = [];
+  const original = console.log;
+  console.log = (...args) => { lines.push(args.map(String).join(' ')); original.apply(console, args); };
+  try { const result = await fn(); return { result, logged: lines.join('\n') }; } finally { console.log = original; }
+}
+function extractVerifyUrl(log) {
+  const m = String(log).match(/https?:\/\/[^\s]*\/verify-email\?token=[a-f0-9]+/);
+  return m ? m[0] : null;
+}
+// Sign a customer up and keep the session cookie the signup response issues.
+async function signupCustomer(email, password, name) {
+  const csrf = await getCsrf();
+  const res = await request(PORT, 'POST', '/api/customers/signup', {
+    body: { email, password, name },
+    headers: { 'X-CSRF-Token': csrf.token, Cookie: csrf.cookie }
+  });
+  return { res, cookie: cookieHeader(res) };
+}
+
+// Capture outbound emails by stubbing the Resend API call: the real templates
+// are built and posted exactly as in production, we just read the payload.
+async function captureEmails(fn) {
+  const sent = [];
+  const realFetch = global.fetch;
+  const previousKey = process.env.EMAIL_API_KEY;
+  process.env.EMAIL_API_KEY = 'test-capture-key';
+  global.fetch = async (url, opts) => {
+    if (String(url).includes('api.resend.com')) {
+      sent.push(JSON.parse((opts && opts.body) || '{}'));
+      return { ok: true, status: 200, json: async () => ({ id: 'captured' }) };
+    }
+    return realFetch(url, opts);
+  };
+  try { const result = await fn(); return { result, sent }; }
+  finally {
+    global.fetch = realFetch;
+    if (previousKey === undefined) delete process.env.EMAIL_API_KEY; else process.env.EMAIL_API_KEY = previousKey;
+  }
+}
+const hrefOf = (html) => (String(html).match(/href="([^"]+)"/) || [])[1] || '';
+
+// Minimal RFC 4180 parser: quoted fields may contain commas, doubled quotes
+// and newlines, so the export must never be validated by splitting on commas.
+function parseCsv(text) {
+  const src = text.charCodeAt(0) === 0xFEFF ? text.slice(1) : text;
+  const rows = [];
+  let row = [];
+  let field = '';
+  let quoted = false;
+  let i = 0;
+  while (i < src.length) {
+    const ch = src[i];
+    if (quoted) {
+      if (ch === '"') {
+        if (src[i + 1] === '"') { field += '"'; i += 2; continue; }
+        quoted = false; i += 1; continue;
+      }
+      field += ch; i += 1; continue;
+    }
+    if (ch === '"') { quoted = true; i += 1; continue; }
+    if (ch === ',') { row.push(field); field = ''; i += 1; continue; }
+    if (ch === '\r' && src[i + 1] === '\n') { row.push(field); rows.push(row); row = []; field = ''; i += 2; continue; }
+    if (ch === '\n') { row.push(field); rows.push(row); row = []; field = ''; i += 1; continue; }
+    field += ch; i += 1;
+  }
+  if (field !== '' || row.length) { row.push(field); rows.push(row); }
+  return rows;
+}
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// Shared by the child-process checks (session secret, boot retry, bootstrap).
+const REPO_ROOT = path.join(__dirname, '..');
+// Stripped env for spawnSync: none of the suite's own vars leak in.
+const cleanEnv = (extra) => ({ PATH: process.env.PATH, HOME: process.env.HOME, ...extra });
 
 let server, PORT;
 const results = [];
@@ -1049,6 +1139,1075 @@ async function main() {
     assert.strictEqual(r.status, 200, JSON.stringify(r.json));
     const left = await dbModule.prepare('SELECT COUNT(*) AS c FROM product_size_stock WHERE product_id = ?').get(sizeProductId.id);
     assert.strictEqual(Number(left.c), 0);
+  });
+
+  // ---------------------------------------------------------------
+  // Order history is bound to the customer, not to typed-in details
+  // ---------------------------------------------------------------
+  console.log('\nOrder history identity binding:');
+
+  // Dedicated high-stock product: seeded stock runs out during the suite, and
+  // these checks need every order placement to succeed.
+  const historyProbe = await request(PORT, 'POST', '/api/products', {
+    body: { name: 'History Probe Tee', category: 'anime', price: 700, sizes: JSON.stringify(['One Size']), stock_qty: 50 },
+    headers: await adminHeaders()
+  });
+  assert.strictEqual(historyProbe.status, 201, JSON.stringify(historyProbe.json));
+  const probeItem = { id: historyProbe.json.id, qty: 1, size: 'One Size' };
+  const placeGuestOrder = async (fields) => {
+    const csrf = await getCsrf();
+    return request(PORT, 'POST', '/api/orders', {
+      body: { payment_method: 'cod', items: [probeItem], ...fields },
+      headers: { 'X-CSRF-Token': csrf.token, Cookie: csrf.cookie }
+    });
+  };
+
+  await check('a profile phone cannot unlock a stranger\'s order history', async () => {
+    // Victim: a guest order (no account) whose phone the attacker can read off
+    // a parcel. The attacker is verified, so only the matching rule is on trial.
+    const victimOrder = await placeGuestOrder({ name: 'Phone Victim', email: 'victim.phone@kage.test', phone: '03009998881', address: 'Victim St 1', city: 'Karachi' });
+    assert.strictEqual(victimOrder.status, 201, JSON.stringify(victimOrder.json));
+
+    const attacker = await signupCustomer('attacker.phone@kage.test', 'attackerpass1', 'Attacker');
+    assert.strictEqual(attacker.res.status, 200, JSON.stringify(attacker.res.json));
+    await dbModule.prepare('UPDATE customers SET email_verified = 1 WHERE id = ?').run(attacker.res.json.customer.id);
+
+    const csrf2 = await getCsrf();
+    const profile = await request(PORT, 'PUT', '/api/customers/me', {
+      body: { phone: '03009998881' },
+      headers: { Cookie: `${attacker.cookie}; ${csrf2.cookie}`, 'X-CSRF-Token': csrf2.token }
+    });
+    assert.strictEqual(profile.status, 200, JSON.stringify(profile.json));
+    assert.strictEqual(profile.json.customer.phone, '03009998881', 'the profile update itself is allowed');
+
+    const history = await request(PORT, 'GET', '/api/customers/orders', { headers: { Cookie: attacker.cookie } });
+    assert.strictEqual(history.status, 200, JSON.stringify(history.json));
+    assert.deepStrictEqual(history.json.orders, [], 'a typed-in phone must never match orders');
+    assert.strictEqual(history.json.email_verified, true, 'the attacker is verified — the empty list is the phone rule doing its job');
+    assert.ok(!history.text.includes(victimOrder.json.order_number), 'the victim order number must not leak');
+    assert.ok(!history.text.includes('victim.phone@kage.test'), 'the victim email must not leak');
+    assert.ok(!history.text.includes('Victim St 1'), 'the victim address must not leak');
+  });
+
+  await check('signing up with a victim\'s email stays empty until the address is proven', async () => {
+    const victimOrder = await placeGuestOrder({ name: 'Email Victim', email: 'victim.email@kage.test', phone: '03009998882', address: 'Victim St 2', city: 'Lahore' });
+    assert.strictEqual(victimOrder.status, 201, JSON.stringify(victimOrder.json));
+
+    // The attacker registers the victim's address (no account existed yet).
+    const attacker = await signupCustomer('victim.email@kage.test', 'attackerpass2', 'Not The Owner');
+    assert.strictEqual(attacker.res.status, 200, JSON.stringify(attacker.res.json));
+    assert.strictEqual(attacker.res.json.customer.email_verified, false, 'a new signup is unverified');
+
+    // Unverified accounts can still log in and edit their profile…
+    const csrf = await getCsrf();
+    const login = await request(PORT, 'POST', '/api/customers/login', {
+      body: { email: 'victim.email@kage.test', password: 'attackerpass2' },
+      headers: { 'X-CSRF-Token': csrf.token, Cookie: csrf.cookie }
+    });
+    assert.strictEqual(login.status, 200, JSON.stringify(login.json));
+    assert.strictEqual(login.json.customer.email_verified, false);
+    const cookie = cookieHeader(login);
+    const profile = await request(PORT, 'PUT', '/api/customers/me', {
+      body: { name: 'Claimed', city: 'Lahore' }, headers: { Cookie: `${cookie}; ${csrf.cookie}`, 'X-CSRF-Token': csrf.token }
+    });
+    assert.strictEqual(profile.status, 200, JSON.stringify(profile.json));
+
+    // …but the history stays empty, flagged so the UI can explain why.
+    const history = await request(PORT, 'GET', '/api/customers/orders', { headers: { Cookie: cookie } });
+    assert.strictEqual(history.status, 200, JSON.stringify(history.json));
+    assert.deepStrictEqual(history.json.orders, [], 'unverified signups get no order history');
+    assert.strictEqual(history.json.email_verified, false);
+    assert.deepStrictEqual(Object.keys(history.json).sort(), ['email_verified', 'orders'], 'nothing else may be returned');
+    assert.ok(!history.text.includes(victimOrder.json.order_number), 'the victim order must not leak');
+  });
+
+  await check('a verified customer sees their orders, including mixed-case guest orders', async () => {
+    // Guest checkout with a mixed-case address (a phone-keyboard auto-capital).
+    const mixed = await placeGuestOrder({ name: 'Mixed Case', email: 'Mixed.Case@Kage.Test', phone: '03009998883', address: 'Case St 3', city: 'Islamabad' });
+    assert.strictEqual(mixed.status, 201, JSON.stringify(mixed.json));
+    const stored = await dbModule.prepare('SELECT email FROM orders WHERE order_number = ?').get(mixed.json.order_number);
+    assert.strictEqual(stored.email, 'mixed.case@kage.test', 'order emails are stored lowercased');
+
+    // The real owner signs up for the same address (lowercase).
+    const signup = await captureEmailLog(async () => signupCustomer('mixed.case@kage.test', 'ownerpass1', 'Real Owner'));
+    assert.strictEqual(signup.result.res.status, 200, JSON.stringify(signup.result.res.json));
+    assert.ok(signup.result.res.json.message && /verify/i.test(signup.result.res.json.message), 'signup must tell the user to verify');
+    const verifyUrl = extractVerifyUrl(signup.logged);
+    assert.ok(verifyUrl, 'the dev-mode email log must contain the verification link');
+
+    const cookie = signup.result.cookie;
+    const before = await request(PORT, 'GET', '/api/customers/orders', { headers: { Cookie: cookie } });
+    assert.deepStrictEqual(before.json.orders, [], 'history is hidden until the address is verified');
+
+    // "Open" the emailed link.
+    const token = verifyUrl.split('token=')[1];
+    const verified = await request(PORT, 'GET', `/api/auth/verify-email?token=${token}`);
+    assert.strictEqual(verified.status, 200, JSON.stringify(verified.json));
+
+    const after = await request(PORT, 'GET', '/api/customers/orders', { headers: { Cookie: cookie } });
+    assert.strictEqual(after.status, 200, JSON.stringify(after.json));
+    assert.strictEqual(after.json.email_verified, true);
+    const seen = after.json.orders.find((o) => o.order_number === mixed.json.order_number);
+    assert.ok(seen, 'the mixed-case guest order must be part of the history');
+    assert.deepStrictEqual(
+      Object.keys(seen).sort(),
+      ['created_at', 'items', 'order_number', 'payment_method', 'shipping', 'shipping_pending', 'status', 'subtotal', 'total'],
+      'the customer shape is an allow-list — no notes/email/address/phone'
+    );
+    for (const item of seen.items) {
+      assert.deepStrictEqual(Object.keys(item).sort(), ['id', 'image', 'name', 'qty', 'size', 'total', 'unit'], 'item cost/stock internals stay server-side');
+    }
+    assert.ok(!/cost|notes|address|payment_ref|payment_verified|customer_id/.test(JSON.stringify(seen)), 'no internal field may appear in the payload');
+
+    // The link is single-use.
+    const replay = await request(PORT, 'GET', `/api/auth/verify-email?token=${token}`);
+    assert.strictEqual(replay.status, 400, `a used token must be rejected (got ${replay.status})`);
+  });
+
+  await check('resend issues a fresh link, burns the old one and needs a session', async () => {
+    const csrfAnon = await getCsrf();
+    const anon = await request(PORT, 'POST', '/api/customers/resend-verification', { headers: { Cookie: csrfAnon.cookie, 'X-CSRF-Token': csrfAnon.token } });
+    assert.strictEqual(anon.status, 401, 'resend requires a signed-in customer');
+
+    const first = await captureEmailLog(async () => signupCustomer('resend.probe@kage.test', 'resendpass1', 'Resend Probe'));
+    const firstUrl = extractVerifyUrl(first.logged);
+    assert.ok(firstUrl, 'signup email must carry a link');
+    const cookie = first.result.cookie;
+
+    const csrf = await getCsrf();
+    const resend = await captureEmailLog(async () => request(PORT, 'POST', '/api/customers/resend-verification', { headers: { Cookie: `${cookie}; ${csrf.cookie}`, 'X-CSRF-Token': csrf.token } }));
+    assert.strictEqual(resend.result.status, 200, JSON.stringify(resend.result.json));
+    const secondUrl = extractVerifyUrl(resend.logged);
+    assert.ok(secondUrl && secondUrl !== firstUrl, 'resend must issue a new token');
+
+    const stale = await request(PORT, 'GET', `/api/auth/verify-email?token=${firstUrl.split('token=')[1]}`);
+    assert.strictEqual(stale.status, 400, 'requesting a new link must burn the previous one');
+
+    const fresh = await request(PORT, 'GET', `/api/auth/verify-email?token=${secondUrl.split('token=')[1]}`);
+    assert.strictEqual(fresh.status, 200, JSON.stringify(fresh.json));
+    const again = await request(PORT, 'POST', '/api/customers/resend-verification', { headers: { Cookie: `${cookie}; ${csrf.cookie}`, 'X-CSRF-Token': csrf.token } });
+    assert.strictEqual(again.status, 200, JSON.stringify(again.json));
+    assert.match(again.json.message || '', /already verified/i);
+  });
+
+  await check('backfill links existing orders to verified customers only', async () => {
+    // Orders from before the account existed (no customer_id), plus a decoy
+    // from a different address that must stay unlinked.
+    const target = await placeGuestOrder({ name: 'Backfill Target', email: 'backfill.target@kage.test', phone: '03009998884', address: 'Bf St 4', city: 'Multan' });
+    const decoy = await placeGuestOrder({ name: 'Backfill Decoy', email: 'backfill.decoy@kage.test', phone: '03009998885', address: 'Bf St 5', city: 'Multan' });
+    assert.strictEqual(target.status, 201, JSON.stringify(target.json));
+    assert.strictEqual(decoy.status, 201, JSON.stringify(decoy.json));
+    await dbModule.prepare('UPDATE orders SET customer_id = NULL WHERE order_number IN (?, ?)').run(target.json.order_number, decoy.json.order_number);
+
+    const account = await signupCustomer('Backfill.Target@Kage.Test', 'backfillpass1', 'Backfill Owner');
+    assert.strictEqual(account.res.status, 200, JSON.stringify(account.res.json));
+    const accountId = account.res.json.customer.id;
+    // Unverified → the backfill must skip it.
+    await dbModule.backfillOrderCustomerIds();
+    let row = await dbModule.prepare('SELECT customer_id FROM orders WHERE order_number = ?').get(target.json.order_number);
+    assert.strictEqual(row.customer_id, null, 'an unverified account must not be handed old orders');
+
+    await dbModule.prepare('UPDATE customers SET email_verified = 1 WHERE id = ?').run(accountId);
+    const linked = await dbModule.backfillOrderCustomerIds();
+    assert.ok(linked >= 1, `expected at least one linked order, got ${linked}`);
+    row = await dbModule.prepare('SELECT customer_id FROM orders WHERE order_number = ?').get(target.json.order_number);
+    assert.strictEqual(Number(row.customer_id), accountId, 'the matching order is linked');
+    const decoyRow = await dbModule.prepare('SELECT customer_id FROM orders WHERE order_number = ?').get(decoy.json.order_number);
+    assert.strictEqual(decoyRow.customer_id, null, 'a different email must not be linked');
+
+    const history = await request(PORT, 'GET', '/api/customers/orders', { headers: { Cookie: account.cookie } });
+    assert.ok(history.json.orders.some((o) => o.order_number === target.json.order_number), 'the linked order is now in the history');
+    assert.ok(!history.json.orders.some((o) => o.order_number === decoy.json.order_number), 'the decoy order stays out');
+  });
+
+  // ---------------------------------------------------------------
+  // Email escaping + order input validation
+  // ---------------------------------------------------------------
+  console.log('\nEmail escaping and order validation:');
+
+  await check('the order confirmation email escapes every customer-supplied value', async () => {
+    const { result: order, sent } = await captureEmails(() => placeGuestOrder({
+      name: '<a href="http://evil.test">Verify your account</a>',
+      email: 'Escaping.Probe@Kage.Test',
+      phone: '03009998886',
+      address: '<b>y</b>',
+      city: 'Lahore',
+      notes: 'note with <script>alert(2)</script>',
+      payment_method: 'jazzcash',
+      payment_ref: '"><script>1</script>'
+    }));
+    assert.strictEqual(order.status, 201, JSON.stringify(order.json));
+    assert.strictEqual(sent.length, 1, 'exactly one confirmation email');
+    const mail = sent[0];
+    assert.strictEqual(mail.to[0], 'escaping.probe@kage.test', 'the recipient is the normalised address');
+    assert.ok(!/[\r\n]/.test(mail.subject), 'the subject must not carry CR/LF');
+    assert.ok(!/[\r\n]/.test(mail.to[0]), 'the recipient must not carry CR/LF');
+
+    const html = mail.html;
+    assert.ok(html.includes('&lt;a href=&quot;http://evil.test&quot;&gt;Verify your account&lt;/a&gt;'), 'the name must be entity-escaped');
+    assert.ok(html.includes('&lt;b&gt;y&lt;/b&gt;'), 'the address must be entity-escaped');
+    assert.ok(html.includes('&lt;script&gt;1&lt;/script&gt;'), 'the payment reference must be entity-escaped');
+    assert.ok(!html.includes('<a href="http://evil.test"'), 'the injected anchor must not survive as markup');
+    assert.ok(!/<b>y<\/b>/.test(html), 'the injected <b> must not survive');
+    assert.ok(!html.includes('<script>'), 'no script tag may appear in the email');
+    assert.ok(!/<a\s/i.test(html), 'the confirmation template carries no links at all');
+    assert.ok(html.includes(order.json.order_number), 'the real order number is still present');
+  });
+
+  await check('the status update email escapes the stored customer name', async () => {
+    const order = await placeGuestOrder({
+      name: '<a href="http://evil.test">Verify your account</a>',
+      email: 'status.probe@kage.test', phone: '03009998887', address: '<i>addr</i>', city: 'Multan'
+    });
+    assert.strictEqual(order.status, 201, JSON.stringify(order.json));
+    const row = await dbModule.prepare('SELECT id FROM orders WHERE order_number = ?').get(order.json.order_number);
+
+    const { result: patched, sent } = await captureEmails(async () => {
+      const csrf = await getCsrf();
+      return request(PORT, 'PATCH', `/api/orders/${row.id}/status`, {
+        body: { status: 'shipped' },
+        headers: { Cookie: `${adminCookie}; ${csrf.cookie}`, 'X-CSRF-Token': csrf.token }
+      });
+    });
+    assert.strictEqual(patched.status, 200, JSON.stringify(patched.json));
+    assert.strictEqual(sent.length, 1, 'exactly one status email');
+    const html = sent[0].html;
+    assert.ok(html.includes('&lt;a href=&quot;http://evil.test&quot;&gt;'), 'the name must be escaped in the status email');
+    assert.ok(!/<a\s/i.test(html), 'no anchor may be injected into the status email');
+    assert.ok(!/[\r\n]/.test(sent[0].subject), 'the subject must not carry CR/LF');
+  });
+
+  await check('the password reset link is SITE_URL plus an encoded server token', async () => {
+    const { result: reset, sent } = await captureEmails(async () => {
+      const csrf = await getCsrf();
+      return request(PORT, 'POST', '/api/auth/forgot-password', {
+        body: { email: 'cust@kage.test', user_type: 'customer' },
+        headers: { 'X-CSRF-Token': csrf.token, Cookie: csrf.cookie }
+      });
+    });
+    assert.strictEqual(reset.status, 200, JSON.stringify(reset.json));
+    assert.strictEqual(sent.length, 1, 'exactly one reset email');
+    // The href is escaped in the HTML, so the & of the second query param shows as &amp;.
+    const href = hrefOf(sent[0].html);
+    assert.match(href, /^https:\/\/kage-culture-ruby\.vercel\.app\/reset-password\?token=[a-f0-9]{64}&amp;type=customer$/, href);
+    assert.ok(!/<script/i.test(sent[0].html), 'no script may appear in the reset email');
+    assert.ok(!/[\r\n]/.test(sent[0].subject), 'the subject must not carry CR/LF');
+  });
+
+  await check('the verification email escapes the name and encodes the token', async () => {
+    const { result: signup, sent } = await captureEmails(() => signupCustomer('escaper@kage.test', 'escaperpass1', '<img src=x onerror=alert(1)>'));
+    assert.strictEqual(signup.res.status, 200, JSON.stringify(signup.res.json));
+    assert.strictEqual(sent.length, 1, 'exactly one verification email');
+    const html = sent[0].html;
+    assert.ok(html.includes('&lt;img src=x onerror=alert(1)&gt;'), 'the customer name must be escaped');
+    assert.ok(!/<img\s/i.test(html), 'no injected image/tag may survive');
+    const href = hrefOf(html);
+    assert.match(href, /^https:\/\/kage-culture-ruby\.vercel\.app\/verify-email\?token=[a-f0-9]{64}$/, href);
+    assert.ok(!/[^a-zA-Z0-9:/.?=&%-]/.test(href), 'the href must stay a plain URL');
+  });
+
+  await check('order placement rejects invalid emails and control characters', async () => {
+    const base = { name: 'Valid Name', email: 'valid@kage.test', phone: '03009998888', address: 'Valid St', city: 'Lahore' };
+    const bad = async (patch, label) => {
+      const r = await placeGuestOrder({ ...base, ...patch });
+      assert.strictEqual(r.status, 400, `${label} must be rejected (got ${r.status} ${JSON.stringify(r.json)})`);
+      return r;
+    };
+    await bad({ email: 'not-an-email' }, 'a malformed email');
+    await bad({ email: 'a@b' }, 'an email without a TLD');
+    await bad({ email: `${'x'.repeat(200)}@kage.test` }, 'an over-long email');
+    await bad({ name: 'Evil\r\nBcc: victim@kage.test' }, 'a CRLF in the name');
+    await bad({ name: 'Evil\nName' }, 'a bare LF in the name');
+    await bad({ address: 'Street\r\nX-Header: 1' }, 'a CRLF in the address');
+    await bad({ payment_ref: 'ref\nline', payment_method: 'jazzcash' }, 'a newline in the payment reference');
+
+    // Rich text is allowed through (it is escaped at every render/email sink)…
+    const htmlish = await placeGuestOrder({ ...base, name: '<b>Bold Buyer</b>', address: '<i>St</i>', email: 'bold.buyer@kage.test' });
+    assert.strictEqual(htmlish.status, 201, JSON.stringify(htmlish.json));
+    // …and a normal order still works after all of that.
+    const ok = await placeGuestOrder({ ...base, email: 'still.works@kage.test' });
+    assert.strictEqual(ok.status, 201, JSON.stringify(ok.json));
+  });
+
+  await check('header characters are stripped from subjects and recipients', async () => {
+    const { stripHeaderChars } = require('../utils/helpers');
+    assert.strictEqual(stripHeaderChars('Evil\r\nBcc: victim@kage.test'), 'Evil Bcc: victim@kage.test');
+    assert.strictEqual(stripHeaderChars('Order KAGE-1\nX-Mailer: evil'), 'Order KAGE-1 X-Mailer: evil');
+    assert.strictEqual(stripHeaderChars(null), '');
+
+    // And a forged subject/recipient can never reach the transport.
+    const emailModule = require('../utils/email');
+    const { result: ok, sent } = await captureEmails(async () => emailModule.sendEmail('victim@kage.test\r\nBcc: x@kage.test', 'Hello\r\nX-Evil: 1', '<p>hi</p>'));
+    assert.strictEqual(ok, true);
+    assert.ok(!/[\r\n]/.test(sent[0].to[0]), 'the recipient must be stripped');
+    assert.ok(!/[\r\n]/.test(sent[0].subject), 'the subject must be stripped');
+  });
+
+  // ---------------------------------------------------------------
+  // Admin CSV export: RFC 4180 quoting + spreadsheet formula shielding
+  // ---------------------------------------------------------------
+  console.log('\nOrder CSV export:');
+
+  await check('csvCell quotes every cell and defuses formulas', async () => {
+    const { csvCell } = require('../utils/helpers');
+    assert.strictEqual(csvCell(null), '""');
+    assert.strictEqual(csvCell(undefined), '""');
+    assert.strictEqual(csvCell('plain'), '"plain"');
+    assert.strictEqual(csvCell('A,B'), '"A,B"');
+    assert.strictEqual(csvCell('say "hi"'), '"say ""hi"""');
+    assert.strictEqual(csvCell('=1+1'), '"\'=1+1"');
+    assert.strictEqual(csvCell('+1@x.com'), '"\'+1@x.com"');
+    assert.strictEqual(csvCell('-5'), '"\'-5"');
+    assert.strictEqual(csvCell('@cmd'), '"\'@cmd"');
+    assert.strictEqual(csvCell('\tlead'), '"\'\tlead"');
+    assert.strictEqual(csvCell('\r=1'), '"\'\r=1"');
+  });
+
+  await check('the CSV export quotes, shields and round-trips every text column', async () => {
+    const probe = await request(PORT, 'POST', '/api/products', {
+      body: { name: 'CSV Probe Tee', category: 'anime', price: 500, sizes: JSON.stringify(['One Size']), stock_qty: 20 },
+      headers: await adminHeaders()
+    });
+    assert.strictEqual(probe.status, 201, JSON.stringify(probe.json));
+
+    const csrf = await getCsrf();
+    const nasty = await request(PORT, 'POST', '/api/orders', {
+      body: {
+        name: 'Quote "The Boss", Jr.', email: '+1@x.com', phone: '03009998885',
+        address: '12 "Main" St, Block B', city: 'A,B',
+        payment_method: 'jazzcash', payment_ref: '=HYPERLINK("http://evil.test","x"),extra',
+        notes: '@SUM(1+1) notes', items: [{ id: probe.json.id, qty: 1, size: 'One Size' }]
+      },
+      headers: { 'X-CSRF-Token': csrf.token, Cookie: csrf.cookie }
+    });
+    assert.strictEqual(nasty.status, 201, JSON.stringify(nasty.json));
+
+    // A row that already contains a newline in the name: the API rejects
+    // control characters now, but old/hand-edited data must not shift columns.
+    const legacyNumber = 'KAGE-LEGACY01';
+    await dbModule.prepare(`INSERT INTO orders (order_number, customer_name, email, phone, address, city, notes, payment_method, payment_ref, subtotal, shipping, shipping_pending, total, items_json, status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+      .run(legacyNumber, 'Line\nBreak "Quoted"', 'legacy@kage.test', '03009998880', 'Legacy St', 'Lahore', 'multi\nline note', 'cod', null, 100, 0, 0, 100, '[]', 'pending');
+
+    const res = await request(PORT, 'GET', '/api/orders/export/csv', { headers: await adminHeaders() });
+    assert.strictEqual(res.status, 200, JSON.stringify(res.json));
+    assert.match(res.headers['content-type'], /^text\/csv/, res.headers['content-type']);
+    assert.match(res.headers['content-type'], /charset=utf-8/);
+    assert.match(res.headers['content-disposition'], /^attachment; filename="kage-orders-\d{4}-\d{2}-\d{2}\.csv"$/);
+    assert.strictEqual(res.text.charCodeAt(0), 0xFEFF, 'the export must start with a UTF-8 BOM');
+
+    // Strict RFC 4180 endings: with the quoted fields blanked out, every
+    // remaining line break must be a CRLF.
+    const outsideQuotes = res.text.replace(/"(?:[^"]|"")*"/g, '"X"');
+    assert.ok(!outsideQuotes.replace(/\r\n/g, '').includes('\n'), 'rows must be CRLF-terminated');
+
+    const rows = parseCsv(res.text);
+    const header = rows[0];
+    assert.strictEqual(header.length, 16, `unexpected header: ${header.join('|')}`);
+    assert.deepStrictEqual(header.slice(0, 3), ['Order Number', 'Customer Name', 'Email']);
+    assert.strictEqual(header[15], 'Notes');
+    rows.forEach((r, i) => assert.strictEqual(r.length, header.length, `row ${i} has ${r.length} columns, expected ${header.length}`));
+
+    const byNumber = new Map(rows.slice(1).map(r => [r[0], r]));
+    const row = byNumber.get(nasty.json.order_number);
+    assert.ok(row, 'the probe order must be exported');
+    assert.strictEqual(row[1], 'Quote "The Boss", Jr.', 'the name must round-trip');
+    // "+1@x.com" starts with + → it is a formula-shaped value too, so it is
+    // shielded as well; the original address is the cell minus the apostrophe.
+    assert.ok(row[2].startsWith("'"), 'a leading + must be shielded');
+    assert.strictEqual(row[2].slice(1), '+1@x.com', 'the email must round-trip after the shield');
+    assert.strictEqual(row[4], '12 "Main" St, Block B', 'the address must round-trip');
+    assert.strictEqual(row[5], 'A,B', 'the city must round-trip');
+    assert.strictEqual(row[6], 'jazzcash');
+    assert.ok(row[7].startsWith("'"), `the formula cell must be prefixed with a single quote, got ${JSON.stringify(row[7])}`);
+    assert.strictEqual(row[7].slice(1), '=HYPERLINK("http://evil.test","x"),extra', 'the payment ref must round-trip after the shield');
+    assert.strictEqual(row[15], '@SUM(1+1) notes'.replace(/^/, "'"), 'the notes column is exported and shielded');
+    assert.strictEqual(row[13], 'awaiting_verification');
+    // The raw record really does carry the apostrophe inside the quotes.
+    assert.ok(res.text.includes('"\'=HYPERLINK(""http://evil.test""'), 'the raw CSV must hold the shielded cell');
+
+    const legacy = byNumber.get(legacyNumber);
+    assert.ok(legacy, 'the legacy row must be exported');
+    assert.strictEqual(legacy[1], 'Line\nBreak "Quoted"', 'a newline inside a name must stay in one field');
+    assert.strictEqual(legacy[15], 'multi\nline note', 'a newline in notes must stay in one field');
+    assert.ok(!legacy[9].includes('"'), 'numeric columns stay unquoted');
+    assert.strictEqual(Number(legacy[9]), 100);
+
+    // Money columns are plain numbers, still unquoted in the raw text.
+    const rawLegacy = res.text.split('\r\n').find(l => l.startsWith('"KAGE-LEGACY01"'));
+    assert.ok(rawLegacy, 'the legacy line must be present');
+    assert.match(rawLegacy, /,100,0,"No",100,/, `money columns should be unquoted: ${rawLegacy}`);
+  });
+
+  await check('the CSV export still requires an admin session', async () => {
+    const r = await request(PORT, 'GET', '/api/orders/export/csv');
+    assert.strictEqual(r.status, 401);
+  });
+
+  // ---------------------------------------------------------------
+  // Product field exposure: public allow-list vs admin-only columns
+  // ---------------------------------------------------------------
+  console.log('\nProduct field exposure:');
+
+  await check('public product list carries only the allow-listed fields — no unit_cost', async () => {
+    const r = await request(PORT, 'GET', '/api/products');
+    assert.strictEqual(r.status, 200, JSON.stringify(r.json));
+    assert.ok(r.json.length > 0, 'catalog must not be empty');
+    const expected = [...productShape.PUBLIC_PRODUCT_COLUMNS, 'size_stock', 'sold_count', 'order_count', 'avg_rating', 'review_count'].sort();
+    for (const p of r.json) {
+      assert.deepStrictEqual(Object.keys(p).sort(), expected, `unexpected field set on public product ${p.id}`);
+      for (const leaked of ['unit_cost', 'updated_at']) assert.ok(!(leaked in p), `${leaked} must never be public`);
+    }
+    // The omission must be deliberate: the table really does hold costs.
+    const costed = await dbModule.prepare('SELECT COUNT(*) AS c FROM products WHERE unit_cost IS NOT NULL').get();
+    assert.ok(Number(costed.c) > 0, 'seeded products should carry unit_cost, otherwise this test proves nothing');
+  });
+
+  await check('public single-product response omits unit_cost too', async () => {
+    const r = await request(PORT, 'GET', '/api/products/1');
+    assert.strictEqual(r.status, 200, JSON.stringify(r.json));
+    assert.strictEqual(r.json.id, 1);
+    assert.ok(!('unit_cost' in r.json), 'unit_cost must not be public');
+    assert.ok(!('updated_at' in r.json), 'updated_at must not be public');
+    assert.ok('stock_qty' in r.json && 'sizes' in r.json && 'size_stock' in r.json, 'storefront fields must survive the allow-list');
+  });
+
+  await check('admin product list exposes unit_cost behind auth', async () => {
+    const r = await request(PORT, 'GET', '/api/admin/products', { headers: { Cookie: adminCookie } });
+    assert.strictEqual(r.status, 200, JSON.stringify(r.json));
+    const p1 = r.json.find((p) => p.id === 1);
+    assert.ok(p1, 'seeded product 1 must be present');
+    for (const field of ['unit_cost', 'on_sale', 'updated_at', 'size_stock', 'sold_count']) {
+      assert.ok(field in p1, `admin list must include ${field}`);
+    }
+    const row = await dbModule.prepare('SELECT unit_cost FROM products WHERE id = 1').get();
+    assert.strictEqual(Number(p1.unit_cost), Number(row.unit_cost), 'admin unit_cost must match the DB');
+  });
+
+  await check('admin single-product endpoint exposes unit_cost behind auth', async () => {
+    const r = await request(PORT, 'GET', '/api/admin/products/1', { headers: { Cookie: adminCookie } });
+    assert.strictEqual(r.status, 200, JSON.stringify(r.json));
+    assert.strictEqual(r.json.id, 1);
+    assert.ok('unit_cost' in r.json, 'admin single must include unit_cost');
+    const missing = await request(PORT, 'GET', '/api/admin/products/999999', { headers: { Cookie: adminCookie } });
+    assert.strictEqual(missing.status, 404, JSON.stringify(missing.json));
+  });
+
+  await check('admin product routes reject anonymous and forged callers with 401', async () => {
+    const list = await request(PORT, 'GET', '/api/admin/products');
+    assert.strictEqual(list.status, 401, JSON.stringify(list.json));
+    const single = await request(PORT, 'GET', '/api/admin/products/1');
+    assert.strictEqual(single.status, 401, JSON.stringify(single.json));
+    assert.ok(!JSON.stringify(list.json).includes('unit_cost'), 'the 401 body must not leak cost columns');
+    assert.ok(!JSON.stringify(single.json).includes('unit_cost'), 'the 401 body must not leak cost columns');
+    // A forged inline admin id (the classic bypass) must not open the route.
+    const forged = await request(PORT, 'GET', '/api/admin/products', {
+      headers: { Cookie: 'kage.admin=' + Buffer.from(JSON.stringify({ adminId: 1 })).toString('base64') }
+    });
+    assert.strictEqual(forged.status, 401, JSON.stringify(forged.json));
+  });
+
+  await check('sold_count matches the order-item scan and follows cancellation', async () => {
+    const headers = await adminHeaders();
+    const created = await request(PORT, 'POST', '/api/products', {
+      body: { name: 'Sold Count Probe', category: 'anime', price: 500, sizes: JSON.stringify(['M']), stock_qty: 9 },
+      headers
+    });
+    assert.strictEqual(created.status, 201, JSON.stringify(created.json));
+    const id = created.json.id;
+    assert.strictEqual(Number((await request(PORT, 'GET', `/api/products/${id}`)).json.sold_count), 0);
+
+    const csrf = await getCsrf();
+    const order = await request(PORT, 'POST', '/api/orders', {
+      body: { name: 'Sold Probe', email: 'sold@kage.test', phone: '03001239999', address: '1 Sold St', city: 'Lahore', payment_method: 'cod', items: [{ id, qty: 3, size: 'M' }] },
+      headers: { 'X-CSRF-Token': csrf.token, Cookie: csrf.cookie }
+    });
+    assert.strictEqual(order.status, 201, JSON.stringify(order.json));
+    const afterOrder = (await request(PORT, 'GET', `/api/products/${id}`)).json;
+    assert.strictEqual(Number(afterOrder.sold_count), 3, 'sold_count must count the ordered units');
+    assert.strictEqual(Number(afterOrder.order_count), Number(afterOrder.sold_count), 'order_count mirrors sold_count today');
+
+    const orderRow = await dbModule.prepare('SELECT id FROM orders WHERE order_number = ?').get(order.json.order_number);
+    const csrf2 = await getCsrf();
+    const cancelled = await request(PORT, 'PATCH', `/api/orders/${orderRow.id}/status`, {
+      body: { status: 'cancelled' }, headers: { Cookie: `${adminCookie}; ${csrf2.cookie}`, 'X-CSRF-Token': csrf2.token }
+    });
+    assert.strictEqual(cancelled.status, 200, JSON.stringify(cancelled.json));
+    assert.strictEqual(Number((await request(PORT, 'GET', `/api/products/${id}`)).json.sold_count), 0, 'cancelled orders must stop counting');
+
+    // The single SQL aggregate must agree with the reference scan everywhere.
+    const fromAggregate = [...(await productShape.getSoldCounts(dbModule)).entries()].sort((a, b) => a[0] - b[0]);
+    const fromScan = [...(await productShape.scanSoldCounts(dbModule)).entries()].sort((a, b) => a[0] - b[0]);
+    assert.deepStrictEqual(fromAggregate, fromScan, 'SQL aggregate must match the JSON scan');
+
+    await request(PORT, 'DELETE', `/api/products/${id}`, { headers });
+  });
+
+  // ---------------------------------------------------------------
+  // One-time bootstrap: seeding happens once per DATABASE, not per boot
+  // ---------------------------------------------------------------
+  console.log('\nOne-time data bootstrap:');
+
+  const BOOTSTRAP_FIXTURE = path.join(__dirname, 'fixtures', 'bootstrap-child.js');
+  const runBootstrap = (command, dbFile, extraArg) => {
+    const args = [BOOTSTRAP_FIXTURE, command];
+    if (extraArg) args.push(extraArg);
+    const child = spawnSync(process.execPath, args, {
+      cwd: REPO_ROOT,
+      encoding: 'utf8',
+      timeout: 60000,
+      env: cleanEnv({ KAGE_DB_FILE: dbFile })
+    });
+    const line = (child.stdout || '').split('\n').find((l) => l.startsWith('RESULT: '));
+    assert.ok(line, `${command} produced no result\nexit=${child.status}\nstdout=${child.stdout}\nstderr=${child.stderr}`);
+    return JSON.parse(line.slice('RESULT: '.length));
+  };
+  const tempDb = (name) => path.join(fs.mkdtempSync(path.join(require('os').tmpdir(), 'kage-boot-')), `${name}.db`);
+
+  await check('a fresh database seeds the demo catalogue once and records the keys', async () => {
+    const file = tempDb('fresh');
+    const out = runBootstrap('seed-fresh', file);
+    assert.strictEqual(out.products, demoProducts.DEMO_PRODUCTS.length, JSON.stringify(out));
+    assert.deepStrictEqual(Object.keys(out.keys).sort(), ['backfill_unit_costs_v1', 'normalize_emails_v1', 'seed_products_v1', 'sync_seed_sale_prices_v1']);
+    assert.strictEqual(out.keys.seed_products_v1, 'seeded');
+    const again = runBootstrap('seed-fresh', file); // second process, same file
+    assert.strictEqual(again.products, demoProducts.DEMO_PRODUCTS.length, 'a restart must not duplicate the catalogue');
+  });
+
+  await check('deleting every product survives a restart (no demo products resurrected)', async () => {
+    const file = tempDb('deleted');
+    const seeded = runBootstrap('delete-all', file);
+    assert.strictEqual(seeded.products, 0, JSON.stringify(seeded));
+    assert.ok(seeded.keys.seed_products_v1, 'the seed marker must stay after the products are gone');
+    const restarted = runBootstrap('expect-empty', file);
+    assert.strictEqual(restarted.products, 0, 'the demo catalogue must NOT come back on restart');
+  });
+
+  await check('a sale the admin removed stays removed across restarts', async () => {
+    const file = tempDb('sale');
+    const removed = runBootstrap('remove-sale', file, 'Rising Vermillion');
+    assert.strictEqual(removed.product.sale_price, null, JSON.stringify(removed));
+    const restarted = runBootstrap('expect-no-sale', file, 'Rising Vermillion');
+    assert.strictEqual(restarted.sale_price === null || restarted.sale_price === undefined, true, `the sale must not be re-applied: ${JSON.stringify(restarted)}`);
+    assert.strictEqual(Number(restarted.on_sale) || 0, 0, 'the product must stay off sale');
+  });
+
+  await check('a deliberate unit_cost of 0 is never overwritten', async () => {
+    const file = tempDb('cost');
+    const zeroed = runBootstrap('set-cost-zero', file, 'Blade Wolf');
+    assert.strictEqual(Number(zeroed.product.unit_cost), 0, JSON.stringify(zeroed));
+    const restarted = runBootstrap('expect-cost-zero', file, 'Blade Wolf');
+    assert.strictEqual(Number(restarted.unit_cost), 0, `0 must survive the restart: ${JSON.stringify(restarted)}`);
+  });
+
+  await check('an existing production database is only marked done — nothing is re-applied', async () => {
+    const file = tempDb('legacy');
+    const prepped = runBootstrap('legacy-prep', file);
+    assert.ok(prepped.products > 0 && Object.keys(prepped.keys).length === 0, JSON.stringify(prepped).slice(0, 200));
+
+    const before = runBootstrap('fingerprint', file);
+    assert.deepStrictEqual(Object.keys(before.keys), [], 'the fixture DB must have no markers yet');
+
+    const after = runBootstrap('legacy-check', file);
+    assert.deepStrictEqual(after.fingerprint, before.fingerprint, 'an existing catalogue must not change by one byte');
+    // Costs: NULL may be filled once, 0 and real numbers must be untouched.
+    for (const [name, costBefore] of Object.entries(before.costs)) {
+      const costAfter = after.costs[name];
+      if (costBefore === null) assert.ok(costAfter !== null, `${name}: a NULL cost may be backfilled once`);
+      else assert.strictEqual(costAfter, costBefore, `${name}: unit_cost ${costBefore} must never change`);
+    }
+    assert.strictEqual(after.risingVermillion.sale_price, null, 'the removed sale must not be re-applied');
+    assert.strictEqual(Number(after.risingVermillion.on_sale) || 0, 0, 'the product must stay off sale');
+    assert.strictEqual(Number(after.bladeWolfCost), 0, 'a deliberate 0 cost must be untouched');
+    assert.notStrictEqual(after.customCost, null, 'unit_cost IS NULL rows may be backfilled once');
+    assert.strictEqual(after.keys.seed_products_v1, 'existing', 'the seed marker records "existing", not a re-seed');
+    assert.strictEqual(after.keys.sync_seed_sale_prices_v1, 'skipped-existing');
+    assert.ok(after.keys.backfill_unit_costs_v1, 'the cost step records its own key');
+    // …and a further restart changes nothing at all.
+    const again = runBootstrap('legacy-check', file);
+    assert.deepStrictEqual(again.fingerprint, after.fingerprint, 'a later boot must also be a no-op');
+    assert.deepStrictEqual(again.costs, after.costs, 'a later boot must not touch a single cost');
+  });
+
+  await check('a failed seed does not record its key and is retried next time', async () => {
+    const file = tempDb('retry');
+    const broken = runBootstrap('break-seed', file);
+    // The email normalisation does not touch `products`, so it may record its own
+    // marker; the product-dependent steps must not be marked done.
+    assert.deepStrictEqual(Object.keys(broken.keysAfterFailure), ['normalize_emails_v1'],
+      `a failed bootstrap must not record the failed steps' markers: ${JSON.stringify(broken)}`);
+    assert.strictEqual(broken.products, 0, 'nothing should have been inserted by the failed attempt');
+
+    const retried = runBootstrap('expect-seeded', file);
+    assert.strictEqual(retried.products, demoProducts.DEMO_PRODUCTS.length, 'the retry must seed for real');
+    assert.strictEqual(retried.keys.seed_products_v1, 'seeded');
+  });
+
+  await check('POST /api/admin/seed-demo restores the demo catalogue on purpose', async () => {
+    // CSRF runs before requireAuth on admin writes (same as every other admin
+    // mutation), so an anonymous request fails the CSRF check first.
+    const noCsrf = await request(PORT, 'POST', '/api/admin/seed-demo');
+    assert.strictEqual(noCsrf.status, 403, JSON.stringify(noCsrf.json));
+    const csrfOnly = await getCsrf();
+    const noSession = await request(PORT, 'POST', '/api/admin/seed-demo', {
+      headers: { 'X-CSRF-Token': csrfOnly.token, Cookie: csrfOnly.cookie }
+    });
+    assert.strictEqual(noSession.status, 401, JSON.stringify(noSession.json));
+
+    const first = await request(PORT, 'POST', '/api/admin/seed-demo', { headers: await adminHeaders() });
+    assert.strictEqual(first.status, 200, JSON.stringify(first.json));
+    assert.strictEqual(first.json.success, true);
+    assert.strictEqual(first.json.added + first.json.skipped, demoProducts.DEMO_PRODUCTS.length,
+      `every demo product must be accounted for: ${JSON.stringify(first.json)}`);
+
+    // Empty the shop, then load the demo catalogue deliberately.
+    const ids = (await request(PORT, 'GET', '/api/products')).json.map((p) => p.id);
+    const emptied = await request(PORT, 'DELETE', '/api/products/batch', { body: { ids }, headers: await adminHeaders() });
+    assert.strictEqual(emptied.status, 200, JSON.stringify(emptied.json));
+    assert.strictEqual((await request(PORT, 'GET', '/api/products')).json.length, 0, 'the shop must be empty now');
+
+    const restored = await request(PORT, 'POST', '/api/admin/seed-demo', { headers: await adminHeaders() });
+    assert.strictEqual(restored.status, 200, JSON.stringify(restored.json));
+    assert.strictEqual(restored.json.added, demoProducts.DEMO_PRODUCTS.length, 'every demo product must come back');
+    assert.strictEqual((await request(PORT, 'GET', '/api/products')).json.length, demoProducts.DEMO_PRODUCTS.length);
+    // The bootstrap markers are untouched by a deliberate re-seed.
+    const markers = await dbModule.prepare('SELECT key FROM app_settings').all();
+    assert.strictEqual(markers.length, 4, JSON.stringify(markers));
+  });
+
+  // ---------------------------------------------------------------
+  // Email casing, shared logout, and reactivation stock checks
+  // ---------------------------------------------------------------
+  console.log('\nEmail casing, shared sessions and order reactivation:');
+
+  await check('the email migration lowercases legacy rows and merges duplicates safely', async () => {
+    const stamp = Date.now();
+    // Legacy rows, inserted exactly as a pre-fix database could hold them:
+    // mixed case, duplicated in different casings, orders already attributed.
+    const olderCustomer = await dbModule.prepare('INSERT INTO customers (email, password_hash, name, email_verified, created_at) VALUES (?, ?, ?, ?, ?)')
+      .run('Dup.Case@Kage.Test', await require('bcryptjs').hash('duppass1', 10), 'Older', 1, '2026-01-01 00:00:00');
+    const newerCustomer = await dbModule.prepare('INSERT INTO customers (email, password_hash, name, email_verified, created_at) VALUES (?, ?, ?, ?, ?)')
+      .run('dup.case@kage.test', await require('bcryptjs').hash('duppass2', 10), 'Newer', 0, '2026-02-01 00:00:00');
+    const olderId = Number(olderCustomer.lastInsertRowid);
+    const newerId = Number(newerCustomer.lastInsertRowid);
+    // The order was attributed to the NEWER duplicate — the merge must re-point it.
+    await dbModule.prepare('INSERT INTO orders (order_number, customer_name, email, phone, address, city, payment_method, subtotal, shipping, shipping_pending, total, items_json, status, customer_id, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
+      .run('KAGE-DUPCASE1', 'Dup Buyer', 'Dup.Case@Kage.Test', '03001112233', 'Dup St', 'Lahore', 'cod', 500, 0, 0, 500, '[]', 'pending', newerId, '2026-01-02 00:00:00');
+    await dbModule.prepare('INSERT INTO newsletter_subscribers (email, created_at) VALUES (?, ?)').run('News.Letter@Kage.Test', '2026-01-01 00:00:00');
+    await dbModule.prepare('INSERT INTO newsletter_subscribers (email, created_at) VALUES (?, ?)').run('news.letter@kage.test', '2026-02-01 00:00:00');
+    await dbModule.prepare("DELETE FROM app_settings WHERE key = 'normalize_emails_v1'").run();
+
+    await serverModule.bootstrapData();
+
+    const dupCustomers = await dbModule.prepare('SELECT id, email, email_verified FROM customers WHERE LOWER(email) = ?').all('dup.case@kage.test');
+    assert.strictEqual(dupCustomers.length, 1, `duplicate customer rows must be merged: ${JSON.stringify(dupCustomers)}`);
+    assert.strictEqual(Number(dupCustomers[0].id), olderId, 'the OLDEST row must be kept');
+    assert.strictEqual(dupCustomers[0].email, 'dup.case@kage.test', 'the kept row must be lowercased');
+    assert.strictEqual(Number(dupCustomers[0].email_verified), 1, 'verification from the merged row must survive');
+    const order = await dbModule.prepare('SELECT email, customer_id FROM orders WHERE order_number = ?').get('KAGE-DUPCASE1');
+    assert.strictEqual(order.email, 'dup.case@kage.test', 'legacy order emails must be lowercased');
+    assert.strictEqual(Number(order.customer_id), olderId, 'orders must be re-pointed to the surviving customer');
+    const dupNews = await dbModule.prepare('SELECT id, email FROM newsletter_subscribers WHERE LOWER(email) = ?').all('news.letter@kage.test');
+    assert.strictEqual(dupNews.length, 1, `duplicate newsletter rows must be merged: ${JSON.stringify(dupNews)}`);
+    assert.strictEqual(dupNews[0].email, 'news.letter@kage.test');
+    assert.ok(!/[\sA-Z]/.test(dupNews[0].email), 'no casing or padding may survive');
+    const marker = await dbModule.prepare('SELECT value FROM app_settings WHERE key = ?').get('normalize_emails_v1');
+    assert.ok(marker, 'the migration must record its run-once marker');
+
+    // A second run is a no-op (nothing left to fix, no crash).
+    await serverModule.bootstrapData();
+    assert.strictEqual((await dbModule.prepare('SELECT COUNT(*) AS c FROM customers WHERE LOWER(email) = ?').get('dup.case@kage.test')).c, 1);
+
+    // cleanup: these rows are only for this check
+    await dbModule.prepare('DELETE FROM orders WHERE order_number = ?').run('KAGE-DUPCASE1');
+    await dbModule.prepare('DELETE FROM customers WHERE LOWER(email) = ?').run('dup.case@kage.test');
+    await dbModule.prepare('DELETE FROM newsletter_subscribers WHERE LOWER(email) = ?').run('news.letter@kage.test');
+    void stamp;
+  });
+
+  await check('email lookups are case-insensitive for mixed-case legacy rows', async () => {
+    // A newsletter row with casing, and a verified customer whose row was never
+    // normalised — every lookup must still find them.
+    await dbModule.prepare('INSERT INTO newsletter_subscribers (email, created_at) VALUES (?, ?)').run('Case.Only@Kage.Test', '2026-01-01 00:00:00');
+    const cust = await dbModule.prepare('INSERT INTO customers (email, password_hash, name, email_verified, created_at) VALUES (?, ?, ?, ?, ?)')
+      .run('History.Legacy@Kage.Test', await require('bcryptjs').hash('legacypass1', 10), 'Legacy', 1, '2026-01-01 00:00:00');
+    await dbModule.prepare('INSERT INTO orders (order_number, customer_name, email, phone, address, city, payment_method, subtotal, shipping, shipping_pending, total, items_json, status, customer_id, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
+      .run('KAGE-LEGACY9', 'Legacy Buyer', 'History.Legacy@Kage.Test', '03001112244', 'Legacy St', 'Lahore', 'cod', 900, 0, 0, 900, JSON.stringify([{ id: 1, name: 'Legacy Tee', size: 'One Size', qty: 5, unit: 180, total: 900 }]), 'delivered', Number(cust.lastInsertRowid), '2026-01-03 00:00:00');
+
+    // 1. newsletter: "already subscribed" instead of a second row
+    const csrfNews = await getCsrf();
+    const news = await request(PORT, 'POST', '/api/newsletter', {
+      body: { email: 'case.only@kage.test' },
+      headers: { 'X-CSRF-Token': csrfNews.token, Cookie: csrfNews.cookie }
+    });
+    assert.strictEqual(news.status, 200, JSON.stringify(news.json));
+    assert.match(news.json.message, /already subscribed/i);
+    assert.strictEqual(Number((await dbModule.prepare('SELECT COUNT(*) AS c FROM newsletter_subscribers WHERE LOWER(email) = ?').get('case.only@kage.test')).c), 1);
+
+    // 2. login with the lowercased address must find the mixed-case account
+    const csrfLogin = await getCsrf();
+    const login = await request(PORT, 'POST', '/api/customers/login', {
+      body: { email: 'history.legacy@kage.test', password: 'legacypass1' },
+      headers: { 'X-CSRF-Token': csrfLogin.token, Cookie: csrfLogin.cookie }
+    });
+    assert.strictEqual(login.status, 200, JSON.stringify(login.json));
+    const history = await request(PORT, 'GET', '/api/customers/orders', { headers: { Cookie: cookieHeader(login) } });
+    assert.strictEqual(history.status, 200, JSON.stringify(history.json));
+    assert.ok(history.json.orders.some((o) => o.order_number === 'KAGE-LEGACY9'),
+      `the mixed-case legacy order must appear in history: ${JSON.stringify(history.json.orders.map((o) => o.order_number))}`);
+
+    // 3. clan: the legacy order's shirts must count
+    const csrfClan = await getCsrf();
+    const clan = await request(PORT, 'POST', '/api/clan-join', {
+      body: { email: 'History.Legacy@Kage.Test' },
+      headers: { 'X-CSRF-Token': csrfClan.token, Cookie: csrfClan.cookie }
+    });
+    assert.strictEqual(clan.status, 200, JSON.stringify(clan.json));
+    assert.ok(Number(clan.json.total_shirts) >= 5, `clan total must include the legacy order: ${JSON.stringify(clan.json)}`);
+
+    // 4. forgot-password must also find a mixed-case account row
+    const csrfReset = await getCsrf();
+    const reset = await request(PORT, 'POST', '/api/auth/forgot-password', {
+      body: { email: 'history.legacy@kage.test', user_type: 'customer' },
+      headers: { 'X-CSRF-Token': csrfReset.token, Cookie: csrfReset.cookie }
+    });
+    assert.strictEqual(reset.status, 200, JSON.stringify(reset.json));
+
+    await dbModule.prepare('DELETE FROM orders WHERE order_number = ?').run('KAGE-LEGACY9');
+    await dbModule.prepare('DELETE FROM customers WHERE LOWER(email) = ?').run('history.legacy@kage.test');
+    await dbModule.prepare('DELETE FROM newsletter_subscribers WHERE LOWER(email) IN (?, ?)').run('case.only@kage.test', 'history.legacy@kage.test');
+  });
+
+  await check('a mixed-case order reaches its verified customer and the clan total', async () => {
+    const probe = await request(PORT, 'POST', '/api/products', {
+      body: { name: 'Case Probe Tee', category: 'anime', price: 300, sizes: JSON.stringify(['One Size']), size_stock: JSON.stringify({ 'One Size': 40 }) },
+      headers: await adminHeaders()
+    });
+    assert.strictEqual(probe.status, 201, JSON.stringify(probe.json));
+
+    const signup = await captureEmailLog(() => signupCustomer('mixed.case@example.com', 'mixedcase1', 'Mixed Case'));
+    assert.strictEqual(signup.result.res.status, 200, JSON.stringify(signup.result.res.json));
+    const verifyUrl = extractVerifyUrl(signup.logged);
+    assert.ok(verifyUrl, 'the signup must email a verification link');
+    const token = new URL(verifyUrl).searchParams.get('token');
+    const verified = await request(PORT, 'GET', `/api/auth/verify-email?token=${encodeURIComponent(token)}`);
+    assert.strictEqual(verified.status, 200, JSON.stringify(verified.json));
+
+    const csrf = await getCsrf();
+    const order = await request(PORT, 'POST', '/api/orders', {
+      body: { name: 'Mixed Case', email: 'Mixed.Case@Example.com', phone: '03001112255', address: 'Case St', city: 'Lahore', payment_method: 'cod', items: [{ id: probe.json.id, qty: 5, size: 'One Size' }] },
+      headers: { 'X-CSRF-Token': csrf.token, Cookie: csrf.cookie }
+    });
+    assert.strictEqual(order.status, 201, JSON.stringify(order.json));
+    const stored = await dbModule.prepare('SELECT email FROM orders WHERE order_number = ?').get(order.json.order_number);
+    assert.strictEqual(stored.email, 'mixed.case@example.com', 'orders must store the email trimmed and lowercased');
+
+    const csrfLogin = await getCsrf();
+    const login = await request(PORT, 'POST', '/api/customers/login', {
+      body: { email: 'Mixed.Case@Example.com', password: 'mixedcase1' },
+      headers: { 'X-CSRF-Token': csrfLogin.token, Cookie: csrfLogin.cookie }
+    });
+    assert.strictEqual(login.status, 200, JSON.stringify(login.json));
+    const history = await request(PORT, 'GET', '/api/customers/orders', { headers: { Cookie: cookieHeader(login) } });
+    assert.strictEqual(history.status, 200, JSON.stringify(history.json));
+    assert.ok(history.json.orders.some((o) => o.order_number === order.json.order_number),
+      'the mixed-case order must show up in that verified customer\'s history');
+
+    const csrfClan = await getCsrf();
+    const clan = await request(PORT, 'POST', '/api/clan-join', {
+      body: { email: 'Mixed.Case@Example.com' },
+      headers: { 'X-CSRF-Token': csrfClan.token, Cookie: csrfClan.cookie }
+    });
+    assert.strictEqual(clan.status, 200, JSON.stringify(clan.json));
+    assert.ok(Number(clan.json.total_shirts) >= 5, `the order must count toward the clan total: ${JSON.stringify(clan.json)}`);
+  });
+
+  await check('customer and admin logouts only clear their own identity', async () => {
+    // A real browser jar: every Set-Cookie pair overrides its key, exactly like
+    // Chrome does (cookie-session writes kage.session + kage.session.sig).
+    const jar = {};
+    const applyCookies = (res) => {
+      (res.headers['set-cookie'] || []).forEach((c) => {
+        const [pair] = c.split(';');
+        const eq = pair.indexOf('=');
+        if (eq > 0) jar[pair.slice(0, eq).trim()] = pair.slice(eq + 1).trim();
+      });
+    };
+    const jarHeaders = () => ({
+      Cookie: Object.entries(jar).map(([k, v]) => `${k}=${v}`).join('; '),
+      ...(jar['kage.csrf'] ? { 'X-CSRF-Token': jar['kage.csrf'] } : {})
+    });
+
+    applyCookies(await request(PORT, 'GET', '/api/products'));           // CSRF cookie
+    applyCookies(await request(PORT, 'POST', '/api/admin/login', { body: { email: 'root@kage.test', password: 'supersecret1' } }));
+    assert.strictEqual((await request(PORT, 'GET', '/api/admin/me', { headers: jarHeaders() })).status, 200, 'admin login must work');
+
+    // The customer signs in in the same browser — one shared kage.session.
+    applyCookies(await request(PORT, 'POST', '/api/customers/login', { body: { email: 'cust@kage.test', password: 'newpass456' }, headers: jarHeaders() }));
+    assert.strictEqual((await request(PORT, 'GET', '/api/admin/me', { headers: jarHeaders() })).status, 200, 'both identities must be live');
+    assert.strictEqual((await request(PORT, 'GET', '/api/customers/me', { headers: jarHeaders() })).status, 200, 'both identities must be live');
+
+    // Customer logs out → the admin session must survive.
+    const customerLogout = await request(PORT, 'POST', '/api/customers/logout', { headers: jarHeaders() });
+    assert.strictEqual(customerLogout.status, 200, JSON.stringify(customerLogout.json));
+    assert.ok(!/kage\.cust=/.test((customerLogout.headers['set-cookie'] || []).join(' | ')),
+      'the dead kage.cust Set-Cookie must be gone (cookie was never set anywhere)');
+    applyCookies(customerLogout);
+    assert.strictEqual((await request(PORT, 'GET', '/api/admin/me', { headers: jarHeaders() })).status, 200,
+      'logging the customer out must not log the admin out');
+    assert.strictEqual((await request(PORT, 'GET', '/api/customers/me', { headers: jarHeaders() })).status, 401,
+      'the customer session must be gone');
+
+    // Admin logs out → the customer session must survive.
+    applyCookies(await request(PORT, 'POST', '/api/customers/login', { body: { email: 'cust@kage.test', password: 'newpass456' }, headers: jarHeaders() }));
+    assert.strictEqual((await request(PORT, 'GET', '/api/customers/me', { headers: jarHeaders() })).status, 200);
+    applyCookies(await request(PORT, 'POST', '/api/admin/login', { body: { email: 'root@kage.test', password: 'supersecret1' }, headers: jarHeaders() }));
+    const adminLogout = await request(PORT, 'POST', '/api/admin/logout', { headers: jarHeaders() });
+    assert.strictEqual(adminLogout.status, 200, JSON.stringify(adminLogout.json));
+    applyCookies(adminLogout);
+    assert.strictEqual((await request(PORT, 'GET', '/api/customers/me', { headers: jarHeaders() })).status, 200,
+      'logging the admin out must not log the customer out');
+    assert.strictEqual((await request(PORT, 'GET', '/api/admin/me', { headers: jarHeaders() })).status, 401,
+      'the admin session must be gone');
+  });
+
+  await check('reactivating a cancelled order is refused when the stock is gone', async () => {
+    const createProbe = async (name, stock) => {
+      const r = await request(PORT, 'POST', '/api/products', {
+        body: { name, category: 'anime', price: 400, sizes: JSON.stringify(['One Size']), size_stock: JSON.stringify({ 'One Size': stock }) },
+        headers: await adminHeaders()
+      });
+      assert.strictEqual(r.status, 201, JSON.stringify(r.json));
+      return r.json;
+    };
+    const place = async (productId, qty, email) => {
+      const csrf = await getCsrf();
+      return request(PORT, 'POST', '/api/orders', {
+        body: { name: 'Stock Probe', email, phone: '03001112266', address: 'Stock St', city: 'Lahore', payment_method: 'cod', items: [{ id: productId, qty, size: 'One Size' }] },
+        headers: { 'X-CSRF-Token': csrf.token, Cookie: csrf.cookie }
+      });
+    };
+
+    // Sell out, cancel (stock returns), then sell every unit to another order.
+    const soldOut = await createProbe('Reactivate Probe Tee', 4);
+    const first = await place(soldOut.id, 4, 'reactivate.one@kage.test');
+    assert.strictEqual(first.status, 201, JSON.stringify(first.json));
+    const firstRow = await dbModule.prepare('SELECT id FROM orders WHERE order_number = ?').get(first.json.order_number);
+    assert.strictEqual((await request(PORT, 'PATCH', `/api/orders/${firstRow.id}/status`, { body: { status: 'cancelled' }, headers: await adminHeaders() })).status, 200);
+    const afterCancel = await request(PORT, 'GET', `/api/products/${soldOut.id}`);
+    assert.strictEqual(afterCancel.json.size_stock['One Size'], 4, 'cancelling must return the units');
+
+    const second = await place(soldOut.id, 4, 'reactivate.two@kage.test');
+    assert.strictEqual(second.status, 201, JSON.stringify(second.json));
+    assert.strictEqual((await request(PORT, 'GET', `/api/products/${soldOut.id}`)).json.size_stock['One Size'], 0);
+
+    const reactivate = await request(PORT, 'PATCH', `/api/orders/${firstRow.id}/status`, { body: { status: 'pending' }, headers: await adminHeaders() });
+    assert.strictEqual(reactivate.status, 409, `expected 409, got ${reactivate.status} ${JSON.stringify(reactivate.json)}`);
+    assert.match(reactivate.json.error, /Reactivate Probe Tee/, 'the message must name the product');
+    assert.match(reactivate.json.error, /One Size/, 'the message must name the size');
+    assert.match(reactivate.json.error, /4 needed/, 'the message must say how many are needed');
+    assert.match(reactivate.json.error, /0 available/, 'the message must say how many are available');
+    assert.strictEqual((await request(PORT, 'GET', `/api/products/${soldOut.id}`)).json.size_stock['One Size'], 0, 'stock must be unchanged');
+    assert.strictEqual((await dbModule.prepare('SELECT status FROM orders WHERE id = ?').get(firstRow.id)).status, 'cancelled', 'the status must be unchanged');
+
+    // Multi-line order: one line has stock, the other does not — nothing may be
+    // partially applied.
+    const mixedA = await createProbe('Reactivate Probe A', 5);
+    const mixedB = await createProbe('Reactivate Probe B', 1);
+    const csrfMulti = await getCsrf();
+    const multi = await request(PORT, 'POST', '/api/orders', {
+      body: { name: 'Stock Probe', email: 'reactivate.three@kage.test', phone: '03001112277', address: 'Stock St', city: 'Lahore', payment_method: 'cod',
+        items: [{ id: mixedA.id, qty: 5, size: 'One Size' }, { id: mixedB.id, qty: 1, size: 'One Size' }] },
+      headers: { 'X-CSRF-Token': csrfMulti.token, Cookie: csrfMulti.cookie }
+    });
+    assert.strictEqual(multi.status, 201, JSON.stringify(multi.json));
+    const multiRow = await dbModule.prepare('SELECT id FROM orders WHERE order_number = ?').get(multi.json.order_number);
+    assert.strictEqual((await request(PORT, 'PATCH', `/api/orders/${multiRow.id}/status`, { body: { status: 'cancelled' }, headers: await adminHeaders() })).status, 200);
+    // Take the units of B (the second line) elsewhere; A still has enough.
+    const stealB = await place(mixedB.id, 1, 'reactivate.four@kage.test');
+    assert.strictEqual(stealB.status, 201, JSON.stringify(stealB.json));
+    const okStockA = (await request(PORT, 'GET', `/api/products/${mixedA.id}`)).json.size_stock['One Size'];
+    const blocked = await request(PORT, 'PATCH', `/api/orders/${multiRow.id}/status`, { body: { status: 'pending' }, headers: await adminHeaders() });
+    assert.strictEqual(blocked.status, 409, `expected 409, got ${blocked.status} ${JSON.stringify(blocked.json)}`);
+    assert.match(blocked.json.error, /Reactivate Probe B/);
+    assert.strictEqual((await request(PORT, 'GET', `/api/products/${mixedA.id}`)).json.size_stock['One Size'], okStockA, 'the line that COULD be re-taken must not be, either');
+    assert.strictEqual((await dbModule.prepare('SELECT status FROM orders WHERE id = ?').get(multiRow.id)).status, 'cancelled');
+
+    // With enough stock, reactivation still works.
+    const plenty = await createProbe('Reactivate Probe C', 6);
+    const last = await place(plenty.id, 2, 'reactivate.five@kage.test');
+    assert.strictEqual(last.status, 201, JSON.stringify(last.json));
+    const lastRow = await dbModule.prepare('SELECT id FROM orders WHERE order_number = ?').get(last.json.order_number);
+    assert.strictEqual((await request(PORT, 'PATCH', `/api/orders/${lastRow.id}/status`, { body: { status: 'cancelled' }, headers: await adminHeaders() })).status, 200);
+    assert.strictEqual((await request(PORT, 'GET', `/api/products/${plenty.id}`)).json.size_stock['One Size'], 6);
+    const reopen = await request(PORT, 'PATCH', `/api/orders/${lastRow.id}/status`, { body: { status: 'pending' }, headers: await adminHeaders() });
+    assert.strictEqual(reopen.status, 200, JSON.stringify(reopen.json));
+    assert.strictEqual((await request(PORT, 'GET', `/api/products/${plenty.id}`)).json.size_stock['One Size'], 4, 'reactivation must retake the units');
+  });
+
+  // ---------------------------------------------------------------
+  // Session secret: one rule for the whole app (utils/secret.js)
+  // ---------------------------------------------------------------
+  console.log('\nSession secret resolution:');
+
+  const SECRET_MODULE = path.join(REPO_ROOT, 'utils', 'secret.js');
+  const SECRET_CALL = `const { getSessionSecret } = require(${JSON.stringify(SECRET_MODULE)}); console.log('VALUE:' + getSessionSecret());`;
+  const runNode = (env, args) => spawnSync(process.execPath, args, { cwd: REPO_ROOT, encoding: 'utf8', timeout: 30000, env: cleanEnv(env) });
+
+  await check('no NODE_ENV and no SESSION_SECRET → throws "SESSION_SECRET is required"', async () => {
+    const r = runNode({}, ['-e', SECRET_CALL]);
+    assert.notStrictEqual(r.status, 0, 'the module call must throw');
+    assert.match(r.stderr, /SESSION_SECRET is required/);
+    assert.match(r.stderr, /randomBytes\(48\)/, 'the error must show how to generate one');
+  });
+
+  await check('a SESSION_SECRET shorter than 32 characters → throws', async () => {
+    const short = runNode({ SESSION_SECRET: '1234567890' }, ['-e', SECRET_CALL]);
+    assert.notStrictEqual(short.status, 0);
+    assert.match(short.stderr, /at least 32 characters/);
+    // …and exactly 32 is accepted.
+    const exact = runNode({ NODE_ENV: 'production', SESSION_SECRET: 'x'.repeat(32) }, ['-e', SECRET_CALL]);
+    assert.strictEqual(exact.status, 0, exact.stderr);
+    assert.ok(exact.stdout.includes('VALUE:' + 'x'.repeat(32)));
+  });
+
+  await check('NODE_ENV=production with a 48-char secret → works', async () => {
+    const secret = crypto.randomBytes(24).toString('hex'); // 48 chars
+    const r = runNode({ NODE_ENV: 'production', SESSION_SECRET: secret }, ['-e', SECRET_CALL]);
+    assert.strictEqual(r.status, 0, r.stderr);
+    assert.ok(r.stdout.includes('VALUE:' + secret), 'the configured secret must be used verbatim');
+  });
+
+  await check('NODE_ENV=development with no secret → dev fallback, other envs refuse', async () => {
+    const dev = runNode({ NODE_ENV: 'development' }, ['-e', SECRET_CALL]);
+    assert.strictEqual(dev.status, 0, dev.stderr);
+    assert.ok(dev.stdout.includes('VALUE:' + require('../utils/secret').DEV_FALLBACK_SECRET));
+    for (const env of ['staging', 'Production', 'prod', '']) {
+      const r = runNode(env ? { NODE_ENV: env } : {}, ['-e', SECRET_CALL]);
+      assert.notStrictEqual(r.status, 0, `NODE_ENV=${JSON.stringify(env)} must not get a fallback`);
+      assert.match(r.stderr, /SESSION_SECRET is required/);
+    }
+  });
+
+  await check('node server.js refuses to boot without SESSION_SECRET (clear message)', async () => {
+    const r = runNode({}, ['server.js']);
+    assert.strictEqual(r.status, 1, `expected exit 1, got ${r.status} (stderr: ${r.stderr})`);
+    assert.match(r.stderr, /^FATAL: SESSION_SECRET is required/);
+    assert.ok(!/KAGE CULTURE — Admin System/.test(r.stdout), 'the server must not have started');
+  });
+
+  await check('a cookie signed with the old public fallback is rejected (401)', async () => {
+    const { DEV_FALLBACK_SECRET } = require('../utils/secret');
+    const payload = Buffer.from(JSON.stringify({ adminId: 1 })).toString('base64');
+    const sig = crypto.createHmac('sha256', DEV_FALLBACK_SECRET).update(payload).digest('base64');
+    const forged = `${payload}.${sig}`;
+    // The cookie really is a valid signature — just for the string in the repo.
+    assert.ok(readSignedSession(forged, DEV_FALLBACK_SECRET), 'the fallback signature must verify on its own');
+    assert.strictEqual(readSignedSession(forged), null, 'the configured secret must not accept it');
+    const res = await request(PORT, 'GET', '/api/admin/me', { headers: { Cookie: `kage.session=${forged}` } });
+    assert.strictEqual(res.status, 401, JSON.stringify(res.json));
+  });
+
+  await check('every module signs with the same resolved secret', async () => {
+    const secret = require('../utils/secret').getSessionSecret();
+    const payload = Buffer.from(JSON.stringify({ adminId: 1 })).toString('base64');
+    const unsigned = await request(PORT, 'GET', '/api/admin/me', { headers: { Cookie: `kage.session=${payload}` } });
+    assert.strictEqual(unsigned.status, 401, 'an unsigned payload must never pass');
+    const sig = crypto.createHmac('sha256', secret).update(payload).digest('base64');
+    const res = await request(PORT, 'GET', '/api/admin/me', { headers: { Cookie: `kage.session=${payload}.${sig}` } });
+    assert.strictEqual(res.status, 200, JSON.stringify(res.json));
+    assert.strictEqual(res.json.admin.email, 'root@kage.test');
+  });
+
+  // ---------------------------------------------------------------
+  // Serverless readiness: a failed boot must never be cached forever
+  // ---------------------------------------------------------------
+  console.log('\nServer boot retry:');
+
+  await check('a transient db boot failure → 503 + Retry-After, then 200 after the backoff', async () => {
+    const serverModule = require('../server.js');
+    const express = require('express');
+    const config = require('../config');
+    const realInit = dbModule.init;
+    const realBackoff = config.READY_RETRY_BACKOFF_MS;
+    config.READY_RETRY_BACKOFF_MS = 250; // same rule, shorter window for the suite
+    let attempts = 0;
+    let failOnce = true;
+    const rejections = [];
+    const onRejection = (reason) => rejections.push(String(reason));
+    process.on('unhandledRejection', onRejection);
+
+    // Mock a cold start against a briefly unreachable database.
+    dbModule.init = async (...args) => {
+      attempts += 1;
+      if (failOnce) {
+        failOnce = false;
+        throw new Error('simulated outage at libsql://secret-host.turso.io?authToken=leak');
+      }
+      return realInit.apply(dbModule, args);
+    };
+
+    const routesBefore = app._router.stack.length;
+    const productsBefore = (await request(PORT, 'GET', '/api/products')).json.length;
+    const gateApp = express();
+    gateApp.use(serverModule.readinessGate);
+    gateApp.get('/api/probe', (req, res) => res.json({ ok: true }));
+    const gateServer = gateApp.listen(0);
+    const gatePort = gateServer.address().port;
+    try {
+      const first = await request(gatePort, 'GET', '/api/probe');
+      assert.strictEqual(first.status, 503, JSON.stringify(first.json));
+      assert.strictEqual(first.headers['retry-after'], '1', 'the 503 must carry Retry-After');
+      assert.ok(first.json && typeof first.json.error === 'string', 'the 503 must be JSON');
+      assert.ok(!/turso|libsql|authToken|secret-host|\bat .*\.js:\d/i.test(JSON.stringify(first.json)),
+        'the 503 must not leak internals: ' + JSON.stringify(first.json));
+      assert.strictEqual(attempts, 1, 'the first request must try to boot');
+
+      // Two requests INSIDE the backoff window: still 503, still one attempt.
+      const second = await request(gatePort, 'GET', '/api/probe');
+      const third = await request(gatePort, 'GET', '/api/probe');
+      assert.strictEqual(second.status, 503);
+      assert.strictEqual(third.status, 503);
+      assert.strictEqual(attempts, 1, 'requests inside the backoff window must not re-hit the database');
+      assert.strictEqual(third.headers['retry-after'], '1');
+
+      await sleep(config.READY_RETRY_BACKOFF_MS + 50);
+      const fourth = await request(gatePort, 'GET', '/api/probe');
+      assert.strictEqual(fourth.status, 200, `the retry after the backoff must succeed: ${JSON.stringify(fourth.json)}`);
+      assert.strictEqual(fourth.json.ok, true);
+      assert.strictEqual(attempts, 2, 'exactly one retry after the backoff');
+
+      assert.deepStrictEqual(rejections, [], 'no unhandled rejection may be emitted: ' + rejections.join('; '));
+      // A retried boot must not double-register routes or re-seed products.
+      assert.strictEqual(app._router.stack.length, routesBefore, 'routes must not be registered twice');
+      assert.strictEqual((await request(PORT, 'GET', '/api/products')).json.length, productsBefore, 'products must not be re-seeded');
+      assert.strictEqual(dbModule._initialized, true, 'a successful boot leaves the db flagged ready');
+    } finally {
+      process.removeListener('unhandledRejection', onRejection);
+      dbModule.init = realInit;
+      config.READY_RETRY_BACKOFF_MS = realBackoff;
+      await new Promise((r) => gateServer.close(r));
+    }
+  });
+
+  await check('a permanently failing db keeps answering 503 without crashing', async () => {
+    const fixture = path.join(__dirname, 'fixtures', 'db-down-serverless-child.js');
+    const child = spawnSync(process.execPath, [fixture], { cwd: REPO_ROOT, encoding: 'utf8', timeout: 60000, env: cleanEnv({}) });
+    assert.strictEqual(child.status, 0, `child exited ${child.status}\nstdout: ${child.stdout}\nstderr: ${child.stderr}`);
+    const line = child.stdout.split('\n').find((l) => l.trim().startsWith('{'));
+    assert.ok(line, `the child must report its results:\n${child.stdout}\n${child.stderr}`);
+    const out = JSON.parse(line);
+    assert.strictEqual(out.all503, true, JSON.stringify(out));
+    assert.strictEqual(out.bodyLeaks, false, 'no 503 body may leak internals');
+    assert.strictEqual(out.unhandled, 0, 'no unhandled rejection may be emitted');
+    assert.strictEqual(out.alive, true, 'the process must survive');
+    assert.deepStrictEqual(out.statuses, [503, 503, 503, 503, 503], JSON.stringify(out));
+
+    // The failed boot must NOT be cached: the burst inside the window shares one
+    // attempt, and the request after the window triggers a fresh one. The old
+    // one-shot promise produced exactly one "Turso init failed" line, ever.
+    const attempts = (child.stdout + child.stderr).match(/Turso init failed/g) || [];
+    assert.ok(attempts.length >= 2, `the boot must be retried after a failure (saw ${attempts.length} attempts)`);
+    assert.ok(attempts.length <= 3, `attempts must stay bounded by the backoff (saw ${attempts.length})`);
   });
 
   // ---------------------------------------------------------------

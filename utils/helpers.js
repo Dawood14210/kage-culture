@@ -93,6 +93,51 @@ function parseCookies(cookieHeader) {
   return result;
 }
 
+// Escape a value for interpolation into HTML — text nodes and attributes
+// (quotes are escaped too, so `href="..."`/`title="..."` are safe).
+function escapeHtml(value) {
+  return String(value == null ? '' : value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+// Strip CR/LF (and NUL) from anything that reaches an email subject or header.
+// Without this, a crafted name/order number could inject extra headers
+// (e.g. "\r\nBcc: victim@example.com").
+function stripHeaderChars(value) {
+  return String(value == null ? '' : value).replace(/[\r\n\u0000]+/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+// One email rule for the whole app (signup, login, order placement): a single
+// loose-but-strict-enough pattern plus the column length limit.
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+function isValidEmail(value) {
+  const clean = String(value == null ? '' : value).trim();
+  return clean.length > 0 && clean.length <= 160 && EMAIL_RE.test(clean);
+}
+
+// True when a free-text field carries control characters. Order fields are
+// single-line by design, and control characters are how header injection and
+// display spoofing start.
+function hasControlChars(value) {
+  return /[\u0000-\u001F\u007F]/.test(String(value == null ? '' : value));
+}
+
+// One CSV cell, RFC 4180 + spreadsheet-safe. Anything that would start a
+// formula in Excel/Sheets (= + - @ tab CR) is prefixed with a single quote —
+// quoting alone does NOT stop =HYPERLINK(...) from executing. Inner double
+// quotes are doubled and the value is always wrapped in double quotes, so
+// commas and newlines inside a value can never shift the columns.
+function csvCell(value) {
+  if (value === null || value === undefined) return '""';
+  let text = String(value);
+  if (/^[=+\-@\t\r]/.test(text)) text = "'" + text;
+  return '"' + text.replace(/"/g, '""') + '"';
+}
+
 function hashToken(token) {
   const crypto = require('crypto');
   return crypto.createHash('sha256').update(token).digest('hex');
@@ -105,9 +150,8 @@ function generateCsrfToken() {
 
 function signCsrfToken(token) {
   const crypto = require('crypto');
-  const secret = process.env.SESSION_SECRET || (process.env.NODE_ENV === 'production' ? null : 'kage-dev-secret');
-  if (!secret) return token;
-  return crypto.createHmac('sha256', secret).update(token).digest('hex');
+  const { getSessionSecret } = require('./secret');
+  return crypto.createHmac('sha256', getSessionSecret()).update(token).digest('hex');
 }
 
-module.exports = { persistImage, removeImage, parseCookies, hashToken, generateCsrfToken, signCsrfToken };
+module.exports = { persistImage, removeImage, parseCookies, hashToken, generateCsrfToken, signCsrfToken, escapeHtml, stripHeaderChars, hasControlChars, isValidEmail, csvCell };

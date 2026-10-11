@@ -6,8 +6,9 @@
   "scripts": {
     "start": "node server.js",
     "test": "node tests/e2e.test.js && node tests/frontend.test.js",
-    "dev": "node server.js",
-    "build": "node -e \"console.log('KAGE build: static site + Express API ready')\""
+    "dev": "node scripts/dev.js",
+    "build": "node -e \"console.log('KAGE build: static site + Express API ready')\"",
+    "seed": "node scripts/seed-demo.js"
   },
   "engines": {
     "node": ">=18.0.0"

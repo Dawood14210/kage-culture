@@ -11,6 +11,10 @@ module.exports = {
   // Product images: front + back + up to this many extra gallery photos
   MAX_EXTRA_IMAGES: 4,
 
+  // How long aggregated sold counts (per product) are reused before the
+  // single SQL aggregate is recomputed. Order writes invalidate immediately.
+  SOLD_COUNT_CACHE_MS: 60 * 1000,
+
   // KAGE Clan
   CLAN_THRESHOLD: 5, // shirts needed to join the clan
 
@@ -26,8 +30,16 @@ module.exports = {
   RATE_LIMIT_ORDERS: 8,   // order placement
   RATE_LIMIT_RESET: 5,    // password reset requests per minute
 
+  // Boot retry: after a failed database boot, requests get an immediate 503
+  // for this long instead of hammering a database that is already down. The
+  // failed attempt itself is never cached (see server.js#getReady).
+  READY_RETRY_BACKOFF_MS: 1000,
+
   // Password reset
   RESET_TOKEN_EXPIRY_MS: 60 * 60 * 1000, // 1 hour
+
+  // Customer email verification (order history is gated on it)
+  VERIFY_TOKEN_EXPIRY_MS: 24 * 60 * 60 * 1000, // 24 hours
 
   // Order statuses
   ORDER_STATUSES: ['pending', 'awaiting_verification', 'confirmed', 'shipped', 'delivered', 'cancelled'],

@@ -18,7 +18,14 @@
     see `readSignedSession()` in `middleware/auth.js`. Never trust a decoded
     base64 payload without verifying its HMAC.
   - Admin/product/order mutation routes require `requireCsrf` + `requireAuth`.
-  - `SESSION_SECRET` is required in production (`server.js` exits without it).
+  - One-time data steps (demo seed, seed sale prices, unit-cost backfill) run
+    **once per database** via `app_settings` keys — never per cold start. A
+    shop's catalogue is owned by the admin panel; never re-seed or re-apply
+    prices on boot.
+  - `SESSION_SECRET` must be resolved through `utils/secret.js#getSessionSecret()`
+    — never inline a `process.env.SESSION_SECRET || '...'` fallback anywhere.
+    The dev fallback is allowed only when `NODE_ENV` is exactly `development`
+    or `test`; every other case (including unset) exits at boot.
 
 ## Session conventions
 

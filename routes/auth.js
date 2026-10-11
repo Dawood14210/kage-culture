@@ -8,10 +8,23 @@ const config = require('../config');
 const { requireCsrf } = require('../middleware/csrf');
 const { requireAuth, requireCustomerAuth } = require('../middleware/auth');
 const { strictLimiter, resetLimiter } = require('../middleware/rateLimit');
-const { hashToken } = require('../utils/helpers');
-const { sendEmail } = require('../utils/email');
+const { hashToken, isValidEmail } = require('../utils/helpers');
+const { getSessionSecret } = require('../utils/secret');
+const { sendEmail, sendVerificationEmail, buildLink, escapeHtml } = require('../utils/email');
 
-module.exports = function createAuthRoutes(db, SESSION_SECRET) {
+// SESSION_SECRET defaults through utils/secret.js so this route file can never
+// carry its own copy of the fallback.
+// One kage.session cookie carries BOTH identities (adminId and customerId), so
+// a logout must drop only its own key. Assigning `req.session = null` here used
+// to sign the other identity out of the same browser too.
+function clearSessionIdentity(req, key) {
+  if (!req.session) return;
+  delete req.session[key];
+  const identities = Object.keys(req.session).filter((k) => k === 'adminId' || k === 'customerId');
+  if (identities.length === 0) req.session = null; // nothing left — drop the cookie
+}
+
+module.exports = function createAuthRoutes(db, SESSION_SECRET = getSessionSecret()) {
   const router = express.Router();
 
   // --- Admin setup (first-run) ---
@@ -68,7 +81,7 @@ module.exports = function createAuthRoutes(db, SESSION_SECRET) {
 
   // --- Admin logout ---
   router.post('/api/admin/logout', requireCsrf, (req, res) => {
-    req.session = null;
+    clearSessionIdentity(req, 'adminId');
     res.json({ success: true });
   });
 
@@ -110,20 +123,22 @@ module.exports = function createAuthRoutes(db, SESSION_SECRET) {
       const clean = String(email).trim().toLowerCase();
       const type = user_type === 'customer' ? 'customer' : 'admin';
       const table = type === 'customer' ? 'customers' : 'admin';
-      const user = await db.prepare(`SELECT id, email FROM ${table} WHERE email = ?`).get(clean);
+      const user = await db.prepare(`SELECT id, email FROM ${table} WHERE LOWER(TRIM(email)) = ?`).get(clean);
       if (!user) return res.json({ success: true, message: 'If an account exists, a reset link has been sent.' });
       const rawToken = crypto.randomBytes(32).toString('hex');
       const tokenHash = hashToken(rawToken);
       const expiresAt = new Date(Date.now() + config.RESET_TOKEN_EXPIRY_MS).toISOString().replace('T', ' ').slice(0, 19);
       await db.prepare('INSERT INTO password_reset_tokens (user_type, user_id, token_hash, expires_at) VALUES (?, ?, ?, ?)').run(type, user.id, tokenHash, expiresAt);
-      const resetUrl = `${process.env.SITE_URL || 'https://kage-culture-ruby.vercel.app'}/reset-password?token=${rawToken}&type=${type}`;
+      // SITE_URL + a server-generated token only — the token is URL-encoded and
+      // the finished URL is HTML-escaped where it lands in the href.
+      const resetUrl = buildLink('/reset-password', { token: rawToken, type });
       const html = `
   <div style="font-family:'Archivo',Arial,sans-serif;background:#D9D4C8;padding:32px;color:#1A1815;">
     <div style="max-width:560px;margin:0 auto;background:#FFF;border-radius:12px;padding:32px;border:1px solid #BDB6A6;">
       <h1 style="font-size:24px;letter-spacing:0.08em;text-transform:uppercase;margin:0 0 4px;color:#4A4433;">KAGE Culture</h1>
       <p style="color:#7A7468;font-size:13px;margin:0 0 24px;">Password Reset</p>
       <p style="font-size:15px;color:#3D3931;line-height:1.6;">We received a request to reset your password. Click the link below to set a new password. This link expires in 1 hour.</p>
-      <a href="${resetUrl}" style="display:inline-block;margin:20px 0;padding:14px 28px;background:#4A4433;color:#FFF;text-decoration:none;font-weight:700;font-size:14px;letter-spacing:0.06em;text-transform:uppercase;border-radius:8px;">Reset Password</a>
+      <a href="${escapeHtml(resetUrl)}" style="display:inline-block;margin:20px 0;padding:14px 28px;background:#4A4433;color:#FFF;text-decoration:none;font-weight:700;font-size:14px;letter-spacing:0.06em;text-transform:uppercase;border-radius:8px;">Reset Password</a>
       <p style="font-size:12px;color:#8A8578;margin-top:24px;">If you didn't request this, you can safely ignore this email.</p>
     </div>
   </div>`;
@@ -153,6 +168,46 @@ module.exports = function createAuthRoutes(db, SESSION_SECRET) {
     } catch (err) { console.error('reset-password failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
   });
 
+  // ----------------------------------------------------------------
+  // Customer email verification
+  // ----------------------------------------------------------------
+  // Order history is gated on a verified email: without it, anyone could sign
+  // up with someone else's address and read that person's orders.
+  const VERIFY_TOKEN_TTL_MS = config.VERIFY_TOKEN_EXPIRY_MS;
+
+  // Issue a fresh single-use token and email the link. Any older unused token
+  // for the account is burned first, so only the newest link works.
+  async function issueVerificationToken(customer) {
+    const rawToken = crypto.randomBytes(32).toString('hex');
+    const tokenHash = hashToken(rawToken);
+    const expiresAt = new Date(Date.now() + VERIFY_TOKEN_TTL_MS).toISOString().replace('T', ' ').slice(0, 19);
+    await db.prepare('UPDATE customer_verification_tokens SET used = 1 WHERE customer_id = ? AND used = 0').run(customer.id);
+    await db.prepare('INSERT INTO customer_verification_tokens (customer_id, token_hash, expires_at) VALUES (?, ?, ?)').run(customer.id, tokenHash, expiresAt);
+    const verifyUrl = buildLink('/verify-email', { token: rawToken });
+    try { await sendVerificationEmail(customer, verifyUrl); } catch (e) { console.error('verification email failed:', e.message); }
+    return { rawToken, verifyUrl };
+  }
+
+  // Shared by the link handler and the API endpoint below.
+  async function confirmVerificationToken(rawToken) {
+    if (!rawToken || typeof rawToken !== 'string') return { ok: false, status: 400, error: 'Verification token is required.' };
+    const record = await db.prepare('SELECT * FROM customer_verification_tokens WHERE token_hash = ? AND used = 0').get(hashToken(rawToken));
+    if (!record) return { ok: false, status: 400, error: 'This verification link is invalid or has already been used.' };
+    if (Date.now() > new Date(record.expires_at).getTime()) {
+      await db.prepare('UPDATE customer_verification_tokens SET used = 1 WHERE id = ?').run(record.id);
+      return { ok: false, status: 400, error: 'This verification link has expired. Request a new one.' };
+    }
+    const customer = await db.prepare('SELECT id, email FROM customers WHERE id = ?').get(record.customer_id);
+    if (!customer) return { ok: false, status: 404, error: 'Account not found.' };
+    await db.prepare('UPDATE customer_verification_tokens SET used = 1 WHERE id = ?').run(record.id);
+    await db.prepare('UPDATE customers SET email_verified = 1 WHERE id = ?').run(customer.id);
+    // Now that the address is proven, link this customer's earlier guest orders.
+    try {
+      await db.prepare('UPDATE orders SET customer_id = ? WHERE customer_id IS NULL AND LOWER(TRIM(email)) = ?').run(customer.id, String(customer.email || '').trim().toLowerCase());
+    } catch (e) { /* the orders endpoint also matches by email */ }
+    return { ok: true, customerId: customer.id };
+  }
+
   // --- Customer signup ---
   router.post('/api/customers/signup', requireCsrf, async (req, res) => {
     try {
@@ -160,17 +215,19 @@ module.exports = function createAuthRoutes(db, SESSION_SECRET) {
       if (!email || !password) return res.status(400).json({ error: 'Email and password are required.' });
       if (password.length < config.MIN_PASSWORD_LENGTH) return res.status(400).json({ error: `Password must be at least ${config.MIN_PASSWORD_LENGTH} characters.` });
       const clean = email.trim().toLowerCase();
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean)) return res.status(400).json({ error: 'Please enter a valid email address.' });
-      const existing = await db.prepare('SELECT id FROM customers WHERE email = ?').get(clean);
+      if (!isValidEmail(clean)) return res.status(400).json({ error: 'Please enter a valid email address.' });
+      const existing = await db.prepare('SELECT id FROM customers WHERE LOWER(TRIM(email)) = ?').get(clean);
       if (existing) return res.status(400).json({ error: 'An account with that email already exists.' });
       const hash = await bcrypt.hash(password, 12);
       const customerName = String(name || '').trim().slice(0, 80);
       const now = new Date().toISOString().replace('T', ' ').slice(0, 19);
-      const result = await db.prepare('INSERT INTO customers (email, password_hash, name, created_at) VALUES (?, ?, ?, ?)').run(clean, hash, customerName, now);
+      const result = await db.prepare('INSERT INTO customers (email, password_hash, name, created_at, email_verified) VALUES (?, ?, ?, ?, 0)').run(clean, hash, customerName, now);
       const customerId = result.lastInsertRowid;
       // cookie-session middleware commits kage.session after this handler.
       req.session.customerId = customerId;
-      res.json({ success: true, customer: { id: customerId, email: clean, name: customerName } });
+      const stored = { id: customerId, email: clean, name: customerName };
+      await issueVerificationToken(stored);
+      res.json({ success: true, customer: { ...stored, email_verified: false }, message: 'Account created. Check your email to verify your address and see your order history.' });
     } catch (err) { console.error('customer/signup failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
   });
 
@@ -179,29 +236,30 @@ module.exports = function createAuthRoutes(db, SESSION_SECRET) {
     try {
       const { email, password } = req.body;
       if (!email || !password) return res.status(400).json({ error: 'Email and password are required.' });
-      const customer = await db.prepare('SELECT * FROM customers WHERE email = ?').get(email.trim().toLowerCase());
+      const customer = await db.prepare('SELECT * FROM customers WHERE LOWER(TRIM(email)) = ?').get(email.trim().toLowerCase());
       if (!customer) return res.status(401).json({ error: 'Invalid email or password.' });
       const match = await bcrypt.compare(password, customer.password_hash);
       if (!match) return res.status(401).json({ error: 'Invalid email or password.' });
       // cookie-session middleware commits kage.session after this handler.
       req.session.customerId = customer.id;
-      res.json({ success: true, customer: { id: customer.id, email: customer.email, name: customer.name, phone: customer.phone, address: customer.address, city: customer.city } });
+      res.json({ success: true, customer: { id: customer.id, email: customer.email, name: customer.name, phone: customer.phone, address: customer.address, city: customer.city, email_verified: Number(customer.email_verified) === 1 } });
     } catch (err) { console.error('customer/login failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
   });
 
   // --- Customer logout ---
   router.post('/api/customers/logout', requireCsrf, (req, res) => {
-    req.session = null;
-    res.setHeader('Set-Cookie', 'kage.cust=; Path=/; HttpOnly; Max-Age=0');
+    // NOTE: no kage.cust Set-Cookie here — nothing has set that cookie since the
+    // session was consolidated into kage.session; the old line was dead code.
+    clearSessionIdentity(req, 'customerId');
     res.json({ success: true });
   });
 
   // --- Customer: session restore (account page) ---
   router.get('/api/customers/me', requireCustomerAuth, async (req, res) => {
     try {
-      const c = await db.prepare('SELECT id, email, name, phone, address, city, created_at FROM customers WHERE id = ?').get(req.customerId);
+      const c = await db.prepare('SELECT id, email, name, phone, address, city, email_verified, created_at FROM customers WHERE id = ?').get(req.customerId);
       if (!c) return res.status(404).json({ error: 'Account not found.' });
-      res.json({ customer: c });
+      res.json({ customer: { ...c, email_verified: Number(c.email_verified) === 1 } });
     } catch (err) { console.error('customers/me GET failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
   });
 
@@ -232,6 +290,38 @@ module.exports = function createAuthRoutes(db, SESSION_SECRET) {
       const updated = await db.prepare('SELECT id, email, name, phone, address, city FROM customers WHERE id = ?').get(req.customerId);
       res.json({ success: true, customer: updated });
     } catch (err) { console.error('customers/me PUT failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
+  });
+
+  // --- Customer: verify email (link from the verification email) ---
+  // GET so the emailed link works on its own; the SPA also calls the POST
+  // variant. Both consume the same single-use token.
+  router.get('/api/auth/verify-email', resetLimiter, async (req, res) => {
+    try {
+      const result = await confirmVerificationToken(req.query.token);
+      if (!result.ok) return res.status(result.status).json({ error: result.error });
+      res.json({ success: true, message: 'Email verified. Your order history is now available.' });
+    } catch (err) { console.error('verify-email failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
+  });
+
+  router.post('/api/customers/verify-email', resetLimiter, requireCsrf, async (req, res) => {
+    try {
+      const result = await confirmVerificationToken(req.body && req.body.token);
+      if (!result.ok) return res.status(result.status).json({ error: result.error });
+      // Sign the verifying browser in, so the account page can show history.
+      if (!req.session.customerId) req.session.customerId = result.customerId;
+      res.json({ success: true, message: 'Email verified. Your order history is now available.' });
+    } catch (err) { console.error('customers/verify-email failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
+  });
+
+  // --- Customer: resend the verification email (logged-in account only) ---
+  router.post('/api/customers/resend-verification', resetLimiter, requireCsrf, requireCustomerAuth, async (req, res) => {
+    try {
+      const customer = await db.prepare('SELECT id, email, name, email_verified FROM customers WHERE id = ?').get(req.customerId);
+      if (!customer) return res.status(404).json({ error: 'Account not found.' });
+      if (Number(customer.email_verified) === 1) return res.json({ success: true, message: 'Your email is already verified.' });
+      await issueVerificationToken(customer);
+      res.json({ success: true, message: 'Verification email sent. Check your inbox.' });
+    } catch (err) { console.error('resend-verification failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
   });
 
   return router;

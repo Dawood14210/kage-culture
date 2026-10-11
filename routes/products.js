@@ -9,6 +9,7 @@ const { requireCsrf } = require('../middleware/csrf');
 const { requireAuth } = require('../middleware/auth');
 const { persistImage, removeImage } = require('../utils/helpers');
 const sizeStock = require('../utils/sizes');
+const productShape = require('../utils/productShape');
 
 function respondToProductWriteError(err, res) {
   console.error('products route failed:', err && err.message ? err.message : err);
@@ -33,28 +34,20 @@ module.exports = function createProductRoutes(db) {
   const router = express.Router();
 
   // GET all products (public)
+  // Payload is built from the public allow-list in utils/productShape.js —
+  // `unit_cost` (cost of goods) and the other internal columns stay out of it.
   router.get('/api/products', async (req, res) => {
     try {
-      const products = await db.prepare('SELECT * FROM products ORDER BY created_at DESC, id DESC').all();
-      const orders = await db.prepare('SELECT status, items_json FROM orders WHERE status != ?').all('cancelled');
-      const sold = {};
-      for (const o of orders) {
-        let items = []; try { items = JSON.parse(o.items_json || '[]'); } catch (e) { items = []; }
-        for (const it of items) sold[it.id] = (sold[it.id] || 0) + (Number(it.qty) || 1);
-      }
-      let reviewRows = [];
-      try { reviewRows = await db.prepare('SELECT product_id, rating FROM reviews WHERE status = ?').all('approved'); } catch (e) { reviewRows = []; }
-      const revAgg = {};
-      for (const r of reviewRows) {
-        const a = revAgg[r.product_id] || (revAgg[r.product_id] = { sum: 0, n: 0 });
-        a.sum += Number(r.rating) || 0; a.n += 1;
-      }
+      const products = await db.prepare(`SELECT ${productShape.PUBLIC_PRODUCT_SELECT} FROM products ORDER BY created_at DESC, id DESC`).all();
+      const sold = await productShape.getSoldCounts(db);
+      const revAgg = await productShape.loadReviewAggregates(db);
       const sizeStockById = await sizeStock.loadAllSizeStock(db);
-      const parsed = products.map(p => {
-        const agg = revAgg[p.id];
-        const stock = (p.stock_qty != null && p.stock_qty !== '') ? Number(p.stock_qty) : null;
-        return { ...p, sizes: sizeStock.parseSizeColumn(p.sizes), extra_images: JSON.parse(p.extra_images || '[]'), collections: JSON.parse(p.collections || '[]'), on_sale: Boolean(p.on_sale), in_stock: Boolean(p.in_stock) && (stock == null || stock > 0), stock_qty: stock, size_stock: sizeStockById.get(Number(p.id)) || null, sold_count: sold[p.id] || 0, order_count: sold[p.id] || 0, avg_rating: agg ? Math.round((agg.sum / agg.n) * 10) / 10 : null, review_count: agg ? agg.n : 0 };
-      });
+      const parsed = products.map(p => productShape.shapePublicProduct(p, {
+        size_stock: sizeStockById.get(Number(p.id)) || null,
+        sold_count: sold.get(Number(p.id)) || 0,
+        order_count: sold.get(Number(p.id)) || 0, // unchanged: mirrors sold_count
+        ...productShape.ratingFields(revAgg.get(Number(p.id)))
+      }));
       res.json(parsed);
     } catch (err) { console.error('products route failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
   });
@@ -62,11 +55,16 @@ module.exports = function createProductRoutes(db) {
   // GET single product (public)
   router.get('/api/products/:id', async (req, res) => {
     try {
-      const p = await db.prepare('SELECT * FROM products WHERE id = ?').get(req.params.id);
+      const p = await db.prepare(`SELECT ${productShape.PUBLIC_PRODUCT_SELECT} FROM products WHERE id = ?`).get(req.params.id);
       if (!p) return res.status(404).json({ error: 'Product not found' });
-      p.sizes = sizeStock.parseSizeColumn(p.sizes); p.extra_images = JSON.parse(p.extra_images || '[]'); p.collections = JSON.parse(p.collections || '[]'); p.on_sale = Boolean(p.on_sale); p.in_stock = Boolean(p.in_stock) && (p.stock_qty == null || Number(p.stock_qty) > 0);
-      p.size_stock = await sizeStock.loadSizeStock(db, p.id);
-      res.json(p);
+      const sold = await productShape.getSoldCounts(db);
+      const revAgg = await productShape.loadReviewAggregates(db);
+      res.json(productShape.shapePublicProduct(p, {
+        size_stock: await sizeStock.loadSizeStock(db, p.id),
+        sold_count: sold.get(Number(p.id)) || 0,
+        order_count: sold.get(Number(p.id)) || 0, // unchanged: mirrors sold_count
+        ...productShape.ratingFields(revAgg.get(Number(p.id)))
+      }));
     } catch (err) { console.error('products route failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
   });
 
@@ -114,10 +112,10 @@ module.exports = function createProductRoutes(db) {
       const estCost = unitCostVal != null ? unitCostVal : Math.max(50, Math.round(priceVal * 0.55));
       const result = await db.prepare('INSERT INTO products (name, category, fit, price, sale_price, on_sale, description, sizes, front_image, back_image, extra_images, in_stock, unit_cost, stock_qty) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(cleanName, category, String(fit || '').trim().slice(0, 60), priceVal, salePriceVal, onSale, String(description || '').slice(0, 2000), JSON.stringify(sizesParsed), frontImage, backImage, JSON.stringify(extraImages), inStock, estCost, stockQty);
       if (sizeStockInput.value) await sizeStock.replaceSizeStock(db, result.lastInsertRowid, sizeStockInput.value);
-      const product = await db.prepare('SELECT * FROM products WHERE id = ?').get(result.lastInsertRowid);
-      product.sizes = sizeStock.parseSizeColumn(product.sizes); product.extra_images = JSON.parse(product.extra_images || '[]'); product.collections = JSON.parse(product.collections || '[]'); product.on_sale = Boolean(product.on_sale); product.in_stock = Boolean(product.in_stock);
-      product.size_stock = await sizeStock.loadSizeStock(db, product.id);
-      res.status(201).json(product);
+      const product = await db.prepare(`SELECT ${productShape.ADMIN_PRODUCT_SELECT} FROM products WHERE id = ?`).get(result.lastInsertRowid);
+      // Admin-only route (requireAuth + requireCsrf): returns the full shape so
+      // the panel keeps unit_cost for the edit form and the P&L.
+      res.status(201).json(productShape.shapeAdminProduct(product, { size_stock: await sizeStock.loadSizeStock(db, product.id) }));
     } catch (err) { respondToProductWriteError(err, res); }
   });
 
@@ -203,10 +201,8 @@ module.exports = function createProductRoutes(db) {
       const now = new Date().toISOString().replace('T', ' ').slice(0, 19);
       await db.prepare('UPDATE products SET name=?, category=?, fit=?, price=?, sale_price=?, on_sale=?, description=?, sizes=?, front_image=?, back_image=?, extra_images=?, in_stock=?, unit_cost=?, stock_qty=?, updated_at=? WHERE id=?').run(finalName, finalCategory, finalFit, finalPrice, salePriceVal, onSale, finalDesc, JSON.stringify(sizesParsed), frontImage, backImage, JSON.stringify(extraImages), finalStockQty === 0 ? 0 : finalInStock, finalUnitCost, finalStockQty, now, req.params.id);
       if (nextSizeStock) await sizeStock.replaceSizeStock(db, existing.id, nextSizeStock);
-      const updated = await db.prepare('SELECT * FROM products WHERE id = ?').get(req.params.id);
-      updated.sizes = sizeStock.parseSizeColumn(updated.sizes); updated.extra_images = JSON.parse(updated.extra_images || '[]'); updated.collections = JSON.parse(updated.collections || '[]'); updated.on_sale = Boolean(updated.on_sale); updated.in_stock = Boolean(updated.in_stock);
-      updated.size_stock = await sizeStock.loadSizeStock(db, existing.id);
-      res.json(updated);
+      const updated = await db.prepare(`SELECT ${productShape.ADMIN_PRODUCT_SELECT} FROM products WHERE id = ?`).get(req.params.id);
+      res.json(productShape.shapeAdminProduct(updated, { size_stock: await sizeStock.loadSizeStock(db, existing.id) }));
     } catch (err) { respondToProductWriteError(err, res); }
   });
 

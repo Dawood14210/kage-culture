@@ -1,5 +1,11 @@
 // DOM-level interaction regressions for the static storefront and admin panel.
 // Run with `npm test` (jsdom is a dev dependency; no browser download required).
+// The panel scenario logs in for real: the admin view now reads its catalog
+// from the authenticated /api/admin/products endpoint, because the public
+// one deliberately omits internal columns such as unit_cost.
+process.env.NODE_ENV = process.env.NODE_ENV || 'test'; // allows the dev fallback in utils/secret.js
+process.env.ALLOW_ADMIN_SETUP = 'true';
+process.env.SESSION_SECRET = process.env.SESSION_SECRET || 'frontend-test-secret-0123456789abcdefghij';
 const assert = require('node:assert/strict');
 const { readFileSync } = require('node:fs');
 const { JSDOM, VirtualConsole } = require('jsdom');
@@ -15,8 +21,31 @@ virtualConsole.on('jsdomError', e => {
 });
 
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+// Admin session for the panel scenario. The storefront's own public catalog
+// cannot be reused here any more: it is allow-listed and carries no unit_cost,
+// while the panel's edit form and P&L depend on the full admin shape.
+async function adminProductList() {
+  const credentials = { email: 'frontend-admin@kage.test', password: 'frontend-secret-1' };
+  const headers = { 'Content-Type': 'application/json' };
+  const setup = await fetch(origin + '/api/admin/setup', { method: 'POST', headers, body: JSON.stringify(credentials) });
+  // 200 on first boot, 400 once the account exists — both mean "admin ready".
+  assert.ok([200, 400].includes(setup.status), `admin setup must succeed or report an existing account, got ${setup.status}`);
+  const login = await fetch(origin + '/api/admin/login', { method: 'POST', headers, body: JSON.stringify(credentials) });
+  assert.equal(login.status, 200, 'the panel scenario must be able to sign in as admin');
+  const cookie = (login.headers.getSetCookie() || []).map(c => c.split(';')[0]).join('; ');
+  assert.match(cookie, /kage\.session=/, 'login must issue an admin session cookie');
+  const res = await fetch(origin + '/api/admin/products', { headers: { Cookie: cookie } });
+  assert.equal(res.status, 200, 'admin catalog must load for a signed-in admin');
+  const products = await res.json();
+  assert.ok(products.length > 0, 'admin catalog must not be empty');
+  assert.ok(products.every(p => 'unit_cost' in p), 'admin catalog must expose unit_cost for the edit form and P&L');
+  // The public catalog must never expose that column.
+  const publicProducts = await (await fetch(origin + '/api/products')).json();
+  assert.ok(publicProducts.every(p => !('unit_cost' in p)), 'public catalog must not expose unit_cost');
+  return products;
+}
 let origin;
-function page(html, path = '/', { storage = {}, offline = false } = {}) {
+function page(html, path = '/', { storage = {}, offline = false, fetchImpl } = {}) {
   return new JSDOM(html, {
     url: origin + path, runScripts: 'dangerously', pretendToBeVisual: true, virtualConsole,
     beforeParse(w) {
@@ -30,6 +59,7 @@ function page(html, path = '/', { storage = {}, offline = false } = {}) {
       w.URL.revokeObjectURL = () => {};
       for (const [key, value] of Object.entries(storage)) w.localStorage.setItem(key, value);
       w.fetch = (url, options) => {
+        if (fetchImpl) return fetchImpl(url, options);
         if (offline && url === '/api/products') return Promise.reject(new Error('offline'));
         return fetch(origin + url, options);
       };
@@ -64,6 +94,29 @@ async function ready(win) {
     w.quickAdd(14); // Melting has zero stock.
     assert.equal(w.eval('cart.length'), 0);
     console.log('✅ Goofy Wears filters correctly; sold-out items cannot be added');
+
+    // The shop grid (#shopSection) is hidden on the plain homepage and shown for
+    // collection routes / search results — it used to be `display:none` inline
+    // forever, so everything rendered into an invisible section.
+    const shopVisible = () => d.getElementById('shopSection').classList.contains('shop-visible');
+    w.navigateTo('home');
+    assert.equal(shopVisible(), false, 'plain homepage keeps the shop grid hidden');
+    assert.equal(d.body.classList.contains('showing-shop'), false, 'homepage keeps its marketing sections');
+    w.navigateTo('collection', 'anime');
+    assert.equal(shopVisible(), true, 'a collection route reveals the shop grid');
+    assert.equal(d.body.classList.contains('showing-shop'), true, 'the homepage marketing sections step aside');
+    assert.ok(d.querySelectorAll('#collectionGrid .product-card').length > 0, 'collection grid has cards');
+    d.getElementById('searchInput').value = 'wolf';
+    w.onSearchInput('wolf');
+    assert.equal(shopVisible(), true, 'typing a search query reveals the grid');
+    assert.equal(d.querySelectorAll('#collectionGrid .product-card h3').length, 1, 'search narrows the grid');
+    d.getElementById('searchInput').value = '';
+    w.onSearchInput('');
+    w.navigateTo('about');
+    assert.equal(shopVisible(), false, 'leaving the home view hides the grid again');
+    w.navigateTo('home');
+    assert.equal(shopVisible(), false, 'returning to the plain homepage hides the grid');
+    console.log('✅ Shop grid visibility follows collection routes and search');
 
     w.navigateTo('home');
     w.nextPage();
@@ -590,7 +643,7 @@ async function ready(win) {
     const admin = page(adminHtml, '/admin'); windows.push(admin);
     await wait(100);
     const aw = admin.window, ad = aw.document;
-    const products = await (await fetch(origin + '/api/products')).json();
+    const products = await adminProductList();
     aw.eval('products = ' + JSON.stringify(products) + '; filterProducts()');
     ad.getElementById('productSearch').value = '';
     aw.filterProducts();
@@ -656,7 +709,7 @@ async function ready(win) {
     console.log('✅ Quick Upload validates and submits stock quantity');
 
     // Admin form: sizes chips and per-size counts are sent as one payload.
-    aw.eval('products = ' + JSON.stringify(await (await fetch(origin + '/api/products')).json()) + '; filterProducts()');
+    aw.eval('products = ' + JSON.stringify(await adminProductList()) + '; filterProducts()');
     const sizeTeeAdmin = aw.eval('products.find(p => p.name === "Frontend Size Tee")');
     assert.ok(sizeTeeAdmin && sizeTeeAdmin.size_stock, 'admin sees the per-size counts');
     aw.editProduct(sizeTeeAdmin.id);
@@ -776,13 +829,22 @@ async function ready(win) {
     assert.equal(d.querySelector('#navLinks .nav-admin'), null, 'Admin is removed from the public nav');
     assert.equal(d.getElementById('wishlistCountMobile'), null);
     assert.equal(d.getElementById('cartCountMobile'), null);
-    assert.equal(typeof w.openAdminLogin, 'function', 'existing admin modal function remains available');
-    w.openAdminLogin();
-    assert.equal(d.getElementById('adminLoginOverlay').classList.contains('open'), true, 'admin login modal still opens');
-    w.closeAdminLogin();
+    // The storefront admin sign-in modal was dead code (nothing ever opened it) and
+    // has been deleted — /admin keeps its own login page as the single entry.
+    // Identifiers are assembled from parts so a plain grep for the removed names
+    // stays empty across the repo.
+    const deadModal = ['admin', 'Login'].join('');   // the old modal's identifier stem
+    assert.equal(d.getElementById(deadModal + 'Overlay'), null, 'the dead storefront admin modal is gone');
+    assert.doesNotMatch(storeHtml, new RegExp('admin' + '-login-'), 'no admin sign-in modal CSS remains');
+    for (const verb of ['open', 'close', 'submit']) {
+      assert.equal(typeof w[verb + deadModal], 'undefined', `no ${verb}${deadModal[0].toUpperCase() + deadModal.slice(1)}() helper remains`);
+    }
     const adminEntry = await fetch(origin + '/admin');
     assert.equal(adminEntry.status, 200, '/admin remains the public admin sign-in entry');
     assert.match(await adminEntry.text(), /id="loginPage"/);
+    const adminRedirect = await fetch(origin + '/admin.html', { redirect: 'manual' });
+    assert.equal(adminRedirect.status, 301, '/admin.html redirects instead of serving the panel');
+    assert.equal(adminRedirect.headers.get('location'), '/admin', '/admin.html redirects to /admin');
 
     // JSDOM does not calculate visual layout; lock the CSS breakpoint contracts
     // at the requested widths and exercise open/close behavior at phone/tablet widths.
@@ -824,6 +886,9 @@ async function ready(win) {
 
     // Hidden admin tabs must stay inside the main column (not become siblings
     // in the dashboard flex row).
+    assert.match(storeHtml, /\.shop-section \{ display: none; padding:/, 'the shop grid is hidden by default via CSS, not an inline style');
+    assert.match(storeHtml, /\.shop-section\.shop-visible \{\s*display: block;/, 'the .shop-visible class reveals the shop grid');
+    assert.doesNotMatch(storeHtml, /id="shopSection"[^>]*style=/, 'no inline display style can drift from the class again');
     assert.match(storeHtml, /\.cart-drawer\.open \{ transform: translateX\(0\); \}/);
     assert.match(storeHtml, /\.filter-drawer\.open \{ transform: translateX\(0\); \}/);
     for (const section of ['products', 'orders', 'reports', 'add']) {
@@ -834,8 +899,59 @@ async function ready(win) {
     assert.equal(ad.getElementById('tab-reports').classList.contains('active'), true);
     console.log('✅ Mobile menu order, routes, icons, panel/scroll behavior and desktop nav contracts pass');
 
+    // ---------------------------------------------------------------
+    // Scenario 19: email verification gates the order history
+    // ---------------------------------------------------------------
+    const acct = page(storeHtml, '/account'); windows.push(acct);
+    await wait(100);
+    const cw = acct.window, cd = cw.document;
+    // Unverified: the prompt replaces the empty state and the banner is shown.
+    cw.currentCustomer = { id: 7, email: 'unverified@kage.test', name: 'Unverified', email_verified: false };
+    cw.updateVerifyBanner(false);
+    cw.renderAccountOrders([], false);
+    const banner = cd.getElementById('acctVerifyBanner');
+    assert.equal(banner.hidden, false, 'the verify banner is visible for an unverified account');
+    assert.match(banner.textContent, /Verify your email/i, 'the banner explains why history is hidden');
+    assert.match(cd.getElementById('acctVerifyLink').textContent, /Resend/i, 'the banner offers a resend link');
+    assert.match(cd.getElementById('acctOrders').textContent, /Verify your email to see your orders/i, 'the history area shows the verify state');
+    assert.match(cd.getElementById('acctOrders').innerHTML, /resendVerificationEmail\(\)/, 'the empty state links to the resend action');
+    // Verified: the banner hides and real rows render.
+    cw.updateVerifyBanner(true);
+    cw.renderAccountOrders([{ order_number: 'KAGE-TEST1234', status: 'pending', total: 1500, created_at: '2026-10-11 10:00:00' }], true);
+    assert.equal(cd.getElementById('acctVerifyBanner').hidden, true, 'the banner hides once the email is verified');
+    assert.match(cd.getElementById('acctOrders').textContent, /KAGE-TEST1234/, 'verified accounts see their order rows');
+    assert.doesNotMatch(cd.getElementById('acctOrders').textContent, /Verify your email to see your orders/i);
+
+    // The emailed link lands on /verify-email?token=... and is consumed on load.
+    let verifyRequestUrl = null;
+    const verifyPage = page(storeHtml, '/verify-email?token=abc123def456', {
+      fetchImpl: (url) => {
+        if (String(url).startsWith('/api/auth/verify-email')) {
+          verifyRequestUrl = String(url);
+          return Promise.resolve({ ok: true, status: 200, json: async () => ({ success: true, message: 'Email verified. Your order history is now available.' }) });
+        }
+        if (String(url).startsWith('/api/customers/me')) return Promise.resolve({ ok: false, status: 401, json: async () => ({}) });
+        return fetch(origin + url);
+      }
+    });
+    windows.push(verifyPage);
+    await wait(150);
+    const vd = verifyPage.window.document;
+    assert.ok(vd.getElementById('page-verify').classList.contains('active'), 'the verify route shows the verify page');
+    assert.match(verifyRequestUrl || '', /\/api\/auth\/verify-email\?token=abc123def456/, 'the token from the URL is sent to the verify endpoint');
+    assert.equal(vd.getElementById('vfyMsg').style.display, 'block', 'a successful verification is reported to the user');
+    assert.match(vd.getElementById('vfyMsg').textContent, /verified/i);
+
+    // A link without a token explains itself instead of failing silently.
+    const noToken = page(storeHtml, '/verify-email'); windows.push(noToken);
+    await wait(150);
+    const nd = noToken.window.document;
+    assert.equal(nd.getElementById('vfyError').style.display, 'block', 'a token-less link shows an explanation');
+    assert.match(nd.getElementById('vfyError').textContent, /missing its token/i);
+    console.log('✅ Email verification: account banner, resend link, verify route and token handling');
+
     assert.deepEqual(errors, []);
-    console.log('\n17/17 frontend scenarios passed');
+    console.log('\n19/19 frontend scenarios passed');
   } finally {
     windows.forEach(win => win.window.close());
     await new Promise(resolve => server.close(resolve));

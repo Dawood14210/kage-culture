@@ -3,9 +3,12 @@
 // ================================================================
 const crypto = require('crypto');
 const { parseCookies } = require('../utils/helpers');
+const { getSessionSecret } = require('../utils/secret');
 
-// Must match the secret used in server.js / routes/auth.js to sign session cookies
-const SESSION_SECRET = process.env.SESSION_SECRET || 'kage-dev-secret-not-for-production';
+// The secret is resolved on demand (never cached in a module-level constant) so
+// this file, server.js, routes/auth.js and the CSRF signer all share the single
+// rule in utils/secret.js. server.js still resolves it eagerly at boot, so a
+// misconfigured deploy fails fast with a clear message instead of 500ing here.
 
 // Constant-time comparison (timingSafeEqual throws on length mismatch)
 function safeEqual(a, b) {
@@ -23,7 +26,7 @@ function safeEqual(a, b) {
  * (same secret, same algorithm), so its cookies verify here too.
  * Returns the parsed payload object, or null if missing/tampered/unsigned.
  */
-function readSignedSession(value, secret = SESSION_SECRET) {
+function readSignedSession(value, secret = getSessionSecret()) {
   if (!value || typeof value !== 'string') return null;
   const idx = value.lastIndexOf('.');
   if (idx <= 0) return null; // no signature separator — reject
@@ -55,6 +58,21 @@ function requireAuth(req, res, next) {
   }
 }
 
+/**
+ * Best-effort customer id for public routes (order placement): returns the
+ * signed-in customer's id, or null. Never rejects — an anonymous visitor must
+ * still be able to place an order.
+ */
+function optionalCustomerId(req) {
+  let customerId = req.session && req.session.customerId;
+  if (!customerId) {
+    const cookies = parseCookies(req.headers.cookie);
+    const data = readSignedSession(cookies['kage.cust']);
+    if (data && data.customerId) customerId = data.customerId;
+  }
+  return customerId || null;
+}
+
 function requireCustomerAuth(req, res, next) {
   let customerId = req.session && req.session.customerId;
   if (!customerId) {
@@ -70,4 +88,4 @@ function requireCustomerAuth(req, res, next) {
   }
 }
 
-module.exports = { requireAuth, requireCustomerAuth, readSignedSession };
+module.exports = { requireAuth, requireCustomerAuth, readSignedSession, optionalCustomerId };

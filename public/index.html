@@ -1880,94 +1880,6 @@
 
 
 
-    /* Admin login modal */
-    .admin-login-overlay {
-      position: fixed;
-      inset: 0;
-      z-index: 200;
-      background: rgba(26,24,21,0.72);
-      display: none;
-      align-items: center;
-      justify-content: center;
-      padding: var(--spacing-md);
-      backdrop-filter: blur(3px);
-    }
-    .admin-login-overlay.open { display: flex; }
-    .admin-login-card {
-      background: #FFF;
-      color: var(--text-primary);
-      width: 100%;
-      max-width: 360px;
-      border-radius: 16px;
-      padding: 2rem 1.75rem 1.6rem;
-      position: relative;
-      box-shadow: 0 30px 80px rgba(0,0,0,0.5);
-      animation: adminModalIn 0.25s ease;
-    }
-    @keyframes adminModalIn {
-      from { opacity: 0; transform: translateY(14px); }
-      to { opacity: 1; transform: none; }
-    }
-    .admin-login-close {
-      position: absolute;
-      top: 14px;
-      right: 14px;
-      background: none;
-      border: none;
-      cursor: pointer;
-      font-size: 0.95rem;
-      color: var(--text-gray);
-      line-height: 1;
-    }
-    .admin-login-close:hover { color: var(--accent); }
-    .admin-login-logo { text-align: center; margin-bottom: 0.4rem; }
-    .admin-login-logo .kanji { font-size: 2rem; color: var(--accent); }
-    .admin-login-card h3 {
-      font-family: var(--font-display);
-      font-size: 1.35rem;
-      text-align: center;
-      letter-spacing: 0.04em;
-    }
-    .admin-login-sub { text-align: center; color: var(--text-gray); font-size: 0.75rem; margin: 0.25rem 0 1rem; }
-    .admin-login-error { color: var(--accent); font-size: 0.75rem; margin-bottom: 0.6rem; display: none; }
-    .admin-login-card label {
-      display: block;
-      font-size: 0.68rem;
-      font-weight: 700;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      margin: 0.7rem 0 0.3rem;
-    }
-    .admin-login-card input {
-      width: 100%;
-      padding: 0.7rem 0.85rem;
-      border: 1.5px solid var(--border-color);
-      border-radius: 10px;
-      font-family: var(--font-body);
-      font-size: 0.9rem;
-      transition: border-color var(--transition-fast);
-    }
-    .admin-login-card input:focus { outline: none; border-color: var(--accent); }
-    .admin-login-btn {
-      width: 100%;
-      margin-top: 1.1rem;
-      background: var(--accent);
-      color: #FFF;
-      border: none;
-      border-radius: 10px;
-      padding: 0.8rem;
-      font-family: var(--font-body);
-      font-weight: 700;
-      font-size: 0.82rem;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-      cursor: pointer;
-      transition: background var(--transition-fast), transform var(--transition-fast);
-    }
-    .admin-login-btn:hover { background: var(--accent-hover); transform: translateY(-1px); }
-    .admin-login-btn:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
-    .admin-login-foot { text-align: center; font-size: 0.68rem; color: var(--text-gray); margin-top: 1rem; }
-
     /* ================================================================
        CUSTOMER LOGIN / SIGNUP MODAL
        ================================================================ */
@@ -2081,6 +1993,9 @@
     .account-card .acct-btn:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
     .account-card .acct-msg { font-size: 0.75rem; margin-top: 0.5rem; min-height: 1.1em; }
     .acct-msg.success { color: #4ade80; }
+    .acct-verify { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; margin: 0.6rem 0 0; padding: 0.7rem 0.9rem; border: 1px solid #BDB6A6; background: #EFE9DA; border-radius: 8px; font-size: 0.8rem; color: #4A4433; }
+    .acct-verify[hidden] { display: none; }
+    .acct-verify a { color: var(--accent); font-weight: 700; text-decoration: underline; cursor: pointer; }
     .acct-msg.error { color: var(--accent); }
     .account-orders { display: flex; flex-direction: column; gap: 0.6rem; }
     .order-row {
@@ -2119,7 +2034,25 @@
     /* ================================================================
        SHOP LAYOUT + SIDEBAR
        ================================================================ */
-    .shop-section { padding: var(--spacing-lg) 0 var(--spacing-xl); }
+    /* The collection grid lives inside #page-home but is only revealed while a
+       collection is open or a search is active — visibility is the
+       `.shop-visible` class (set by applyShopVisibility()), never an inline
+       style, so the two can't drift apart. */
+    .shop-section { display: none; padding: var(--spacing-lg) 0 var(--spacing-xl); }
+    /* The header is fixed: clear it, then keep the site's normal top rhythm.
+       scroll-margin keeps the Next-page jump clear of the header too. */
+    .shop-section.shop-visible {
+      display: block;
+      padding-top: calc(var(--header-h, 80px) + var(--spacing-lg, 2rem));
+      scroll-margin-top: calc(var(--header-h, 80px) + var(--spacing-lg, 2rem));
+    }
+    /* While the grid is up, the marketing homepage sections step aside so the
+       collection / search results read as their own page. */
+    body.showing-shop #page-home > .hero-strip,
+    body.showing-shop #page-home > .section-categories,
+    body.showing-shop #page-home > .section-vibes,
+    body.showing-shop #page-home > .section-why,
+    body.showing-shop #page-home > .section-products { display: none; }
     .shop-header { margin-bottom: var(--spacing-md); }
     .shop-layout {
       display: grid;
@@ -3996,7 +3929,7 @@
     <!-- NEWSLETTER REMOVED -->
 
     <!-- SHOP SECTION (Collection Grid) -->
-    <section class="shop-section" id="shopSection" style="display:none;">
+    <section class="shop-section" id="shopSection">
       <div class="container">
         <div class="shop-header">
           <p class="section-label" id="shopEyebrow"></p>
@@ -4147,6 +4080,20 @@
       <p style="margin-top:1rem;"><a href="/" onclick="navigateTo('home'); return false;" style="color: var(--accent); cursor: pointer; font-size: 0.85rem;">← Back to Shop</a></p>
     </div>
   </div>
+
+  <!-- EMAIL VERIFICATION PAGE (link lands on /verify-email?token=...) -->
+  <div class="page" id="page-verify">
+    <div class="container tracking-page">
+      <p class="section-label">Account</p>
+      <h2 class="section-title">VERIFY YOUR EMAIL</h2>
+      <p class="tracking-sub">We're confirming the email address on your KAGE Culture account.</p>
+      <div class="tracking-error" id="vfyError" style="display:none;"></div>
+      <div id="vfyMsg" style="display:none; margin-top:0.8rem; font-size:0.85rem; color:var(--accent);"></div>
+      <p style="margin-top:1rem;"><a href="/account" onclick="navigateTo('account'); loadAccountPage(); return false;" style="color: var(--accent); cursor: pointer; font-size: 0.85rem;">Go to my account →</a></p>
+      <p style="margin-top:0.6rem;"><a href="/" onclick="navigateTo('home'); return false;" style="color: var(--accent); cursor: pointer; font-size: 0.85rem;">← Back to Shop</a></p>
+    </div>
+  </div>
+
 
   <!-- CHECKOUT PAGE -->
   <div class="page" id="page-checkout">
@@ -4345,6 +4292,10 @@
     <div class="container">
       <div class="account-welcome">Welcome, <span id="acctName">Clan Member</span></div>
       <div class="account-email" id="acctEmail"></div>
+      <div class="acct-verify" id="acctVerifyBanner" hidden>
+        <span id="acctVerifyText">Verify your email to see your order history.</span>
+        <a href="#" id="acctVerifyLink" onclick="resendVerificationEmail(); return false;">Resend verification email</a>
+      </div>
       <div class="account-grid">
         <div class="account-sidebar">
           <div class="account-card">
@@ -4744,6 +4695,19 @@
     const perPage = 8;
     let isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
 
+    // The shop grid (#shopSection) replaces the marketing homepage while a
+    // collection is open or a search is active. `shopCollectionMode` is set by
+    // navigateTo()/initShop(); a non-empty search query counts as well, so the
+    // grid is visible iff "collection view OR search results" is true.
+    let shopCollectionMode = false;
+    function applyShopVisibility() {
+      const sec = document.getElementById('shopSection');
+      if (!sec) return;
+      const show = shopCollectionMode || searchQuery.trim() !== '';
+      sec.classList.toggle('shop-visible', show);
+      document.body.classList.toggle('showing-shop', show);
+    }
+
     // ---------- Shop state: search / wishlist / filters ----------
     let searchQuery = '';
     const wishlist = new Set();
@@ -4888,6 +4852,7 @@
       if (page === 'collection' || page === 'collections') return '/collection/' + encodeURIComponent(filter || 'all');
       if (page === 'product' && currentProduct) return '/product/' + currentProduct.id;
       if (page === 'reset') return location.pathname === '/reset-password' ? location.pathname + location.search : '/reset-password';
+      if (page === 'verify') return location.pathname === '/verify-email' ? location.pathname + location.search : '/verify-email';
       return '/' + page;
     }
     function restoreRouteFromLocation() {
@@ -4902,7 +4867,15 @@
         } else if (path.startsWith('/collection/')) {
           navigateTo('collection', path.slice('/collection/'.length));
         } else if (path === '/reset-password') { navigateTo('reset'); initPasswordReset(); }
-        else if (['about','contact','shipping','returns','privacy','terms','tracking','custom-stickers','account','coming-soon'].includes(path.slice(1))) navigateTo(path.slice(1));
+        else if (path === '/verify-email') { navigateTo('verify'); initEmailVerification(); }
+        else if (path === '/account') {
+          // A direct visit/bookmark must load the account data too — the page
+          // used to sit on "Loading orders…" until the user navigated away and
+          // back, which also hid the verify-your-email prompt.
+          navigateTo('account');
+          if (currentCustomer) loadAccountPage();
+        }
+        else if (['about','contact','shipping','returns','privacy','terms','tracking','custom-stickers','coming-soon'].includes(path.slice(1))) navigateTo(path.slice(1));
         else navigateTo('not-found');
       } catch (e) { navigateTo('not-found'); }
       finally { restoringHistory = false; }
@@ -4911,6 +4884,7 @@
 
     function navigateTo(page, filter, options = {}) {
       document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+      const isCollectionRoute = (page === 'collection' || page === 'collections');
       let target = page;
       if (page === 'collection' || page === 'collections') {      // Graphic Tees always routes to the Coming Soon page. Other categories
       // only get it when they have zero in-stock products; stocked ones keep
@@ -4949,8 +4923,18 @@
             document.body.classList.toggle('showing-tracking', target === 'tracking');
       // Deactivate all nav links by default, then activate the matching one
       const navDeactivate = () => document.querySelectorAll('.nav-links a[data-nav]').forEach(a => a.classList.remove('active'));
+      if (target !== 'home') {
+        // The grid lives inside the home view — every other view hides it.
+        shopCollectionMode = false;
+        applyShopVisibility();
+      }
       if (target === 'home') {
-        initShop(filter || 'all');
+        if (!isCollectionRoute && !options.keepSearch) {
+          // Landing on the plain homepage drops any leftover search text.
+          document.querySelectorAll('#searchInput, #mobileSearch').forEach(inp => { if (inp) inp.value = ''; });
+          searchQuery = '';
+        }
+        initShop(filter || 'all', { collection: isCollectionRoute });
       } else if (target === 'coming-soon') {
         navDeactivate();
         document.querySelectorAll('.nav-links a[data-nav]').forEach(a => a.classList.toggle('active', a.dataset.nav === filter));
@@ -5124,9 +5108,13 @@
           btn.textContent = 'Notify Me';
         });
     }
-    function initShop(filter) {
+    function initShop(filter, opts = {}) {
       currentCollectionFilter = filter || 'all';
       currentPage = 1;
+      // Only a collection route (or an active search) surfaces the grid — the
+      // plain homepage keeps it hidden.
+      shopCollectionMode = opts.collection === true;
+      applyShopVisibility();
       const titles = { 'all':'FEATURED DROPS | NEW ARRIVALS','new':'NEW ARRIVALS','anime':'ANIME SHIRTS','streetwear':'STREETWEAR','goofy-wears':'GOOFY WEARS','sale':'ON SALE','the-vault':'THE VAULT COLLECTION','iron-code':'IRON CODE COLLECTION','after-hours':'AFTER HOURS COLLECTION' };
       const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.','anime':'Anime-inspired art on premium cotton. Each piece is unique — one size, one chance.','streetwear':'Bold silhouettes. Limited pieces. Built for those who take up space.','goofy-wears':'Stickers with personality.','sale':'Limited-time markdowns. When it\'s gone, it\'s gone.','the-vault':'Power without effort.','iron-code':'Relentless self-made strength.','after-hours':'Quiet, terrifying precision.' };
       document.getElementById('collectionTitle').textContent = titles[filter] || titles.all;
@@ -5297,7 +5285,10 @@
     function onSearchInput(v) {
       searchQuery = v || '';
       currentPage = 1;
-      if (searchQuery.trim() && !document.getElementById('page-home').classList.contains('active')) navigateTo('home');
+      if (searchQuery.trim() && !document.getElementById('page-home').classList.contains('active')) navigateTo('home', null, { keepSearch: true });
+      // Typing shows the grid with the results; clearing the box on the plain
+      // homepage brings the marketing sections back.
+      applyShopVisibility();
       renderCollectionGrid();
     }
 
@@ -5673,6 +5664,7 @@
       if (sort) sort.value = 'featured';
       document.querySelectorAll('#searchInput, #mobileSearch').forEach(inp => { if (inp) inp.value = ''; });
       searchQuery = '';
+      applyShopVisibility();
       syncFiltersToPanels();
       renderCollectionGrid();
     }
@@ -6456,60 +6448,6 @@
       }
     }
 
-    // ---------- Admin login modal (subtle entry to the existing /admin) ----------
-    function openAdminLogin() {
-      document.getElementById('adminLoginOverlay')._previousFocus = document.activeElement;
-      document.getElementById('adminLoginOverlay').classList.add('open');
-      document.getElementById('adminLoginError').style.display = 'none';
-      setTimeout(() => document.getElementById('adminLoginEmail').focus(), 60);
-    }
-    function closeAdminLogin() {
-      document.getElementById('adminLoginOverlay').classList.remove('open');
-      document.getElementById('adminLoginOverlay')._previousFocus?.focus();
-    }
-    async function submitAdminLogin() {
-      const email = document.getElementById('adminLoginEmail').value.trim();
-      const password = document.getElementById('adminLoginPassword').value;
-      const errEl = document.getElementById('adminLoginError');
-      const btn = document.getElementById('adminLoginBtn');
-      if (btn.disabled) return; // guard against Enter-key double submits mid-flight
-      if (!email || !password) {
-        errEl.textContent = 'Please enter email and password.';
-        errEl.style.display = 'block';
-        return;
-      }
-      btn.disabled = true;
-      btn.textContent = 'Signing in…';
-      errEl.style.display = 'none';
-      try {
-        // NOTE: first-run bootstrap is intentionally NOT automatic here —
-        // POST /api/admin/setup is disabled unless ALLOW_ADMIN_SETUP=true.
-        const res = await fetch('/api/admin/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, password })
-        });
-        if (res.ok) {
-          window.location.href = '/admin'; // existing dashboard; session cookie already set
-        } else {
-          const data = await res.json().catch(() => ({}));
-          errEl.textContent = data.error || 'Login failed.';
-          errEl.style.display = 'block';
-        }
-      } catch (err) {
-        errEl.textContent = 'Connection error. Make sure the server is running.';
-        errEl.style.display = 'block';
-      }
-      btn.disabled = false;
-      btn.textContent = 'Sign In';
-    }
-    // Enter submits the modal; Escape closes it
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') closeAdminLogin();
-      const ov = document.getElementById('adminLoginOverlay');
-      if (e.key === 'Enter' && ov && ov.classList.contains('open')) submitAdminLogin();
-    });
-
     // ================================================================
     // CUSTOMER ACCOUNTS
     // ================================================================
@@ -6522,6 +6460,7 @@
           const data = await res.json();
           currentCustomer = data.customer;
           updateAccountUI();
+          updateVerifyBanner(currentCustomer.email_verified !== false);
         } else {
           currentCustomer = null;
           updateAccountUI();
@@ -6646,6 +6585,56 @@
       }
     }
 
+    // ---------- Email verification (link lands on /verify-email?token=...) ----------
+    let verifyToken = '';
+
+    function initEmailVerification() {
+      const err = document.getElementById('vfyError');
+      const msg = document.getElementById('vfyMsg');
+      if (err) { err.textContent = ''; err.style.display = 'none'; }
+      if (msg) { msg.style.display = 'none'; }
+      try { verifyToken = new URLSearchParams(window.location.search).get('token') || ''; } catch (e) { verifyToken = ''; }
+      if (!verifyToken) {
+        if (err) { err.textContent = 'This verification link is missing its token. Open the link from your verification email, or resend it from your account page.'; err.style.display = 'block'; }
+        return;
+      }
+      verifyEmail();
+    }
+
+    async function verifyEmail() {
+      const err = document.getElementById('vfyError');
+      const msg = document.getElementById('vfyMsg');
+      try {
+        const res = await fetch('/api/auth/verify-email?token=' + encodeURIComponent(verifyToken));
+        const data = await res.json().catch(() => ({}));
+        if (res.ok) {
+          verifyToken = '';
+          await checkCustomerAuth();
+          if (msg) { msg.textContent = data.message || 'Email verified! Your order history is now available.'; msg.style.display = 'block'; }
+        } else if (err) {
+          err.textContent = data.error || 'Verification failed. The link may have expired — resend it from your account page.';
+          err.style.display = 'block';
+        }
+      } catch (e) {
+        if (err) { err.textContent = 'Connection error. Please try again.'; err.style.display = 'block'; }
+      }
+    }
+
+    async function resendVerificationEmail() {
+      try {
+        const res = await fetch('/api/customers/resend-verification', { method: 'POST' });
+        const data = await res.json().catch(() => ({}));
+        showToast(res.ok ? (data.message || 'Verification email sent. Check your inbox.') : (data.error || 'Could not send the verification email.'));
+      } catch (e) { showToast('Connection error. Please try again.'); }
+    }
+
+    // Show/hide the "verify your email" banner on the account page.
+    function updateVerifyBanner(verified) {
+      const banner = document.getElementById('acctVerifyBanner');
+      if (!banner) return;
+      banner.hidden = !!verified;
+    }
+
     async function submitCustLogin() {
       const email = document.getElementById('custLoginEmail').value.trim();
       const password = document.getElementById('custLoginPassword').value;
@@ -6691,7 +6680,7 @@
         updateAccountUI();
         closeCustModal();
         if (location.pathname === '/account') { navigateTo('account', null, { skipHistory: true }); loadAccountPage(); }
-        showToast('Account created! Welcome, ' + (currentCustomer.name || 'Clan Member') + '!');
+        showToast('Account created! Check your email to verify your address.');
       } catch (e) {
         errEl.textContent = 'Something went wrong. Please try again.'; errEl.style.display = 'block';
       }
@@ -6714,21 +6703,28 @@
       document.getElementById('acctPhone').value = currentCustomer.phone || '';
       document.getElementById('acctAddress').value = currentCustomer.address || '';
       document.getElementById('acctCity').value = currentCustomer.city || '';
+      updateVerifyBanner(currentCustomer.email_verified !== false);
       // Load orders
       try {
         const res = await fetch('/api/customers/orders');
         if (!res.ok) throw new Error('Order history unavailable');
         const data = await res.json();
-        renderAccountOrders(data.orders);
+        const verified = data.email_verified !== false;
+        updateVerifyBanner(verified);
+        renderAccountOrders(data.orders, verified);
       } catch (e) {
         document.getElementById('acctOrders').textContent = 'Could not load your orders. Please try again later.';
       }
     }
 
-    function renderAccountOrders(orders) {
+    function renderAccountOrders(orders, verified) {
       const wrap = document.getElementById('acctOrders');
       if (!orders || !orders.length) {
-        wrap.innerHTML = '<div style="text-align:center;padding:1rem;color:var(--text-muted);font-size:0.82rem;">No orders yet. Time to shop!</div>';
+        // SECURITY: until the email is confirmed the history stays hidden, so
+        // the empty state explains why instead of looking like "no orders".
+        wrap.innerHTML = verified === false
+          ? '<div style="text-align:center;padding:1rem;color:var(--text-muted);font-size:0.82rem;">Verify your email to see your orders.<br><a href="#" onclick="resendVerificationEmail(); return false;" style="color:var(--accent);font-weight:700;text-decoration:underline;">Resend verification email</a></div>'
+          : '<div style="text-align:center;padding:1rem;color:var(--text-muted);font-size:0.82rem;">No orders yet. Time to shop!</div>';
         return;
       }
       wrap.innerHTML = orders.map(o => {
@@ -6796,7 +6792,6 @@
 
     document.addEventListener('keydown', e => {
       const open = [
-        ['#adminLoginOverlay.open .admin-login-card', closeAdminLogin],
         ['#custOverlay.open .cust-card', closeCustModal],
         ['#filterDrawer.open', closeFilterDrawer],
         ['#wishlistDrawer.open', toggleWishlistFilter],
@@ -6948,23 +6943,6 @@
         <button class="cust-btn" id="custSignupBtn" onclick="submitCustSignup()">Create Account</button>
         <p class="cust-switch">Already have an account? <a href="#" onclick="showCustLogin(); return false;">Sign in</a></p>
       </div>
-    </div>
-  </div>
-
-  <!-- ADMIN LOGIN MODAL (subtle entry to the existing /admin) -->
-  <div class="admin-login-overlay" id="adminLoginOverlay" onclick="if(event.target===this)closeAdminLogin()">
-    <div class="admin-login-card" role="dialog" aria-modal="true" aria-labelledby="adminLoginTitle">
-      <button type="button" class="admin-login-close" onclick="closeAdminLogin()"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
-      <div class="admin-login-logo"><span class="kanji">影</span></div>
-      <h3 id="adminLoginTitle">Admin Login</h3>
-      <p class="admin-login-sub">Sign in to manage the shop</p>
-      <div class="admin-login-error" id="adminLoginError"></div>
-      <label for="adminLoginEmail">Email</label>
-      <input type="email" id="adminLoginEmail" placeholder="admin@kage.com" autocomplete="email" />
-      <label for="adminLoginPassword">Password</label>
-      <input type="password" id="adminLoginPassword" placeholder="Enter password" autocomplete="current-password" />
-      <button type="button" class="admin-login-btn" id="adminLoginBtn" onclick="submitAdminLogin()">Sign In</button>
-      <p class="admin-login-foot">You'll land on the admin dashboard after signing in.</p>
     </div>
   </div>
 
