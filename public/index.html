@@ -4104,8 +4104,6 @@
           <span>&copy; 2026 KAGE CULTURE</span>
           <div class="payment-icons">
             <span class="payment-icon">COD</span>
-            <span class="payment-icon">JazzCash</span>
-            <span class="payment-icon">Bank Transfer</span>
           </div>
           <div class="footer-bottom-links">
             <a href="/privacy" onclick="navigateTo('privacy'); return false;">Privacy</a>
@@ -4176,14 +4174,6 @@
           <h3>Payment method</h3>
           <div class="co-payment">
             <label class="co-pay-option"><input type="radio" name="payMethod" value="cod" checked /> <span><strong>Cash on Delivery</strong><small>Pay when your order arrives</small></span></label>
-            <label class="co-pay-option"><input type="radio" name="payMethod" value="jazzcash" /> <span><strong>JazzCash</strong><small>JazzCash account number: +92 322 804 2633</small></span></label>
-            <label class="co-pay-option"><input type="radio" name="payMethod" value="bank" /> <span><strong>Bank Transfer</strong><small>Account details are sent after you place the order.</small></span></label>
-          </div>
-          <div id="paymentRefGroup" style="display:none;margin-top:0.6rem;">
-            <div class="co-field">
-              <label for="coPaymentRef">Payment Reference / Transaction ID *</label>
-              <input type="text" id="coPaymentRef" placeholder="Enter reference number after sending payment" autocomplete="off" />
-            </div>
           </div>
         </div>
 
@@ -4196,7 +4186,7 @@
             <div class="co-grand"><span>Total</span><span id="coTotal">Rs. 0</span></div>
           </div>
           <button class="btn btn-primary co-place" id="coPlaceBtn" onclick="placeOrder()">Place Order</button>
-          <p class="co-safe">Cash on Delivery, JazzCash &amp; Bank Transfer accepted</p>
+          <p class="co-safe">Cash on Delivery accepted</p>
         </aside>
       </div>
     </div>
@@ -4269,7 +4259,7 @@
             <div class="tab-content">
               <div class="tab-pane active" id="tab-fabric"><ul><li>100% heavyweight cotton — 220 GSM</li><li>Pre-shrunk fabric, wash cold inside out</li><li>Do not bleach — tumble dry low</li><li>Screen-printed with eco-friendly water-based inks</li></ul></div>
               <div class="tab-pane" id="tab-fit"><ul><li>Compression: 4-way stretch, muscle-hugging fit — size up for relaxed</li><li>Graphic Tees: Regular fit, true to size</li><li>Oversized: Drop-shoulder, relaxed body — size down for regular</li><li>Full size chart available in the Size Guide</li></ul></div>
-              <div class="tab-pane" id="tab-shipping"><ul><li>Dispatch within 48 hours — delivered in 5-7 business days</li><li>Easy returns within 7 days of delivery</li><li>Cash on Delivery (COD), JazzCash, and Bank Transfer accepted</li></ul></div>
+              <div class="tab-pane" id="tab-shipping"><ul><li>Dispatch within 48 hours — delivered in 5-7 business days</li><li>Easy returns within 7 days of delivery</li><li>Cash on Delivery (COD) accepted</li></ul></div>
             </div>
           </div>
         </div>
@@ -4431,7 +4421,8 @@
           <p>Orders are processed within 1-2 business days. Delivery takes <strong style="color: var(--text-primary);">3-5 business days</strong> for major cities and <strong style="color: var(--text-primary);">5-7 business days</strong> for other areas.</p>
 
           <h3>Delivery Charges</h3>
-          <p>Flat delivery charge: <strong style="color: var(--text-primary);">Rs. 150</strong>.</p>
+          <p>Delivery charges depend on your delivery location.</p>
+          <p><strong style="color: var(--text-primary);">Location-based rates:</strong> TODO — confirm area-wise fees. Checkout currently applies a flat Rs. 150 charge.</p>
           <p><strong style="color: var(--text-primary);">Free-shipping threshold:</strong> TODO — confirm whether a free-shipping threshold applies.</p>
 
           <h3>Cities Currently Served</h3>
@@ -4453,8 +4444,6 @@
           <h3>Payment Methods</h3>
           <ul style="list-style: none; padding: 0;">
             <li style="padding: 0.3rem 0;"><strong style="color: var(--text-primary);">Cash on Delivery (COD)</strong> — pay when your order arrives</li>
-            <li style="padding: 0.3rem 0;"><strong style="color: var(--text-primary);">JazzCash</strong> — account number: <strong style="color: var(--text-primary);">+92 322 804 2633</strong></li>
-            <li style="padding: 0.3rem 0;"><strong style="color: var(--text-primary);">Bank Transfer</strong> — account details are sent after you place the order</li>
           </ul>
         </div>
         <p class="content-page-back"><a href="/" onclick="navigateTo('home'); return false;" style="color: var(--accent); cursor: pointer; font-size: 0.85rem;">← Back to Shop</a></p>
@@ -4475,7 +4464,7 @@
           <p>All product descriptions, images, and specifications are as accurate as possible. Colors may vary slightly due to screen settings. Prices are in Pakistani Rupees (PKR) and include applicable taxes. We reserve the right to modify prices without prior notice.</p>
 
           <h3>3. Orders & Payment</h3>
-          <p>Orders are subject to availability. We reserve the right to cancel any order. Payment must be completed before shipping for bank transfer orders. COD orders are payable upon delivery.</p>
+          <p>Orders are subject to availability. We reserve the right to cancel any order. Cash on Delivery orders are payable upon delivery.</p>
 
           <h3>4. Intellectual Property</h3>
           <p>All content on this site, including designs, logos, and graphics, is the property of KAGE Culture and protected by intellectual property laws.</p>
@@ -5014,16 +5003,8 @@
       document.getElementById('coSubtotal').textContent = 'Rs. ' + fmt(sub);
       document.getElementById('coShipping').textContent = 'Rs. ' + shipping;
       document.getElementById('coTotal').textContent = 'Rs. ' + fmt(sub + shipping);
-      updatePaymentRefVisibility();
     }
 
-    function updatePaymentRefVisibility() {
-      const selected = document.querySelector('input[name="payMethod"]:checked');
-      document.getElementById('paymentRefGroup').style.display = selected && selected.value !== 'cod' ? 'block' : 'none';
-    }
-    document.getElementById('page-checkout').addEventListener('change', e => {
-      if (e.target.matches('input[name="payMethod"]')) updatePaymentRefVisibility();
-    });
 
     async function placeOrder() {
       const errEl = document.getElementById('checkoutError');
@@ -5036,8 +5017,7 @@
         address: document.getElementById('coAddress').value.trim(),
         city: document.getElementById('coCity').value.trim(),
         notes: document.getElementById('coNotes').value.trim(),
-        payment_method: document.querySelector('input[name="payMethod"]:checked').value,
-        payment_ref: document.getElementById('coPaymentRef').value.trim()
+        payment_method: 'cod'
       };
       if (!f.name || !f.email || !f.phone || !f.address || !f.city) {
         errEl.textContent = 'Please fill in all required fields (name, email, phone, address, city).';
@@ -5046,12 +5026,6 @@
       }
       if (!/^\S+@\S+\.\S+$/.test(f.email)) {
         errEl.textContent = 'Please enter a valid email address.';
-        errEl.style.display = 'block';
-        return;
-      }
-      // Require payment reference for non-COD
-      if ((f.payment_method === 'jazzcash' || f.payment_method === 'bank') && !f.payment_ref) {
-        errEl.textContent = 'Payment reference number is required for JazzCash/Bank Transfer.';
         errEl.style.display = 'block';
         return;
       }
