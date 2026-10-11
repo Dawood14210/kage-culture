@@ -172,10 +172,11 @@ async function main() {
   });
 
   // ---------------------------------------------------------------
-  // Reviews: delivered purchase → pending → admin approval → public rating
+  // Reviews: >3.5★ auto-approve · ≤3.5★ pending (author-only visibility
+  // via viewer_token) → admin approval → public rating
   // ---------------------------------------------------------------
   console.log('\nReview endpoints:');
-  const reviewBody = { product_id: 1, order_number: orderNumber, phone: '03001234567', rating: 5, name: 'Test Buyer', comment: 'Great fit' };
+  const reviewBody = { product_id: 1, order_number: orderNumber, phone: '03001234567', rating: 5, name: 'Test Buyer', comment: 'Great fit', viewer_token: 'e2e-viewer-token-1' };
   const postReview = async (body) => {
     const csrf = await getCsrf();
     return request(PORT, 'POST', '/api/reviews', {
@@ -196,25 +197,72 @@ async function main() {
     assert.strictEqual((await postReview({ ...reviewBody, product_id: 2 })).status, 403);
     assert.strictEqual((await postReview({ ...reviewBody, rating: 0 })).status, 400);
   });
-  await check('selected rating persists pending moderation, then appears after approval', async () => {
+  await check('review above 3.5 stars auto-approves and is public immediately', async () => {
     const created = await postReview(reviewBody);
     assert.strictEqual(created.status, 201, JSON.stringify(created.json));
+    assert.strictEqual(created.json.approved, true, '5★ review must skip moderation');
     assert.strictEqual((await postReview(reviewBody)).status, 409, 'same purchase cannot review twice');
-    assert.deepStrictEqual((await request(PORT, 'GET', '/api/reviews?product_id=1')).json, []);
-    const headers = await getCsrf();
-    const adminHeaders = { Cookie: `${adminCookie}; ${headers.cookie}`, 'X-CSRF-Token': headers.token };
-    const all = await request(PORT, 'GET', '/api/reviews/all', { headers: { Cookie: adminCookie } });
-    assert.strictEqual(all.status, 200);
-    const rv = all.json.find(r => r.order_number === orderNumber && r.product_id === 1);
-    assert.strictEqual(rv.rating, 5);
-    assert.strictEqual(rv.status, 'pending');
-    const approved = await request(PORT, 'PATCH', `/api/reviews/${rv.id}`, { body: { status: 'approved' }, headers: adminHeaders });
-    assert.strictEqual(approved.status, 200, JSON.stringify(approved.json));
-    assert.strictEqual((await request(PORT, 'GET', '/api/reviews?product_id=1')).json[0].rating, 5);
+    const pub = await request(PORT, 'GET', '/api/reviews?product_id=1');
+    assert.strictEqual(pub.json.length, 1, 'auto-approved review must be listed without any admin action');
+    assert.strictEqual(pub.json[0].rating, 5);
+    assert.strictEqual(pub.json[0].status, 'approved');
+    assert.ok(!('viewer_token' in pub.json[0]), 'viewer token must never leak in public payloads');
     const product = await request(PORT, 'GET', '/api/products');
     const p = product.json.find(p => p.id === 1);
     assert.strictEqual(p.avg_rating, 5);
     assert.strictEqual(p.review_count, 1);
+  });
+
+  await check('review of 3.5 stars or less: author sees it instantly, public only after approval', async () => {
+    // Second delivered order (product 2) so product 1 stock assertions hold.
+    const csrf1 = await getCsrf();
+    const order2 = await request(PORT, 'POST', '/api/orders', {
+      body: { name: 'Second Buyer', email: 'buyer3@kage.test', phone: '03007654321', address: '2 Test St', city: 'Karachi', payment_method: 'cod', items: [{ id: 2, qty: 1, size: 'XL' }] },
+      headers: { 'X-CSRF-Token': csrf1.token, Cookie: csrf1.cookie }
+    });
+    assert.strictEqual(order2.status, 201, JSON.stringify(order2.json));
+    const row = await dbModule.prepare('SELECT id FROM orders WHERE order_number = ?').get(order2.json.order_number);
+    const csrf2 = await getCsrf();
+    const delivered = await request(PORT, 'PATCH', `/api/orders/${row.id}/status`, {
+      body: { status: 'delivered' }, headers: { Cookie: `${adminCookie}; ${csrf2.cookie}`, 'X-CSRF-Token': csrf2.token }
+    });
+    assert.strictEqual(delivered.status, 200, JSON.stringify(delivered.json));
+
+    const low = await postReview({ product_id: 2, order_number: order2.json.order_number, phone: '03007654321', rating: 3, name: 'Second Buyer', comment: 'Fabric is okay', viewer_token: 'e2e-viewer-token-2' });
+    assert.strictEqual(low.status, 201, JSON.stringify(low.json));
+    assert.strictEqual(low.json.approved, false, '3★ review must not auto-approve');
+    assert.strictEqual(low.json.viewer_token, 'e2e-viewer-token-2', 'server keeps the submitted viewer token');
+
+    // Invisible to the public and to any other browser's token...
+    assert.deepStrictEqual((await request(PORT, 'GET', '/api/reviews?product_id=2')).json, []);
+    assert.deepStrictEqual((await request(PORT, 'GET', '/api/reviews?product_id=2&viewer_token=someone-elses-token')).json, []);
+    // ...but the author sees it right away, flagged as their own.
+    const mine = await request(PORT, 'GET', '/api/reviews?product_id=2&viewer_token=e2e-viewer-token-2');
+    assert.strictEqual(mine.json.length, 1, 'author must see their own pending review immediately');
+    assert.strictEqual(mine.json[0].status, 'pending');
+    assert.strictEqual(mine.json[0].is_own, true);
+    assert.strictEqual(mine.json[0].rating, 3);
+    assert.ok(!('viewer_token' in mine.json[0]), 'viewer token must never leak in public payloads');
+
+    // Pending reviews stay out of the product rating.
+    const product = await request(PORT, 'GET', '/api/products');
+    assert.strictEqual(product.json.find(p => p.id === 2).review_count, 0);
+
+    // Admin approval publishes it for everyone.
+    const all = await request(PORT, 'GET', '/api/reviews/all', { headers: { Cookie: adminCookie } });
+    const rv = all.json.find(r => r.order_number === order2.json.order_number && r.product_id === 2);
+    assert.strictEqual(rv.status, 'pending');
+    const csrf3 = await getCsrf();
+    const approved = await request(PORT, 'PATCH', `/api/reviews/${rv.id}`, { body: { status: 'approved' }, headers: { Cookie: `${adminCookie}; ${csrf3.cookie}`, 'X-CSRF-Token': csrf3.token } });
+    assert.strictEqual(approved.status, 200, JSON.stringify(approved.json));
+    const pub = await request(PORT, 'GET', '/api/reviews?product_id=2');
+    assert.strictEqual(pub.json.length, 1);
+    assert.strictEqual(pub.json[0].rating, 3);
+    assert.strictEqual(pub.json[0].status, 'approved');
+    const product2 = await request(PORT, 'GET', '/api/products');
+    const p2 = product2.json.find(p => p.id === 2);
+    assert.strictEqual(p2.avg_rating, 3);
+    assert.strictEqual(p2.review_count, 1);
   });
 
   // ---------------------------------------------------------------

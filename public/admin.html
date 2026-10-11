@@ -846,7 +846,12 @@
     .review-prod{font-weight:700;color:var(--text-primary);font-size:0.85rem;}
     .review-stars{color:#f5b301;letter-spacing:2px;font-size:0.9rem;display:inline-flex;gap:1px;align-items:center;}
     .review-stars .icon{width:14px;height:14px;}
-    .icon-fill{fill:currentColor;}
+    /* The global .icon rule further down this stylesheet sets fill:none and,
+       at equal specificity, was overriding a bare .icon-fill rule — every
+       star rendered as a hollow outline and the rating was unreadable.
+       These scoped selectors outrank .icon, so rated stars fill in gold. */
+    .review-stars .icon.icon-fill{fill:currentColor;stroke:currentColor;}
+    .review-stars .icon:not(.icon-fill){fill:none;stroke:currentColor;opacity:0.35;}
     .review-meta{color:var(--text-muted);font-size:0.72rem;margin-left:auto;}
     .review-comment{font-size:0.85rem;color:var(--text-secondary);line-height:1.55;margin:0 0 0.7rem;}
     .review-comment.dim{color:var(--text-dim);}

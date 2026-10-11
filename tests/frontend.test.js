@@ -156,11 +156,21 @@ async function ready(win) {
     const starButtons = [...d.querySelectorAll('#starInput button')];
     const originalStoreFetch = w.fetch;
     const sentReviews = [];
+    const reviewGets = [];
     try {
       w.fetch = (url, options) => {
         if (url === '/api/reviews' && options?.method === 'POST') {
           sentReviews.push(JSON.parse(options.body));
           return Promise.resolve({ ok: true, json: async () => ({ message: 'Review pending approval.' }) });
+        }
+        if (String(url).startsWith('/api/reviews?')) {
+          // Stand in for the server: the author's own pending review comes
+          // back alongside the approved ones, flagged is_own.
+          reviewGets.push(String(url));
+          return Promise.resolve({ ok: true, json: async () => ([
+            { id: 9001, customer_name: 'Second Buyer', rating: 3, comment: 'Fabric is okay', created_at: '2026-10-11 09:00:00', status: 'pending', is_own: true },
+            { id: 9002, customer_name: 'Test Buyer', rating: 5, comment: 'Great fit', created_at: '2026-10-10 09:00:00', status: 'approved', is_own: false }
+          ]) });
         }
         return originalStoreFetch(url, options);
       };
@@ -183,6 +193,22 @@ async function ready(win) {
         assert.equal(starButtons.some(b => b.classList.contains('lit') || b.getAttribute('aria-checked') === 'true'), false, 'successful submit clears stars');
         assert.match(d.getElementById('rvError').textContent, /pending approval/);
       }
+      // Every submission carries the same per-browser viewer token, and a
+      // successful submit re-fetches the list with it so the author's own
+      // (still pending) review shows up for them immediately.
+      assert.ok(sentReviews.every(r => /^[a-f0-9]{48}$/.test(r.viewer_token)), 'each submission carries a viewer token');
+      assert.equal(new Set(sentReviews.map(r => r.viewer_token)).size, 1, 'same browser reuses one viewer token');
+      assert.ok(reviewGets.length >= 5, 'each successful submit must refresh the review list');
+      assert.match(reviewGets.at(-1), /viewer_token=[a-f0-9]{48}/, 'the refetch carries the viewer token');
+      // Await the same function the submit path fires so the DOM assertion is
+      // deterministic (an earlier real-fetch render must not race the mock).
+      await w.loadReviews(1);
+      assert.equal(d.querySelectorAll('#reviewsList .review-item').length, 2, 'author sees approved reviews plus their own pending one');
+      const pendingItem = d.querySelector('#reviewsList .review-item.pending-own');
+      assert.ok(pendingItem, 'the author\'s own pending review is flagged');
+      assert.match(pendingItem.textContent, /Awaiting approval/);
+      assert.match(pendingItem.textContent, /only visible to you/i);
+      assert.equal(d.querySelectorAll('#reviewsList .review-item:not(.pending-own)').length, 1, 'approved reviews carry no pending flag');
       // Arrow keys move the selection and keep the fill continuous.
       starButtons[0].focus();
       starButtons[0].dispatchEvent(new w.KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
@@ -341,6 +367,16 @@ async function ready(win) {
     ad.getElementById('productSearch').value = '';
     aw.filterProducts();
     console.log('✅ Admin batch-delete selection follows the visible product list');
+
+    // Review moderation stars: the global .icon rule further down the admin
+    // stylesheet sets fill:none, so a bare .icon-fill rule lost the cascade
+    // and every star rendered as a hollow outline (rating unreadable).
+    assert.match(adminHtml, /\.review-stars \.icon\.icon-fill\{fill:currentColor;stroke:currentColor;\}/, 'filled review stars must outrank the global fill:none .icon rule');
+    assert.match(adminHtml, /\.review-stars \.icon:not\(\.icon-fill\)\{fill:none;stroke:currentColor;opacity:0\.35;\}/, 'unrated stars stay dimmed outlines');
+    aw.eval("allReviews = [{ id: 1, product_id: " + products[0].id + ", order_number: 'KAGE-0001', customer_name: 'Star Buyer', rating: 4, comment: 'Solid fit', status: 'pending' }]; reviewFilter = 'pending'; renderReviews()");
+    assert.equal(ad.querySelectorAll('#reviewsList .review-stars .icon').length, 5, 'five stars render per review');
+    assert.equal(ad.querySelectorAll('#reviewsList .review-stars .icon-fill').length, 4, 'a 4★ review fills exactly four stars');
+    console.log('✅ Admin review rows render filled gold stars for the rating');
 
     const originalAdminFetch = aw.fetch;
     let quickUploadBody = null;

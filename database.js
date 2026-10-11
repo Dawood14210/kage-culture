@@ -406,6 +406,7 @@ async function createSchema(exec) {
       rating INTEGER NOT NULL,
       comment TEXT NOT NULL DEFAULT '',
       status TEXT NOT NULL DEFAULT 'pending',
+      viewer_token TEXT NOT NULL DEFAULT '',
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
@@ -516,6 +517,11 @@ async function doInit() {
       if (!hasPayVerified) await tursoClient.execute('ALTER TABLE orders ADD COLUMN payment_verified INTEGER DEFAULT 0');
       const hasCodConfirmed = orderInfo.rows.some(r => r.name === 'cod_confirmed');
       if (!hasCodConfirmed) await tursoClient.execute('ALTER TABLE orders ADD COLUMN cod_confirmed INTEGER DEFAULT 0');
+      // Reviews migrations — viewer_token lets a reviewer see their own
+      // pending review on their device before moderation (routes/reviews.js).
+      const reviewInfo = await tursoClient.execute('PRAGMA table_info(reviews)');
+      const hasViewerToken = reviewInfo.rows.some(r => r.name === 'viewer_token');
+      if (!hasViewerToken) await tursoClient.execute("ALTER TABLE reviews ADD COLUMN viewer_token TEXT NOT NULL DEFAULT ''");
       // Create indexes
       await tursoClient.execute('CREATE INDEX IF NOT EXISTS idx_orders_email ON orders(email)');
       await tursoClient.execute('CREATE INDEX IF NOT EXISTS idx_orders_order_number ON orders(order_number)');

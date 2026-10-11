@@ -2748,7 +2748,7 @@
       .co-row { grid-template-columns: 1fr; }
     }
     /* ================================================================
-       KAGE BRAND SECTIONS (Animals, Clothes, Goofy Wears, Custom Stickers)
+       KAGE BRAND SECTIONS (Goofy Wears, Custom Stickers)
        ================================================================ */
     .brand-section {
       padding: var(--spacing-2xl) 0;
@@ -2816,16 +2816,6 @@
       font-size: 3rem;
       position: relative;
       overflow: hidden;
-    }
-    .collection-card-img .kage-portrait {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      object-position: center 20%;
-      display: block;
-      filter: contrast(1.05) saturate(0.95);
-      -webkit-mask-image: linear-gradient(to bottom, black 70%, transparent 100%);
-      mask-image: linear-gradient(to bottom, black 70%, transparent 100%);
     }
     .collection-card-img::after {
       content: '';
@@ -2970,6 +2960,8 @@
     .review-name { font-weight: 700; font-size: 0.85rem; }
     .review-date { margin-left: auto; font-size: 0.72rem; color: var(--text-gray); }
     .review-comment { font-size: 0.85rem; color: var(--text-muted); line-height: 1.55; margin: 0; }
+    .review-item.pending-own { border-style: dashed; }
+    .review-pending-tag { font-size: 0.62rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #7A6320; background: rgba(160, 130, 40, 0.12); border: 1px solid rgba(160, 130, 40, 0.4); border-radius: 999px; padding: 0.12rem 0.5rem; }
     .review-form-wrap { border: 1px dashed var(--border-color); border-radius: 12px; padding: 1.1rem; }
     .review-form-wrap h4 { font-size: 0.85rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 0.3rem; }
     .review-form-note { font-size: 0.75rem; color: var(--text-gray); margin-bottom: 0.9rem; }
@@ -3700,7 +3692,6 @@
         <li><a data-nav="all" href="/" onclick="navigateTo('home'); closeMenu(); return false;">Home</a></li>
         <li><a data-nav="anime" href="/collection/anime" onclick="navigateTo('collection', 'anime'); closeMenu(); return false;">Anime Shirts</a></li>
         <li><a data-nav="streetwear" href="/collection/streetwear" onclick="navigateTo('collection', 'streetwear'); closeMenu(); return false;">Streetwear</a></li>
-        <li><a data-nav="kage-clothes" href="/kage-clothes" onclick="navigateTo('kage-clothes'); closeMenu(); return false;">KAGE Clothes</a></li>
         <li><a data-nav="custom-stickers" href="/custom-stickers" onclick="navigateTo('custom-stickers'); closeMenu(); return false;">Custom Stickers</a></li>
         <li><a data-nav="tracking" href="/tracking" onclick="navigateTo('tracking'); closeMenu(); return false;">Track Order</a></li>
         <li><a class="nav-admin" href="/admin" onclick="openAdminLogin(); closeMenu(); return false;" title="Admin">Admin</a></li>
@@ -4435,74 +4426,6 @@
       </section>
     </div>
 
-<!-- ================================================================
-         KAGE CLOTHES PAGE
-         ================================================================ -->
-    <div class="page" id="page-kage-clothes">
-      <section class="brand-section">
-        <div class="container">
-          <div class="brand-section-header">
-            <span class="section-label">The Collection</span>
-            <h2>KAGE Clothes</h2>
-            <p>Wear the animals. Each shirt features one of the four KAGE spirits — Bear, White Tiger, Black Panther, or White Fox — printed on premium heavyweight cotton. Limited pieces. One size per design.</p>
-            <div class="coming-soon-badge">🔥 Dropping Soon</div>
-          </div>
-          <div class="collection-cards">
-            <div class="collection-card">
-              <div class="collection-card-img">
-                <img class="kage-portrait" src="/images/animal-bear.jpg" alt="Bear — The Foundation" />
-                <span class="coming-soon-tag">Coming Soon</span>
-              </div>
-              <div class="collection-card-body">
-                <h3>Bear Series</h3>
-                <p>The Foundation collection. Bold bear prints on heavyweight cotton. Raw power meets streetwear — designed for those who move with weight.</p>
-                <div class="card-price">Est. Rs. 1,499 – 1,899</div>
-                <div class="notify-form"><input type="email" placeholder="Your email" /><button onclick="notifyMe(this,'kage-bear-series')">Notify Me</button></div>
-              </div>
-            </div>
-            <div class="collection-card">
-              <div class="collection-card-img">
-                <img class="kage-portrait" src="/images/animal-white-tiger.jpg" alt="White Tiger — The Presence" />
-                <span class="coming-soon-tag">Coming Soon</span>
-              </div>
-              <div class="collection-card-body">
-                <h3>White Tiger Series</h3>
-                <p>The Presence collection. Rare patterns on clean white fabric. Every piece makes a statement without saying a word.</p>
-                <div class="card-price">Est. Rs. 1,499 – 1,899</div>
-                <div class="notify-form"><input type="email" placeholder="Your email" /><button onclick="notifyMe(this,'kage-white-tiger-series')">Notify Me</button></div>
-              </div>
-            </div>
-            <div class="collection-card">
-              <div class="collection-card-img">
-                <img class="kage-portrait" src="/images/animal-black-panther.jpg" alt="Black Panther — The Silence" />
-                <span class="coming-soon-tag">Coming Soon</span>
-              </div>
-              <div class="collection-card-body">
-                <h3>Black Panther Series</h3>
-                <p>The Silence collection. Dark-on-dark prints. Stealth mode activated — for those who let their presence speak louder than their volume.</p>
-                <div class="card-price">Est. Rs. 1,499 – 1,899</div>
-                <div class="notify-form"><input type="email" placeholder="Your email" /><button onclick="notifyMe(this,'kage-black-panther-series')">Notify Me</button></div>
-              </div>
-            </div>
-            <div class="collection-card">
-              <div class="collection-card-img">
-                <img class="kage-portrait" src="/images/animal-white-fox.jpg" alt="White Fox — The Intelligence" />
-                <span class="coming-soon-tag">Coming Soon</span>
-              </div>
-              <div class="collection-card-body">
-                <h3>White Fox Series</h3>
-                <p>The Intelligence collection. Clean, sharp designs on premium white cotton. For the creative minds who outmanoeuvre the game.</p>
-                <div class="card-price">Est. Rs. 1,499 – 1,899</div>
-                <div class="notify-form"><input type="email" placeholder="Your email" /><button onclick="notifyMe(this,'kage-white-fox-series')">Notify Me</button></div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-    </div>
-
-
-
     <!-- ================================================================
          CUSTOM STICKERS PAGE
          ================================================================ -->
@@ -4514,44 +4437,6 @@
             <h2>Custom Stickers</h2>
             <p>Send us your idea — a name, a sketch, a meme, anything — and we'll turn it into a premium vinyl sticker. Peel-proof. Rain-proof. Personality-proof. Your design, printed by KAGE.</p>
             <div class="coming-soon-badge">🎨 Custom Orders Opening Soon</div>
-          </div>
-          <div class="collection-cards">
-            <div class="collection-card">
-              <div class="collection-card-img">
-                ✏️
-                <span class="coming-soon-tag">Coming Soon</span>
-              </div>
-              <div class="collection-card-body">
-                <h3>Design It Yourself</h3>
-                <p>Submit your own artwork, logo, or concept. We'll print it on high-quality vinyl at any size you want. Bumper stickers, laptop stickers, wall art — you name it.</p>
-                <div class="card-price">Est. Rs. 200 – 500 per sticker</div>
-                <div class="notify-form"><input type="email" placeholder="Your email" /><button onclick="notifyMe(this,'custom-design-it-yourself')">Notify Me</button></div>
-              </div>
-            </div>
-            <div class="collection-card">
-              <div class="collection-card-img">
-                🎨
-                <span class="coming-soon-tag">Coming Soon</span>
-              </div>
-              <div class="collection-card-body">
-                <h3>KAGE Designs</h3>
-                <p>Can't think of something? Pick from our library of KAGE designs — kanji marks, animal spirits, and street art prints. Pre-made, ready to ship.</p>
-                <div class="card-price">Est. Rs. 150 – 350 per sticker</div>
-                <div class="notify-form"><input type="email" placeholder="Your email" /><button onclick="notifyMe(this,'custom-kage-designs')">Notify Me</button></div>
-              </div>
-            </div>
-            <div class="collection-card">
-              <div class="collection-card-img">
-                📦
-                <span class="coming-soon-tag">Coming Soon</span>
-              </div>
-              <div class="collection-card-body">
-                <h3>Sticker Packs</h3>
-                <p>Mix and match. Get a bundle of 5, 10, or 20 stickers at a discounted rate. Perfect for laptops, water bottles, skateboards, and giving away to friends.</p>
-                <div class="card-price">Est. Rs. 600 – 1,500 per pack</div>
-                <div class="notify-form"><input type="email" placeholder="Your email" /><button onclick="notifyMe(this,'custom-sticker-packs')">Notify Me</button></div>
-              </div>
-            </div>
           </div>
         </div>
       </section>
@@ -4868,7 +4753,7 @@
         } else if (path.startsWith('/collection/')) {
           navigateTo('collection', path.slice('/collection/'.length));
         } else if (path === '/reset-password') { navigateTo('reset'); initPasswordReset(); }
-        else if (['about','contact','shipping','returns','privacy','terms','tracking','kage-clothes','custom-stickers','account','coming-soon'].includes(path.slice(1))) navigateTo(path.slice(1));
+        else if (['about','contact','shipping','returns','privacy','terms','tracking','custom-stickers','account','coming-soon'].includes(path.slice(1))) navigateTo(path.slice(1));
         else navigateTo('not-found');
       } catch (e) { navigateTo('not-found'); }
       finally { restoringHistory = false; }
@@ -4929,7 +4814,7 @@
       } else if (target === 'confirmation') {
         navDeactivate();
         if (lastOrder) renderConfirmation(lastOrder);
-      } else if (['kage-clothes','custom-stickers'].includes(target)) {
+      } else if (target === 'custom-stickers') {
         // Brand sections — just show the page, activate nav
         navDeactivate();
         document.querySelectorAll('.nav-links a[data-nav]').forEach(a => a.classList.toggle('active', a.dataset.nav === target));
@@ -5864,10 +5749,26 @@
     }
 
     // ---------- Reviews & Ratings ----------
+    // Per-browser token identifying "this reviewer". Sent with review
+    // submissions and review fetches so a reviewer instantly sees their OWN
+    // pending review (only on this device) while it awaits moderation.
+    function getReviewViewerToken() {
+      let token = '';
+      try { token = localStorage.getItem('kageReviewViewerToken') || ''; } catch (e) { /* private mode */ }
+      if (!token) {
+        const bytes = new Uint8Array(24);
+        if (window.crypto && window.crypto.getRandomValues) window.crypto.getRandomValues(bytes);
+        else for (let i = 0; i < bytes.length; i++) bytes[i] = Math.floor(Math.random() * 256);
+        token = Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
+        try { localStorage.setItem('kageReviewViewerToken', token); } catch (e) { /* private mode */ }
+      }
+      return token;
+    }
+
     async function loadReviews(productId) {
       let reviews = [];
       try {
-        const res = await fetch('/api/reviews?product_id=' + productId);
+        const res = await fetch('/api/reviews?product_id=' + productId + '&viewer_token=' + encodeURIComponent(getReviewViewerToken()));
         if (res.ok) reviews = await res.json();
       } catch (e) { reviews = []; }
       const section = document.getElementById('reviewsSection');
@@ -5881,15 +5782,21 @@
         return;
       }
       const sorted = [...reviews].sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
-      list.innerHTML = sorted.map(rv => `
-        <div class="review-item">
+      list.innerHTML = sorted.map(rv => {
+        // A pending review only ever reaches the person who wrote it — flag it
+        // so they know it is not public yet.
+        const pending = rv.status === 'pending';
+        return `
+        <div class="review-item${pending ? ' pending-own' : ''}">
           <div class="review-head">
             <span class="review-name">${esc(rv.customer_name || 'Verified Buyer')}</span>
             <span class="review-stars">${starsOnlyHtml(Number(rv.rating))}</span>
+            ${pending ? '<span class="review-pending-tag" title="Only you can see this review until it is approved">Awaiting approval &middot; only visible to you</span>' : ''}
             <span class="review-date">${esc(String(rv.created_at || '').slice(0, 10))}</span>
           </div>
           ${rv.comment ? `<p class="review-comment">${esc(rv.comment)}</p>` : ''}
-        </div>`).join('');
+        </div>`;
+      }).join('');
     }
 
     async function submitReview(e) {
@@ -5911,15 +5818,23 @@
         const res = await fetch('/api/reviews', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ product_id: currentProduct.id, order_number: order, phone, rating, comment, name })
+          body: JSON.stringify({ product_id: currentProduct.id, order_number: order, phone, rating, comment, name, viewer_token: getReviewViewerToken() })
         });
         const data = await res.json().catch(() => ({}));
         if (res.ok) {
+          // Adopt the server's token if it minted one (e.g. first review
+          // from a browser with storage disabled) so later fetches still
+          // match the reviews this device submitted.
+          if (data.viewer_token) { try { localStorage.setItem('kageReviewViewerToken', data.viewer_token); } catch (e2) { /* private mode */ } }
           e.target.reset();
           window.resetStarInput();
           errEl.style.color = '#1a7f37';
-          errEl.textContent = data.message || 'Thanks for your review! It will appear once approved.';
+          errEl.textContent = data.message || 'Thanks for your review!';
           errEl.style.display = 'block';
+          // Re-fetch immediately so the new review shows up for this person
+          // right away — auto-approved (4–5★) for everyone, pending ones at
+          // least for the author.
+          loadReviews(currentProduct.id);
         } else {
           errEl.textContent = data.error || 'Something went wrong. Please try again.';
           errEl.style.display = 'block';
