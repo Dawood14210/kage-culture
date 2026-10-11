@@ -80,7 +80,7 @@ Order-confirmation and status-update emails are now **awaited before `res.json()
 Stock is now decremented with `UPDATE products SET stock_qty = stock_qty - ? WHERE id = ? AND stock_qty >= ?`; if the guarded update matches 0 rows, the order row is deleted and the customer gets a 400. No more oversell race.
 
 ### ✅ M3 — Dead inline session cookies removed — `routes/auth.js`
-The manual `Set-Cookie: kage.session/kage.cust` blocks (admin login, customer signup/login) are gone; sessions rely solely on cookie-session's signed pair. Logout's `kage.cust` clear is kept.
+The manual `Set-Cookie: kage.session/kage.cust` blocks (admin login, customer signup/login) are gone; sessions rely solely on cookie-session's signed pair. A 2026-10-12 follow-up removed the unused `kage.cust` auth fallback and clear code; only `req.session` populated by cookie-session carries identity now.
 
 ### ✅ M4 — CSP cleanup — `server.js`
 Removed unused `https://unpkg.com` from `scriptSrc` and dropped `scriptSrcAttr 'unsafe-inline'`. Also removed the dead Phosphor icons `<script>` tag from `index.html` (zero `ph-*` classes used) — one less third-party supply-chain surface.
@@ -92,7 +92,7 @@ Every `catch` now logs details server-side (`console.error`) and returns a gener
 `esc()` applied to: gallery images & thumbnails, cart & checkout item images, wishlist drawer (name/fit/img, and removed the product-name-in-onclick injection vector), spirit selector/editorial/result images, hero tiles, collection tiles, admin product previews. Product cards/collection tiles/thumbnails got `role`/`tabindex`/`aria-label` + Enter/Space handlers; gallery dots are real `<button>`s with delegated click handling; quick-view buttons are focus-visible.
 
 ### ✅ M7 — Static caching — `server.js`
-Immutable-ish assets (`images/`, fonts, icons) now cache `max-age=31536000`; HTML remains `no-cache, no-store`.
+Original audit result: immutable-ish assets (`images/`, fonts, icons) cached for one year and HTML stayed no-store. The 2026-10-12 follow-up now gives ordinary static assets and `/uploads` one-day public caching with revalidation, keeps HTML no-store, and reserves one-year immutable caching for `/vendor`.
 
 ### ✅ L1 — Repo debris deleted
 Removed: `.tmp-final-1786883984768/`, `.tmp-final-clean.js`, `.tmp-rewrite-spirit.js`, `screenshot-scroll.mjs`, `screenshot-ref.mjs`, `screenshot-phase2-debug.mjs`.
@@ -107,7 +107,7 @@ No longer claims `kage.db` file persistence; documents that local sql.js is in-m
 `#0D0D0D` → `#D9D4C8` (matches the site's warm light theme).
 
 ### ✅ L6 — SEO/a11y
-Keyboard/AT access fixed (see M6). Sitemap left as-is: the storefront is a client-rendered SPA with in-page routing only (no per-product URLs exist), so there is nothing to list yet.
+Keyboard/AT access fixed (see M6). The 2026-10-12 follow-up replaced the hard-coded crawler files with dynamic `/sitemap.xml` and `/robots.txt` endpoints derived from `SITE_URL` (or the request origin fallback); canonical, Open Graph and JSON-LD site URLs use the same configuration.
 
 ### ✅ L7 — Regression tests added — `tests/e2e.test.js`
 Framework-free (`node tests/e2e.test.js`), boots the real app on an ephemeral port with the in-memory fallback. **14/14 passing**: auth-middleware regression suite (valid/forged/tampered/no-cookie/customer-on-admin-route), admin setup gating, order PII phone-gate (401/404/200-sanitized), `/track`, stock decrement 4→3 + over-stock 400, CSRF on admin mutation.
@@ -586,13 +586,35 @@ fulfillment, and retains the no-sale statement.
 
 Implementation check: `/api/newsletter` stores subscriber emails; there is no newsletter
 campaign sender or unsubscribe endpoint/UI. The policy offers WhatsApp as a manual removal
-request path and discloses that self-service unsubscribe is not available. The app uses
-`kage.session`; `kage.cust` is only a legacy auth fallback/cleared on logout, not issued by
-current login. No automated courier API/integration was found in this repo; the delivery
-partner clause reflects the requested operational disclosure.
+request path and discloses that self-service unsubscribe is not available. The app uses `kage.session`, signed and verified by cookie-session before it populates `req.session`; auth middleware no longer decodes raw cookie payloads, and the legacy `kage.cust` fallback is removed. No automated courier API/integration was found in this repo; the delivery partner clause reflects the requested operational disclosure.
 
 `tests/frontend.test.js` covers these policy details. `npm test` → 57/57 API + 17/17
 frontend scenarios passed.
+
+## Follow-up hardening — 2026-10-12
+
+- Ordinary static assets and uploads use one-day public caching with revalidation;
+  HTML is no-store, while `/vendor` retains version-pinned one-year immutable caching.
+  Numeric `/api/products/<digits>` reads get the public API policy; admin/customer
+  APIs are no-store. A first uncookied public API GET still sets the CSRF cookie,
+  while a request with an existing cookie does not set another one.
+- Product and standalone upload filters accept raster image extensions/MIME types
+  only; SVG remains available as an existing public logo/asset, not as an upload.
+- Auth middleware now reads identity exclusively from signed `req.session` state.
+  The manual signed-cookie fallback and dead `kage.cust` fallback/helpers are gone;
+  forged and detached cookie tests still return 401.
+- `SITE_URL` is centralized for canonical/OG/JSON-LD tags, dynamic sitemap/robots,
+  and reset/verification links. Missing production `SITE_URL` logs a warning and
+  page tags fall back to request origin; reset/verification messages are not sent
+  with a guessed domain. See `DEPLOY.md` and `.env.example`.
+- Review GETs send `X-Viewer-Token`; a query token remains temporarily accepted
+  and token-scoped responses are `private`. Sold-unit and approved-review maps
+  share a 60-second cache, invalidated by order, review, and product writes.
+
+**Verification:** `npm test` passes (113/113 E2E, shared rate-limit integration,
+storefront regression, 19/19 frontend scenarios). Headless Chromium confirmed the
+hero image loads, canonical/OG and dynamic sitemap/robots use `SITE_URL`, and a
+reviewer sees their own pending review immediately after submission.
 
 ## Remaining work (priority order)
 

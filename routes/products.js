@@ -19,14 +19,17 @@ function respondToProductWriteError(err, res) {
   return res.status(500).json({ error: 'Something went wrong. Please try again.' });
 }
 
-// Same filter as /api/upload must use — only real image types get through.
+const ALLOWED_IMAGE_EXTENSIONS = new Set(['.jpeg', '.jpg', '.png', '.gif', '.webp']);
+const ALLOWED_IMAGE_MIME_TYPES = new Set(['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp']);
+
+// Same filter as /api/upload must use — only raster image types get through.
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 8 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
-    const allowed = /jpeg|jpg|png|gif|webp|svg/;
-    if (allowed.test(path.extname(file.originalname).toLowerCase()) && allowed.test(file.mimetype)) cb(null, true);
-    else { const err = new Error('Only image files (JPEG, PNG, GIF, WebP, SVG) are allowed'); err.status = 400; cb(err); }
+    const extension = path.extname(file.originalname).toLowerCase();
+    if (ALLOWED_IMAGE_EXTENSIONS.has(extension) && ALLOWED_IMAGE_MIME_TYPES.has(String(file.mimetype).toLowerCase())) cb(null, true);
+    else { const err = new Error('Only image files (JPEG, PNG, GIF, WebP) are allowed'); err.status = 400; cb(err); }
   }
 });
 
@@ -111,6 +114,7 @@ module.exports = function createProductRoutes(db) {
       // when none was provided.
       const estCost = unitCostVal != null ? unitCostVal : Math.max(50, Math.round(priceVal * 0.55));
       const result = await db.prepare('INSERT INTO products (name, category, fit, price, sale_price, on_sale, description, sizes, front_image, back_image, extra_images, in_stock, unit_cost, stock_qty) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(cleanName, category, String(fit || '').trim().slice(0, 60), priceVal, salePriceVal, onSale, String(description || '').slice(0, 2000), JSON.stringify(sizesParsed), frontImage, backImage, JSON.stringify(extraImages), inStock, estCost, stockQty);
+      productShape.invalidateProductAggregates();
       if (sizeStockInput.value) await sizeStock.replaceSizeStock(db, result.lastInsertRowid, sizeStockInput.value);
       const product = await db.prepare(`SELECT ${productShape.ADMIN_PRODUCT_SELECT} FROM products WHERE id = ?`).get(result.lastInsertRowid);
       // Admin-only route (requireAuth + requireCsrf): returns the full shape so
@@ -201,6 +205,7 @@ module.exports = function createProductRoutes(db) {
       const now = new Date().toISOString().replace('T', ' ').slice(0, 19);
       await db.prepare('UPDATE products SET name=?, category=?, fit=?, price=?, sale_price=?, on_sale=?, description=?, sizes=?, front_image=?, back_image=?, extra_images=?, in_stock=?, unit_cost=?, stock_qty=?, updated_at=? WHERE id=?').run(finalName, finalCategory, finalFit, finalPrice, salePriceVal, onSale, finalDesc, JSON.stringify(sizesParsed), frontImage, backImage, JSON.stringify(extraImages), finalStockQty === 0 ? 0 : finalInStock, finalUnitCost, finalStockQty, now, req.params.id);
       if (nextSizeStock) await sizeStock.replaceSizeStock(db, existing.id, nextSizeStock);
+      productShape.invalidateProductAggregates();
       const updated = await db.prepare(`SELECT ${productShape.ADMIN_PRODUCT_SELECT} FROM products WHERE id = ?`).get(req.params.id);
       res.json(productShape.shapeAdminProduct(updated, { size_stock: await sizeStock.loadSizeStock(db, existing.id) }));
     } catch (err) { respondToProductWriteError(err, res); }
@@ -230,6 +235,7 @@ module.exports = function createProductRoutes(db) {
         if (result && result.changes != null && Number(result.changes) === 0) continue;
         deletedIds.push(Number(product.id));
       }
+      if (deletedIds.length) productShape.invalidateProductAggregates();
 
       // Product rows are removed first; image cleanup is best-effort so a Blob
       // outage cannot leave deleted products stuck in the admin list.
@@ -266,6 +272,7 @@ module.exports = function createProductRoutes(db) {
       for (const img of extraImages) await removeImage(img);
       await db.prepare('DELETE FROM product_size_stock WHERE product_id = ?').run(req.params.id);
       await db.prepare('DELETE FROM products WHERE id = ?').run(req.params.id);
+      productShape.invalidateProductAggregates();
       res.json({ success: true });
     } catch (err) { console.error('products route failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
   });
@@ -278,6 +285,7 @@ module.exports = function createProductRoutes(db) {
       const newStock = existing.in_stock ? 0 : 1;
       if (newStock && existing.stock_qty != null && Number(existing.stock_qty) <= 0) return res.status(400).json({ error: 'Restock this product before marking it in stock.' });
       await db.prepare('UPDATE products SET in_stock = ? WHERE id = ?').run(newStock, req.params.id);
+      productShape.invalidateProductAggregates();
       res.json({ success: true, in_stock: Boolean(newStock) });
     } catch (err) { console.error('products route failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
   });
@@ -299,10 +307,12 @@ module.exports = function createProductRoutes(db) {
         if (sizes.length !== 1) return res.status(400).json({ error: 'This product tracks stock per size. Edit the product to set each size.' });
         await sizeStock.replaceSizeStock(db, id, { [sizes[0]]: qty });
         await db.prepare('UPDATE products SET in_stock = ? WHERE id = ?').run(qty > 0 ? 1 : 0, id);
+        productShape.invalidateProductAggregates();
         const tracked = await db.prepare('SELECT stock_qty, in_stock FROM products WHERE id = ?').get(id);
         return res.json({ success: true, stock_qty: Number(tracked.stock_qty), in_stock: Boolean(tracked.in_stock) });
       }
       await db.prepare('UPDATE products SET stock_qty = ?, in_stock = ? WHERE id = ?').run(qty, qty > 0 ? 1 : 0, id);
+      productShape.invalidateProductAggregates();
       const updated = await db.prepare('SELECT * FROM products WHERE id = ?').get(id);
       res.json({ success: true, stock_qty: updated.stock_qty, in_stock: Boolean(updated.in_stock) });
     } catch (err) { console.error('products route failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }

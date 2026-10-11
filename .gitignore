@@ -6,6 +6,9 @@ kage.db
 kage.db-journal
 kage.db-wal
 kage.db-shm
+*.rate-limit.lock
+*.db.*.tmp
+*.sqlite.*.tmp
 
 # Local image uploads
 uploads/

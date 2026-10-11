@@ -6,6 +6,7 @@ const crypto = require('crypto');
 const config = require('../config');
 const { requireCsrf } = require('../middleware/csrf');
 const { requireAuth } = require('../middleware/auth');
+const productShape = require('../utils/productShape');
 
 // Reviews strictly above this rating skip moderation and publish immediately.
 // Ratings are integers 1–5, so > 3.5 means 4- and 5-star reviews auto-approve.
@@ -49,6 +50,7 @@ module.exports = function createReviewRoutes(db) {
       const autoApproved = rf > AUTO_APPROVE_ABOVE;
       const status = autoApproved ? 'approved' : 'pending';
       await db.prepare('INSERT INTO reviews (product_id, order_number, customer_name, rating, comment, status, viewer_token, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(pid, num, customerName, r, cleanComment, status, viewerToken, now);
+      productShape.invalidateProductAggregates();
       res.status(201).json({
         success: true,
         approved: autoApproved,
@@ -65,8 +67,14 @@ module.exports = function createReviewRoutes(db) {
   router.get('/api/reviews', async (req, res) => {
     try {
       const pid = parseInt(req.query.product_id, 10);
+      const headerToken = req.get('X-Viewer-Token');
+      const legacyQueryToken = typeof req.query.viewer_token === 'string' ? req.query.viewer_token : '';
+      // Accept the old query token during the client rollout, but prefer the
+      // header so capability tokens do not leak into browser/proxy URL logs.
+      const rawViewerToken = headerToken || legacyQueryToken;
+      if (rawViewerToken) res.setHeader('Cache-Control', 'private');
       if (!pid || isNaN(pid)) return res.json([]);
-      const viewer = sanitizeViewerToken(req.query.viewer_token);
+      const viewer = sanitizeViewerToken(rawViewerToken);
       const rows = await db.prepare('SELECT id, customer_name, rating, comment, created_at, status, viewer_token FROM reviews WHERE product_id = ? AND status != ?').all(pid, 'rejected');
       const visible = rows.filter(rv => rv.status === 'approved' || (rv.status === 'pending' && viewer && rv.viewer_token === viewer));
       res.json(visible.map(rv => ({
@@ -92,16 +100,23 @@ module.exports = function createReviewRoutes(db) {
       const id = parseInt(req.params.id, 10); if (isNaN(id)) return res.status(400).json({ error: 'Invalid review ID.' });
       const { status } = req.body;
       if (!['approved', 'pending', 'rejected'].includes(status)) return res.status(400).json({ error: 'Invalid status.' });
-      const existing = await db.prepare('SELECT id FROM reviews WHERE id = ?').get(id);
+      const existing = await db.prepare('SELECT id, status FROM reviews WHERE id = ?').get(id);
       if (!existing) return res.status(404).json({ error: 'Review not found.' });
       await db.prepare('UPDATE reviews SET status = ? WHERE id = ?').run(status, id);
+      if (existing.status !== status) productShape.invalidateProductAggregates();
       res.json({ success: true });
     } catch (err) { console.error('reviews route failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
   });
 
   // DELETE review (admin only)
   router.delete('/api/reviews/:id', requireCsrf, requireAuth, async (req, res) => {
-    try { const id = parseInt(req.params.id, 10); if (isNaN(id)) return res.status(400).json({ error: 'Invalid review ID.' }); await db.prepare('DELETE FROM reviews WHERE id = ?').run(id); res.json({ success: true }); } catch (err) { console.error('reviews route failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
+    try {
+      const id = parseInt(req.params.id, 10);
+      if (isNaN(id)) return res.status(400).json({ error: 'Invalid review ID.' });
+      const result = await db.prepare('DELETE FROM reviews WHERE id = ?').run(id);
+      if (!result || result.changes == null || Number(result.changes) > 0) productShape.invalidateProductAggregates();
+      res.json({ success: true });
+    } catch (err) { console.error('reviews route failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
   });
 
   return router;

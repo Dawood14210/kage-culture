@@ -2,12 +2,14 @@
 
 The app is **serverless-ready** when configured with persistent production storage:
 - **Database:** Turso (edge SQLite), configured with `TURSO_DATABASE_URL` + `TURSO_AUTH_TOKEN`.
+- **Shared rate limits:** Turso is also the cross-instance store for IP rate-limit windows and per-account login lockouts. The `rate_limits` table is created/migrated automatically with the rest of the schema; no separate service is needed. With Turso configured, the shared store is enabled automatically. For a non-Turso deployment, set `RATE_LIMIT_STORE=db` when the app uses a database shared by its instances (for local multi-process sql.js, also point all instances at the same `KAGE_DB_FILE`).
 - **Images:** a **Public** Vercel Blob store, configured with `BLOB_READ_WRITE_TOKEN` (**required to add or edit products with images on Vercel**). Product images are served directly to storefront visitors.
 - **Sessions:** signed cookies (`cookie-session`), configured with `SESSION_SECRET`.
 
 > ⚠️ Vercel's function filesystem is ephemeral/read-only. Do not rely on local
 > `./uploads` for deployed product images. If Blob storage is missing, product
-> image uploads will fail. Set all four variables below before using the admin panel.
+> image uploads will fail. Set the required production variables below before
+> using the admin panel or sending account-verification emails.
 
 ---
 
@@ -53,7 +55,15 @@ In the Vercel project: **Settings → Environment Variables**, add for **Product
 | `TURSO_DATABASE_URL` | `libsql://kage-xxxx.turso.io` (from Step 2) |
 | `TURSO_AUTH_TOKEN` | the token from Step 2 |
 | `BLOB_READ_WRITE_TOKEN` | **Required for product image uploads:** create/connect a **Public** Vercel Blob store, then use its read-write token |
-| `SESSION_SECRET` | **required, >= 32 characters.** Generate one: `node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"` |
+| `SESSION_SECRET` | **Required, >= 32 characters.** Generate one: `node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"` |
+| `SITE_URL` | The canonical public HTTPS origin for this shop. Set it to your assigned production URL or your configured custom domain; do not copy another shop's domain. |
+| `RATE_LIMIT_STORE` | Optional: set to `db` for a non-Turso deployment using a database shared by its instances. Turso enables the DB store automatically. |
+
+`SITE_URL` is the single source for page canonical/Open Graph URLs, structured data,
+`/sitemap.xml`, `/robots.txt`, and password-reset/verification email links. If it is
+unset in production, page metadata and crawler files fall back to the current request
+origin and a warning is logged; password-reset and verification emails are suppressed
+rather than sent with a guessed domain.
 
 Vercel's Storage quickstart may show a store-prefixed variable such as `kage_READ_WRITE_TOKEN`; this app accepts that variable as well as `BLOB_READ_WRITE_TOKEN`.
 
@@ -114,7 +124,10 @@ npm run dev   # http://localhost:3000 — sets NODE_ENV=development, loads .env 
 `.env` (a ~10-line loader in `scripts/dev.js`; the project deliberately has no
 dotenv dependency). By default it uses the in-memory sql.js DB (resets on exit)
 + `./uploads`; set `KAGE_DB_FILE=./kage.db` to persist the local database to a
-file (that file is gitignored).
+file (that file is gitignored). Local rate limits stay in process memory unless
+`RATE_LIMIT_STORE=db` is set. With Turso, the DB store is automatic; with a
+persistent local sql.js file, `RATE_LIMIT_STORE=db` uses the same `rate_limits`
+table across server processes sharing that file.
 
 Plain `npm start` / `node server.js` does **not** read `.env` and does **not** set
 `NODE_ENV`, so it needs real environment variables:

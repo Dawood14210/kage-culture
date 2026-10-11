@@ -1073,3 +1073,161 @@ verifying it.
   dropdown succeeds once the product is restocked. Screenshot:
   `/home/user/screenshots/reactivate-409-alert.png`.
 - `npm test` → **98/98 API + 19/19 frontend scenarios**.
+
+---
+
+## 28. Shared database rate limits and per-account login lockouts (2026-10-11)
+
+The in-memory `express-rate-limit` default was process-local, so Vercel serverless
+instances did not share the 10/min login, 8/min order, 5/min reset or 120/min
+global counters. Added the `rate_limits(key, count, reset_at)` table to the common
+schema and additive migrations for Turso, sql.js and the in-memory backend.
+
+- **Atomic shared store:** new `DatabaseRateLimitStore` implements the v8 store
+  contract (`init`, `increment`, `decrement`, `resetKey`, `get`, `resetAll`).
+  Counters use one `INSERT .. ON CONFLICT .. DO UPDATE .. RETURNING` statement,
+  with expired-window reset and a 1-in-100 opportunistic cleanup. Turso enables
+  it automatically; local/test setups keep the memory store unless
+  `RATE_LIMIT_STORE=db` is set. For `KAGE_DB_FILE`, rate-counter operations use
+  the existing SQLite file via the local libsql client under a small shared
+  file lock, so separately running sql.js server processes really do share the
+  same counter. sql.js snapshots merge the current `rate_limits` rows before
+  persisting so a stale process cannot undo another process's counter.
+- **Failure policy and IP keys:** global, strict, order, reset and customer
+  login store errors log a warning and pass the request rather than returning a
+  500. The admin login IP limiter fails closed with 429 and `Retry-After` if its
+  store is down. The app still trusts exactly one Vercel proxy hop; the built-in
+  express-rate-limit key generator uses `req.ip` and its IPv6 subnet helper.
+- **Account lockouts:** admin failures are keyed by lowercased email and account
+  type in the same table (`login_fail:<email>` for admins and a customer-specific
+  prefix for customer accounts), and the fifth failed
+  credential attempt locks that address for 15 minutes. Customer login uses a
+  threshold of 10. Unknown email and wrong-password responses have the same
+  401 shape and use the same cost-12 password-hash work; missing credentials do
+  not increment, successful login clears the
+  counter, and lockouts return 429 with a 15-minute `Retry-After`.
+- **Sensitive routes/UI:** `/api/orders/track` and `/api/orders/:orderNumber`
+  now use `strictLimiter`; reset-password is on the reset limiter and
+  resend-verification remains limited. The admin page now shows a clear
+  “Too many attempts. Please try again later.” message and translates
+  `Retry-After` into a time-to-retry hint.
+
+**Verification**
+
+- `npm test` → **100/100 API + 19/19 frontend scenarios**, plus the new shared
+  store integration suite.
+- Two real server processes on different ports against one sql.js
+  `KAGE_DB_FILE` shared the login bucket: attempts 1–10 returned 401 and
+  attempt 11 returned 429. Five failed attempts for the same normalized email
+  split across the processes also returned 429 on attempt 5. The tracking
+  endpoint returned 429 on its 11th request across the two processes; the
+  order-number endpoint shares that strict bucket.
+- Short-window store test proves two store instances see the same counter and
+  expiry resets it; a forced pure-memory fallback verifies that backend creates
+  and uses the new table too. Additional checks cover 5/10-failure lockouts,
+  email isolation, success reset, Retry-After, fail-open logging, admin
+  fail-closed, forwarded IPv4, and IPv6 /56 normalization.
+- Manual headless Chromium check (HeadlessChrome 153) submitted the blocked
+  admin form after 10 failures; the login response was **429** with
+  `Retry-After: 60`, and the page showed: “Too many attempts. Please try again
+  later. Try again in about 1 minute.”
+
+---
+
+## 29. Storefront category cleanup, real Graphic Tees routing and orphan confirmation (2026-10-12)
+
+Added focused red-first regressions in `tests/storefront-regressions.test.js`
+for the customer-facing defects, ran them against the existing storefront (the
+Pants nav/tile, four-column strip, dead loaders, TODO copy, Graphic Tees routing,
+and `/confirmation` deep link all failed), then implemented the fixes. A browser
+check also exposed an expected unauthenticated `/api/customers/me` 401 that
+Chrome logged as a console error; that was reproduced separately before fixing.
+
+- **Pants / category strip:** removed the unavailable Pants nav item and home
+  tile; the shared nav markup therefore stays clean in desktop and mobile, and
+  there was no Pants footer link. The three remaining tiles now use equal
+  centered columns at desktop/tablet widths and compact, equal columns with
+  scaled circles on phones. Updated the old four-card test.
+- **Graphic Tees:** category navigation now uses `categoryHasLiveProducts()` for
+  every coming-soon category and uses the regular product grid while stock is
+  available. The grid filter/title/description now recognize `graphic-tees`.
+  The four regular tee demo products (`Rising Vermillion`, `Blade Wolf`, `Neon
+  Fangs`, `Shinobi Mark`) now seed into that exact category. New
+  `normalize_demo_categories_v1` bootstrap migrates only their old default
+  `anime` category, preserving any different category an admin already chose.
+- **Dead loaders:** deleted `loadNewArrivals()`, `loadCollections()` and their
+  calls; `initHomePageSections()` still loads the live Best Sellers and Recently
+  Viewed sections. Removed the shadowed, unused `notifyMe(btn, category)`.
+- **Unconfirmed policy copy:** removed the whole Shipping “Free-shipping
+  threshold” paragraph and Contact “Working hours” paragraph because each
+  suggested bracketed replacement was still a fill-in example. No placeholder
+  value was published. Added page-text assertions against `TODO` and `[`.
+- **Confirmation / routes:** direct `/confirmation` with no order now replaces
+  the current history entry with `/tracking` immediately, activates Track Order
+  without showing Page Not Found, and browser Back returns to the previous
+  route. Kept `/confirmation` as an SPA shell route and added `/coming-soon` to
+  `spaPages` because it is a real page. `kage-clothes` was already absent from
+  server/frontend routes; regression coverage keeps it absent and verifies the
+  stale bare path is 404.
+- **Quiet session bootstrap:** anonymous `GET /api/customers/me` now returns
+  `{ customer: null }` (200), rather than producing a browser console error for
+  an expected 401 on every public route. Protected customer data endpoints
+  remain authenticated.
+
+**Verification**
+
+- `npm test` → **100/100 API scenarios**, shared rate-limit integration suite,
+  all storefront regressions, and **19/19 frontend scenarios**.
+- Headless Chromium 153 at **1440px desktop** and **390px mobile**: confirmed no
+  Pants nav link, exactly three equal-width tiles (about 373px desktop / 111px
+  phone), and no horizontal overflow. Stocked Graphic Tees showed all four
+  seeded products; setting their stock to zero switched to Coming Soon, and
+  restoring stock returned to the grid.
+- Opened 18 SPA routes at both sizes, including direct `/confirmation` →
+  `/tracking` and a history Back check; no console or uncaught page errors.
+  The sandbox cannot reach Google Fonts, so the headless check fulfilled that
+  stylesheet request with an empty successful response rather than reporting a
+  sandbox-only network error.
+- `git diff --check` and JavaScript syntax checks passed.
+
+---
+
+## 30. Seven-item follow-up hardening (2026-10-12)
+
+Completed the seven requested follow-ups with regression coverage:
+
+- Ordinary static assets and `/uploads` now use one-day public caching with
+  revalidation; HTML stays no-store, and only `/vendor` assets keep the one-year
+  immutable policy. Numeric `/api/products/<digits>` GETs match the public cache
+  rule; session-varying admin/customer APIs are no-store.
+- Confirmed the CSRF caveat: a first uncookied public API GET sets `kage.csrf`,
+  while a public cached read with an existing CSRF cookie does not send a new
+  `Set-Cookie`. No cache/cookie redesign was made.
+- Product and standalone uploads now require an allowed raster extension and
+  MIME type; all four admin file pickers exclude SVG/wildcards. Existing public
+  SVG logos/assets were left intact.
+- Removed manual signed-cookie parsing, `readSignedSession`, and the legacy
+  `kage.cust` identity fallback. Auth uses only verified `req.session`; valid
+  cookie-session login and forged/detached-cookie regressions pass.
+- Centralized `SITE_URL` in `utils/siteUrl.js`. Page canonical/OG/JSON-LD tags,
+  dynamic `/sitemap.xml` and `/robots.txt`, and reset/verification links share
+  that configuration. Missing production configuration warns and uses request
+  origin for page tags, but reset/verification emails are suppressed rather
+  than using a guessed domain. Updated `DEPLOY.md`, `.env.example`, `AGENTS.md`
+  and the audit notes.
+- Review GETs send `X-Viewer-Token`; the legacy query parameter remains accepted
+  during rollout. Token-scoped responses are `Cache-Control: private`, and the
+  storefront regression checks the token never appears in the URL.
+- Sold-unit counts and approved-review aggregates now share a 60-second cache,
+  invalidated after order, review, and product writes.
+
+**Verification**
+
+- `npm test` → **113/113 E2E scenarios**, shared rate-limit integration passed,
+  storefront regression suite passed, and **19/19 frontend scenarios**.
+- Headless Chromium confirmed the hero image loads, canonical/OG and dynamic
+  sitemap/robots URLs use `SITE_URL`, and a reviewer sees their own pending
+  review immediately after submission. No browser console/page errors. Google
+  Fonts were intercepted with an empty successful stylesheet because the
+  sandbox cannot reach that external host.
+- `git diff --check` and Node syntax checks passed.

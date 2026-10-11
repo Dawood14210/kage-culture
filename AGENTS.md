@@ -14,9 +14,10 @@
   in-memory fallback), deployed on Vercel serverless (`vercel.json`).
 - **Config:** all magic numbers live in `config.js` — use them, don't hardcode.
 - **Security invariants (do not regress):**
-  - Session cookies (`kage.session`, `kage.cust`) MUST be signature-verified —
-    see `readSignedSession()` in `middleware/auth.js`. Never trust a decoded
-    base64 payload without verifying its HMAC.
+  - Session identity must come only from `req.session`, populated by
+    `cookie-session` after its signature checks. Never decode raw cookie payloads
+    in route middleware or trust a base64 payload without the cookie-session
+    signature. The legacy `kage.cust` fallback has been removed.
   - Admin/product/order mutation routes require `requireCsrf` + `requireAuth`.
   - One-time data steps (demo seed, seed sale prices, unit-cost backfill) run
     **once per database** via `app_settings` keys — never per cold start. A
@@ -39,8 +40,9 @@
 
 ## Status snapshot (2026-09-23)
 
-- ✅ CRITICAL admin auth bypass fixed in `middleware/auth.js` (HMAC verification,
-  constant-time compare, 7/7 e2e tests passed).
+- ✅ CRITICAL admin auth bypass fixed: `requireAuth` trusts only
+  `cookie-session`-verified `req.session`; standalone/forged payloads and the
+  legacy `kage.cust` fallback are rejected by the E2E regression suite.
 - ✅ **Full audit queue cleared (2026-09-23):** C1 (admin setup gated behind
   `ALLOW_ADMIN_SETUP=true`, atomic insert, storefront auto-setup removed), H1
   (public order endpoint requires phone match), H2 (Vercel without Turso now

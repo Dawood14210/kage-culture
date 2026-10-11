@@ -5,7 +5,7 @@ const express = require('express');
 const config = require('../config');
 const { requireCsrf } = require('../middleware/csrf');
 const { requireAuth, requireCustomerAuth, optionalCustomerId } = require('../middleware/auth');
-const { orderLimiter } = require('../middleware/rateLimit');
+const { orderLimiter, strictLimiter } = require('../middleware/rateLimit');
 const { sendOrderConfirmation, sendStatusUpdate } = require('../utils/email');
 const sizeStock = require('../utils/sizes');
 const productShape = require('../utils/productShape');
@@ -125,7 +125,7 @@ module.exports = function createOrderRoutes(db) {
       const result = await db.prepare('INSERT INTO orders (order_number, customer_name, email, phone, address, city, notes, payment_method, payment_ref, subtotal, shipping, shipping_pending, total, items_json, status, customer_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(orderNumber, String(name).slice(0, 120), cleanEmail.slice(0, 160), String(phone).slice(0, 40), String(address).slice(0, 300), String(city).slice(0, 120), String(notes || '').slice(0, 500), method, String(payment_ref || '').slice(0, 100) || null, Math.round(subtotal), shipping, shippingPending, total, JSON.stringify(lineItems), initialStatus, orderCustomerId, now);
       // A new order changes every affected product's sold_count — drop the
       // cached aggregate so the storefront shows it right away.
-      productShape.invalidateSoldCounts();
+      productShape.invalidateProductAggregates();
 
       // Atomic stock decrement — `WHERE stock_qty >= ?` guards against the
       // SELECT-then-UPDATE overselling race: if stock changed between the
@@ -186,7 +186,7 @@ module.exports = function createOrderRoutes(db) {
   });
 
   // GET track order (public) — requires order number + matching phone
-  router.get('/api/orders/track', async (req, res) => {
+  router.get('/api/orders/track', strictLimiter, async (req, res) => {
     try {
       const { number, phone } = req.query;
       if (!number || !phone) return res.status(400).json({ error: 'Order number and phone are required.' });
@@ -199,7 +199,7 @@ module.exports = function createOrderRoutes(db) {
   // GET single order (public) — requires the order number AND matching phone
   // (same verification as /track). Previously this returned name, address and
   // payment details to anyone who knew/guessed an order number.
-  router.get('/api/orders/:orderNumber', async (req, res) => {
+  router.get('/api/orders/:orderNumber', strictLimiter, async (req, res) => {
     try {
       const { phone } = req.query;
       if (!phone) return res.status(401).json({ error: 'Phone verification required. Use /api/orders/track?number=...&phone=... instead.' });
@@ -282,7 +282,7 @@ module.exports = function createOrderRoutes(db) {
       const oldStatus = order.status;
       await db.prepare('UPDATE orders SET status = ? WHERE id = ?').run(status, id);
       // Cancel/reactivate moves units in or out of the sold totals.
-      if (oldStatus !== status) productShape.invalidateSoldCounts();
+      if (oldStatus !== status) productShape.invalidateProductAggregates();
       const updated = await db.prepare('SELECT * FROM orders WHERE id = ?').get(id);
       updated.items = JSON.parse(updated.items_json || '[]');
       if (oldStatus !== status) {

@@ -28,12 +28,13 @@ const ON_VERCEL = !!process.env.VERCEL;
 // sql.js backend stays fully in-memory (save() is a no-op) — that is the
 // default, and the deployed backends (Turso) never touch this path.
 const SQLJS_FILE = process.env.KAGE_DB_FILE ? path.resolve(process.env.KAGE_DB_FILE) : null;
+const SQLJS_FILE_LOCK = SQLJS_FILE ? `${SQLJS_FILE}.rate-limit.lock` : null;
 
 // ----------------------------------------------------------------
 // Pure-JS in-memory store (no WASM required)
 // Used when sql.js fails (e.g. WASM not found on Vercel).
 // ----------------------------------------------------------------
-let memStore = { admin: [], products: [], orders: [], newsletter_subscribers: [], customers: [], coming_soon_signups: [], app_settings: [] };
+let memStore = { admin: [], products: [], orders: [], newsletter_subscribers: [], customers: [], coming_soon_signups: [], app_settings: [], rate_limits: [] };
 let memAutoId = { admin: 0, products: 0, orders: 0, newsletter_subscribers: 0, coming_soon_signups: 0 };
 
 function memPrepare(sql) {
@@ -293,11 +294,13 @@ function tursoPrepare(sql) {
 // ----------------------------------------------------------------
 let sqlJsDb = null;
 let sqlJsReady = false;
+let sqlJsModule = null;
 
 async function initSqlJsLocal() {
   try {
     const initSqlJs = require('sql.js');
     const SQL = await initSqlJs();
+    sqlJsModule = SQL;
     sqlJsDb = new SQL.Database();
     if (SQLJS_FILE && fs.existsSync(SQLJS_FILE)) {
       try {
@@ -321,23 +324,122 @@ async function initSqlJsLocal() {
 
 // Write the sql.js database to KAGE_DB_FILE (no-op when unset). Writes are
 // coalesced with a short timer so a burst (seeding 20 products, batch deletes)
-// costs one file write, and save() flushes immediately.
+// costs one file write, and save() flushes immediately. The small lock also
+// serializes full sql.js snapshots with the DB-backed rate-limit writes used
+// when several local server processes share KAGE_DB_FILE. Before exporting,
+// merge the latest rate_limits rows from disk so a stale sql.js snapshot can
+// never roll back a counter written by another process.
+const FILE_LOCK_TIMEOUT_MS = 10000;
+const FILE_LOCK_STALE_MS = 30000;
+
+function acquireSqlJsFileLockSync() {
+  if (!SQLJS_FILE_LOCK) return null;
+  fs.mkdirSync(path.dirname(SQLJS_FILE), { recursive: true });
+  const deadline = Date.now() + FILE_LOCK_TIMEOUT_MS;
+  const pause = new Int32Array(new SharedArrayBuffer(4));
+  while (Date.now() < deadline) {
+    try {
+      const fd = fs.openSync(SQLJS_FILE_LOCK, 'wx', 0o600);
+      fs.writeSync(fd, `${process.pid} ${Date.now()}\n`);
+      return fd;
+    } catch (err) {
+      if (err.code !== 'EEXIST') throw err;
+      try {
+        const stat = fs.statSync(SQLJS_FILE_LOCK);
+        if (Date.now() - stat.mtimeMs > FILE_LOCK_STALE_MS) {
+          fs.unlinkSync(SQLJS_FILE_LOCK);
+          continue;
+        }
+      } catch (statErr) { if (statErr.code === 'ENOENT') continue; }
+      Atomics.wait(pause, 0, 0, 10);
+    }
+  }
+  throw new Error('Timed out waiting for the shared sql.js database lock.');
+}
+
+async function acquireSqlJsFileLock() {
+  if (!SQLJS_FILE_LOCK) return async () => {};
+  await fs.promises.mkdir(path.dirname(SQLJS_FILE), { recursive: true });
+  const deadline = Date.now() + FILE_LOCK_TIMEOUT_MS;
+  let delay = 5;
+  while (Date.now() < deadline) {
+    try {
+      const handle = await fs.promises.open(SQLJS_FILE_LOCK, 'wx', 0o600);
+      await handle.writeFile(`${process.pid} ${Date.now()}\n`);
+      return async () => {
+        try { await handle.close(); } catch (e) { /* already closed */ }
+        try { await fs.promises.unlink(SQLJS_FILE_LOCK); } catch (e) { if (e.code !== 'ENOENT') throw e; }
+      };
+    } catch (err) {
+      if (err.code !== 'EEXIST') throw err;
+      try {
+        const stat = await fs.promises.stat(SQLJS_FILE_LOCK);
+        if (Date.now() - stat.mtimeMs > FILE_LOCK_STALE_MS) {
+          await fs.promises.unlink(SQLJS_FILE_LOCK).catch(e => { if (e.code !== 'ENOENT') throw e; });
+          continue;
+        }
+      } catch (statErr) { if (statErr.code === 'ENOENT') continue; }
+      await new Promise(resolve => setTimeout(resolve, delay));
+      delay = Math.min(100, delay * 2);
+    }
+  }
+  throw new Error('Timed out waiting for the shared sql.js database lock.');
+}
+
+function mergeLatestRateLimitsFromFile() {
+  if (!SQLJS_FILE || !sqlJsModule || !sqlJsDb || !fs.existsSync(SQLJS_FILE)) return;
+  let diskDb;
+  try {
+    diskDb = new sqlJsModule.Database(fs.readFileSync(SQLJS_FILE));
+    const result = diskDb.exec('SELECT key, count, reset_at FROM rate_limits');
+    if (!result.length) return;
+    sqlJsDb.run('CREATE TABLE IF NOT EXISTS rate_limits (key TEXT PRIMARY KEY, count INTEGER NOT NULL, reset_at INTEGER NOT NULL)');
+    sqlJsDb.run('DELETE FROM rate_limits');
+    const insert = sqlJsDb.prepare('INSERT INTO rate_limits (key, count, reset_at) VALUES (?, ?, ?)');
+    try {
+      for (const row of result[0].values) insert.run(row);
+    } finally { insert.free(); }
+  } catch (e) {
+    // First boot may have an older file without the new table, or sql.js may
+    // already have rejected a corrupt dump and started with a fresh database.
+    // This is only a best-effort merge; schema creation below has the live table.
+    if (!/no such table|not a database|database disk image is malformed|file is not a database/i.test(e.message)) throw e;
+  } finally {
+    if (diskDb) diskDb.close();
+  }
+}
+
 let persistTimer = null;
 function persistSqlJs() {
   if (!SQLJS_FILE || !sqlJsDb) return;
   if (persistTimer) return;
   persistTimer = setTimeout(() => {
     persistTimer = null;
-    try { fs.writeFileSync(SQLJS_FILE, Buffer.from(sqlJsDb.export())); }
-    catch (e) { console.error('sql.js save failed:', e.message); }
+    flushSqlJs();
   }, 250);
   if (persistTimer.unref) persistTimer.unref();
 }
 function flushSqlJs() {
   if (persistTimer) { clearTimeout(persistTimer); persistTimer = null; }
   if (!SQLJS_FILE || !sqlJsDb) return;
-  try { fs.writeFileSync(SQLJS_FILE, Buffer.from(sqlJsDb.export())); }
-  catch (e) { console.error('sql.js save failed:', e.message); }
+  let lockFd = null;
+  let tempFile = null;
+  try {
+    lockFd = acquireSqlJsFileLockSync();
+    mergeLatestRateLimitsFromFile();
+    fs.mkdirSync(path.dirname(SQLJS_FILE), { recursive: true });
+    tempFile = `${SQLJS_FILE}.${process.pid}.${Date.now()}.tmp`;
+    fs.writeFileSync(tempFile, Buffer.from(sqlJsDb.export()));
+    fs.renameSync(tempFile, SQLJS_FILE);
+  } catch (e) {
+    if (tempFile) { try { fs.unlinkSync(tempFile); } catch (ignored) { /* best effort */ } }
+    console.error('sql.js save failed:', e.message);
+  } finally {
+    if (lockFd != null) {
+      try { fs.closeSync(lockFd); } catch (e) { /* best effort */ }
+      try { fs.unlinkSync(SQLJS_FILE_LOCK); } catch (e) { if (e.code !== 'ENOENT') console.error('sql.js lock cleanup failed:', e.message); }
+    }
+  }
 }
 process.on('exit', flushSqlJs);
 
@@ -532,6 +634,16 @@ async function createSchema(exec) {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
+  // Shared rate-limit windows and per-account login lockouts. This is created
+  // by the common schema path for fresh databases, and repeated as an explicit
+  // migration on every backend below for databases created by earlier builds.
+  await exec(`
+    CREATE TABLE IF NOT EXISTS rate_limits (
+      key TEXT PRIMARY KEY,
+      count INTEGER NOT NULL,
+      reset_at INTEGER NOT NULL
+    )
+  `);
   // --- Performance indexes ---
   await exec('CREATE INDEX IF NOT EXISTS idx_orders_email ON orders(email)');
   await exec('CREATE INDEX IF NOT EXISTS idx_orders_customer_id ON orders(customer_id)');
@@ -543,6 +655,7 @@ async function createSchema(exec) {
   await exec('CREATE INDEX IF NOT EXISTS idx_customers_email ON customers(email)');
   await exec('CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_hash ON password_reset_tokens(token_hash)');
   await exec('CREATE INDEX IF NOT EXISTS idx_customer_verification_tokens_hash ON customer_verification_tokens(token_hash)');
+  await exec('CREATE INDEX IF NOT EXISTS idx_rate_limits_reset_at ON rate_limits(reset_at)');
 }
 
 // ----------------------------------------------------------------
@@ -567,6 +680,9 @@ function ensureSqlJsColumns() {
   } catch (e) { /* schema already created it */ }
   try {
     sqlJsDb.run('CREATE TABLE IF NOT EXISTS app_settings (key TEXT PRIMARY KEY, value TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)');
+  } catch (e) { /* schema already created it */ }
+  try {
+    sqlJsDb.run('CREATE TABLE IF NOT EXISTS rate_limits (key TEXT PRIMARY KEY, count INTEGER NOT NULL, reset_at INTEGER NOT NULL)');
   } catch (e) { /* schema already created it */ }
 }
 // Emails arrive from forms, so an order might be stored as "Buyer@Kage.test"
@@ -712,6 +828,10 @@ async function doInit() {
       await initTurso();
       const exec = async (sql) => { await tursoClient.execute(sql); };
       await createSchema(exec);
+      // Explicit additive migration for existing Turso databases created
+      // before shared rate limits were introduced (also covered by createSchema
+      // on a fresh database).
+      await tursoClient.execute('CREATE TABLE IF NOT EXISTS rate_limits (key TEXT PRIMARY KEY, count INTEGER NOT NULL, reset_at INTEGER NOT NULL)');
       // Products migrations
       const info = await tursoClient.execute('PRAGMA table_info(products)');
       const hasUnitCost = info.rows.some(r => r.name === 'unit_cost');
@@ -771,6 +891,9 @@ async function doInit() {
         ensureSqlJsColumns();
         activeBackend = 'sqljs';
         await backfillOrderCustomerIds();
+        // Persist fresh schema/migrations before another process opens the same
+        // KAGE_DB_FILE and its SQLite-backed rate-limit client.
+        if (SQLJS_FILE) flushSqlJs();
         module.exports._initialized = true;
         return;
       } catch (e) {
@@ -850,7 +973,211 @@ async function exec(sql) {
 // Turso and the in-memory store are always already durable/ephemeral.
 async function save() { flushSqlJs(); }
 
-module.exports = { init, prepare, get, all, exec, save, getSetting, setSetting, USE_TURSO, normalizeEmails, normalizeEmailsMigration, backfillOrderCustomerIds, get activeBackend() { return activeBackend; } };
+// ----------------------------------------------------------------
+// SHARED RATE LIMITS + LOGIN LOCKOUTS
+// ----------------------------------------------------------------
+// The single UPSERT is the serialization point for concurrent requests. The
+// optional threshold argument is used only by account lockouts: when the
+// threshold is reached, reset_at is moved to 15 minutes from that failure so
+// the lock lasts the full duration (not merely the remainder of the count
+// window). RETURNING makes the increment/result atomic on SQLite/Turso; the
+// fallback SELECT is for older compatible SQLite builds.
+const RATE_LIMIT_INCREMENT_SQL = `
+  INSERT INTO rate_limits (key, count, reset_at) VALUES (?, 1, ?)
+  ON CONFLICT(key) DO UPDATE SET
+    count = CASE WHEN rate_limits.reset_at <= ? THEN 1 ELSE rate_limits.count + 1 END,
+    reset_at = CASE
+      WHEN rate_limits.reset_at <= ? THEN excluded.reset_at
+      WHEN ? > 0 AND rate_limits.count + 1 >= ? THEN excluded.reset_at
+      ELSE rate_limits.reset_at
+    END
+  RETURNING count, reset_at
+`;
+
+function normalizedRateLimitRow(row) {
+  if (!row) return undefined;
+  const count = Number(row.count);
+  const resetAt = Number(row.reset_at);
+  if (!Number.isFinite(count) || !Number.isFinite(resetAt)) return undefined;
+  return { count, reset_at: resetAt };
+}
+
+function sqlJsQueryOne(database, sql, args = []) {
+  const stmt = database.prepare(sql);
+  try {
+    if (args.length) stmt.bind(args);
+    return stmt.step() ? stmt.getAsObject() : undefined;
+  } finally { stmt.free(); }
+}
+
+function sqlJsRunStrict(database, sql, args = []) {
+  const stmt = database.prepare(sql);
+  try {
+    if (args.length) stmt.bind(args);
+    const rows = [];
+    while (stmt.step()) rows.push(stmt.getAsObject());
+    return rows;
+  } finally { stmt.free(); }
+}
+
+async function withSqlJsFileRateLimitClient(fn) {
+  const releaseLock = await acquireSqlJsFileLock();
+  let client = null;
+  try {
+    const { createClient } = require('@libsql/client');
+    // KAGE_DB_FILE is an ordinary SQLite file. libsql's local-file client uses
+    // SQLite's process-safe transactions, unlike separately loaded sql.js
+    // in-memory copies, so server processes on different ports share counters.
+    client = createClient({ url: `file:${SQLJS_FILE}` });
+    await client.execute('CREATE TABLE IF NOT EXISTS rate_limits (key TEXT PRIMARY KEY, count INTEGER NOT NULL, reset_at INTEGER NOT NULL)');
+    return await fn(client);
+  } finally {
+    if (client) { try { client.close(); } catch (e) { /* best effort */ } }
+    await releaseLock();
+  }
+}
+
+async function maybeDeleteExpiredRateLimits(execute) {
+  // Bound table growth without scanning it on every request.
+  if (Math.random() >= 0.01) return;
+  try { await execute('DELETE FROM rate_limits WHERE reset_at <= ?', [Date.now()]); }
+  catch (e) { console.warn('⚠️  rate-limit expired-row cleanup failed:', e.message); }
+}
+
+async function incrementRateLimit(key, windowMs, lockThreshold = 0) {
+  await initDatabase();
+  if (typeof key !== 'string' || !key) throw new TypeError('Rate-limit key must be a non-empty string.');
+  const duration = Math.max(1, Math.ceil(Number(windowMs) || 60000));
+  const threshold = Math.max(0, Math.floor(Number(lockThreshold) || 0));
+  const now = Date.now();
+  const args = [key, now + duration, now, now, threshold, threshold];
+
+  const readUpsertResult = async (execute) => {
+    const result = await execute(RATE_LIMIT_INCREMENT_SQL, args);
+    let row = result && result.rows && result.rows.length ? result.rows[0] : undefined;
+    if (!row) {
+      const selected = await execute('SELECT count, reset_at FROM rate_limits WHERE key = ?', [key]);
+      row = selected && selected.rows && selected.rows.length ? selected.rows[0] : undefined;
+    }
+    const normalized = normalizedRateLimitRow(row);
+    if (!normalized) throw new Error('Rate-limit database did not return the incremented counter.');
+    await maybeDeleteExpiredRateLimits(execute);
+    return normalized;
+  };
+
+  if (USE_TURSO && tursoClient) {
+    return readUpsertResult((sql, executeArgs) => tursoClient.execute({ sql, args: executeArgs }));
+  }
+
+  if (activeBackend === 'sqljs' && sqlJsDb && SQLJS_FILE) {
+    return withSqlJsFileRateLimitClient(async (client) => readUpsertResult((sql, executeArgs) => client.execute({ sql, args: executeArgs })));
+  }
+
+  if (activeBackend === 'sqljs' && sqlJsDb) {
+    sqlJsDb.run('BEGIN IMMEDIATE');
+    try {
+      const rows = sqlJsRunStrict(sqlJsDb, RATE_LIMIT_INCREMENT_SQL, args);
+      let row = rows[0];
+      if (!row) row = sqlJsQueryOne(sqlJsDb, 'SELECT count, reset_at FROM rate_limits WHERE key = ?', [key]);
+      const normalized = normalizedRateLimitRow(row);
+      if (!normalized) throw new Error('Rate-limit database did not return the incremented counter.');
+      if (Math.random() < 0.01) {
+        try { sqlJsRunStrict(sqlJsDb, 'DELETE FROM rate_limits WHERE reset_at <= ?', [Date.now()]); }
+        catch (e) { console.warn('⚠️  rate-limit expired-row cleanup failed:', e.message); }
+      }
+      sqlJsDb.run('COMMIT');
+      persistSqlJs();
+      return normalized;
+    } catch (e) {
+      try { sqlJsDb.run('ROLLBACK'); } catch (ignored) { /* no active transaction */ }
+      throw e;
+    }
+  }
+
+  // The pure-JS fallback has no SQL engine. Its synchronous mutation is atomic
+  // within the process and mirrors the SQLite UPSERT's fixed-window semantics.
+  const rows = memStore.rate_limits || (memStore.rate_limits = []);
+  let row = rows.find(item => item.key === key);
+  if (!row || Number(row.reset_at) <= now) {
+    if (!row) { row = { key, count: 1, reset_at: now + duration }; rows.push(row); }
+    else { row.count = 1; row.reset_at = now + duration; }
+  } else {
+    row.count = Number(row.count) + 1;
+    if (threshold && row.count >= threshold) row.reset_at = now + duration;
+  }
+  if (Math.random() < 0.01) memStore.rate_limits = rows.filter(item => Number(item.reset_at) > now);
+  return normalizedRateLimitRow(row);
+}
+
+async function getRateLimit(key) {
+  await initDatabase();
+  if (USE_TURSO && tursoClient) {
+    const result = await tursoClient.execute({ sql: 'SELECT count, reset_at FROM rate_limits WHERE key = ?', args: [key] });
+    return normalizedRateLimitRow(result.rows && result.rows[0]);
+  }
+  if (activeBackend === 'sqljs' && sqlJsDb && SQLJS_FILE) {
+    return withSqlJsFileRateLimitClient(async client => {
+      const result = await client.execute({ sql: 'SELECT count, reset_at FROM rate_limits WHERE key = ?', args: [key] });
+      return normalizedRateLimitRow(result.rows && result.rows[0]);
+    });
+  }
+  if (activeBackend === 'sqljs' && sqlJsDb) {
+    return normalizedRateLimitRow(sqlJsQueryOne(sqlJsDb, 'SELECT count, reset_at FROM rate_limits WHERE key = ?', [key]));
+  }
+  const row = (memStore.rate_limits || []).find(item => item.key === key);
+  return normalizedRateLimitRow(row);
+}
+
+async function decrementRateLimit(key) {
+  await initDatabase();
+  const sql = 'UPDATE rate_limits SET count = MAX(count - 1, 0) WHERE key = ?';
+  if (USE_TURSO && tursoClient) return tursoClient.execute({ sql, args: [key] });
+  if (activeBackend === 'sqljs' && sqlJsDb && SQLJS_FILE) {
+    return withSqlJsFileRateLimitClient(client => client.execute({ sql, args: [key] }));
+  }
+  if (activeBackend === 'sqljs' && sqlJsDb) {
+    sqlJsDb.run('BEGIN IMMEDIATE');
+    try { sqlJsRunStrict(sqlJsDb, sql, [key]); sqlJsDb.run('COMMIT'); persistSqlJs(); }
+    catch (e) { try { sqlJsDb.run('ROLLBACK'); } catch (ignored) {} throw e; }
+    return;
+  }
+  const row = (memStore.rate_limits || []).find(item => item.key === key);
+  if (row) row.count = Math.max(0, Number(row.count) - 1);
+}
+
+async function resetRateLimit(key) {
+  await initDatabase();
+  const sql = 'DELETE FROM rate_limits WHERE key = ?';
+  if (USE_TURSO && tursoClient) return tursoClient.execute({ sql, args: [key] });
+  if (activeBackend === 'sqljs' && sqlJsDb && SQLJS_FILE) {
+    return withSqlJsFileRateLimitClient(client => client.execute({ sql, args: [key] }));
+  }
+  if (activeBackend === 'sqljs' && sqlJsDb) {
+    sqlJsRunStrict(sqlJsDb, sql, [key]);
+    persistSqlJs();
+    return;
+  }
+  memStore.rate_limits = (memStore.rate_limits || []).filter(item => item.key !== key);
+}
+
+async function resetRateLimits(prefix) {
+  await initDatabase();
+  const sql = 'DELETE FROM rate_limits WHERE key LIKE ?';
+  const pattern = `${String(prefix || '').replace(/[\\%_]/g, '\\$&')}%`;
+  if (USE_TURSO && tursoClient) return tursoClient.execute({ sql, args: [pattern] });
+  if (activeBackend === 'sqljs' && sqlJsDb && SQLJS_FILE) {
+    return withSqlJsFileRateLimitClient(client => client.execute({ sql, args: [pattern] }));
+  }
+  if (activeBackend === 'sqljs' && sqlJsDb) {
+    sqlJsRunStrict(sqlJsDb, sql, [pattern]);
+    persistSqlJs();
+    return;
+  }
+  const literalPrefix = String(prefix || '');
+  memStore.rate_limits = (memStore.rate_limits || []).filter(item => !String(item.key).startsWith(literalPrefix));
+}
+
+module.exports = { init, prepare, get, all, exec, save, getSetting, setSetting, USE_TURSO, normalizeEmails, normalizeEmailsMigration, backfillOrderCustomerIds, incrementRateLimit, getRateLimit, decrementRateLimit, resetRateLimit, resetRateLimits, get activeBackend() { return activeBackend; } };
 
 // Expose a flag so server.js can skip re-init. It is set by doInit() only after
 // a backend finished schema + migrations (never optimistically up front).
