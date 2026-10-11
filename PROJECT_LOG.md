@@ -394,3 +394,16 @@ Stickers" copy + "🎨 Custom Orders Opening Soon" badge). Nav links, deep
 links and the `custom-stickers` nav handling are untouched. Verified in jsdom:
 page active, header + badge present, 0 cards / 0 notify forms; `npm test`
 frontend suite 14/14.
+
+---
+
+## 17. KAGE Clothes section removed entirely (2026-10-11)
+
+Owner request: the KAGE Clothes page (Bear / White Tiger / Black Panther /
+White Fox series cards) is gone. Removed the `#page-kage-clothes` block, its
+nav link, the now-unused `.kage-portrait` CSS, the `kage-clothes` entries in
+the frontend deep-link / nav-state handling, and `/kage-clothes` from the
+server's `spaPages` set — so the path now returns a real 404 and the SPA
+shows its not-found view. Animal photos stay (used by og/twitter meta).
+Verified: `GET /kage-clothes` → 404, `/custom-stickers` → 200, not-found view
+renders for the old deep link, no nav link remains; `npm test` 57/57 + 14/14.
