@@ -425,6 +425,22 @@ five ratings and verify the actual payload/reset. API tests verify delivered-ord
 and phone/product checks, duplicate rejection, pending moderation, admin approval,
 and the public review/product-average result. `npm test` → 53/53 API + 12/12 DOM scenarios.
 
+### ✅ Product-card alignment (Quick View / Add to Cart) — 2026-10-11
+
+Cards in a grid row were already stretched to equal height, but each card's *body* only
+grew to fit its own content, so a product with reviews (an extra star row), a sale price,
+or an empty fit label pushed its button lower than its neighbours'. With a single product
+that never showed; adding a second one put two cards side by side and the Quick View
+buttons sat up to 46px apart. Cards are now flex columns, the body fills the remaining
+height (`flex: 1 1 auto`), and the button is pinned with `margin-top: auto` while the
+price keeps a 12px minimum gap above it. The rating markup is wrapped in `.card-rating`,
+which reserves its line even when a product has no reviews yet, so titles and prices line
+up as well. Verified in headless Chromium at 360/390/412/768/1024/1440px against seeded,
+mixed, all-reviewed and no-review catalogs — every row aligned, no horizontal overflow
+(rows were misaligned in all of those cases before the change). `npm test` → 57/57 API +
+15/15 DOM scenarios; the new frontend scenario asserts the reserved rating row and the
+pinned button.
+
 ## Remaining work (priority order)
 
 *API-side queue (C1, H1–H4, M1–M7, L1/L3–L7) completed 2026-09-23. FE-criticals

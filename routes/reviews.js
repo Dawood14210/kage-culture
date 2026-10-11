@@ -53,9 +53,7 @@ module.exports = function createReviewRoutes(db) {
         success: true,
         approved: autoApproved,
         viewer_token: viewerToken,
-        message: autoApproved
-          ? "Thanks for your review! It's live on the site."
-          : 'Thanks for your review! It is visible to you below and will appear publicly once approved.'
+        message: 'Thanks for your review!'
       });
     } catch (err) { console.error('reviews route failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
   });
