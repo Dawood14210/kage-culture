@@ -240,7 +240,8 @@ filter panel already do), then drop the directive and nonce what remains.
 - **FE-M5. Accessibility gaps** — topbar/nav/footer links, category tiles and spirit
   cards are `<a onclick>`/`<div onclick>` with no `href`/`tabindex` (3735-3759, 3824-3840,
   5443); the star-rating input is span-only; `admin.html:5` sets `user-scalable=no`;
-  only the admin-login overlay handles Escape — customer login, wishlist drawer and most
+  only the admin sign-in overlay (since removed — see `PROJECT_LOG.md` §19) handled Escape;
+  the customer login, wishlist drawer and most
   other overlays don't, and none trap focus.
 - **FE-M6. Typography below legibility** — topbar at `0.4rem` (≈6px), logo wordmark 7px,
   "CULTURE" at 3.5px. Intentional micro-branding, but "CULTURE" is effectively invisible.
@@ -479,8 +480,9 @@ browser-rendered visual comparison.
 The public navigation is ordered Home, Anime Shirts, Graphic Tees, Pants, Custom Stickers,
 About, Contact and Track Order. Category links mirror the homepage cards (Graphic Tees
 uses `/collection/graphic-tees`; Pants temporarily uses `/collection/all`). Removed the
-Admin item but retained the storefront `openAdminLogin()` modal and the existing `/admin`
-login entry. Header Wishlist, Account and Cart remain visible on mobile; the menu’s icon
+Admin item and originally kept the storefront admin sign-in modal as well as the existing
+`/admin` login entry; that storefront modal was later deleted as dead code (nothing ever
+opened it) — see `PROJECT_LOG.md` §19. Header Wishlist, Account and Cart remain visible on mobile; the menu’s icon
 row now contains only Track Order.
 
 The hamburger SVG animates into an X and updates `aria-expanded`. The open menu is an
@@ -626,6 +628,15 @@ frontend scenarios passed.
 - **FE-M2.** ✅ cart/wishlist localStorage IDs rehydrated from the live API (2026-10-10).
 - **FE-M3.** ✅ one delegated payment-radio listener; gallery swipe listener also guarded.
 - **FE-M4.** ✅ cart badge animation targets `cartCount`.
+- **FE-M1b (new, fixed 2026-10-11).** ✅ `#shopSection` was inline `display:none`
+  forever — the whole collection/search/filter/sort/pagination surface rendered
+  into a hidden section. Visibility is now class-driven (`applyShopVisibility()`
+  → `.shop-visible` when a collection route or a non-empty search query is
+  active; cleared on every other `navigateTo` target), homepage marketing
+  sections step aside via `body.showing-shop`, and the grid clears the fixed
+  header with `--header-h` padding + `scroll-margin-top`. Covered by frontend
+  scenario 18 (57/57 API + 18/18 frontend) and a 36-check headless-Chromium run
+  (1280px + 390px). Details in `PROJECT_LOG.md` §18.
 - **FE-M5.** ✅ native links/review buttons and Escape/focus trap for primary overlays;
   ⬜ dynamic controls/remaining dialog semantics merit a full keyboard/browser pass.
 - **FE-M7.** ✅ catalog failures are visible and disable cart/checkout until retry.

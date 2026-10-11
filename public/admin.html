@@ -1751,7 +1751,9 @@
     // ================================================================
     async function loadProducts() {
       try {
-        const res = await fetch('/api/products');
+        // Admin-only endpoint: the public catalog omits internal columns such
+        // as unit_cost, which the edit form and the P&L need.
+        const res = await fetch('/api/admin/products');
         if (!res.ok) throw new Error('Products request failed');
         const data = await res.json();
         if (!Array.isArray(data)) throw new Error('Unexpected products payload');

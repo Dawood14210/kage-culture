@@ -10,6 +10,8 @@ const config = require('./config');
 const { globalLimiter } = require('./middleware/rateLimit');
 const { csrfMiddleware } = require('./middleware/csrf');
 const { requireAuth } = require('./middleware/auth');
+const { getSessionSecret } = require('./utils/secret');
+const demoProducts = require('./utils/demoProducts');
 
 // Lazy-loaded heavy modules (loaded on first use, not on every cold start)
 let helmet, compression, cookieSession, multer;
@@ -28,12 +30,18 @@ const PORT = process.env.PORT || 3000;
 // bucket — the 120/min global limit could knock the whole site over.
 app.set('trust proxy', 1);
 
-// Session secret — REQUIRED in production
-if ((process.env.VERCEL || process.env.NODE_ENV === 'production') && !process.env.SESSION_SECRET) {
-  console.error('FATAL: SESSION_SECRET environment variable is not set.');
+// Session secret — resolved through the single rule in utils/secret.js:
+// SESSION_SECRET must be >= 32 chars, and the development fallback is allowed
+// only when NODE_ENV is exactly 'development' or 'test'. Every other case
+// (NODE_ENV unset, 'staging', a VPS/Docker deploy, ...) refuses to boot rather
+// than sign cookies with a string anyone can read in this repo.
+let SESSION_SECRET;
+try {
+  SESSION_SECRET = getSessionSecret();
+} catch (err) {
+  console.error('FATAL: ' + err.message);
   process.exit(1);
 }
-const SESSION_SECRET = process.env.SESSION_SECRET || 'kage-dev-secret-not-for-production';
 
 // ── Security Headers ──────────────────────────────────────────
 app.use(loadHelmet()({
@@ -143,58 +151,97 @@ function jsonErrorHandler(err, req, res, next) {
   res.status(500).json({ error: 'Internal server error.' });
 }
 
-// ── Seed & Migrate (runs once per cold start) ────────────────────
-let _initialized = false;
+// ── One-time data bootstrap ──────────────────────────────────────
+// Each step is recorded in the DATABASE (app_settings) under a versioned key,
+// so it runs at most once per database — not once per cold start. That is what
+// stops a live shop from getting its deleted products back, its removed sales
+// re-applied and its deliberate unit_cost = 0 overwritten on every deploy.
+const BOOTSTRAP_KEYS = {
+  products: 'seed_products_v1',
+  salePrices: 'sync_seed_sale_prices_v1',
+  unitCosts: 'backfill_unit_costs_v1',
+  emails: 'normalize_emails_v1'
+};
+let _bootstrapDone = false;
 
-async function backfillUnitCosts() {
-  const missing = await db.prepare('SELECT id, price FROM products WHERE unit_cost IS NULL OR unit_cost = 0').all();
-  if (missing.length === 0) return;
-  for (const p of missing) { await db.prepare('UPDATE products SET unit_cost = ? WHERE id = ?').run(Math.max(50, Math.round(p.price * 0.55)), p.id); }
-  await db.save(); console.log('💰 Backfilled unit costs for ' + missing.length + ' product(s)');
+// Run `step` unless `key` is already recorded. The key is written only after
+// the step resolved, so a failure is retried on the next request instead of
+// being silently skipped forever.
+async function runOnce(key, step) {
+  if (await db.getSetting(key)) return false;
+  const value = await step();
+  await db.setSetting(key, value == null ? new Date().toISOString() : String(value));
+  return true;
 }
 
-async function syncSeedSalePrices() {
-  const syncs = [{ name: 'Rising Vermillion', price: 999, sale: 799 }, { name: 'Wrath Silhouette', price: 1249, sale: 1099 }];
-  let changed = 0;
-  for (const s of syncs) { const row = await db.prepare('SELECT id FROM products WHERE name = ? AND price = ? AND sale_price IS NULL').get(s.name, s.price); if (row) { await db.prepare('UPDATE products SET sale_price = ?, on_sale = ? WHERE id = ?').run(s.sale, 1, row.id); changed++; } }
-  if (changed > 0) { await db.save(); console.log('💸 Synced sale prices for ' + changed + ' seeded product(s)'); }
-}
-
-async function seedProducts() {
+// Brand-new databases get the demo catalogue; databases that already have
+// products (i.e. every existing deployment upgrading to this change) only get
+// the marker — never a single product or sale price.
+async function seedProductsOnce() {
   const count = await db.prepare('SELECT COUNT(*) as c FROM products').get();
-  if (!count || (count.c != null && count.c > 0)) return;
-  const defaults = [
-    { name: 'Shadow Fit', price: 1499, cost: 820, stock: 4, category: 'anime', fit: 'Compression', size: 'L', desc: '4-way stretch muscle-fit compression shirt.' },
-    { name: 'Oni Muscle Tee', price: 1599, cost: 875, stock: 8, category: 'anime', fit: 'Compression', size: 'XL', desc: 'Sleeveless compression with bold contrast panels.' },
-    { name: 'Kage Core Compression', price: 1399, cost: 760, stock: 12, category: 'anime', fit: 'Compression', size: 'M', desc: 'Core compression layer — seamless, breathable.' },
-    { name: 'Rising Vermillion', price: 999, sale: 799, cost: 545, stock: 3, category: 'anime', fit: 'Regular', size: 'XL', desc: 'Heavyweight 220GSM cotton tee.' },
-    { name: 'Blade Wolf', price: 1149, cost: 620, stock: 10, category: 'anime', fit: 'Regular', size: 'L', desc: 'Silver ink on black — a lone wolf under a crescent moon.' },
-    { name: 'Neon Fangs', price: 1049, cost: 570, stock: 6, category: 'anime', fit: 'Regular', size: 'M', desc: 'Electric strike — neon clash across heavyweight cotton.' },
-    { name: 'Shinobi Mark', price: 999, cost: 540, stock: 15, category: 'anime', fit: 'Regular', size: 'S', desc: 'Minimalist shinobi crest.' },
-    { name: 'Drift Oversized', price: 1199, cost: 650, stock: 5, category: 'streetwear', fit: 'Oversized', size: 'XL', desc: 'Drop-shoulder, relaxed fit.' },
-    { name: 'Wrath Silhouette', price: 1249, sale: 1099, cost: 680, stock: 7, category: 'streetwear', fit: 'Oversized', size: 'L', desc: 'Boxy, cropped oversized fit.' },
-    { name: 'Hollow Gaze', price: 1149, cost: 625, stock: 9, category: 'streetwear', fit: 'Oversized', size: 'XXL', desc: 'Extended drop-shoulder with raw hem.' },
-    { name: 'Skeleton Vibes', price: 250, cost: 80, stock: 20, category: 'goofy-wears', fit: 'Sticker', size: 'One Size', desc: 'Premium vinyl sticker.' },
-    { name: 'Frog Energy', price: 250, cost: 80, stock: 25, category: 'goofy-wears', fit: 'Sticker', size: 'One Size', desc: 'Just a frog vibing.' },
-    { name: 'Pizza Lover', price: 250, cost: 80, stock: 18, category: 'goofy-wears', fit: 'Sticker', size: 'One Size', desc: 'High-quality vinyl.' },
-    { name: 'Melting', price: 250, cost: 80, stock: 0, category: 'goofy-wears', fit: 'Sticker', size: 'One Size', desc: 'Not yet in stock.' },
-    { name: 'Alien Sightings', price: 250, cost: 80, stock: 15, category: 'goofy-wears', fit: 'Sticker', size: 'One Size', desc: 'Peel-proof vinyl.' },
-    { name: 'Robo Bro', price: 250, cost: 80, stock: 0, category: 'goofy-wears', fit: 'Sticker', size: 'One Size', desc: 'Coming soon.' },
-    { name: 'Banana Flex', price: 250, cost: 80, stock: 22, category: 'goofy-wears', fit: 'Sticker', size: 'One Size', desc: 'Premium vinyl.' },
-    { name: 'Duck Off', price: 250, cost: 80, stock: 12, category: 'goofy-wears', fit: 'Sticker', size: 'One Size', desc: 'High-quality vinyl sticker.' },
-    { name: 'All-Seeing Eye', price: 300, cost: 100, stock: 0, category: 'goofy-wears', fit: 'Sticker', size: 'One Size', desc: 'Coming soon.' },
-    { name: 'Cheese God', price: 250, cost: 80, stock: 10, category: 'goofy-wears', fit: 'Sticker', size: 'One Size', desc: 'Peel-proof, rain-proof.' }
-  ];
-  const insert = await db.prepare('INSERT INTO products (name, category, fit, price, sale_price, on_sale, description, sizes, unit_cost, stock_qty, in_stock) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
-  let added = 0;
-  for (const p of defaults) {
-    const exists = await db.prepare('SELECT id FROM products WHERE name = ?').get(p.name);
-    if (exists) continue;
-    await insert.run([p.name, p.category, p.fit, p.price, p.sale || null, p.sale ? 1 : 0, p.desc, JSON.stringify([p.size || 'L']), p.cost, p.stock, p.stock > 0 ? 1 : 0]);
-    added++;
+  const existing = count && count.c != null ? Number(count.c) : 0;
+  if (existing > 0) {
+    console.log(`ℹ️  ${existing} product(s) already in the database — demo seed recorded as done, nothing re-inserted`);
+    return 'existing';
   }
+  const { added } = await demoProducts.seedDemoProducts(db);
+  console.log('✅ Seeded ' + added + ' default products');
+  return 'seeded';
+}
+
+async function syncSeedSalePricesOnce() {
+  const seedState = await db.getSetting(BOOTSTRAP_KEYS.products);
+  if (!seedState) throw new Error('seed step has not completed yet'); // retried with it
+  if (seedState === 'existing') {
+    console.log('ℹ️  catalogue predates the settings table — sale prices left exactly as the admin set them');
+    return 'skipped-existing';
+  }
+  let changed = 0;
+  for (const s of demoProducts.SEED_SALE_SYNCS) {
+    const row = await db.prepare('SELECT id FROM products WHERE name = ? AND price = ? AND sale_price IS NULL').get(s.name, s.price);
+    if (row) { await db.prepare('UPDATE products SET sale_price = ?, on_sale = ? WHERE id = ?').run(s.sale, 1, row.id); changed++; }
+  }
+  if (changed > 0) { await db.save(); console.log('💸 Synced sale prices for ' + changed + ' seeded product(s)'); }
+  return 'synced:' + changed;
+}
+
+// unit_cost IS NULL only — a deliberate 0 (freebie, promo, unknown-but-zero)
+// must survive, so 0 is never treated as "missing".
+async function backfillUnitCostsOnce() {
+  const missing = await db.prepare('SELECT id, price FROM products WHERE unit_cost IS NULL').all();
+  if (missing.length === 0) return 'none';
+  for (const p of missing) { await db.prepare('UPDATE products SET unit_cost = ? WHERE id = ?').run(Math.max(50, Math.round(p.price * 0.55)), p.id); }
   await db.save();
-  if (added > 0) console.log('✅ Seeded ' + added + ' default products');
+  console.log('💰 Backfilled unit costs for ' + missing.length + ' product(s)');
+  return 'backfilled:' + missing.length;
+}
+
+// Emails are compared case-insensitively everywhere, so legacy mixed-case rows
+// are normalised once per database. Duplicate-safe: see database.js.
+async function normalizeEmailsOnce() {
+  const stats = await db.normalizeEmailsMigration();
+  const touched = stats.orders + stats.customersMerged + stats.customersLowered + stats.newsletterMerged + stats.newsletterLowered;
+  if (touched) console.log(`📧 Normalised email casing (${JSON.stringify(stats)})`);
+  return JSON.stringify(stats);
+}
+
+// Returns true when every step is known-done (nothing left to retry).
+async function bootstrapData() {
+  let complete = true;
+  for (const [key, step] of [
+    [BOOTSTRAP_KEYS.products, seedProductsOnce],
+    [BOOTSTRAP_KEYS.salePrices, syncSeedSalePricesOnce],
+    [BOOTSTRAP_KEYS.unitCosts, backfillUnitCostsOnce],
+    [BOOTSTRAP_KEYS.emails, normalizeEmailsOnce]
+  ]) {
+    try {
+      await runOnce(key, step);
+    } catch (e) {
+      complete = false;
+      console.error(`${key} skipped:`, e.message);
+    }
+  }
+  return complete;
 }
 
 // ── Start ─────────────────────────────────────────────────────
@@ -204,18 +251,16 @@ async function ensureReady() {
   try { await dbModule.init(); } catch (e) { console.error('⚠️  Database init failed:', e.message); throw e; }
   db = dbModule;
 
-  // Seed & migrate only once per cold start
-  if (!_initialized) {
-    _initialized = true;
-    try { await seedProducts(); } catch (e) { console.error('seedProducts skipped:', e.message); }
-    try { await backfillUnitCosts(); } catch (e) { console.error('backfillUnitCosts skipped:', e.message); }
-    try { await syncSeedSalePrices(); } catch (e) { console.error('syncSeedSalePrices skipped:', e.message); }
+  // One-time-per-database steps (app_settings keys), retried on the next
+  // request if a step fails. A failure here must not take the site down.
+  if (!_bootstrapDone) {
+    if (await bootstrapData()) _bootstrapDone = true;
   }
 
   // Register routes (guard so repeated invocations don't double-register)
   if (!app._kageRoutesRegistered) {
     app._kageRoutesRegistered = true;
-    app.use(createAuthRoutes(db, SESSION_SECRET));
+    app.use(createAuthRoutes(db));
     app.use(createProductRoutes(db));
     app.use(createOrderRoutes(db));
     app.use(createReviewRoutes(db));
@@ -226,7 +271,7 @@ async function ensureReady() {
     // the data APIs behind it are the real protection. /admin.html already
     // redirects to /admin above (before static), giving one canonical entry.
     app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin.html')));
-    const spaPages = new Set(['/', '/about', '/contact', '/tracking', '/shipping', '/returns', '/privacy', '/terms', '/account', '/checkout', '/confirmation', '/reset-password', '/custom-stickers']);
+    const spaPages = new Set(['/', '/about', '/contact', '/tracking', '/shipping', '/returns', '/privacy', '/terms', '/account', '/checkout', '/confirmation', '/reset-password', '/verify-email', '/custom-stickers']);
     app.get('*', (req, res) => {
       if (req.path.startsWith('/api/')) return res.status(404).json({ error: 'Not found.' });
       const known = spaPages.has(req.path) || /^\/product\/\d+$/.test(req.path) || /^\/collection\/[a-z0-9-]+$/.test(req.path);
@@ -239,26 +284,75 @@ async function ensureReady() {
   }
 }
 
-const serverReady = ensureReady();
+// ── Readiness ─────────────────────────────────────────────────
+// The boot promise is cached ONLY while it is pending or fulfilled. A failed
+// attempt clears the cache so the next request retries — the old one-shot
+// `const serverReady = ensureReady()` replayed one rejection for the entire life
+// of a serverless instance (every request 503 until it was recycled) and, on
+// Node 15+, that rejected promise was also an unhandled rejection at creation.
+let readyPromise = null;   // pending or fulfilled boot attempt
+let readyError = null;     // last failure (cleared on success)
+let readyFailedAt = 0;     // when it failed — drives the retry backoff
+
+function getReady() {
+  if (readyPromise) return readyPromise;                 // pending or ready
+  if (readyError && Date.now() - readyFailedAt < config.READY_RETRY_BACKOFF_MS) {
+    // Inside the backoff window: report the known failure immediately instead
+    // of running another doomed init against a database that is already down.
+    const cached = Promise.reject(readyError);
+    cached.catch(() => {});                              // never unhandled
+    return cached;
+  }
+  const attempt = ensureReady().then(
+    (value) => { readyError = null; return value; },
+    (err) => {
+      readyPromise = null;                               // allow a retry
+      readyError = err;
+      readyFailedAt = Date.now();
+      throw err;
+    }
+  );
+  attempt.catch(() => {});                               // never unhandled
+  readyPromise = attempt;
+  return attempt;
+}
+
+// Middleware used by the serverless entrypoint (and by the tests): wait for the
+// boot, or answer a JSON 503 with Retry-After. The real error stays in the
+// server log — the response carries no connection strings or stack traces.
+function sendUnavailable(res) {
+  const retryAfter = String(Math.max(1, Math.ceil(config.READY_RETRY_BACKOFF_MS / 1000)));
+  const body = { error: 'Service temporarily unavailable — the server is still starting up. Please retry in a moment.' };
+  if (res.headersSent) return;
+  res.setHeader('Retry-After', retryAfter);
+  // Express-style response when mounted in Express (Vercel, tests); plain
+  // writeHead/end when this runs behind a bare http server. Either way the
+  // failure path itself must never throw.
+  if (typeof res.status === 'function') return res.status(503).json(body);
+  res.writeHead(503, { 'Content-Type': 'application/json; charset=utf-8', 'Retry-After': retryAfter });
+  res.end(JSON.stringify(body));
+}
+
+function readinessGate(req, res, next) {
+  return getReady().then(() => next(), (err) => {
+    console.error('Server not ready:', err.message);
+    try { sendUnavailable(res); } catch (e) { console.error('503 write failed:', e.message); }
+  });
+}
 
 // Vercel serverless entrypoint
-module.exports = async (req, res) => {
-  try {
-    await serverReady;
-    return app(req, res);
-  } catch (err) {
-    // H2: fail loudly — if boot failed (e.g. Vercel without Turso) say so
-    // instead of silently serving a data-loss in-memory DB.
-    console.error('Server not ready:', err.message);
-    if (!res.headersSent) res.status(503).json({ error: 'Server boot failed: ' + err.message });
-  }
+module.exports = (req, res) => {
+  readinessGate(req, res, () => app(req, res));
 };
 module.exports.app = app;          // tests: boot your own listener
 module.exports.ensureReady = ensureReady;
+module.exports.getReady = getReady;         // tests: retry/backoff behaviour
+module.exports.bootstrapData = bootstrapData; // tests: one-time-per-database steps
+module.exports.readinessGate = readinessGate;
 
 // Local dev / direct execution: listen and manage the process lifecycle.
 if (require.main === module) {
-  serverReady.then(() => {
+  getReady().then(() => {
     const server = app.listen(PORT, () => {
       const mode = dbModule.USE_TURSO ? 'Turso (cloud)' : (dbModule.activeBackend === 'mem' ? 'in-memory' : 'sql.js (local)');
       console.log(`\n╔══════════════════════════════════════════════════╗\n║         KAGE CULTURE — Admin System              ║\n╠══════════════════════════════════════════════════╣\n║  Public site:  http://localhost:${PORT}              ║\n║  Admin panel:  http://localhost:${PORT}/admin       ║\n║  Database:     ${mode}                                ║\n╚══════════════════════════════════════════════════╝\n    `);
