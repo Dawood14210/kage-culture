@@ -441,6 +441,24 @@ mixed, all-reviewed and no-review catalogs — every row aligned, no horizontal 
 15/15 DOM scenarios; the new frontend scenario asserts the reserved rating row and the
 pinned button.
 
+### ✅ Homepage category cards refreshed + Graphic Tees / Pants added — 2026-10-11
+
+The dark olive category band now carries four cards in the order Anime Shirts,
+Graphic Tees, Custom Stickers, Pants, each keeping the existing `.cat-tile`
+structure (circle thumb + name + description + Explore link). Images moved to
+`anime-shirts.jpg`, `graphic-tees.jpg`, `custom-stickers.jpg` and `pants.jpg`
+(the old `cat-*.jpg` files stay on disk, unused). Layout: a single column below
+800px (stacked row cards, 96px circles) and a 2x2 grid from 800px up — the
+`max-width: 768px` and `min-width: 769px` breakpoints moved to 799px/800px, and
+the base strip is `1fr` so four cards can never fall into a 3+1 orphan row.
+Verified in headless Chromium at 320/360/390/412/430/480/600/768/799/800/900/
+1023/1024/1200/1440/1920px: correct column count, no horizontal overflow, no
+text/image overlap, circles stay square at 96/140/170px. `npm test` → 57/57 API
++ 16/16 DOM scenarios (new scenario pins the card order, image paths, links and
+the 800px breakpoint). **Open:** the Pants card has no category of its own yet —
+its Explore link points at `/collection/all` as a placeholder; Graphic Tees
+routes to `/collection/graphic-tees`, which intentionally shows Coming Soon.
+
 ## Remaining work (priority order)
 
 *API-side queue (C1, H1–H4, M1–M7, L1/L3–L7) completed 2026-09-23. FE-criticals
