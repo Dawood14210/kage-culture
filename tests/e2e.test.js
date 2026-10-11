@@ -566,6 +566,12 @@ async function main() {
       assert.ok(product.back_image && product.back_image.startsWith('/uploads/'), 'back image must be persisted');
       assert.strictEqual(product.extra_images.length, 2, 'both extra images must be persisted');
       assert.ok(product.extra_images.every(u => u.startsWith('/uploads/')), 'extra images must be persisted');
+      // Read it back fresh (survives a reload) — the record stores the URL.
+      const reread = await request(PORT, 'GET', `/api/products/${productId}`);
+      assert.strictEqual(reread.status, 200, JSON.stringify(reread.json));
+      assert.strictEqual(reread.json.back_image, product.back_image, 'back image URL is stored on the product record');
+      const frontFile = path.join(__dirname, '..', product.back_image);
+      assert.ok(fs.existsSync(frontFile), 'back image file exists in storage');
     } finally {
       try {
         if (productId != null) {
@@ -635,11 +641,13 @@ async function main() {
       const oldExtraUrl = product.extra_images[0];
       assert.ok(oldExtraUrl, 'created product must have the extra image');
 
-      // Remove the existing extra and add two new ones in the same save.
+      // Remove the existing extra, add two new ones and a back image in the
+      // same save (Edit Product must persist the back image too).
       csrf = await getCsrf();
       const update = new FormData();
       update.append('name', 'Extra Removal Regression');
       update.append('remove_extra', JSON.stringify([oldExtraUrl]));
+      update.append('back_image', new Blob([Buffer.from('edit-back-data')], { type: 'image/webp' }), 'edit-back.webp');
       update.append('extra_images', new Blob([Buffer.from('new-extra-1')], { type: 'image/webp' }), 'new-extra-1.webp');
       update.append('extra_images', new Blob([Buffer.from('new-extra-2')], { type: 'image/webp' }), 'new-extra-2.webp');
       const updated = await fetch(`http://127.0.0.1:${PORT}/api/products/${productId}`, {
@@ -649,6 +657,7 @@ async function main() {
       });
       const after = await updated.json();
       assert.strictEqual(updated.status, 200, JSON.stringify(after));
+      assert.ok(after.back_image && after.back_image.startsWith('/uploads/'), 'edited back image must be persisted');
       assert.ok(!after.extra_images.includes(oldExtraUrl), 'removed extra image must be gone from the product');
       assert.strictEqual(after.extra_images.length, 2, 'the two new extra images must be stored');
       assert.ok(!fs.existsSync(path.join(__dirname, '..', oldExtraUrl)), 'removed extra image file must be deleted from storage');

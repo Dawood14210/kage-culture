@@ -1526,10 +1526,25 @@
     .detail-thumb img { width: 100%; height: 100%; object-fit: contain; padding: 10%; }
     .detail-thumb.active { opacity: 1; border-color: var(--text-primary); }
 
+    /* Main gallery image opens the zoom view on tap/click */
+    .detail-main-image { cursor: zoom-in; }
+
+    /* Full-screen zoom view */
+    .zoom-overlay { position: fixed; inset: 0; z-index: 2000; background: rgba(26,24,21,0.92); display: flex; align-items: center; justify-content: center; padding: 24px; cursor: zoom-out; }
+    .zoom-overlay[hidden] { display: none; }
+    .zoom-overlay img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: var(--radius-sm); }
+    .zoom-close { position: absolute; top: 16px; right: 16px; width: 44px; height: 44px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.5); background: transparent; color: #FFF; font-size: 1.5rem; line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+    .zoom-close:hover { background: rgba(255,255,255,0.15); }
+
+    /* One-line trust note under Add to Cart (same promises as the badges) */
+    .detail-trust-line { font-size: 0.78rem; color: var(--text-muted); margin-top: -0.5rem; }
+
     .detail-info { display: flex; flex-direction: column; gap: var(--spacing-md); }
     .detail-info .back-link {
-      color: var(--text-muted); font-size: 0.7rem;
+      color: var(--text-secondary); font-size: 14px; font-weight: 600;
       cursor: pointer; transition: color var(--transition-fast);
+      display: inline-flex; align-items: center; min-height: 44px;
+      margin-top: calc(var(--spacing-sm) * -1); /* keep visual rhythm with the 44px target */
     }
     .detail-info .back-link:hover { color: var(--accent); }
     .detail-info h1 {
@@ -2959,13 +2974,23 @@
     .review-form-wrap h4 { font-size: 0.85rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 0.3rem; }
     .review-form-note { font-size: 0.75rem; color: var(--text-gray); margin-bottom: 0.9rem; }
     .review-form { display: flex; flex-direction: column; gap: 0.7rem; max-width: 560px; }
-    .review-form input, .review-form textarea { width: 100%; padding: 0.7rem 0.85rem; border: 1.5px solid var(--border-color); border-radius: 10px; font-family: var(--font-body); font-size: 0.9rem; background: var(--bg-panel); color: var(--text-primary); }
+    .review-form input, .review-form textarea { box-sizing: border-box; width: 100%; padding: 0.7rem 0.85rem; border: 1.5px solid var(--border-color); border-radius: 10px; font-family: var(--font-body); font-size: 0.9rem; background: var(--bg-panel); color: var(--text-primary); }
+    .review-form textarea { resize: vertical; }
     .review-form input:focus, .review-form textarea:focus { outline: none; border-color: var(--accent); }
     .review-verify { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; }
-    .star-input { display: flex; gap: 0.2rem; font-size: 1.6rem; cursor: pointer; user-select: none; }
-    .star-input button { background:none; border:0; font:inherit; cursor:pointer; padding:0 0.15rem; min-width:36px; min-height:44px; }
+    @media (max-width: 640px) {
+      /* Stack order number / phone so the short placeholders are never cut off */
+      .review-verify { grid-template-columns: 1fr; }
+    }
+    /* Star picker: the fill is driven by JS from one value (.lit), never by
+       per-star :hover, so touch devices never get a sticky highlight. */
+    .star-input { display: flex; gap: 0.1rem; font-size: 1.6rem; cursor: pointer; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+    .star-input button { background:none; border:0; font:inherit; cursor:pointer; padding:0; width:44px; height:44px; min-width:44px; min-height:44px; display:flex; align-items:center; justify-content:center; user-select:none; -webkit-user-select:none; -webkit-tap-highlight-color: transparent; }
     .star-input button { color: var(--border-color); transition: color 0.15s ease, transform 0.15s ease; }
-    .star-input button:hover, .star-input button.selected { color: #f5b301; transform: scale(1.08); }
+    .star-input button.lit { color: #f5b301; }
+    @media (hover: hover) {
+      .star-input button:hover { transform: scale(1.08); }
+    }
     .star-input button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
     .review-error { font-size: 0.8rem; color: var(--accent); }
 
@@ -2974,7 +2999,9 @@
     .detail-urgency { display: flex; align-items: center; gap: 0.7rem; flex-wrap: wrap; margin: 0.5rem 0; }
     .urgency-low { color: #4A4433; font-size: 0.82rem; font-weight: 700; }
     .urgency-sold { color: var(--text-gray); font-size: 0.78rem; }
-    .urgency-sold::before { content: '· '; }
+    /* Separator dot only when another urgency item precedes it — otherwise
+       "1 sold" renders as "· 1 sold". */
+    .urgency-sold:not(:first-child)::before { content: '· '; }
 
     .related-grid { margin-top: var(--spacing-sm); }
 
@@ -3577,6 +3604,37 @@
       align-items: center;
     }
 
+    /* ================================================================
+       TABLET + MOBILE GUTTERS (481–1024px parity)
+       Product page, header and footer get the same side gutters as every
+       other width: 16px at ≤768px, 24px at 769–1024px — so the logo,
+       gallery, thumbnails and Add to Cart never touch the screen edge.
+       ================================================================ */
+    @media (max-width: 1024px) {
+      .container { padding-left: 24px; padding-right: 24px; }
+      .site-header .nav-inner { padding-left: 24px; padding-right: 24px; }
+    }
+    @media (max-width: 768px) {
+      .container { padding-left: 16px; padding-right: 16px; }
+      .site-header .nav-inner { padding-left: 16px; padding-right: 16px; }
+    }
+    /* Product page container: capped at 1280px and centred at every width */
+    .product-detail-page { max-width: var(--max-width); margin-left: auto; margin-right: auto; }
+
+    /* Footer Help links: the 10px gap applies at all widths above 480px
+       (the 80px bottom padding for the WhatsApp button already does). */
+    @media (min-width: 481px) {
+      .footer-col ul { gap: 10px; }
+    }
+    /* Mobile footer: Help links in two columns */
+    @media (max-width: 480px) {
+      .footer-col.footer-help ul {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 4px 10px;
+      }
+    }
+
   </style>
 
 </head>
@@ -4056,7 +4114,7 @@
     <div class="container product-detail-page">
       <div class="detail-layout">
         <div>
-          <div class="detail-main-image" id="detailMainImage">
+          <div class="detail-main-image" id="detailMainImage" role="button" tabindex="0" aria-label="Open product image in zoom view">
             <div class="gallery-track" id="galleryTrack"></div>
           </div>
           <div class="detail-dots" id="detailDots"></div>
@@ -4084,6 +4142,7 @@
             </div>
           </div>
           <button class="btn btn-primary" onclick="detailAddToCart()" id="addToCartBtn">Add to Cart</button>
+          <p class="detail-trust-line">Cash on delivery · 7-day returns · Fast delivery</p>
           <div class="detail-tabs">
             <div class="tab-headers">
               <span class="tab-header active" data-tab="fabric" onclick="switchTab(this)">Fabric &amp; Care</span>
@@ -4119,14 +4178,14 @@
           <h4>Leave a Review</h4>
           <p class="review-form-note">Only customers with a <strong>delivered</strong> order can review — we verify your order number and phone to keep reviews authentic.</p>
           <form class="review-form" onsubmit="submitReview(event)">
-            <div class="star-input" id="starInput" role="group" aria-label="Rate this product from 1 to 5 stars">
-              <button type="button" data-v="1" aria-label="1 star rating" aria-pressed="false">★</button><button type="button" data-v="2" aria-label="2 star rating" aria-pressed="false">★</button><button type="button" data-v="3" aria-label="3 star rating" aria-pressed="false">★</button><button type="button" data-v="4" aria-label="4 star rating" aria-pressed="false">★</button><button type="button" data-v="5" aria-label="5 star rating" aria-pressed="false">★</button>
+            <div class="star-input" id="starInput" role="radiogroup" aria-label="Rate this product from 1 to 5 stars">
+              <button type="button" role="radio" data-v="1" aria-checked="false" aria-label="1 star" tabindex="0">★</button><button type="button" role="radio" data-v="2" aria-checked="false" aria-label="2 stars" tabindex="-1">★</button><button type="button" role="radio" data-v="3" aria-checked="false" aria-label="3 stars" tabindex="-1">★</button><button type="button" role="radio" data-v="4" aria-checked="false" aria-label="4 stars" tabindex="-1">★</button><button type="button" role="radio" data-v="5" aria-checked="false" aria-label="5 stars" tabindex="-1">★</button>
             </div>
             <input type="text" id="rvName" placeholder="Your name (optional)" maxlength="60" />
             <textarea id="rvComment" placeholder="What did you think? Fit, quality, feel…" rows="3" maxlength="1000"></textarea>
             <div class="review-verify">
-              <input type="text" id="rvOrder" placeholder="Order number (e.g. KAGE-XXXXXXXX)" />
-              <input type="tel" id="rvPhone" placeholder="Phone used for the order" />
+              <input type="text" id="rvOrder" placeholder="Order number" />
+              <input type="tel" id="rvPhone" placeholder="Phone used for order" />
             </div>
             <div class="review-error" id="rvError" style="display:none;"></div>
             <button class="btn btn-primary" type="submit">Submit Review</button>
@@ -4138,6 +4197,12 @@
     <div class="sticky-cart-bar" id="stickyCartBar">
       <span class="sticky-price" id="stickyPrice">Rs. 0</span>
       <button class="btn btn-primary" onclick="detailAddToCart()">Add to Cart</button>
+    </div>
+
+    <!-- Full-screen zoom view of the current gallery image -->
+    <div class="zoom-overlay" id="imageZoomOverlay" role="dialog" aria-modal="true" aria-label="Enlarged product image" onclick="closeImageZoom()" hidden>
+      <button type="button" class="zoom-close" aria-label="Close zoom view">×</button>
+      <img id="zoomImage" alt="" />
     </div>
   </div>
 
@@ -4204,7 +4269,7 @@
     </div>
   </div>
 
-n    <!-- CONTENT PAGES -->
+  <!-- CONTENT PAGES -->
     <div class="page" id="page-returns">
       <div class="container" style="padding: calc(104px + var(--spacing-lg)) 0 var(--spacing-xl); max-width: 720px;">
         <p class="section-label">Policy</p>
@@ -5624,9 +5689,11 @@ n    <!-- CONTENT PAGES -->
       if (currentProduct && currentProduct.id !== p.id) {
         // A draft rating/order belongs to the previous product, not this one.
         document.querySelector('.review-form').reset();
-        document.querySelectorAll('#starInput button').forEach(s => { s.classList.remove('selected'); s.setAttribute('aria-pressed', 'false'); });
-        document.getElementById('rvError').style.display = 'none';
+        window.resetStarInput();
       }
+      // A stale "Thanks for your review" from an earlier visit must not show
+      // before any review is submitted on this page view.
+      document.getElementById('rvError').style.display = 'none';
       currentProduct = p; detailQty = 1; detailSize = defaultSizeFor(p); detailAngle = 0;
       navigateTo('product');
       document.getElementById('detailName').textContent = p.name;
@@ -5636,7 +5703,7 @@ n    <!-- CONTENT PAGES -->
       document.getElementById('detailUrgency').innerHTML = '';
       document.getElementById('detailRating').innerHTML = p.review_count > 0
         ? `${starsOnlyHtml(p.avg_rating)} <span class="rating-avg">${Number(p.avg_rating).toFixed(1)}</span> <span class="rating-count">(${p.review_count} review${p.review_count > 1 ? 's' : ''})</span>`
-        : '<span class="review-no">No reviews yet — be the first to vouch.</span>';
+        : '<span class="review-no">No reviews yet</span>';
       renderUrgency(p);
       trackRecentlyViewed(p.id);
       renderRelated(p);
@@ -5722,6 +5789,34 @@ n    <!-- CONTENT PAGES -->
       if (btn && !btn.disabled) selectDetailSize(btn.dataset.size);
     });
 
+    let lastGallerySwipe = 0; // set after a real swipe so the zoom click is skipped
+
+    // Tap/click the main image to open a full-screen zoom of the current angle.
+    function openImageZoom() {
+      if (!currentProduct) return;
+      const src = currentProduct.images[detailAngle];
+      if (!src) return;
+      const overlay = document.getElementById('imageZoomOverlay');
+      const img = document.getElementById('zoomImage');
+      if (!overlay || !img) return;
+      img.src = src;
+      img.alt = currentProduct.name + ' — enlarged view';
+      overlay.hidden = false;
+      document.body.style.overflow = 'hidden';
+      const closeBtn = overlay.querySelector('.zoom-close');
+      if (closeBtn && closeBtn.focus) closeBtn.focus({ preventScroll: true });
+    }
+    function closeImageZoom() {
+      const overlay = document.getElementById('imageZoomOverlay');
+      if (!overlay || overlay.hidden) return;
+      overlay.hidden = true;
+      document.body.style.overflow = '';
+    }
+    // Escape (or a tap on the dark backdrop) closes the zoom view.
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeImageZoom();
+    });
+
     function setupGallerySwipe() {
       const el = document.getElementById('detailMainImage');
       if (el._swipeSetup) return;
@@ -5748,8 +5843,17 @@ n    <!-- CONTENT PAGES -->
         let na = detailAngle;
         if (dx < -th && detailAngle < currentProduct.images.length - 1) na = detailAngle + 1;
         else if (dx > th && detailAngle > 0) na = detailAngle - 1;
+        if (Math.abs(dx) > 10) lastGallerySwipe = Date.now(); // swipe, not a tap
         switchDetailAngle(na);
       }, { passive: true });
+      // Tap/click opens the zoom view — suppressed right after a swipe.
+      el.addEventListener('click', function () {
+        if (Date.now() - lastGallerySwipe < 400) return;
+        openImageZoom();
+      });
+      el.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openImageZoom(); }
+      });
     }
 
     function switchTab(el) {
@@ -5792,7 +5896,7 @@ n    <!-- CONTENT PAGES -->
       e.preventDefault();
       const errEl = document.getElementById('rvError');
       if (!currentProduct) return;
-      const selected = document.querySelector('#starInput button[aria-pressed="true"]');
+      const selected = document.querySelector('#starInput button[aria-checked="true"]');
       const rating = selected ? Number(selected.dataset.v) : 0;
       const comment = document.getElementById('rvComment').value.trim();
       const order = document.getElementById('rvOrder').value.trim();
@@ -5812,7 +5916,7 @@ n    <!-- CONTENT PAGES -->
         const data = await res.json().catch(() => ({}));
         if (res.ok) {
           e.target.reset();
-          document.querySelectorAll('#starInput button').forEach(s => { s.classList.remove('selected'); s.setAttribute('aria-pressed', 'false'); });
+          window.resetStarInput();
           errEl.style.color = '#1a7f37';
           errEl.textContent = data.message || 'Thanks for your review! It will appear once approved.';
           errEl.style.display = 'block';
@@ -5827,17 +5931,95 @@ n    <!-- CONTENT PAGES -->
       btn.disabled = false;
     }
 
-    // Clickable star picker for the review form
+    // Star picker for the review form. ONE value drives the fill — the
+    // committed rating, or a live preview while a pointer is down/hovering —
+    // so the row always lights continuously from star 1 up to that value
+    // (press-hold/drag on touch previews 1..N, release commits N). Stars are
+    // a radiogroup: arrow keys move the selection, each star is a 44×44
+    // target, and per-star :hover never paints on touch devices.
     (function () {
       const wrap = document.getElementById('starInput');
       if (!wrap) return;
-      wrap.addEventListener('click', function (e) {
-        const s = e.target.closest('button[data-v]');
-        if (!s) return;
-        const v = Number(s.dataset.v);
-        wrap.querySelectorAll('button').forEach((x, i) => { x.classList.toggle('selected', i < v); x.setAttribute('aria-pressed', String(i === v - 1)); });
+      const stars = Array.from(wrap.querySelectorAll('button[data-v]'));
+      let selected = 0; // committed rating
+      let preview = 0;  // transient value while pointer is down or hovering
+      let holding = false;
+      let lastPointerSelect = 0;
+
+      function render() {
+        const fill = preview || selected;
+        stars.forEach((b, i) => {
+          b.classList.toggle('lit', i < fill);
+          b.setAttribute('aria-checked', String(i + 1 === selected));
+          // Roving tabindex: the selected star (or the first) receives Tab.
+          b.tabIndex = (selected ? i + 1 === selected : i === 0) ? 0 : -1;
+        });
+      }
+      // Which star a horizontal pointer position maps to (1..5).
+      function starFromX(x) {
+        for (let i = stars.length - 1; i >= 0; i--) {
+          if (x >= stars[i].getBoundingClientRect().left) return i + 1;
+        }
+        return 1;
+      }
+      function commit(v) {
+        selected = Math.max(0, Math.min(5, v));
+        preview = 0;
+        render();
+      }
+
+      wrap.addEventListener('pointerdown', (e) => {
+        if (!e.target.closest('button[data-v]')) return;
+        holding = true;
+        if (wrap.setPointerCapture) { try { wrap.setPointerCapture(e.pointerId); } catch (err) {} }
+        preview = starFromX(e.clientX);
+        render();
+        e.preventDefault(); // stop text selection / synthetic mouse events
       });
+      wrap.addEventListener('pointermove', (e) => {
+        if (holding) { preview = starFromX(e.clientX); render(); return; }
+        if (e.pointerType === 'mouse') { preview = starFromX(e.clientX); render(); }
+      });
+      wrap.addEventListener('pointerup', (e) => {
+        if (!holding) return;
+        holding = false;
+        if (preview) commit(preview); else render();
+        lastPointerSelect = Date.now();
+        const target = stars[Math.max(0, selected - 1)];
+        if (target && target.focus) target.focus({ preventScroll: true });
+      });
+      // Cancel the preview when the gesture is interrupted or the pointer
+      // leaves without committing.
+      wrap.addEventListener('pointercancel', () => { holding = false; preview = 0; render(); });
+      wrap.addEventListener('pointerleave', () => { if (!holding) { preview = 0; render(); } });
+
+      // Keyboard / assistive-tech activation (Enter/Space fire click).
+      wrap.addEventListener('click', (e) => {
+        const star = e.target.closest('button[data-v]');
+        if (!star) return;
+        if (Date.now() - lastPointerSelect < 500) return; // pointer flow already committed
+        commit(Number(star.dataset.v));
+      });
+      wrap.addEventListener('keydown', (e) => {
+        let next = null;
+        if (e.key === 'ArrowRight' || e.key === 'ArrowDown') next = Math.min(5, (selected || 0) + 1);
+        else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') next = Math.max(1, (selected || 5) - 1);
+        else if (e.key === 'Home') next = 1;
+        else if (e.key === 'End') next = 5;
+        else return;
+        e.preventDefault();
+        commit(next);
+        const target = stars[next - 1];
+        if (target && target.focus) target.focus({ preventScroll: true });
+      });
+
+      window.resetStarInput = function () {
+        selected = 0; preview = 0; holding = false;
+        render();
+      };
+      render();
     })();
+
 
     // ---------- Related products ("You might also like") ----------
     function getRelatedProducts(p, n) {
@@ -5863,8 +6045,12 @@ n    <!-- CONTENT PAGES -->
 
     function renderRelated(p) {
       const grid = document.getElementById('relatedGrid');
-      if (!grid) return;
+      const section = document.getElementById('sectionRelated');
+      if (!grid || !section) return;
       const rel = getRelatedProducts(p, 4);
+      // Hide the whole section (padding included) when there is nothing to show.
+      if (!rel.length) { section.style.display = 'none'; return; }
+      section.style.display = '';
       grid.innerHTML = rel.map(renderHomeProductCard).join('');
     }
 
