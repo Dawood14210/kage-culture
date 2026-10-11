@@ -348,6 +348,19 @@ async function ready(win) {
     assert.match(storeHtml, /\.card-rating \{[^}]*min-height: 1\.15rem;[^}]*\}/, 'the rating row keeps its line when there are no reviews');
     console.log('✅ Product cards keep a reserved rating row and pin their button to the card bottom');
 
+    // Category strip: four cards in order with the new artwork, one column on
+    // phones and a 2x2 grid from 800px up.
+    const catTiles = [...d.querySelectorAll('#page-home .category-strip .cat-tile')];
+    assert.deepEqual(catTiles.map(t => t.querySelector('.cat-name').textContent), ['Anime Shirts', 'Graphic Tees', 'Custom Stickers', 'Pants'], 'category cards keep the requested order');
+    assert.deepEqual(catTiles.map(t => t.querySelector('img').getAttribute('src')), ['/images/anime-shirts.jpg', '/images/graphic-tees.jpg', '/images/custom-stickers.jpg', '/images/pants.jpg'], 'each card uses its new image');
+    assert.deepEqual(catTiles.map(t => t.getAttribute('href')), ['/collection/anime', '/collection/graphic-tees', '/custom-stickers', '/collection/all'], 'each Explore link points at a real route');
+    assert.ok(catTiles.every(t => /Explore/.test(t.querySelector('.cat-shop').textContent)), 'every card keeps its Explore link');
+    assert.ok(catTiles.every(t => t.querySelector('.cat-desc').textContent.trim().length), 'every card keeps its description');
+    assert.match(storeHtml, /\.category-strip \{[\s\S]*?grid-template-columns: 1fr;/, 'the strip is a single column by default');
+    assert.match(storeHtml, /@media \(min-width: 800px\) and \(max-width: 1023px\) \{\s*#page-home \.category-strip \{\s*grid-template-columns: repeat\(2, auto\);/, 'from 800px the strip is two columns');
+    assert.match(storeHtml, /@media \(max-width: 799px\) \{\s*\.category-strip \{\s*grid-template-columns: 1fr;/, 'below 800px the strip stays one column');
+    console.log('✅ Category strip shows four cards with the new artwork; one column below 800px, 2x2 above it');
+
     const admin = page(adminHtml, '/admin'); windows.push(admin);
     await wait(100);
     const aw = admin.window, ad = aw.document;
@@ -534,7 +547,7 @@ async function ready(win) {
     console.log('✅ Mobile navigation and admin tab layout stay reachable');
 
     assert.deepEqual(errors, []);
-    console.log('\n15/15 frontend scenarios passed');
+    console.log('\n16/16 frontend scenarios passed');
   } finally {
     windows.forEach(win => win.window.close());
     await new Promise(resolve => server.close(resolve));

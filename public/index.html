@@ -443,7 +443,9 @@
     }
     .category-strip {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
+      /* One card per row below 800px; the 800px+ rules below turn this into
+         two columns (2x2 with four cards). */
+      grid-template-columns: 1fr;
       gap: var(--spacing-xl);
     }
     .cat-tile {
@@ -511,7 +513,9 @@
     .cat-shop i { font-style: normal; transition: transform var(--transition-fast); }
     .cat-tile:hover .cat-shop i { transform: translateX(4px); }
     .cat-tile:hover .cat-shop { border-color: #FFF; }
-    @media (max-width: 768px) {
+    /* Below 800px the strip stays a single column; each card lays out as a
+       row (circle on the left, copy on the right). */
+    @media (max-width: 799px) {
       .category-strip {
         grid-template-columns: 1fr;
         gap: var(--spacing-lg);
@@ -3601,9 +3605,9 @@
         justify-content: center;
       }
     }
-    /* 769-1023px: the base 3-column strip leaves the pair off-centre, so
-       size both tracks to their content and centre them as a group. */
-    @media (min-width: 769px) and (max-width: 1023px) {
+    /* 800-1023px: two content-sized columns, centred as a group — with four
+       cards that lays them out as a 2x2 grid. */
+    @media (min-width: 800px) and (max-width: 1023px) {
       #page-home .category-strip {
         grid-template-columns: repeat(2, auto);
       }
@@ -3783,24 +3787,40 @@
       </div>
     </section>
 
-    <!-- KAGE CATEGORIES — anime shirts, custom stickers -->
+    <!-- KAGE CATEGORIES — anime shirts, graphic tees, custom stickers, pants -->
     <section class="section-categories" id="sectionCategories">
       <div class="category-band">
         <div class="container">
           <div class="category-strip">
             <a class="cat-tile reveal" href="/collection/anime" onclick="navigateTo('collection', 'anime'); return false;">
-              <span class="cat-thumb"><img src="/images/cat-anime-shirts.jpg" alt="Anime Shirts" loading="lazy" style="object-position: center 65%;" /></span>
+              <span class="cat-thumb"><img src="/images/anime-shirts.jpg" alt="Anime Shirts" loading="lazy" /></span>
               <span class="cat-info">
                 <span class="cat-name">Anime Shirts</span>
                 <span class="cat-desc">Original art on premium cotton. Each piece is wearable fandom.</span>
                 <span class="cat-shop">Explore <i><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg></i></span>
               </span>
             </a>
+            <a class="cat-tile reveal" href="/collection/graphic-tees" onclick="navigateTo('collection', 'graphic-tees'); return false;">
+              <span class="cat-thumb"><img src="/images/graphic-tees.jpg" alt="Graphic Tees" loading="lazy" /></span>
+              <span class="cat-info">
+                <span class="cat-name">Graphic Tees</span>
+                <span class="cat-desc">Bold statement prints on heavyweight oversized fits.</span>
+                <span class="cat-shop">Explore <i><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg></i></span>
+              </span>
+            </a>
             <a class="cat-tile reveal" href="/custom-stickers" onclick="navigateTo('custom-stickers'); return false;">
-              <span class="cat-thumb"><img src="/images/cat-custom-stickers.jpg" alt="Custom Stickers" loading="lazy" /></span>
+              <span class="cat-thumb"><img src="/images/custom-stickers.jpg" alt="Custom Stickers" loading="lazy" /></span>
               <span class="cat-info">
                 <span class="cat-name">Custom Stickers</span>
                 <span class="cat-desc">Your design, our print. Peel-proof vinyl, any size.</span>
+                <span class="cat-shop">Explore <i><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg></i></span>
+              </span>
+            </a>
+            <a class="cat-tile reveal" href="/collection/all" onclick="navigateTo('collection', 'all'); return false;">
+              <span class="cat-thumb"><img src="/images/pants.jpg" alt="Pants" loading="lazy" /></span>
+              <span class="cat-info">
+                <span class="cat-name">Pants</span>
+                <span class="cat-desc">Relaxed, baggy fits built for everyday wear.</span>
                 <span class="cat-shop">Explore <i><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg></i></span>
               </span>
             </a>
