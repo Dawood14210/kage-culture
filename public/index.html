@@ -352,11 +352,10 @@
       align-items: center; justify-content: center;
       margin-left: 12px;
     }
-    .hamburger span {
-      display: block; width: 16px; height: 1.5px;
-      background: var(--text-primary);
-      transition: all var(--transition-fast);
-    }
+    /* Hamburger → X: the button holds both icons, only one paints. */
+    .hamburger .icon-close { display: none; }
+    .hamburger.active .icon-menu { display: none; }
+    .hamburger.active .icon-close { display: block; }
 
     .nav-search input {
       background: #fff;
@@ -369,9 +368,6 @@
       border-color: var(--border-color);
       color: var(--text-primary);
     }
-    .hamburger.active span:nth-child(1) { transform: translate(0, 3.5px) rotate(45deg); }
-    .hamburger.active span:nth-child(2) { opacity: 0; }
-    .hamburger.active span:nth-child(3) { transform: translate(0, -3.5px) rotate(-45deg); }
 
     /* ================================================================
        PAGE SYSTEM
@@ -1351,6 +1347,7 @@
     }
     .filter-drawer-footer .btn {
       flex: 1;
+      min-height: 44px; /* btn-sm's 36px is under the 44px touch-target floor */
     }
 
     .filter-section {
@@ -1867,14 +1864,6 @@
 
 
 
-    /* Discreet admin entry point in the nav — never part of the hero */
-    .nav-links a.nav-admin {
-      color: var(--text-dim);
-      font-weight: 600;
-      letter-spacing: 0.12em;
-    }
-    .nav-links a.nav-admin:hover { color: var(--accent); }
-    .nav-links a.nav-admin::after { display: none; }
 
 
 
@@ -2442,18 +2431,14 @@
       color: var(--text-muted);
       transition: all var(--transition-fast);
     }
-    .social-icon:hover { transform: translateY(-2px); }
+    /* One theme colour for every brand icon; the accent carries the hover state. */
+    .social-icon:hover {
+      color: var(--bg-primary);
+      background: var(--accent);
+      border-color: var(--accent);
+      transform: translateY(-2px);
+    }
     .social-icon svg { width: 18px; height: 18px; fill: currentColor; }
-    .social-instagram { color: #E1306C; border-color: #E1306C; }
-    .social-instagram:hover { background: rgba(225,48,108,0.1); box-shadow: 0 0 12px rgba(225,48,108,0.25); }
-    .social-snapchat { color: #FFFC00; border-color: #FFD000; }
-    .social-snapchat:hover { background: rgba(255,252,0,0.12); box-shadow: 0 0 12px rgba(255,252,0,0.25); }
-    .social-email { color: #4285F4; border-color: #4285F4; }
-    .social-email:hover { background: rgba(66,133,244,0.1); box-shadow: 0 0 12px rgba(66,133,244,0.25); }
-    .social-etsy { color: #F56400; border-color: #F56400; }
-    .social-etsy:hover { background: rgba(245,100,0,0.1); box-shadow: 0 0 12px rgba(245,100,0,0.25); }
-    .social-whatsapp { color: #25D366; border-color: #25D366; }
-    .social-whatsapp:hover { color: #128C7E; border-color: #128C7E; background: rgba(37,211,102,0.1); box-shadow: 0 0 12px rgba(37,211,102,0.25); }
 
     /* ================================================================
        FLOATING WHATSAPP BUTTON
@@ -3484,8 +3469,7 @@
         font-size: 14px;
       }
       /* --- Footer Help links: tighter 8–12px gap --- */
-      #page-home .footer-col ul { gap: 10px; }
-      #page-home .footer-col ul a { font-size: 0.82rem; }
+      .footer-col ul a { font-size: 0.82rem; }
     }
 
     /* ================================================================
@@ -3538,11 +3522,13 @@
       }
       #page-home .bestsellers-head { margin-bottom: 4px; }
       /* Footer Help: ~36px top spacing */
-      #page-home .site-footer {
+      /* The footer is shared by every page; on phones it keeps the
+         existing mobile spacing (and the 76px+ WhatsApp clearance from
+         the max-width: 768px rule above). */
+      .site-footer {
         padding-top: 0;
-        padding-bottom: 24px;
       }
-      #page-home .site-footer .footer-main {
+      .site-footer .footer-main {
         margin-bottom: var(--spacing-md);
         padding-top: 36px;
       }
@@ -3636,6 +3622,107 @@
       }
     }
 
+    /* ================================================================
+       SHARED CONTENT PAGES — returns, shipping, terms, privacy, contact
+       One class replaces the per-page inline container style, so every
+       content page keeps the fixed-header offset, a 720px centred column
+       and real side padding on phones (16px, 20px from 600px up).
+       ================================================================ */
+    .container.content-page {
+      max-width: 720px;
+      margin-inline: auto;
+      padding: calc(104px + var(--spacing-lg)) 16px var(--spacing-xl);
+    }
+    @media (min-width: 600px) {
+      .container.content-page { padding-left: 20px; padding-right: 20px; }
+    }
+    .content-page .policy-body { margin-top: var(--spacing-lg); color: var(--text-muted); font-size: 0.9rem; line-height: 1.8; }
+    .content-page .policy-body h3 { color: var(--text-primary); font-size: 1rem; margin: var(--spacing-lg) 0 var(--spacing-sm); }
+    .content-page .policy-body strong { color: var(--text-primary); }
+    .content-page .policy-body a { color: var(--accent); }
+    .content-page .policy-body ul { list-style: none; padding: 0; }
+    .content-page .policy-body ol { padding-left: 1.2rem; }
+    .content-page .policy-body li { padding: 0.3rem 0; }
+    .content-page .policy-body .two-col { columns: 2; }
+    .content-page .policy-body .after-list { margin-top: var(--spacing-sm); }
+    .content-page .policy-updated { margin-bottom: var(--spacing-md); }
+    .content-page .back-to-shop { margin-top: var(--spacing-xl); }
+    .content-page .back-to-shop a {
+      display: inline-flex; align-items: center; min-height: 44px;
+      color: var(--accent); cursor: pointer; font-size: 0.875rem;
+    }
+
+    /* ================================================================
+       CONTACT PAGE CARDS — one icon style, theme colours only
+       ================================================================ */
+    .contact-grid { margin-top: var(--spacing-xl); display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--spacing-lg); }
+    .contact-card {
+      display: flex; align-items: center; gap: var(--spacing-md);
+      padding: var(--spacing-lg); background: var(--bg-secondary);
+      border: 1px solid var(--border-color); border-radius: var(--radius-md);
+      transition: border-color var(--transition-med);
+    }
+    .contact-card:hover, .contact-card:focus-within { border-color: var(--accent); }
+    .contact-card.stacked { flex-direction: column; align-items: stretch; }
+    .contact-main { display: flex; align-items: center; gap: var(--spacing-md); min-width: 0; }
+    .contact-icon {
+      width: 48px; height: 48px; border-radius: 50%;
+      background: var(--accent); color: var(--bg-primary);
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    .contact-icon svg { width: 24px; height: 24px; fill: currentColor; display: block; }
+    .contact-body { flex: 1 1 auto; min-width: 0; }
+    .contact-body h3 { color: var(--text-primary); font-size: 1rem; margin-bottom: 0.2rem; }
+    .contact-body p { color: var(--text-muted); font-size: 0.875rem; line-height: 1.5; }
+    .contact-alt {
+      display: inline-flex; align-items: center; min-height: 44px;
+      margin: 0.35rem 0 0 calc(48px + var(--spacing-md));
+      color: var(--accent); font-size: 0.875rem; font-weight: 600;
+    }
+    .contact-alt:hover { text-decoration: underline; }
+    .contact-hours { margin-top: var(--spacing-lg); color: var(--text-muted); font-size: 0.875rem; line-height: 1.6; }
+    .contact-hours .todo-placeholder { color: var(--accent); font-weight: 600; }
+
+    /* Footer bottom links: 44px tap targets plus a visible separator. */
+    .footer-bottom-links { display: flex; align-items: center; gap: 6px; }
+    .footer-dot { color: var(--text-gray); }
+
+    /* ================================================================
+       MOBILE MENU PANEL (hamburger, < 1024px)
+       The panel is opaque and owns the viewport below the fixed header,
+       so page copy can never show through it. Body scroll is locked by
+       the hamburger handler in the script below and restored on close.
+       ================================================================ */
+    @media (max-width: 1023px) {
+      .nav-links.open {
+        position: absolute;
+        top: 100%; left: 0; right: 0;
+        width: 100%;
+        height: calc(100dvh - var(--header-h, 95px));
+        max-height: none;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        background: var(--bg-primary);
+        border-radius: 0;
+        box-shadow: none;
+        padding-bottom: calc(var(--spacing-xl) + env(safe-area-inset-bottom, 0px));
+      }
+      /* Every menu row keeps a 44px tap target on touch layouts. */
+      .nav-links a { min-height: 44px; }
+    }
+
+    /* From 769px the header already shows every icon, so the menu's extra
+       icon row is redundant; on phones it keeps the two the header hides. */
+    @media (min-width: 769px) and (max-width: 1023px) {
+      .nav-links li.mobile-icons-row { display: none; }
+    }
+
+    /* Track Order / password reset submit: full width on phones only, so
+       the desktop form keeps its left-aligned button. */
+    @media (max-width: 768px) {
+      .tracking-form .btn { align-self: stretch; width: 100%; }
+    }
+
   </style>
 
 </head>
@@ -3697,19 +3784,20 @@
       </div>
 
       <ul class="nav-links" id="navLinks" aria-label="Main navigation">
-        <li><a data-nav="about" href="/about" onclick="navigateTo('about'); closeMenu(); return false;">About</a></li>
         <li><a data-nav="all" href="/" onclick="navigateTo('home'); closeMenu(); return false;">Home</a></li>
         <li><a data-nav="anime" href="/collection/anime" onclick="navigateTo('collection', 'anime'); closeMenu(); return false;">Anime Shirts</a></li>
-        <li><a data-nav="streetwear" href="/collection/streetwear" onclick="navigateTo('collection', 'streetwear'); closeMenu(); return false;">Streetwear</a></li>
+        <li><a data-nav="graphic-tees" href="/collection/graphic-tees" onclick="navigateTo('collection', 'graphic-tees'); closeMenu(); return false;">Graphic Tees</a></li>
+        <li><a data-nav="pants" href="/collection/all" onclick="navigateTo('collection', 'all'); closeMenu(); return false;">Pants</a></li>
         <li><a data-nav="custom-stickers" href="/custom-stickers" onclick="navigateTo('custom-stickers'); closeMenu(); return false;">Custom Stickers</a></li>
+        <li><a data-nav="about" href="/about" onclick="navigateTo('about'); closeMenu(); return false;">About</a></li>
+        <li><a data-nav="contact" href="/contact" onclick="navigateTo('contact'); closeMenu(); return false;">Contact</a></li>
         <li><a data-nav="tracking" href="/tracking" onclick="navigateTo('tracking'); closeMenu(); return false;">Track Order</a></li>
-        <li><a class="nav-admin" href="/admin" onclick="openAdminLogin(); closeMenu(); return false;" title="Admin">Admin</a></li>
         <li class="mobile-search"><input type="search" id="mobileSearch" placeholder="Search drops…" oninput="onSearchInput(this.value)" /></li>
+        <!-- Only the icons the header hides on phones (Track Order, Account).
+             Wishlist and cart live in the header, so they are not repeated here. -->
         <li class="mobile-icons-row">
-          <button class="nav-icon" onclick="navigateTo('tracking'); closeMenu();" title="Track Order" aria-label="Track Order"><img src="/images/track-order.png" alt="" width="22" height="22" /></button>
-          <button class="nav-icon" onclick="toggleWishlistFilter(); closeMenu();" title="Wishlist" aria-label="Wishlist"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg><span class="badge" id="wishlistCountMobile">0</span></button>
-                    <button class="nav-icon" onclick="handleAccountClick(); closeMenu();" title="Account" aria-label="Account"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></button>
-                    <button class="nav-icon" onclick="toggleCart(); closeMenu();" title="Cart" aria-label="Shopping Cart"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg><span class="badge" id="cartCountMobile">0</span></button>
+          <button class="nav-icon" type="button" onclick="navigateTo('tracking'); closeMenu();" title="Track Order" aria-label="Track Order"><img src="/images/track-order.png" alt="" width="22" height="22" /></button>
+          <button class="nav-icon" type="button" onclick="handleAccountClick(); closeMenu();" title="Account" aria-label="Account"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></button>
         </li>
       </ul>
 
@@ -3726,8 +3814,9 @@
                 <button class="nav-icon" onclick="toggleCart()" title="Cart" aria-label="Shopping Cart">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg><span class="badge" id="cartCount">0</span>
                 </button>
-                <button class="hamburger" id="hamburger" aria-label="Toggle menu">
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+                <button class="hamburger" id="hamburger" type="button" aria-label="Toggle menu">
+                  <svg class="icon-menu" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+                  <svg class="icon-close" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M18 6 6 18M6 6l12 12"/></svg>
                 </button>
               </div>
     </div>
@@ -3950,71 +4039,9 @@
         <button class="btn btn-primary btn-sm" onclick="closeFilterDrawer(); renderCollectionGrid();">Apply</button>
       </div>
     </div>
-
+  </div>
 
   </main>
-
-    <!-- Footer (home) -->
-    <footer class="site-footer watermark wm-bottom" style="position:relative;overflow:hidden;">
-      <div class="container">
-        <div class="footer-main reveal">
-          <div class="footer-col footer-help">
-            <h4>Help</h4>
-            <ul>
-              <li><a href="/about" onclick="navigateTo('about'); return false;">About</a></li>
-              <li><a href="/contact" onclick="navigateTo('contact'); return false;">Contact</a></li>
-              <li><a href="/tracking" onclick="navigateTo('tracking'); return false;">Track Order</a></li>
-              <li><a href="/shipping" onclick="navigateTo('shipping'); return false;">Shipping</a></li>
-              <li><a href="/returns" onclick="navigateTo('returns'); return false;">Returns & Refunds</a></li>
-              <li><a href="/privacy" onclick="navigateTo('privacy'); return false;">Privacy Policy</a></li>
-              <li><a href="/terms" onclick="navigateTo('terms'); return false;">Terms of Service</a></li>
-            </ul>
-          </div>
-          <div class="footer-social">
-            <h4>Follow The Vibe</h4>
-            <div class="social-icons">
-              <a class="social-icon social-instagram" href="https://instagram.com/kage__culture" target="_blank" rel="noopener" aria-label="Instagram">
-                <svg viewBox="0 0 24 24"><path d="M12 2.2c3.2 0 3.6 0 4.9.1 1.2.1 1.8.2 2.2.4.6.2 1 .5 1.4.9.4.4.7.8.9 1.4.2.4.4 1 .4 2.2.1 1.3.1 1.7.1 4.9s0 3.6-.1 4.9c-.1 1.2-.2 1.8-.4 2.2-.2.6-.5 1-.9 1.4-.4.4-.8.7-1.4.9-.4.2-1 .4-2.2.4-1.3.1-1.7.1-4.9.1s-3.6 0-4.9-.1c-1.2-.1-1.8-.2-2.2-.4-.6-.2-1-.5-1.4-.9-.4-.4-.7-.8-.9-1.4-.2-.4-.4-1-.4-2.2-.1-1.3-.1-1.7-.1-4.9s0-3.6.1-4.9c.1-1.2.2-1.8.4-2.2.2-.6.5-1 .9-1.4.4-.4.8-.7 1.4-.9.4-.2 1-.4 2.2-.4 1.3-.1 1.7-.1 4.9-.1zm0 1.8a4.1 4.1 0 1 0 0 8.2 4.1 4.1 0 0 0 0-8.2zm0 6.4a2.3 2.3 0 1 1 0-4.6 2.3 2.3 0 0 1 0 4.6zm4.9-6.6a1 1 0 1 0 0 2 1 1 0 0 0 0-2z"/></svg>
-              </a>
-              <a class="social-icon social-snapchat" href="https://snapchat.com/add/kage_culture" target="_blank" rel="noopener" aria-label="Snapchat">
-                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C9.5 2 8 4 8 6.5V8c-1.5.2-3 1.2-3 3 0 .3 0 .6.1.9-.3.1-.6.3-.6.7 0 .5.5.8 1.2 1 .2.1.4.1.5.2-.1.8-.5 2-1.2 2.8-.5.6-1 1-1.5 1.3-.2.1-.3.3-.1.5.4.3 1.2.4 2 .5.1.4.3 1 .8 1.5.5.5 1.2.8 2 .8h3.2c.8 0 1.5-.3 2-.8.5-.5.7-1.1.8-1.5.8-.1 1.6-.2 2-.5.2-.2.1-.4-.1-.5-.5-.3-1-.7-1.5-1.3-.7-.8-1.1-2-1.2-2.8.1-.1.3-.1.5-.2.7-.2 1.2-.5 1.2-1 0-.4-.3-.6-.6-.7.1-.3.1-.6.1-.9 0-1.8-1.5-2.8-3-3V6.5C16 4 14.5 2 12 2z"/></svg>
-              </a>
-              <a class="social-icon social-email" href="https://mail.google.com/mail/?view=cm&fs=1&to=kageculture01@gmail.com" target="_blank" rel="noopener" aria-label="Email">
-                <svg viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
-              </a>
-              <a class="social-icon social-etsy" href="https://etsy.com/shop/kageinetsy22" target="_blank" rel="noopener" aria-label="Etsy">
-                <svg viewBox="0 0 24 24" fill="currentColor"><text x="12" y="17" text-anchor="middle" font-family="Georgia,serif" font-size="16" font-style="italic" font-weight="bold">E</text></svg>
-              </a>
-              <a class="social-icon social-whatsapp" href="https://wa.me/923228042633?text=Hi%20Kage%20Culture%2C%20I%20need%20help" target="_blank" rel="noopener" aria-label="WhatsApp">
-                <svg viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-              </a>
-            </div>
-          </div>
-          <div class="footer-newsletter">
-            <h4>JOIN THE CLAN.</h4>
-            <p>First drop access, restock alerts, and clan-only pricing. No spam, ever.</p>
-            <form class="newsletter-form" onsubmit="subscribeNewsletter(event)">
-              <input type="email" placeholder="Your email" required />
-              <button class="btn btn-primary btn-sm" type="submit">Subscribe</button>
-            </form>
-            <p class="newsletter-msg"></p>
-          </div>
-        </div>
-        <div class="footer-bottom">
-          <span>&copy; 2026 KAGE CULTURE</span>
-          <div class="payment-icons">
-            <span class="payment-icon">COD</span>
-            <span class="payment-icon">JazzCash</span>
-            <span class="payment-icon">Bank Transfer</span>
-          </div>
-          <div class="footer-bottom-links">
-            <a href="/privacy" onclick="navigateTo('privacy'); return false;">Privacy</a>
-            <a href="/terms" onclick="navigateTo('terms'); return false;">Terms</a>
-          </div>
-        </div>
-      </div>
-    </footer>
-  </div>
 
   <!-- ORDER TRACKING PAGE -->
   <div class="page" id="page-tracking">
@@ -4075,7 +4102,7 @@
           <h3>Payment method</h3>
           <div class="co-payment">
             <label class="co-pay-option"><input type="radio" name="payMethod" value="cod" checked /> <span><strong>Cash on Delivery</strong><small>Pay when your order arrives</small></span></label>
-            <label class="co-pay-option"><input type="radio" name="payMethod" value="jazzcash" /> <span><strong>JazzCash</strong><small>Send payment to 0322-8042633</small></span></label>
+            <label class="co-pay-option"><input type="radio" name="payMethod" value="jazzcash" /> <span><strong>JazzCash</strong><small>Send payment to +92 322 804 2633</small></span></label>
             <label class="co-pay-option"><input type="radio" name="payMethod" value="bank" /> <span><strong>Bank Transfer</strong><small>Transfer details emailed after ordering</small></span></label>
           </div>
           <div id="paymentRefGroup" style="display:none;margin-top:0.6rem;">
@@ -4287,132 +4314,165 @@
 
   <!-- CONTENT PAGES -->
     <div class="page" id="page-returns">
-      <div class="container" style="padding: calc(104px + var(--spacing-lg)) 0 var(--spacing-xl); max-width: 720px;">
+      <div class="container content-page">
         <p class="section-label">Policy</p>
-        <h1 class="section-title">Return & Refund Policy</h1>
-        <div style="margin-top: var(--spacing-lg); color: var(--text-muted); font-size: 0.9rem; line-height: 1.8;">
-          <h3 style="color: var(--text-primary); font-size: 1rem; margin: var(--spacing-lg) 0 var(--spacing-sm);">Return Window</h3>
-          <p>You may request a return within <strong style="color: var(--text-primary);">7 days</strong> of receiving your order. Items must be unworn, unwashed, and in original packaging with tags attached.</p>
+        <h1 class="section-title">Return &amp; Refund Policy</h1>
+        <div class="policy-body">
+          <h3>Return Window</h3>
+          <p>You may request a return within <strong>7 days</strong> of receiving your order. Items must be unworn, unwashed, and in original packaging with tags attached.</p>
 
-          <h3 style="color: var(--text-primary); font-size: 1rem; margin: var(--spacing-lg) 0 var(--spacing-sm);">Eligible Items</h3>
-          <ul style="list-style: none; padding: 0;">
-            <li style="padding: 0.3rem 0;">✓ All clothing items (tees, compression, oversized)</li>
-            <li style="padding: 0.3rem 0;">✓ Items in original condition with tags</li>
-            <li style="padding: 0.3rem 0;">✗ Sale items (final sale unless defective)</li>
-            <li style="padding: 0.3rem 0;">✗ Worn, washed, or damaged items</li>
+          <h3>Eligible Items</h3>
+          <ul>
+            <li>✓ All clothing items (tees, compression, oversized)</li>
+            <li>✓ Items in original condition with tags</li>
+            <li>✗ Sale items (final sale unless defective)</li>
+            <li>✗ Worn, washed, or damaged items</li>
+            <li>✗ Custom-designed items and custom stickers (see Custom Orders below)</li>
           </ul>
 
-          <h3 style="color: var(--text-primary); font-size: 1rem; margin: var(--spacing-lg) 0 var(--spacing-sm);">How to Request a Return</h3>
-          <ol style="padding-left: 1.2rem;">
-            <li style="padding: 0.3rem 0;">Contact us via WhatsApp at <a href="https://wa.me/923228042633?text=Hi%20Kage%20Culture%2C%20I%20want%20to%20return%20an%20order" style="color: var(--accent);" target="_blank">+92 322 804 2633</a> with your order number</li>
-            <li style="padding: 0.3rem 0;">We'll confirm eligibility and provide return instructions</li>
-            <li style="padding: 0.3rem 0;">Ship the item back (return shipping paid by customer unless item is defective)</li>
-            <li style="padding: 0.3rem 0;">Refund processed within 3-5 business days of receiving the return</li>
+          <h3>Custom Orders</h3>
+          <p>Custom-designed items and custom stickers are made to order and are <strong>non-returnable</strong>. The only exceptions are items that arrive <strong>defective</strong> or that are the <strong>wrong item</strong> — those follow the defective-item rule below.</p>
+
+          <h3>How to Request a Return</h3>
+          <ol>
+            <li>Contact us via WhatsApp at <a href="https://wa.me/923228042633?text=Hi%20Kage%20Culture%2C%20I%20want%20to%20return%20an%20order" target="_blank" rel="noopener">+92 322 804 2633</a> with your order number</li>
+            <li>We'll confirm eligibility and provide return instructions</li>
+            <li>Ship the item back (return shipping paid by customer unless item is defective)</li>
+            <li>Refund processed within 3-5 business days of receiving the return</li>
           </ol>
 
-          <h3 style="color: var(--text-primary); font-size: 1rem; margin: var(--spacing-lg) 0 var(--spacing-sm);">Refund Method</h3>
+          <h3>Refund Method</h3>
           <p>Refunds are issued via bank transfer to the account you specify. COD orders are refunded via bank transfer only.</p>
 
-          <h3 style="color: var(--text-primary); font-size: 1rem; margin: var(--spacing-lg) 0 var(--spacing-sm);">Defective Items</h3>
+          <h3>Defective Items</h3>
           <p>If you received a defective or wrong item, contact us within 48 hours with photos. We'll cover return shipping and send a replacement or full refund.</p>
         </div>
-        <p style="margin-top: var(--spacing-xl);"><a href="/" onclick="navigateTo('home'); return false;" style="color: var(--accent); cursor: pointer; font-size: 0.85rem;">← Back to Shop</a></p>
+        <p class="back-to-shop"><a href="/" onclick="navigateTo('home'); return false;">← Back to Shop</a></p>
       </div>
     </div>
 
     <div class="page" id="page-shipping">
-      <div class="container" style="padding: calc(104px + var(--spacing-lg)) 0 var(--spacing-xl); max-width: 720px;">
+      <div class="container content-page">
         <p class="section-label">Policy</p>
-        <h1 class="section-title">Shipping & Delivery</h1>
-        <div style="margin-top: var(--spacing-lg); color: var(--text-muted); font-size: 0.9rem; line-height: 1.8;">
-          <h3 style="color: var(--text-primary); font-size: 1rem; margin: var(--spacing-lg) 0 var(--spacing-sm);">Delivery Time</h3>
-          <p>Orders are processed within 1-2 business days. Delivery takes <strong style="color: var(--text-primary);">3-5 business days</strong> for major cities and <strong style="color: var(--text-primary);">5-7 business days</strong> for other areas.</p>
+        <h1 class="section-title">Shipping &amp; Delivery</h1>
+        <div class="policy-body">
+          <h3>Delivery Time</h3>
+          <p>Orders are processed within 1-2 business days. Delivery takes <strong>3-5 business days</strong> for major cities and <strong>5-7 business days</strong> for other areas.</p>
 
-          <h3 style="color: var(--text-primary); font-size: 1rem; margin: var(--spacing-lg) 0 var(--spacing-sm);">Cities Currently Served</h3>
-          <p>We deliver nationwide across Pakistan, including:</p>
-          <ul style="list-style: none; padding: 0; columns: 2;">
-            <li style="padding: 0.3rem 0;">• Lahore</li>
-            <li style="padding: 0.3rem 0;">• Karachi</li>
-            <li style="padding: 0.3rem 0;">• Islamabad</li>
-            <li style="padding: 0.3rem 0;">• Rawalpindi</li>
-            <li style="padding: 0.3rem 0;">• Faisalabad</li>
-            <li style="padding: 0.3rem 0;">• Multan</li>
-            <li style="padding: 0.3rem 0;">• Peshawar</li>
-            <li style="padding: 0.3rem 0;">• Quetta</li>
-            <li style="padding: 0.3rem 0;">• Sialkot</li>
-            <li style="padding: 0.3rem 0;">• Gujranwala</li>
+          <h3>Delivery Charges</h3>
+          <ul>
+            <li>• A flat delivery charge of <strong>Rs. 150</strong> applies to every order, nationwide.</li>
+            <li>• The charge is added to your total at checkout.</li>
+            <li>• There is no free-shipping threshold — the same flat rate applies to every order.</li>
           </ul>
-          <p style="margin-top: var(--spacing-sm);">And all other major cities via our delivery partners.</p>
 
-          <h3 style="color: var(--text-primary); font-size: 1rem; margin: var(--spacing-lg) 0 var(--spacing-sm);">Payment Methods</h3>
-          <ul style="list-style: none; padding: 0;">
-            <li style="padding: 0.3rem 0;"><strong style="color: var(--text-primary);">Cash on Delivery (COD)</strong> — pay when your order arrives</li>
-            <li style="padding: 0.3rem 0;"><strong style="color: var(--text-primary);">JazzCash</strong> — send payment to <strong style="color: var(--text-primary);">0322-8042633</strong></li>
+          <h3>Cities Currently Served</h3>
+          <p>We deliver nationwide across Pakistan, including:</p>
+          <ul class="two-col">
+            <li>• Lahore</li>
+            <li>• Karachi</li>
+            <li>• Islamabad</li>
+            <li>• Rawalpindi</li>
+            <li>• Faisalabad</li>
+            <li>• Multan</li>
+            <li>• Peshawar</li>
+            <li>• Quetta</li>
+            <li>• Sialkot</li>
+            <li>• Gujranwala</li>
+          </ul>
+          <p class="after-list">And all other major cities via our delivery partners.</p>
+
+          <h3>Payment Methods</h3>
+          <ul>
+            <li><strong>Cash on Delivery (COD)</strong> — pay when your order arrives</li>
+            <!-- TODO: confirm the JazzCash account number is the same as the WhatsApp number. -->
+            <li><strong>JazzCash</strong> — send payment to <strong>+92 322 804 2633</strong></li>
+            <li><strong>Bank Transfer</strong> — account details are sent after you place the order</li>
           </ul>
         </div>
-        <p style="margin-top: var(--spacing-xl);"><a href="/" onclick="navigateTo('home'); return false;" style="color: var(--accent); cursor: pointer; font-size: 0.85rem;">← Back to Shop</a></p>
+        <p class="back-to-shop"><a href="/" onclick="navigateTo('home'); return false;">← Back to Shop</a></p>
       </div>
     </div>
 
     <div class="page" id="page-terms">
-      <div class="container" style="padding: calc(104px + var(--spacing-lg)) 0 var(--spacing-xl); max-width: 720px;">
-        <p class="section-label">Legal</p>
+      <div class="container content-page">
+        <p class="section-label">Policy</p>
         <h1 class="section-title">Terms of Service</h1>
-        <div style="margin-top: var(--spacing-lg); color: var(--text-muted); font-size: 0.9rem; line-height: 1.8;">
-          <p style="margin-bottom: var(--spacing-md);">Last updated: August 2026</p>
+        <div class="policy-body">
+          <p class="policy-updated">Last updated: October 2026</p>
 
-          <h3 style="color: var(--text-primary); font-size: 1rem; margin: var(--spacing-lg) 0 var(--spacing-sm);">1. Acceptance of Terms</h3>
-          <p>By accessing and using the KAGE Culture website (kage-culture-ruby.vercel.app), you agree to be bound by these Terms of Service.</p>
+          <h3>1. Acceptance of Terms</h3>
+          <p>By accessing and using this website, you agree to be bound by these Terms of Service.</p>
 
-          <h3 style="color: var(--text-primary); font-size: 1rem; margin: var(--spacing-lg) 0 var(--spacing-sm);">2. Products & Pricing</h3>
+          <h3>2. Products &amp; Pricing</h3>
           <p>All product descriptions, images, and specifications are as accurate as possible. Colors may vary slightly due to screen settings. Prices are in Pakistani Rupees (PKR) and include applicable taxes. We reserve the right to modify prices without prior notice.</p>
 
-          <h3 style="color: var(--text-primary); font-size: 1rem; margin: var(--spacing-lg) 0 var(--spacing-sm);">3. Orders & Payment</h3>
+          <h3>3. Orders &amp; Payment</h3>
           <p>Orders are subject to availability. We reserve the right to cancel any order. Payment must be completed before shipping for bank transfer orders. COD orders are payable upon delivery.</p>
 
-          <h3 style="color: var(--text-primary); font-size: 1rem; margin: var(--spacing-lg) 0 var(--spacing-sm);">4. Intellectual Property</h3>
+          <h3>4. Custom Orders</h3>
+          <p>Custom-designed items and custom stickers are made to order and are non-returnable unless they arrive defective or wrong. See our <a href="/returns" onclick="navigateTo('returns'); return false;">Returns &amp; Refund Policy</a> for the rules that apply.</p>
+
+          <h3>5. Intellectual Property</h3>
           <p>All content on this site, including designs, logos, and graphics, is the property of KAGE Culture and protected by intellectual property laws.</p>
 
-          <h3 style="color: var(--text-primary); font-size: 1rem; margin: var(--spacing-lg) 0 var(--spacing-sm);">5. Limitation of Liability</h3>
+          <h3>6. Limitation of Liability</h3>
           <p>KAGE Culture shall not be liable for any indirect, incidental, or consequential damages arising from the use of our products or services.</p>
 
-          <h3 style="color: var(--text-primary); font-size: 1rem; margin: var(--spacing-lg) 0 var(--spacing-sm);">6. Contact</h3>
-          <p>For questions about these terms, contact us via WhatsApp at <a href="https://wa.me/923228042633" style="color: var(--accent);" target="_blank">+92 322 804 2633</a>.</p>
+          <h3>7. Governing Law</h3>
+          <p>These Terms of Service are governed by the laws of Pakistan.</p>
+
+          <h3>8. Contact</h3>
+          <p>For questions about these terms, contact us via WhatsApp at <a href="https://wa.me/923228042633" target="_blank" rel="noopener">+92 322 804 2633</a>.</p>
         </div>
-        <p style="margin-top: var(--spacing-xl);"><a href="/" onclick="navigateTo('home'); return false;" style="color: var(--accent); cursor: pointer; font-size: 0.85rem;">← Back to Shop</a></p>
+        <p class="back-to-shop"><a href="/" onclick="navigateTo('home'); return false;">← Back to Shop</a></p>
       </div>
     </div>
 
     <div class="page" id="page-privacy">
-      <div class="container" style="padding: calc(104px + var(--spacing-lg)) 0 var(--spacing-xl); max-width: 720px;">
-        <p class="section-label">Legal</p>
+      <div class="container content-page">
+        <p class="section-label">Policy</p>
         <h1 class="section-title">Privacy Policy</h1>
-        <div style="margin-top: var(--spacing-lg); color: var(--text-muted); font-size: 0.9rem; line-height: 1.8;">
-          <p style="margin-bottom: var(--spacing-md);">Last updated: August 2026</p>
+        <div class="policy-body">
+          <p class="policy-updated">Last updated: October 2026</p>
 
-          <h3 style="color: var(--text-primary); font-size: 1rem; margin: var(--spacing-lg) 0 var(--spacing-sm);">Information We Collect</h3>
+          <h3>Information We Collect</h3>
           <p>When you place an order, we collect:</p>
-          <ul style="list-style: none; padding: 0;">
-            <li style="padding: 0.3rem 0;">• Name</li>
-            <li style="padding: 0.3rem 0;">• Email address</li>
-            <li style="padding: 0.3rem 0;">• Phone number</li>
-            <li style="padding: 0.3rem 0;">• Shipping address</li>
-            <li style="padding: 0.3rem 0;">• City</li>
+          <ul>
+            <li>• Name</li>
+            <li>• Email address</li>
+            <li>• Phone number</li>
+            <li>• Shipping address</li>
+            <li>• City</li>
           </ul>
+          <p class="after-list">If you create a customer account, we also store your email address, your hashed password, and the profile details you add (name, phone, address, city). If you join the newsletter ("JOIN THE CLAN"), we store the email address you enter.</p>
 
-          <h3 style="color: var(--text-primary); font-size: 1rem; margin: var(--spacing-lg) 0 var(--spacing-sm);">How We Use Your Information</h3>
-          <p>Your personal information is used <strong style="color: var(--text-primary);">solely for order fulfillment</strong> — processing your order, coordinating delivery, and providing customer support. We do not sell, rent, or share your personal data with third parties for marketing purposes.</p>
+          <h3>How We Use Your Information</h3>
+          <p>Order details are used to process and deliver your order, to answer support questions, and to keep the order records needed for returns. Newsletter emails are used to send drop and restock alerts, and clan-only offers. We do not sell, rent, or share your personal data with third parties for marketing purposes.</p>
 
-          <h3 style="color: var(--text-primary); font-size: 1rem; margin: var(--spacing-lg) 0 var(--spacing-sm);">Data Security</h3>
+          <h3>Newsletter Emails</h3>
+          <!-- TODO: add a self-serve unsubscribe endpoint and link. Today removal is
+               handled manually by the shop owner (there is no unsubscribe route). -->
+          <p>Subscribing adds your email address to our newsletter list. The store does not have a one-click unsubscribe yet — to be removed from the list, email <a href="mailto:kageculture01@gmail.com">kageculture01@gmail.com</a> or message us on WhatsApp at <a href="https://wa.me/923228042633" target="_blank" rel="noopener">+92 322 804 2633</a> and we will take your address off the list.</p>
+
+          <h3>Delivery &amp; Courier Partners</h3>
+          <p>To deliver an order we share the details the courier needs — name, phone number, delivery address and city — with the delivery partner carrying your parcel. They receive only what is required to complete the delivery.</p>
+
+          <h3>Cookies &amp; Browser Storage</h3>
+          <p>We use a small number of essential cookies that the site cannot work without:</p>
+          <ul>
+            <li>• <strong>Session cookie (kage.session)</strong> — keeps you signed in: it holds your customer account session while you shop, and an admin session if you sign in to the dashboard.</li>
+            <li>• <strong>CSRF cookie (kage.csrf)</strong> — a security token that protects forms (checkout, reviews, newsletter, admin actions) against cross-site request forgery.</li>
+          </ul>
+          <p class="after-list">Your cart, wishlist, recently-viewed list and review-viewer token are kept in your browser's local storage, not in cookies, so they survive a page reload on your own device. We do not use advertising or third-party tracking cookies, and we do not track your browsing behaviour across other sites.</p>
+
+          <h3>Data Security</h3>
           <p>We implement appropriate security measures to protect your personal information. However, no method of transmission over the internet is 100% secure.</p>
 
-          <h3 style="color: var(--text-primary); font-size: 1rem; margin: var(--spacing-lg) 0 var(--spacing-sm);">Cookies</h3>
-          <p>We use essential cookies for session management (admin login). These are necessary for the site to function and do not track your browsing behavior.</p>
-
-          <h3 style="color: var(--text-primary); font-size: 1rem; margin: var(--spacing-lg) 0 var(--spacing-sm);">Your Rights</h3>
-          <p>You may request access to, correction of, or deletion of your personal data by contacting us via WhatsApp at <a href="https://wa.me/923228042633" style="color: var(--accent);" target="_blank">+92 322 804 2633</a>.</p>
+          <h3>Your Rights</h3>
+          <p>You may request access to, correction of, or deletion of your personal data by contacting us via WhatsApp at <a href="https://wa.me/923228042633" target="_blank" rel="noopener">+92 322 804 2633</a> or by email at <a href="mailto:kageculture01@gmail.com">kageculture01@gmail.com</a>.</p>
         </div>
-        <p style="margin-top: var(--spacing-xl);"><a href="/" onclick="navigateTo('home'); return false;" style="color: var(--accent); cursor: pointer; font-size: 0.85rem;">← Back to Shop</a></p>
+        <p class="back-to-shop"><a href="/" onclick="navigateTo('home'); return false;">← Back to Shop</a></p>
       </div>
     </div>
 
@@ -4495,35 +4555,113 @@
     </div>
 
     <div class="page" id="page-contact">
-      <div class="container" style="padding: calc(104px + var(--spacing-lg)) 0 var(--spacing-xl); max-width: 720px;">
+      <div class="container content-page">
         <p class="section-label">Get in Touch</p>
         <h1 class="section-title">CONTACT US</h1>
-        <div style="margin-top: var(--spacing-xl); display: grid; gap: var(--spacing-lg);">
-          <a href="https://wa.me/923228042633?text=Hi%20Kage%20Culture%2C%20I%20have%20a%20question" target="_blank" style="display: flex; align-items: center; gap: var(--spacing-md); padding: var(--spacing-lg); background: var(--bg-secondary); border-radius: var(--radius-md); border: 1px solid var(--border-color); text-decoration: none; transition: all var(--transition-med);" onmouseover="this.style.borderColor='#25D366'" onmouseout="this.style.borderColor='var(--border-color)'">
-            <div style="width: 48px; height: 48px; background: #25D366; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-size: 1.5rem; flex-shrink: 0;">💬</div>
-            <div>
-              <h3 style="color: var(--text-primary); font-size: 1rem; margin-bottom: 0.2rem;">WhatsApp</h3>
-              <p style="color: var(--text-muted); font-size: 0.85rem;">+92 322 804 2633 — Tap to chat instantly</p>
+        <div class="contact-grid">
+          <a class="contact-card" href="https://wa.me/923228042633?text=Hi%20Kage%20Culture%2C%20I%20have%20a%20question" target="_blank" rel="noopener">
+            <span class="contact-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg></span>
+            <div class="contact-body">
+              <h3>WhatsApp</h3>
+              <p>+92 322 804 2633 — Tap to chat instantly</p>
             </div>
           </a>
-          <a href="https://wa.me/923228042633?text=Hi%20Kage%20Culture%2C%20I%20have%20an%20order%20inquiry" target="_blank" style="display: flex; align-items: center; gap: var(--spacing-md); padding: var(--spacing-lg); background: var(--bg-secondary); border-radius: var(--radius-md); border: 1px solid var(--border-color); text-decoration: none; transition: all var(--transition-med);" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border-color)'">
-            <div style="width: 48px; height: 48px; background: var(--accent); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-size: 1.5rem; flex-shrink: 0;">📦</div>
-            <div>
-              <h3 style="color: var(--text-primary); font-size: 1rem; margin-bottom: 0.2rem;">Order Support</h3>
-              <p style="color: var(--text-muted); font-size: 0.85rem;">Track your order, ask about returns, or get help</p>
-            </div>
-          </a>
-          <div style="display: flex; align-items: center; gap: var(--spacing-md); padding: var(--spacing-lg); background: var(--bg-secondary); border-radius: var(--radius-md); border: 1px solid var(--border-color);">
-            <div style="width: 48px; height: 48px; background: var(--text-primary); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: var(--bg-primary); font-size: 1.5rem; flex-shrink: 0;">📸</div>
-            <div>
-              <h3 style="color: var(--text-primary); font-size: 1rem; margin-bottom: 0.2rem;">Instagram</h3>
-              <p style="color: var(--text-muted); font-size: 0.85rem;">@kageculture — Follow for drops & behind the scenes</p>
-            </div>
+
+          <div class="contact-card stacked">
+            <a class="contact-main" href="/tracking" onclick="navigateTo('tracking'); return false;">
+              <span class="contact-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 2 2.5 6.5v11L12 22l9.5-4.5v-11L12 2zm0 2.2 6.6 3.1L12 10.4 5.4 7.3 12 4.2zM4.5 8.9l6.3 3v7.1l-6.3-3V8.9zm8.7 10.1v-7.1l6.3-3v7.1l-6.3 3z"/></svg></span>
+              <div class="contact-body">
+                <h3>Order Support</h3>
+                <p>Track your order, ask about returns, or get help</p>
+              </div>
+            </a>
+            <a class="contact-alt" href="https://wa.me/923228042633?text=Hi%20Kage%20Culture%2C%20I%20have%20an%20order%20inquiry" target="_blank" rel="noopener">or message us on WhatsApp</a>
           </div>
+
+          <a class="contact-card" href="https://instagram.com/kage__culture" target="_blank" rel="noopener">
+            <span class="contact-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 2.2c3.2 0 3.6 0 4.9.1 1.2.1 1.8.2 2.2.4.6.2 1 .5 1.4.9.4.4.7.8.9 1.4.2.4.4 1 .4 2.2.1 1.3.1 1.7.1 4.9s0 3.6-.1 4.9c-.1 1.2-.2 1.8-.4 2.2-.2.6-.5 1-.9 1.4-.4.4-.8.7-1.4.9-.4.2-1 .4-2.2.4-1.3.1-1.7.1-4.9.1s-3.6 0-4.9-.1c-1.2-.1-1.8-.2-2.2-.4-.6-.2-1-.5-1.4-.9-.4-.4-.7-.8-.9-1.4-.2-.4-.4-1-.4-2.2-.1-1.3-.1-1.7-.1-4.9s0-3.6.1-4.9c.1-1.2.2-1.8.4-2.2.2-.6.5-1 .9-1.4.4-.4.8-.7 1.4-.9.4-.2 1-.4 2.2-.4 1.3-.1 1.7-.1 4.9-.1zm0 1.8a4.1 4.1 0 1 0 0 8.2 4.1 4.1 0 0 0 0-8.2zm0 6.4a2.3 2.3 0 1 1 0-4.6 2.3 2.3 0 0 1 0 4.6zm4.9-6.6a1 1 0 1 0 0 2 1 1 0 0 0 0-2z"/></svg></span>
+            <div class="contact-body">
+              <h3>Instagram</h3>
+              <p>@kage__culture — Follow for drops &amp; behind the scenes</p>
+            </div>
+          </a>
+
+          <a class="contact-card" href="mailto:kageculture01@gmail.com">
+            <span class="contact-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg></span>
+            <div class="contact-body">
+              <h3>Email</h3>
+              <p>kageculture01@gmail.com</p>
+            </div>
+          </a>
         </div>
-        <p style="margin-top: var(--spacing-xl);"><a href="/" onclick="navigateTo('home'); return false;" style="color: var(--accent); cursor: pointer; font-size: 0.85rem;">← Back to Shop</a></p>
+        <p class="contact-hours"><strong>Working hours:</strong> <span class="todo-placeholder">TODO — hours not confirmed yet (ask the shop owner for the exact days and times)</span></p>
+        <p class="back-to-shop"><a href="/" onclick="navigateTo('home'); return false;">← Back to Shop</a></p>
       </div>
     </div>
+
+
+  <!-- Site footer — ONE copy, shared by every page (the SPA shows one
+       page at a time and the footer sits after all of them). -->
+    <footer class="site-footer watermark wm-bottom" style="position:relative;overflow:hidden;">
+      <div class="container">
+        <div class="footer-main reveal">
+          <div class="footer-col footer-help">
+            <h4>Help</h4>
+            <ul>
+              <li><a href="/about" onclick="navigateTo('about'); return false;">About</a></li>
+              <li><a href="/contact" onclick="navigateTo('contact'); return false;">Contact</a></li>
+              <li><a href="/tracking" onclick="navigateTo('tracking'); return false;">Track Order</a></li>
+              <li><a href="/shipping" onclick="navigateTo('shipping'); return false;">Shipping</a></li>
+              <li><a href="/returns" onclick="navigateTo('returns'); return false;">Returns & Refunds</a></li>
+              <li><a href="/privacy" onclick="navigateTo('privacy'); return false;">Privacy Policy</a></li>
+              <li><a href="/terms" onclick="navigateTo('terms'); return false;">Terms of Service</a></li>
+            </ul>
+          </div>
+          <div class="footer-social">
+            <h4>Follow The Vibe</h4>
+            <div class="social-icons">
+              <a class="social-icon social-instagram" href="https://instagram.com/kage__culture" target="_blank" rel="noopener" aria-label="Instagram">
+                <svg viewBox="0 0 24 24"><path d="M12 2.2c3.2 0 3.6 0 4.9.1 1.2.1 1.8.2 2.2.4.6.2 1 .5 1.4.9.4.4.7.8.9 1.4.2.4.4 1 .4 2.2.1 1.3.1 1.7.1 4.9s0 3.6-.1 4.9c-.1 1.2-.2 1.8-.4 2.2-.2.6-.5 1-.9 1.4-.4.4-.8.7-1.4.9-.4.2-1 .4-2.2.4-1.3.1-1.7.1-4.9.1s-3.6 0-4.9-.1c-1.2-.1-1.8-.2-2.2-.4-.6-.2-1-.5-1.4-.9-.4-.4-.7-.8-.9-1.4-.2-.4-.4-1-.4-2.2-.1-1.3-.1-1.7-.1-4.9s0-3.6.1-4.9c.1-1.2.2-1.8.4-2.2.2-.6.5-1 .9-1.4.4-.4.8-.7 1.4-.9.4-.2 1-.4 2.2-.4 1.3-.1 1.7-.1 4.9-.1zm0 1.8a4.1 4.1 0 1 0 0 8.2 4.1 4.1 0 0 0 0-8.2zm0 6.4a2.3 2.3 0 1 1 0-4.6 2.3 2.3 0 0 1 0 4.6zm4.9-6.6a1 1 0 1 0 0 2 1 1 0 0 0 0-2z"/></svg>
+              </a>
+              <a class="social-icon social-snapchat" href="https://snapchat.com/add/kage_culture" target="_blank" rel="noopener" aria-label="Snapchat">
+                <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false"><path d="M12.206.793c.99 0 4.347.276 5.93 3.821.529 1.193.403 3.219.299 4.847l-.003.06c-.012.18-.022.345-.03.51.075.045.203.09.401.09.3-.016.659-.12 1.033-.301.165-.088.344-.104.464-.104.182 0 .359.029.509.09.45.149.734.479.734.838.015.449-.39.839-1.213 1.168-.089.029-.209.075-.344.119-.45.135-1.139.36-1.333.81-.09.224-.061.524.12.868l.015.015c.06.136 1.526 3.475 4.791 4.014.255.044.435.27.42.509 0 .075-.015.149-.045.225-.24.569-1.273.988-3.146 1.271-.059.091-.12.375-.164.57-.029.179-.074.36-.134.553-.076.271-.27.405-.555.405h-.03c-.135 0-.313-.031-.538-.074-.36-.075-.765-.135-1.273-.135-.3 0-.599.015-.913.074-.6.104-1.123.464-1.723.884-.853.599-1.826 1.288-3.294 1.288-.06 0-.119-.015-.18-.015h-.149c-1.468 0-2.427-.675-3.279-1.288-.599-.42-1.107-.779-1.707-.884-.314-.045-.629-.074-.928-.074-.54 0-.958.089-1.272.149-.211.043-.391.074-.54.074-.374 0-.523-.224-.583-.42-.061-.192-.09-.389-.135-.567-.046-.181-.105-.494-.166-.57-1.918-.222-2.95-.642-3.189-1.226-.031-.063-.052-.15-.055-.225-.015-.243.165-.465.42-.509 3.264-.54 4.73-3.879 4.791-4.02l.016-.029c.18-.345.224-.645.119-.869-.195-.434-.884-.658-1.332-.809-.121-.029-.24-.074-.346-.119-1.107-.435-1.257-.93-1.197-1.273.09-.479.674-.793 1.168-.793.146 0 .27.029.383.074.42.194.789.3 1.104.3.234 0 .384-.06.465-.105l-.046-.569c-.098-1.626-.225-3.651.307-4.837C7.392 1.077 10.739.807 11.727.807l.419-.015h.06z"/></svg>
+              </a>
+              <a class="social-icon social-email" href="https://mail.google.com/mail/?view=cm&fs=1&to=kageculture01@gmail.com" target="_blank" rel="noopener" aria-label="Email">
+                <svg viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
+              </a>
+              <a class="social-icon social-etsy" href="https://etsy.com/shop/kageinetsy22" target="_blank" rel="noopener" aria-label="Etsy">
+                <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false"><path d="M8.559 2.445c0-.325.033-.52.59-.52h7.465c1.3 0 2.02 1.11 2.54 3.193l.42 1.666h1.27c.23-4.728.43-6.784.43-6.784s-3.196.36-5.09.36H6.635L1.521.196v1.37l1.725.326c1.21.24 1.5.496 1.6 1.606 0 0 .11 3.27.11 8.64 0 5.385-.09 8.61-.09 8.61 0 .973-.39 1.333-1.59 1.573l-1.722.33V24l5.13-.165h8.55c1.935 0 6.39.165 6.39.165.105-1.17.75-6.48.855-7.064h-1.2l-1.284 2.91c-1.005 2.28-2.476 2.445-4.11 2.445h-4.906c-1.63 0-2.415-.64-2.415-2.05V12.8s3.62 0 4.79.096c.912.064 1.463.325 1.76 1.598l.39 1.695h1.41l-.09-4.278.192-4.305h-1.391l-.45 1.89c-.283 1.244-.48 1.47-1.754 1.6-1.666.17-4.815.14-4.815.14V2.45h-.05z"/></svg>
+              </a>
+              <a class="social-icon social-whatsapp" href="https://wa.me/923228042633?text=Hi%20Kage%20Culture%2C%20I%20need%20help" target="_blank" rel="noopener" aria-label="WhatsApp">
+                <svg viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+              </a>
+            </div>
+          </div>
+          <div class="footer-newsletter">
+            <h4>JOIN THE CLAN.</h4>
+            <p>First drop access, restock alerts, and clan-only pricing. No spam, ever.</p>
+            <form class="newsletter-form" onsubmit="subscribeNewsletter(event)">
+              <input type="email" placeholder="Your email" required />
+              <button class="btn btn-primary btn-sm" type="submit">Subscribe</button>
+            </form>
+            <p class="newsletter-msg"></p>
+          </div>
+        </div>
+        <div class="footer-bottom">
+          <span>&copy; 2026 KAGE CULTURE</span>
+          <div class="payment-icons">
+            <span class="payment-icon">COD</span>
+            <span class="payment-icon">JazzCash</span>
+            <span class="payment-icon">Bank Transfer</span>
+          </div>
+          <div class="footer-bottom-links">
+            <a href="/privacy" onclick="navigateTo('privacy'); return false;">Privacy</a>
+            <span class="footer-dot" aria-hidden="true">·</span>
+            <a href="/terms" onclick="navigateTo('terms'); return false;">Terms</a>
+          </div>
+        </div>
+      </div>
+    </footer>
 
   <!-- JAVASCRIPT -->
   <script>
@@ -4608,7 +4746,7 @@
       } catch (e) { cart = []; wishlist.clear(); }
       shopStateReady = true;
       document.getElementById('wishlistCount').textContent = wishlist.size;
-      document.getElementById('wishlistCountMobile').textContent = wishlist.size;
+      var mc0 = document.getElementById('wishlistCountMobile'); if (mc0) mc0.textContent = wishlist.size;
       updateCartUI();
     }
     let currentProduct = null;
@@ -6229,20 +6367,30 @@
       }
     }
 
-    // Mobile menu
+    // Mobile menu — a full-height panel under the fixed header.
     const hamburger = document.getElementById('hamburger');
     const navLinks = document.getElementById('navLinks');
     hamburger.setAttribute('aria-expanded', 'false');
     hamburger.setAttribute('aria-controls', 'navLinks');
-    hamburger.addEventListener('click', () => {
-      const open = navLinks.classList.toggle('open');
+    function setMenuOpen(open) {
+      navLinks.classList.toggle('open', open);
       hamburger.classList.toggle('active', open);
       hamburger.setAttribute('aria-expanded', String(open));
-    });
-    function closeMenu() {
-      hamburger.classList.remove('active'); navLinks.classList.remove('open');
-      hamburger.setAttribute('aria-expanded', 'false');
+      document.body.style.overflow = open ? 'hidden' : '';
     }
+    hamburger.addEventListener('click', () => setMenuOpen(!navLinks.classList.contains('open')));
+    // Only ever unlock the page when the menu was open, so closing an
+    // already-closed menu cannot release another drawer's scroll lock.
+    function closeMenu() {
+      if (!navLinks.classList.contains('open')) return;
+      setMenuOpen(false);
+    }
+    // Tapping outside the panel (the toggle excluded) dismisses it.
+    document.addEventListener('click', e => {
+      if (!navLinks.classList.contains('open')) return;
+      if (navLinks.contains(e.target) || hamburger.contains(e.target)) return;
+      closeMenu();
+    });
 
     // ================================================================
     // PARALLAX WATERMARK
@@ -6332,6 +6480,9 @@
 
     // ---------- Admin login modal (subtle entry to the existing /admin) ----------
     function openAdminLogin() {
+      // The admin entry point is the /admin route only; the public storefront
+      // navigation no longer links here (auth + CSRF behaviour unchanged).
+      if (window.location.pathname !== '/admin') return;
       document.getElementById('adminLoginOverlay')._previousFocus = document.activeElement;
       document.getElementById('adminLoginOverlay').classList.add('open');
       document.getElementById('adminLoginError').style.display = 'none';

@@ -63,5 +63,16 @@
   Product image writes support Vercel's store-prefixed Blob token and fail clearly
   without storage; `npm test` covers 38 API + 10 DOM-level scenarios, including
   bulk product deletion and Quick Upload stock quantities. See `AUDIT.md`.
+- ✅ **Storefront layout/menu/footer/contact/policy pass (2026-10-11):** shared
+  `.content-page` padding on returns/shipping/terms/privacy/contact, mobile menu rebuilt
+  (new order + real category routes, no public Admin link, SVG hamburger X, opaque
+  full-height panel with scroll lock, duplicate icons dropped), footer hoisted to one
+  shared copy with a Privacy/Terms separator and theme-coloured social icons (real
+  Snapchat/Etsy glyphs), contact page rebuilt with SVG icons + Track Order/Email cards,
+  full-width mobile Track button, and policy/content consistency (Bank Transfer, flat
+  Rs. 150, phone format, privacy rewrite, returns custom-items rule, October 2026 dates).
+  `npm test` → 57/57 API + 22/22 DOM; headless-Chromium QA at 360/414/768/1440px → 125
+  checks passed, 0 failed. Open owner questions: working hours, JazzCash account number,
+  Instagram handle. See `AUDIT.md`.
 - ⬜ Remaining: FE-H2 CSP migration (do not drop unsafe-inline without replacing
   handlers), browser/device visual QA, dynamic-control a11y, FE-M6 typography, L2 media.
