@@ -131,12 +131,17 @@ const createAdminRoutes = require('./routes/admin');
 // HTML fallback routes are also registered there (after API routes).
 
 // ── Error Handler ─────────────────────────────────────────────
-app.use((err, req, res, next) => {
+// Registered in ensureReady() AFTER all routes: Express only routes errors
+// to handlers that sit later in the middleware stack, so an early registration
+// let route errors (e.g. multer upload rejections) fall through to the
+// default HTML stack-trace page instead of JSON.
+function jsonErrorHandler(err, req, res, next) {
   console.error('Server error:', err);
+  if (res.headersSent) return next(err);
   if (err instanceof loadMulter().MulterError) return res.status(400).json({ error: 'Upload error: ' + err.message });
   if (err.status) return res.status(err.status).json({ error: err.message });
   res.status(500).json({ error: 'Internal server error.' });
-});
+}
 
 // ── Seed & Migrate (runs once per cold start) ────────────────────
 let _initialized = false;
@@ -227,6 +232,10 @@ async function ensureReady() {
       const known = spaPages.has(req.path) || /^\/product\/\d+$/.test(req.path) || /^\/collection\/[a-z0-9-]+$/.test(req.path);
       res.status(known ? 200 : 404).sendFile(path.join(__dirname, 'public', 'index.html'));
     });
+
+    // Must sit AFTER the routes so route/middleware errors reach it as JSON
+    // (upload-filter rejections, multer limits, etc.).
+    app.use(jsonErrorHandler);
   }
 }
 

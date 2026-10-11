@@ -14,6 +14,8 @@ require('../config').RATE_LIMIT_GLOBAL = 1000;
 
 const assert = require('assert');
 const http = require('http');
+const fs = require('fs');
+const path = require('path');
 
 // Fresh module state for every run
 delete require.cache[require.resolve('../database.js')];
@@ -518,6 +520,171 @@ async function main() {
             headers: { Cookie: `${adminCookie}; ${csrf.cookie}`, 'X-CSRF-Token': csrf.token }
           });
           assert.strictEqual(removed.status, 200, JSON.stringify(removed.json));
+        }
+      } finally {
+        if (oldVercel === undefined) delete process.env.VERCEL;
+        else process.env.VERCEL = oldVercel;
+        if (oldBlobToken === undefined) delete process.env.BLOB_READ_WRITE_TOKEN;
+        else process.env.BLOB_READ_WRITE_TOKEN = oldBlobToken;
+        if (oldKageBlobToken === undefined) delete process.env.kage_READ_WRITE_TOKEN;
+        else process.env.kage_READ_WRITE_TOKEN = oldKageBlobToken;
+      }
+    }
+  });
+
+  await check('product create accepts front + back + multiple extra images', async () => {
+    const oldVercel = process.env.VERCEL;
+    const oldBlobToken = process.env.BLOB_READ_WRITE_TOKEN;
+    const oldKageBlobToken = process.env.kage_READ_WRITE_TOKEN;
+    delete process.env.VERCEL;
+    delete process.env.BLOB_READ_WRITE_TOKEN;
+    delete process.env.kage_READ_WRITE_TOKEN; // exercise local upload storage deterministically
+    let productId = null;
+    try {
+      const csrf = await getCsrf();
+      const form = new FormData();
+      form.append('name', 'Gallery Regression Product');
+      form.append('category', 'anime');
+      form.append('price', '499');
+      form.append('sizes', JSON.stringify(['L']));
+      form.append('front_image', new Blob([Buffer.from('front-webp-data')], { type: 'image/webp' }), 'front.webp');
+      // The admin panel sends the back image WITH a filename; a nameless
+      // blob arrives as filename="blob" and must not pass the image filter
+      // (see the next check).
+      form.append('back_image', new Blob([Buffer.from('back-webp-data')], { type: 'image/webp' }), 'back.webp');
+      form.append('extra_images', new Blob([Buffer.from('extra-1-data')], { type: 'image/webp' }), 'extra-1.webp');
+      form.append('extra_images', new Blob([Buffer.from('extra-2-data')], { type: 'image/webp' }), 'extra-2.webp');
+      const response = await fetch(`http://127.0.0.1:${PORT}/api/products`, {
+        method: 'POST',
+        headers: { Cookie: `${adminCookie}; ${csrf.cookie}`, 'X-CSRF-Token': csrf.token },
+        body: form
+      });
+      const product = await response.json();
+      assert.strictEqual(response.status, 201, JSON.stringify(product));
+      productId = product.id;
+      assert.ok(product.front_image && product.front_image.startsWith('/uploads/'), 'front image must be persisted');
+      assert.ok(product.back_image && product.back_image.startsWith('/uploads/'), 'back image must be persisted');
+      assert.strictEqual(product.extra_images.length, 2, 'both extra images must be persisted');
+      assert.ok(product.extra_images.every(u => u.startsWith('/uploads/')), 'extra images must be persisted');
+    } finally {
+      try {
+        if (productId != null) {
+          const csrf = await getCsrf();
+          await request(PORT, 'DELETE', `/api/products/${productId}`, {
+            headers: { Cookie: `${adminCookie}; ${csrf.cookie}`, 'X-CSRF-Token': csrf.token }
+          });
+        }
+      } finally {
+        if (oldVercel === undefined) delete process.env.VERCEL;
+        else process.env.VERCEL = oldVercel;
+        if (oldBlobToken === undefined) delete process.env.BLOB_READ_WRITE_TOKEN;
+        else process.env.BLOB_READ_WRITE_TOKEN = oldBlobToken;
+        if (oldKageBlobToken === undefined) delete process.env.kage_READ_WRITE_TOKEN;
+        else process.env.kage_READ_WRITE_TOKEN = oldKageBlobToken;
+      }
+    }
+  });
+
+  await check('nameless image uploads are rejected (back-image filename regression)', async () => {
+    const csrf = await getCsrf();
+    const form = new FormData();
+    form.append('name', 'Nameless Back Image');
+    form.append('category', 'anime');
+    form.append('price', '499');
+    form.append('sizes', JSON.stringify(['L']));
+    form.append('front_image', new Blob([Buffer.from('front-webp-data')], { type: 'image/webp' }), 'front.webp');
+    // No filename: the multipart serializer defaults it to "blob", which has
+    // no image extension — the filter must reject it (and therefore the whole
+    // save), which is why the admin panel names every uploaded blob.
+    form.append('back_image', new Blob([Buffer.from('back-webp-data')], { type: 'image/webp' }));
+    const response = await fetch(`http://127.0.0.1:${PORT}/api/products`, {
+      method: 'POST',
+      headers: { Cookie: `${adminCookie}; ${csrf.cookie}`, 'X-CSRF-Token': csrf.token },
+      body: form
+    });
+    const body = await response.json().catch(() => ({}));
+    assert.strictEqual(response.status, 400, JSON.stringify(body));
+    assert.match(body.error || '', /image files/i);
+  });
+
+  await check('product update appends new extra images and removes listed ones', async () => {
+    const oldVercel = process.env.VERCEL;
+    const oldBlobToken = process.env.BLOB_READ_WRITE_TOKEN;
+    const oldKageBlobToken = process.env.kage_READ_WRITE_TOKEN;
+    delete process.env.VERCEL;
+    delete process.env.BLOB_READ_WRITE_TOKEN;
+    delete process.env.kage_READ_WRITE_TOKEN;
+    let productId = null;
+    try {
+      let csrf = await getCsrf();
+      const create = new FormData();
+      create.append('name', 'Extra Removal Regression');
+      create.append('category', 'anime');
+      create.append('price', '399');
+      create.append('sizes', JSON.stringify(['L']));
+      create.append('front_image', new Blob([Buffer.from('front-data')], { type: 'image/webp' }), 'front.webp');
+      create.append('extra_images', new Blob([Buffer.from('old-extra-data')], { type: 'image/webp' }), 'old-extra.webp');
+      const created = await fetch(`http://127.0.0.1:${PORT}/api/products`, {
+        method: 'POST',
+        headers: { Cookie: `${adminCookie}; ${csrf.cookie}`, 'X-CSRF-Token': csrf.token },
+        body: create
+      });
+      const product = await created.json();
+      assert.strictEqual(created.status, 201, JSON.stringify(product));
+      productId = product.id;
+      const oldExtraUrl = product.extra_images[0];
+      assert.ok(oldExtraUrl, 'created product must have the extra image');
+
+      // Remove the existing extra and add two new ones in the same save.
+      csrf = await getCsrf();
+      const update = new FormData();
+      update.append('name', 'Extra Removal Regression');
+      update.append('remove_extra', JSON.stringify([oldExtraUrl]));
+      update.append('extra_images', new Blob([Buffer.from('new-extra-1')], { type: 'image/webp' }), 'new-extra-1.webp');
+      update.append('extra_images', new Blob([Buffer.from('new-extra-2')], { type: 'image/webp' }), 'new-extra-2.webp');
+      const updated = await fetch(`http://127.0.0.1:${PORT}/api/products/${productId}`, {
+        method: 'PUT',
+        headers: { Cookie: `${adminCookie}; ${csrf.cookie}`, 'X-CSRF-Token': csrf.token },
+        body: update
+      });
+      const after = await updated.json();
+      assert.strictEqual(updated.status, 200, JSON.stringify(after));
+      assert.ok(!after.extra_images.includes(oldExtraUrl), 'removed extra image must be gone from the product');
+      assert.strictEqual(after.extra_images.length, 2, 'the two new extra images must be stored');
+      assert.ok(!fs.existsSync(path.join(__dirname, '..', oldExtraUrl)), 'removed extra image file must be deleted from storage');
+
+      // The gallery cap: pushing the total over MAX_EXTRA_IMAGES is rejected.
+      csrf = await getCsrf();
+      const overflow = new FormData();
+      overflow.append('name', 'Extra Removal Regression');
+      for (let i = 0; i < 4; i++) overflow.append('extra_images', new Blob([Buffer.from('overflow-' + i)], { type: 'image/webp' }), `overflow-${i}.webp`);
+      const rejected = await fetch(`http://127.0.0.1:${PORT}/api/products/${productId}`, {
+        method: 'PUT',
+        headers: { Cookie: `${adminCookie}; ${csrf.cookie}`, 'X-CSRF-Token': csrf.token },
+        body: overflow
+      });
+      const rejectedBody = await rejected.json().catch(() => ({}));
+      assert.strictEqual(rejected.status, 400, JSON.stringify(rejectedBody));
+      assert.match(rejectedBody.error || '', /extra photos/i);
+
+      // remove_extra must be a JSON array of URL strings.
+      csrf = await getCsrf();
+      const badRemove = new FormData();
+      badRemove.append('name', 'Extra Removal Regression');
+      badRemove.append('remove_extra', 'not-json');
+      const bad = await fetch(`http://127.0.0.1:${PORT}/api/products/${productId}`, {
+        method: 'PUT',
+        headers: { Cookie: `${adminCookie}; ${csrf.cookie}`, 'X-CSRF-Token': csrf.token },
+        body: badRemove
+      });
+      assert.strictEqual(bad.status, 400);
+    } finally {
+      try {
+        if (productId != null) {
+          const csrf = await getCsrf();
+          await request(PORT, 'DELETE', `/api/products/${productId}`, {
+            headers: { Cookie: `${adminCookie}; ${csrf.cookie}`, 'X-CSRF-Token': csrf.token }
+          });
         }
       } finally {
         if (oldVercel === undefined) delete process.env.VERCEL;

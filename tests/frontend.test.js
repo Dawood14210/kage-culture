@@ -24,6 +24,10 @@ function page(html, path = '/', { storage = {}, offline = false } = {}) {
       w.IntersectionObserver = class { observe() {} unobserve() {} disconnect() {} };
       w.HTMLMediaElement.prototype.play = () => Promise.resolve();
       w.HTMLMediaElement.prototype.pause = () => {};
+      // jsdom lacks object URLs, which the admin upload previews use.
+      let objectUrlSeq = 0;
+      w.URL.createObjectURL = () => 'blob:mock-object-url-' + (++objectUrlSeq);
+      w.URL.revokeObjectURL = () => {};
       for (const [key, value] of Object.entries(storage)) w.localStorage.setItem(key, value);
       w.fetch = (url, options) => {
         if (offline && url === '/api/products') return Promise.reject(new Error('offline'));
@@ -273,6 +277,63 @@ async function ready(win) {
     }
     aw.resetForm();
     console.log('✅ Admin product form sends sizes and a count per size');
+
+    {
+      // Regression: every image blob must be appended WITH a filename. A
+      // nameless Blob arrives at the server as filename="blob", which the
+      // image-only upload filter rejects — that used to break every save
+      // that included a back image.
+      ad.getElementById('prodName').value = 'Back Image Regression';
+      ad.getElementById('prodPrice').value = '250';
+      aw.eval('formImageBlob = new Blob(["mock-front"], { type: "image/webp" })');
+      aw.eval('currentImageFiles.back = new Blob(["mock-back"], { type: "image/webp" })');
+      aw.eval('extraImageItems = [{ url: "blob:mock-new", blob: new Blob(["mock-extra"], { type: "image/webp" }) }]');
+      let sentBody = null;
+      const savedFetch = aw.fetch;
+      try {
+        aw.fetch = (url, options) => {
+          if (options && options.method === 'POST') { sentBody = options.body; return Promise.resolve({ ok: false, status: 400, json: async () => ({ error: 'expected test response' }) }); }
+          return savedFetch(url, options);
+        };
+        await aw.handleSaveProduct({ preventDefault() {} });
+        assert.ok(sentBody instanceof aw.FormData, 'form must be submitted as FormData');
+        const backFile = sentBody.get('back_image');
+        assert.ok(backFile, 'back image must be included in the submission');
+        assert.notEqual(backFile.name, 'blob', 'back image must not be sent without a filename');
+        assert.match(backFile.name, /\.webp$/, 'back image needs an image extension');
+        const extras = sentBody.getAll('extra_images');
+        assert.equal(extras.length, 1, 'the selected extra photo must be included');
+        assert.match(extras[0].name, /\.webp$/, 'extra photos need an image extension');
+        assert.equal(sentBody.has('remove_extra'), false, 'create mode never sends a removal list');
+      } finally {
+        aw.fetch = savedFetch;
+      }
+      aw.resetForm();
+
+      // Edit mode: existing gallery photos appear as removable thumbnails;
+      // removing one sends remove_extra, kept ones are not re-uploaded.
+      aw.eval('products = [{ id: 99999, name: "Gallery Edit Probe", category: "anime", fit: "Regular", price: 100, sale_price: null, unit_cost: null, description: "", sizes: ["L"], stock_qty: null, size_stock: null, front_image: "/uploads/front.webp", back_image: null, extra_images: ["/uploads/keep.webp", "/uploads/drop.webp"] }]');
+      aw.editProduct(99999);
+      assert.equal(ad.querySelectorAll('#extraPreviews .extra-thumb').length, 2, 'both existing gallery photos must be shown');
+      ad.querySelectorAll('#extraPreviews .extra-thumb button')[1].click(); // remove drop.webp
+      assert.equal(ad.querySelectorAll('#extraPreviews .extra-thumb').length, 1, 'the removed photo disappears');
+      sentBody = null;
+      const savedFetch2 = aw.fetch;
+      try {
+        aw.fetch = (url, options) => {
+          if (options && options.method === 'PUT') { sentBody = options.body; return Promise.resolve({ ok: false, status: 400, json: async () => ({ error: 'expected test response' }) }); }
+          return savedFetch2(url, options);
+        };
+        await aw.handleSaveProduct({ preventDefault() {} });
+        assert.equal(sentBody.get('remove_extra'), JSON.stringify(['/uploads/drop.webp']), 'only the removed photo is listed for deletion');
+        assert.equal(sentBody.getAll('extra_images').length, 0, 'kept photos are not re-uploaded');
+        assert.equal(sentBody.has('front_image'), false, 'an unchanged front image is not re-uploaded');
+      } finally {
+        aw.fetch = savedFetch2;
+      }
+      aw.resetForm();
+    }
+    console.log('✅ Admin product form names every image upload and manages gallery photos');
 
     ad.getElementById('productSearch').value = 'NoMatch987';
     aw.filterProducts();

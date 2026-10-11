@@ -71,7 +71,7 @@ module.exports = function createProductRoutes(db) {
   });
 
   // POST create product (admin only)
-  router.post('/api/products', requireCsrf, requireAuth, upload.fields([{ name: 'front_image', maxCount: 1 }, { name: 'back_image', maxCount: 1 }, { name: 'extra_images', maxCount: 4 }]), async (req, res) => {
+  router.post('/api/products', requireCsrf, requireAuth, upload.fields([{ name: 'front_image', maxCount: 1 }, { name: 'back_image', maxCount: 1 }, { name: 'extra_images', maxCount: config.MAX_EXTRA_IMAGES }]), async (req, res) => {
     try {
       const { name, category, fit, price, sale_price, description, sizes, in_stock, stock_qty, unit_cost, size_stock } = req.body;
       const cleanName = String(name || '').trim().slice(0, 120);
@@ -122,11 +122,18 @@ module.exports = function createProductRoutes(db) {
   });
 
   // PUT update product (admin only)
-  router.put('/api/products/:id', requireCsrf, requireAuth, upload.fields([{ name: 'front_image', maxCount: 1 }, { name: 'back_image', maxCount: 1 }, { name: 'extra_images', maxCount: 4 }]), async (req, res) => {
+  router.put('/api/products/:id', requireCsrf, requireAuth, upload.fields([{ name: 'front_image', maxCount: 1 }, { name: 'back_image', maxCount: 1 }, { name: 'extra_images', maxCount: config.MAX_EXTRA_IMAGES }]), async (req, res) => {
     try {
       const existing = await db.prepare('SELECT * FROM products WHERE id = ?').get(req.params.id);
       if (!existing) return res.status(404).json({ error: 'Product not found' });
-      const { name, category, fit, price, sale_price, description, sizes, in_stock, unit_cost, stock_qty, remove_front, remove_back, size_stock } = req.body;
+      const { name, category, fit, price, sale_price, description, sizes, in_stock, unit_cost, stock_qty, remove_front, remove_back, remove_extra, size_stock } = req.body;
+      // Optional JSON array of existing extra-image URLs to delete (the admin
+      // form sends it when a gallery photo is removed while editing).
+      let removeExtraUrls = [];
+      if (remove_extra !== undefined && remove_extra !== null && remove_extra !== '') {
+        try { removeExtraUrls = JSON.parse(remove_extra); } catch (e) { return res.status(400).json({ error: 'Invalid extra-image removal list.' }); }
+        if (!Array.isArray(removeExtraUrls) || removeExtraUrls.some(u => typeof u !== 'string' || !u.trim())) return res.status(400).json({ error: 'Invalid extra-image removal list.' });
+      }
       // Validate the body BEFORE touching files: a rejected request must not
       // delete the existing images or orphan freshly uploaded ones.
       const finalName = name !== undefined && String(name).trim() ? String(name).trim().slice(0, 120) : existing.name;
@@ -179,7 +186,20 @@ module.exports = function createProductRoutes(db) {
       if (req.files?.front_image?.[0]) { const newUrl = await persistImage(req.files.front_image[0].buffer, req.files.front_image[0].originalname); if (existing.front_image) await removeImage(existing.front_image); frontImage = newUrl; } else if (remove_front === 'true') { if (existing.front_image) await removeImage(existing.front_image); frontImage = null; }
       if (req.files?.back_image?.[0]) { const newUrl = await persistImage(req.files.back_image[0].buffer, req.files.back_image[0].originalname); if (existing.back_image) await removeImage(existing.back_image); backImage = newUrl; } else if (remove_back === 'true') { if (existing.back_image) await removeImage(existing.back_image); backImage = null; }
       let extraImages = []; try { extraImages = JSON.parse(existing.extra_images || '[]'); } catch (e) { extraImages = []; }
+      // Drop any gallery photos the admin removed; ignore URLs that don't
+      // belong to this product so a stale form can't delete other files.
+      const removedExtras = extraImages.filter(u => u && removeExtraUrls.includes(u));
+      extraImages = extraImages.filter(u => !u || !removeExtraUrls.includes(u));
+      // Enforce the gallery cap BEFORE persisting anything, so a rejected
+      // request neither orphans uploads nor deletes kept images. Only checked
+      // when new photos arrive, so legacy products already over the cap can
+      // still be edited (and trimmed back down).
+      const incomingExtras = req.files?.extra_images?.length || 0;
+      if (incomingExtras && extraImages.length + incomingExtras > config.MAX_EXTRA_IMAGES) {
+        return res.status(400).json({ error: `A product can have at most ${config.MAX_EXTRA_IMAGES} extra photos.` });
+      }
       if (req.files?.extra_images) { for (const f of req.files.extra_images) { extraImages.push(await persistImage(f.buffer, f.originalname)); } }
+      for (const url of removedExtras) { try { await removeImage(url); } catch (err) { console.error('extra image cleanup failed:', err && err.message ? err.message : err); } }
       const now = new Date().toISOString().replace('T', ' ').slice(0, 19);
       await db.prepare('UPDATE products SET name=?, category=?, fit=?, price=?, sale_price=?, on_sale=?, description=?, sizes=?, front_image=?, back_image=?, extra_images=?, in_stock=?, unit_cost=?, stock_qty=?, updated_at=? WHERE id=?').run(finalName, finalCategory, finalFit, finalPrice, salePriceVal, onSale, finalDesc, JSON.stringify(sizesParsed), frontImage, backImage, JSON.stringify(extraImages), finalStockQty === 0 ? 0 : finalInStock, finalUnitCost, finalStockQty, now, req.params.id);
       if (nextSizeStock) await sizeStock.replaceSizeStock(db, existing.id, nextSizeStock);
