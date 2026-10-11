@@ -573,13 +573,75 @@ async function ready(win) {
     assert.match(ad.getElementById('ordersList').textContent, /No orders match/);
     console.log('✅ Admin product search, order filter and sort work');
 
-    // The menu toggle must remain operable, and hidden admin tabs must stay
-    // inside the main column (not become siblings in the dashboard flex row).
-    d.getElementById('hamburger').click();
-    assert.equal(d.getElementById('navLinks').classList.contains('open'), true);
-    assert.equal(d.getElementById('hamburger').getAttribute('aria-expanded'), 'true');
-    d.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-    assert.equal(d.getElementById('navLinks').classList.contains('open'), false);
+    // Shared nav order/routes, mobile panel contract, and admin entry points.
+    const navLinks = [...d.querySelectorAll('#navLinks > li > a')];
+    assert.deepEqual(navLinks.map(a => a.textContent.trim()), [
+      'Home', 'Anime Shirts', 'Graphic Tees', 'Pants', 'Custom Stickers', 'About', 'Contact', 'Track Order'
+    ]);
+    assert.deepEqual(navLinks.map(a => a.getAttribute('href')), [
+      '/', '/collection/anime', '/collection/graphic-tees', '/collection/all',
+      '/custom-stickers', '/about', '/contact', '/tracking'
+    ]);
+    const cardRoutes = Object.fromEntries([...d.querySelectorAll('#page-home .cat-tile')].map(tile => [
+      tile.querySelector('.cat-name').textContent.trim(), tile.getAttribute('href')
+    ]));
+    for (const name of ['Anime Shirts', 'Graphic Tees', 'Pants', 'Custom Stickers']) {
+      assert.equal(navLinks.find(a => a.textContent.trim() === name).getAttribute('href'), cardRoutes[name], `${name} nav link matches its homepage card`);
+    }
+    const menuActions = d.querySelector('#navLinks .mobile-icons-row');
+    assert.deepEqual([...menuActions.querySelectorAll('.nav-icon')].map(button => button.title), ['Track Order'], 'mobile menu keeps only the action missing from the header');
+    assert.equal(menuActions.querySelectorAll('[title="Wishlist"], [title="Cart"], [title="Account"]').length, 0, 'mobile menu has no duplicate account/cart/wishlist icons');
+    assert.equal(d.querySelector('#navLinks .nav-admin'), null, 'Admin is removed from the public nav');
+    assert.equal(d.getElementById('wishlistCountMobile'), null);
+    assert.equal(d.getElementById('cartCountMobile'), null);
+    assert.equal(typeof w.openAdminLogin, 'function', 'existing admin modal function remains available');
+    w.openAdminLogin();
+    assert.equal(d.getElementById('adminLoginOverlay').classList.contains('open'), true, 'admin login modal still opens');
+    w.closeAdminLogin();
+    const adminEntry = await fetch(origin + '/admin');
+    assert.equal(adminEntry.status, 200, '/admin remains the public admin sign-in entry');
+    assert.match(await adminEntry.text(), /id="loginPage"/);
+
+    // JSDOM does not calculate visual layout; lock the CSS breakpoint contracts
+    // at the requested widths and exercise open/close behavior at phone/tablet widths.
+    assert.match(storeHtml, /@media \(max-width: 1023px\) \{\s*\.nav-links\.open \{[\s\S]*?display: flex;[\s\S]*?max-height: calc\(100dvh - 95px\);[\s\S]*?overflow-y: auto;[\s\S]*?background-color: var\(--bg-primary\);[\s\S]*?z-index: 1001;/, 'open menu is an opaque, bounded panel below the header');
+    assert.match(storeHtml, /@media \(max-width: 768px\) \{\s*\.nav-links \{\s*position: absolute; top: 100%; left: 0; right: 0; width: 100%;\s*background: var\(--bg-primary\);/, 'phone/tablet menu spans the viewport with a solid background');
+    assert.match(storeHtml, /@media \(max-width: 360px\) \{\s*\.nav-inner \{ flex-wrap: wrap; \}/, 'the 360px header keeps its wrapping guard');
+    assert.match(storeHtml, /\.hamburger\.active svg line:nth-child\(2\) \{ transform: translateY\(6px\) rotate\(45deg\); \}/, 'the SVG hamburger animates into an X');
+    assert.doesNotMatch(storeHtml, /\.hamburger\.active span:nth-child/, 'hamburger state does not target nonexistent spans');
+    assert.match(storeHtml, /@media \(min-width: 1024px\) \{[\s\S]*?\.nav-links \{[\s\S]*?display: flex !important;[\s\S]*?position: static;[\s\S]*?flex-direction: row;[\s\S]*?\.hamburger \{ display: none; \}/, 'desktop nav stays horizontal and hides the hamburger');
+    assert.match(storeHtml, /@media \(min-width: 1024px\) \{[\s\S]*?\.nav-links li\.mobile-search,[\s\S]*?\.nav-links li\.mobile-icons-row \{ display: none !important; \}/, 'mobile-only rows stay hidden on desktop');
+    const hamburger = d.getElementById('hamburger');
+    const navList = d.getElementById('navLinks');
+    assert.equal(hamburger.getAttribute('aria-expanded'), 'false');
+    for (const width of [360, 414, 768]) {
+      Object.defineProperty(w, 'innerWidth', { configurable: true, value: width });
+      d.body.style.overflow = 'auto';
+      hamburger.click();
+      assert.equal(navList.classList.contains('open'), true, `${width}px menu opens`);
+      assert.equal(hamburger.classList.contains('active'), true, `${width}px icon enters its open state`);
+      assert.equal(hamburger.getAttribute('aria-expanded'), 'true', `${width}px aria-expanded follows open state`);
+      assert.equal(hamburger.getAttribute('aria-label'), 'Close menu');
+      assert.equal(d.body.style.overflow, 'hidden', `${width}px body scroll locks while menu is open`);
+      if (width === 360) {
+        d.getElementById('mainContent').dispatchEvent(new w.MouseEvent('pointerdown', { bubbles: true }));
+      } else if (width === 414) {
+        d.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      } else {
+        d.querySelector('#navLinks a[href="/contact"]').click();
+      }
+      assert.equal(navList.classList.contains('open'), false, `${width}px menu closes by outside tap, Escape or link tap`);
+      assert.equal(hamburger.classList.contains('active'), false);
+      assert.equal(hamburger.getAttribute('aria-expanded'), 'false');
+      assert.equal(hamburger.getAttribute('aria-label'), 'Open menu');
+      assert.equal(d.body.style.overflow, 'auto', `${width}px previous body scroll state is restored`);
+    }
+    Object.defineProperty(w, 'innerWidth', { configurable: true, value: 1440 });
+    assert.equal(navList.classList.contains('open'), false, 'desktop menu remains in its closed horizontal-nav state');
+    d.body.style.overflow = '';
+
+    // Hidden admin tabs must stay inside the main column (not become siblings
+    // in the dashboard flex row).
     assert.match(storeHtml, /\.cart-drawer\.open \{ transform: translateX\(0\); \}/);
     assert.match(storeHtml, /\.filter-drawer\.open \{ transform: translateX\(0\); \}/);
     for (const section of ['products', 'orders', 'reports', 'add']) {
@@ -588,7 +650,7 @@ async function ready(win) {
     aw.switchSection('reports');
     assert.equal(ad.getElementById('mobileAdminSection').value, 'reports');
     assert.equal(ad.getElementById('tab-reports').classList.contains('active'), true);
-    console.log('✅ Mobile navigation and admin tab layout stay reachable');
+    console.log('✅ Mobile menu order, routes, icons, panel/scroll behavior and desktop nav contracts pass');
 
     assert.deepEqual(errors, []);
     console.log('\n17/17 frontend scenarios passed');

@@ -474,6 +474,26 @@ launch in this sandbox because system `libnspr4.so`, `libnss3.so` and `libnssuti
 missing; the requested-width check is therefore CSS-contract/geometry testing, not a
 browser-rendered visual comparison.
 
+### ✅ Mobile navigation menu — 2026-10-11
+
+The public navigation is ordered Home, Anime Shirts, Graphic Tees, Pants, Custom Stickers,
+About, Contact and Track Order. Category links mirror the homepage cards (Graphic Tees
+uses `/collection/graphic-tees`; Pants temporarily uses `/collection/all`). Removed the
+Admin item but retained the storefront `openAdminLogin()` modal and the existing `/admin`
+login entry. Header Wishlist, Account and Cart remain visible on mobile; the menu’s icon
+row now contains only Track Order.
+
+The hamburger SVG animates into an X and updates `aria-expanded`. The open menu is an
+opaque, bounded panel; opening it locks body scrolling and closing restores the previous
+inline overflow value. It closes on menu-link click, Escape and outside pointer/tap.
+Desktop horizontal-nav rules and the desktop-only hiding of mobile rows remain intact.
+
+`tests/frontend.test.js` checks category route parity, admin entry points, menu state,
+scroll restoration and CSS breakpoint contracts at 360, 414, 768 and 1440px. `npm test`
+→ 57/57 API + 17/17 frontend scenarios. Viewport assertions are CSS/DOM contract tests,
+not browser-rendered screenshots (Chromium is unavailable in this sandbox due to missing
+NSPR/NSS system libraries).
+
 ## Remaining work (priority order)
 
 *API-side queue (C1, H1–H4, M1–M7, L1/L3–L7) completed 2026-09-23. FE-criticals

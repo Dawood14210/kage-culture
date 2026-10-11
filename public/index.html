@@ -293,7 +293,18 @@
       z-index: 100;
       list-style: none;
     }
-    .nav-links.open { display: flex; max-height: calc(100dvh - 75px); overflow-y: auto; overscroll-behavior: contain; }
+    @media (max-width: 1023px) {
+      .nav-links.open {
+        display: flex;
+        max-height: calc(100dvh - 95px);
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        background-color: var(--bg-primary);
+        border-bottom: 1px solid var(--border-color);
+        box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+        z-index: 1001;
+      }
+    }
     .nav-links a { padding: 10px 12px; min-height: 40px; width: 100%; display: flex; align-items: center; font-size: 0.8rem; border-radius: var(--radius-sm); transition: background var(--transition-fast), color var(--transition-fast); }
     .nav-links a:hover { background: var(--bg-secondary); color: var(--text-primary); }
     .nav-links a::after { display: none; }
@@ -352,10 +363,11 @@
       align-items: center; justify-content: center;
       margin-left: 12px;
     }
-    .hamburger span {
-      display: block; width: 16px; height: 1.5px;
-      background: var(--text-primary);
-      transition: all var(--transition-fast);
+    .hamburger svg { display: block; }
+    .hamburger svg line {
+      transform-box: fill-box;
+      transform-origin: center;
+      transition: transform var(--transition-fast), opacity var(--transition-fast);
     }
 
     .nav-search input {
@@ -369,9 +381,10 @@
       border-color: var(--border-color);
       color: var(--text-primary);
     }
-    .hamburger.active span:nth-child(1) { transform: translate(0, 3.5px) rotate(45deg); }
-    .hamburger.active span:nth-child(2) { opacity: 0; }
-    .hamburger.active span:nth-child(3) { transform: translate(0, -3.5px) rotate(-45deg); }
+    /* SVG lines are ordered middle, top, bottom; the outer lines converge into an X. */
+    .hamburger.active svg line:nth-child(1) { opacity: 0; }
+    .hamburger.active svg line:nth-child(2) { transform: translateY(6px) rotate(45deg); }
+    .hamburger.active svg line:nth-child(3) { transform: translateY(-6px) rotate(-45deg); }
 
     /* ================================================================
        PAGE SYSTEM
@@ -1867,17 +1880,6 @@
 
 
 
-    /* Discreet admin entry point in the nav — never part of the hero */
-    .nav-links a.nav-admin {
-      color: var(--text-dim);
-      font-weight: 600;
-      letter-spacing: 0.12em;
-    }
-    .nav-links a.nav-admin:hover { color: var(--accent); }
-    .nav-links a.nav-admin::after { display: none; }
-
-
-
     /* Admin login modal */
     .admin-login-overlay {
       position: fixed;
@@ -2576,10 +2578,11 @@
       .nav-links a { padding: 10px 0; min-height: 44px; width: 100%; display: flex; align-items: center; font-size: 0.85rem; }
       .hamburger { margin: 0; padding: 8px; border-right: none; order: 2; }
       .nav-search { display: none; }
-      /* Keep primary actions reachable; the menu toggle is inside .nav-icons. */
+      /* Keep primary actions reachable in the header; the menu toggle is inside .nav-icons. */
       .nav-icons { display: flex; margin-left: auto; gap: 0; }
       .nav-icons > .nav-icon { display: none; }
       .nav-icons > #wishlistNav,
+      .nav-icons > #customerAccountBtn,
       .nav-icons > .nav-icon[title="Cart"] { display: flex; }
       .nav-icon { min-width: 44px; min-height: 44px; }
       .hamburger { min-width: 44px; min-height: 44px; }
@@ -3720,19 +3723,17 @@
       </div>
 
       <ul class="nav-links" id="navLinks" aria-label="Main navigation">
-        <li><a data-nav="about" href="/about" onclick="navigateTo('about'); closeMenu(); return false;">About</a></li>
         <li><a data-nav="all" href="/" onclick="navigateTo('home'); closeMenu(); return false;">Home</a></li>
         <li><a data-nav="anime" href="/collection/anime" onclick="navigateTo('collection', 'anime'); closeMenu(); return false;">Anime Shirts</a></li>
-        <li><a data-nav="streetwear" href="/collection/streetwear" onclick="navigateTo('collection', 'streetwear'); closeMenu(); return false;">Streetwear</a></li>
+        <li><a data-nav="graphic-tees" href="/collection/graphic-tees" onclick="navigateTo('collection', 'graphic-tees'); closeMenu(); return false;">Graphic Tees</a></li>
+        <li><a href="/collection/all" onclick="navigateTo('collection', 'all'); closeMenu(); return false;">Pants</a></li>
         <li><a data-nav="custom-stickers" href="/custom-stickers" onclick="navigateTo('custom-stickers'); closeMenu(); return false;">Custom Stickers</a></li>
+        <li><a data-nav="about" href="/about" onclick="navigateTo('about'); closeMenu(); return false;">About</a></li>
+        <li><a data-nav="contact" href="/contact" onclick="navigateTo('contact'); closeMenu(); return false;">Contact</a></li>
         <li><a data-nav="tracking" href="/tracking" onclick="navigateTo('tracking'); closeMenu(); return false;">Track Order</a></li>
-        <li><a class="nav-admin" href="/admin" onclick="openAdminLogin(); closeMenu(); return false;" title="Admin">Admin</a></li>
         <li class="mobile-search"><input type="search" id="mobileSearch" placeholder="Search drops…" oninput="onSearchInput(this.value)" /></li>
         <li class="mobile-icons-row">
-          <button class="nav-icon" onclick="navigateTo('tracking'); closeMenu();" title="Track Order" aria-label="Track Order"><img src="/images/track-order.png" alt="" width="22" height="22" /></button>
-          <button class="nav-icon" onclick="toggleWishlistFilter(); closeMenu();" title="Wishlist" aria-label="Wishlist"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg><span class="badge" id="wishlistCountMobile">0</span></button>
-                    <button class="nav-icon" onclick="handleAccountClick(); closeMenu();" title="Account" aria-label="Account"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></button>
-                    <button class="nav-icon" onclick="toggleCart(); closeMenu();" title="Cart" aria-label="Shopping Cart"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg><span class="badge" id="cartCountMobile">0</span></button>
+          <button class="nav-icon" type="button" onclick="navigateTo('tracking'); closeMenu();" title="Track Order" aria-label="Track Order"><img src="/images/track-order.png" alt="" width="22" height="22" /></button>
         </li>
       </ul>
 
@@ -3749,8 +3750,8 @@
                 <button class="nav-icon" onclick="toggleCart()" title="Cart" aria-label="Shopping Cart">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg><span class="badge" id="cartCount">0</span>
                 </button>
-                <button class="hamburger" id="hamburger" aria-label="Toggle menu">
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+                <button class="hamburger" id="hamburger" type="button" aria-label="Open menu" aria-controls="navLinks" aria-expanded="false">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
                 </button>
               </div>
     </div>
@@ -4631,7 +4632,6 @@
       } catch (e) { cart = []; wishlist.clear(); }
       shopStateReady = true;
       document.getElementById('wishlistCount').textContent = wishlist.size;
-      document.getElementById('wishlistCountMobile').textContent = wishlist.size;
       updateCartUI();
     }
     let currentProduct = null;
@@ -5230,7 +5230,6 @@
         }
       }
       document.getElementById('wishlistCount').textContent = wishlist.size;
-      var mc = document.getElementById('wishlistCountMobile'); if (mc) mc.textContent = wishlist.size;
       persistShopState();
       if (wishlistOnly) renderCollectionGrid();
     }
@@ -6218,7 +6217,6 @@
       const c = cart.reduce((s,i) => s + i.qty, 0);
       persistShopState();
       document.getElementById('cartCount').textContent = c;
-      var mcc = document.getElementById('cartCountMobile'); if (mcc) mcc.textContent = c;
       const items = document.getElementById('cartItems'), footer = document.getElementById('cartFooter');
       if (!cart.length) { items.innerHTML = '<div class="cart-empty"><p>Your cart is empty.</p></div>'; footer.style.display = 'none'; return; }
       footer.style.display = 'flex';
@@ -6255,17 +6253,34 @@
     // Mobile menu
     const hamburger = document.getElementById('hamburger');
     const navLinks = document.getElementById('navLinks');
+    let menuPreviousBodyOverflow = '';
     hamburger.setAttribute('aria-expanded', 'false');
     hamburger.setAttribute('aria-controls', 'navLinks');
-    hamburger.addEventListener('click', () => {
-      const open = navLinks.classList.toggle('open');
+    hamburger.setAttribute('aria-label', 'Open menu');
+    function setMenuOpen(open) {
+      const wasOpen = navLinks.classList.contains('open');
+      if (open && !wasOpen) {
+        menuPreviousBodyOverflow = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+      } else if (!open && wasOpen) {
+        document.body.style.overflow = menuPreviousBodyOverflow;
+        menuPreviousBodyOverflow = '';
+      }
+      navLinks.classList.toggle('open', open);
       hamburger.classList.toggle('active', open);
       hamburger.setAttribute('aria-expanded', String(open));
-    });
-    function closeMenu() {
-      hamburger.classList.remove('active'); navLinks.classList.remove('open');
-      hamburger.setAttribute('aria-expanded', 'false');
+      hamburger.setAttribute('aria-label', open ? 'Close menu' : 'Open menu');
     }
+    hamburger.addEventListener('click', () => setMenuOpen(!navLinks.classList.contains('open')));
+    navLinks.addEventListener('click', event => {
+      if (event.target && typeof event.target.closest === 'function' && event.target.closest('a')) closeMenu();
+    });
+    document.addEventListener('pointerdown', event => {
+      if (!navLinks.classList.contains('open')) return;
+      if (navLinks.contains(event.target) || hamburger.contains(event.target)) return;
+      closeMenu();
+    });
+    function closeMenu() { setMenuOpen(false); }
 
     // ================================================================
     // PARALLAX WATERMARK
