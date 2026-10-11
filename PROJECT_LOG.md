@@ -1315,3 +1315,59 @@ the throwaway in-memory store instead of failing visibly.
   `TURSO_DATABASE_URL=file:…`): boot succeeds on the `turso` backend with the
   legacy rows intact and the email merge applied; the same file previously failed
   with `no such column: customer_id`.
+
+---
+
+## 32. CSRF cookie no longer rides on publicly cacheable reads (2026-10-12)
+
+**Problem.** `csrfMiddleware` issued `kage.csrf` on the first request that lacked
+it, whatever the response. `/api/products`, `/api/products/:id` and `/api/reviews`
+are served `Cache-Control: public, max-age=…, s-maxage=…`, so an edge/CDN cache
+would store a response that carried one visitor's `Set-Cookie` and replay it to
+every other visitor who got the cached copy — a cache-poisoning hazard for a
+token that protects state-changing requests.
+
+**Fix**
+
+- The cookie is now issued only on responses a shared cache will not store:
+  `public`/`s-maxage` responses never carry it, everything else (HTML pages, the
+  new endpoint, dynamic no-store routes) still does. The decision is made at
+  header-flush time from the response's own `Cache-Control`, so any future route
+  that opts into shared caching is covered automatically — no path list to keep
+  in sync.
+- New `GET /api/csrf`: `no-store`, returns `{ token }`, and (when the caller had
+  no cookie) sets the `kage.csrf` cookie with that same value. It is the only
+  endpoint whose body repeats the cookie value.
+- Storefront and admin `fetch` wrappers now obtain a token before the first
+  state-changing request when the cookie is missing — one in-flight request per
+  page load, retried if it comes back empty — and handle both plain-object and
+  `Headers` header bags. Admin's verify-payment / cod-confirm stopped passing a
+  manual header (the wrapper supplies it), and logout refreshes through the same
+  helper instead of reloading `/`.
+- `HEAD` now follows the `GET` API cache policy. It previously returned no
+  `Cache-Control`, so a `HEAD /api/products` still carried a `Set-Cookie` — HEAD
+  must report the same headers a GET would.
+
+**Tests**
+
+- E2E: `/api/products`, `/api/products/1`, `/api/reviews` return no `Set-Cookie`
+  for GET **and** HEAD, with and without an existing cookie, while keeping their
+  public cache headers; `/api/csrf` is `no-store`, issues the cookie and agrees
+  with its body token (a second call with the cookie returns no new cookie);
+  HTML pages (`/`, `/admin`) still issue the cookie and the token they hand out
+  passes `requireCsrf` on a later POST (validation 400, not 403); `/vendor`-style
+  cached assets send no cookie.
+- E2E fresh-browser checkout: a cookie-less client is refused (403) with no
+  token, and refused again with a token but no matching cookie; after
+  `GET /api/csrf` the order is placed (201) and trackable by number + phone.
+- Frontend (jsdom, new scenario 20; the harness now behaves like a browser —
+  sending the document's cookies and storing response `Set-Cookie`): the
+  catalogue reads the page makes carry no `Set-Cookie`; with the cookie cleared
+  the storefront fetches `/api/csrf` **before** POSTing the order, completes
+  checkout, shows the confirmation, and the order is trackable server-side; with
+  a cookie present no further token request is made.
+
+**Verification:** `npm test` → **116/116 E2E**, shared rate-limit integration,
+storefront regressions, 15 upgrade-migration checks, **20/20 frontend scenarios**.
+Docs updated: `AUDIT.md` (the 2026-10-12 “first uncookied public API GET sets the
+cookie” caveat is now resolved) and `ADMIN_DASHBOARD_FAULTS.md` (CSRF notes).

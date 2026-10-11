@@ -1470,32 +1470,59 @@
     let extraImageItems = [];
     let originalExtraUrls = [];
 
-    // CSRF token helper
+    // CSRF token helpers — the token lives in the kage.csrf cookie.
+    const _origFetch = window.fetch;
     function getCsrfToken() {
       const cookies = document.cookie.split(';').map(c => c.trim());
       const csrfCookie = cookies.find(c => c.startsWith('kage.csrf='));
       return csrfCookie ? csrfCookie.split('=')[1] : '';
     }
+    function hasHeader(headers, name) {
+      if (!headers) return false;
+      if (typeof headers.has === 'function') return headers.has(name);
+      return Object.keys(headers).some(k => k.toLowerCase() === name.toLowerCase());
+    }
+    function setHeader(headers, name, value) {
+      if (!headers) return { [name]: value };
+      if (typeof headers.set === 'function') { headers.set(name, value); return headers; }
+      headers[name] = value;
+      return headers;
+    }
 
-    // Monkey-patch fetch to add CSRF token to state-changing requests and to
-    // bounce back to the login screen when the session expires mid-use (any
-    // 401 from the API while we believed we were logged in).
-    const _origFetch = window.fetch;
-    window.fetch = function(url, opts) {
+    // /admin is an HTML response, so a normal page load already carries the
+    // cookie; this covers a cleared/blocked/expired cookie by asking the small
+    // no-store endpoint for a fresh token before the first state-changing
+    // request. One in-flight request per page load.
+    let csrfTokenRequest = null;
+    function ensureCsrfToken() {
+      const existing = getCsrfToken();
+      if (existing) return Promise.resolve(existing);
+      if (!csrfTokenRequest) {
+        csrfTokenRequest = _origFetch.call(window, '/api/csrf', { cache: 'no-store' })
+          .then(res => (res && res.ok ? res.json() : null))
+          .then(data => getCsrfToken() || (data && data.token) || '')
+          .catch(() => getCsrfToken())
+          .then(token => { if (!token) csrfTokenRequest = null; return token; });
+      }
+      return csrfTokenRequest;
+    }
+
+    // Monkey-patch fetch to add the CSRF token to state-changing requests
+    // (obtaining one first when the cookie is missing) and to bounce back to the
+    // login screen when the session expires mid-use (any 401 from the API while
+    // we believed we were logged in).
+    window.fetch = async function(url, opts) {
       if (opts && opts.method && ['POST','PUT','PATCH','DELETE'].includes(opts.method.toUpperCase())) {
-        opts.headers = opts.headers || {};
-        if (!opts.headers['X-CSRF-Token'] && !opts.headers['x-csrf-token']) {
-          opts.headers['X-CSRF-Token'] = getCsrfToken();
+        if (!hasHeader(opts.headers, 'X-CSRF-Token')) {
+          const token = await ensureCsrfToken();
+          if (token) opts.headers = setHeader(opts.headers, 'X-CSRF-Token', token);
         }
       }
-      const promise = _origFetch.call(this, url, opts);
       let apiPath = '';
       try { const u = typeof url === 'string' ? url : (url && url.url) || ''; apiPath = u.startsWith('/api/') ? u : ''; } catch (e) {}
-      if (!apiPath) return promise;
-      return promise.then(res => {
-        if (res.status === 401 && isLoggedIn && typeof showLogin === 'function') showLogin();
-        return res;
-      });
+      const res = await _origFetch.call(this, url, opts);
+      if (apiPath && res.status === 401 && isLoggedIn && typeof showLogin === 'function') showLogin();
+      return res;
     };
 
     // Escape user-provided text before injecting into innerHTML (prevents stored XSS)
@@ -1675,9 +1702,9 @@
 
     async function handleLogout() {
       try {
-        // Refresh the CSRF cookie first if it's missing, otherwise a 403 keeps
-        // the admin stuck in a half-logged-in state.
-        if (!getCsrfToken()) await fetch('/');
+        // Make sure a CSRF token exists first (the no-store /api/csrf endpoint),
+        // otherwise a 403 keeps the admin stuck in a half-logged-in state.
+        await ensureCsrfToken();
         const res = await fetch('/api/admin/logout', { method: 'POST' });
         if (!res.ok) {
           const data = await res.json().catch(() => ({}));
@@ -2832,7 +2859,7 @@
       try {
         const res = await fetch('/api/orders/' + id + '/verify-payment', {
           method: 'PATCH',
-          headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': getCsrfToken() },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ verified })
         });
         if (res.ok) {
@@ -2855,7 +2882,7 @@
       try {
         const res = await fetch('/api/orders/' + id + '/cod-confirm', {
           method: 'PATCH',
-          headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': getCsrfToken() },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ confirmed })
         });
         if (res.ok) {

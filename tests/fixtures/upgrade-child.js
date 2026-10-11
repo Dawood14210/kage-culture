@@ -79,9 +79,11 @@ function cookieHeader(res) {
   return (res.headers['set-cookie'] || []).map((c) => c.split(';')[0]).join('; ');
 }
 
-// CSRF middleware sets the cookie on the first GET; the token is its value.
+// The public cacheable reads never send Set-Cookie, so a cookie-less client
+// takes its token from the no-store endpoint (exactly what the storefront's
+// fetch wrapper does before its first state-changing request).
 async function getCsrf(port) {
-  const r = await request(port, 'GET', '/api/products');
+  const r = await request(port, 'GET', '/api/csrf');
   const sc = (r.headers['set-cookie'] || []).find((c) => c.startsWith('kage.csrf='));
   if (!sc) throw new Error('no CSRF cookie issued');
   const cookie = sc.split(';')[0];

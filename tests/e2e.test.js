@@ -231,10 +231,117 @@ async function main() {
     assert.strictEqual(products.headers['set-cookie'], undefined);
   });
 
-  await check('first public API read sets the CSRF cookie (CDN caveat)', async () => {
-    const products = await request(PORT, 'GET', '/api/products');
-    assert.strictEqual(products.status, 200);
-    assert.ok((products.headers['set-cookie'] || []).some(cookie => cookie.startsWith('kage.csrf=')));
+  await check('public cacheable reads never send Set-Cookie to a cookie-less client', async () => {
+    // A CDN/edge cache would store these responses and replay one visitor's
+    // cookie to every other visitor, so no Set-Cookie may be emitted at all.
+    const reads = [
+      ['/api/products', 'public, max-age=60, s-maxage=60'],
+      ['/api/products/1', 'public, max-age=60, s-maxage=60'],
+      ['/api/reviews', 'public, max-age=120, s-maxage=120']
+    ];
+    for (const [path, expectedCache] of reads) {
+      // HEAD must report the same headers a GET would, cacheability included.
+      for (const method of ['GET', 'HEAD']) {
+        const fresh = await request(PORT, method, path);
+        assert.strictEqual(fresh.status, 200, `${method} ${path} must answer 200`);
+        assert.strictEqual(fresh.headers['cache-control'], expectedCache, `${method} ${path} cache headers`);
+        assert.strictEqual(fresh.headers['set-cookie'], undefined, `${method} ${path} must not send Set-Cookie`);
+        // …and the same holds for a client that already carries one.
+        const withCookie = await request(PORT, method, path, { headers: { Cookie: 'kage.csrf=cache-probe' } });
+        assert.strictEqual(withCookie.headers['set-cookie'], undefined, `${method} ${path} must not refresh Set-Cookie`);
+      }
+    }
+  });
+
+  await check('the no-store /api/csrf endpoint issues the token the client must echo back', async () => {
+    const fresh = await request(PORT, 'GET', '/api/csrf');
+    assert.strictEqual(fresh.status, 200);
+    assert.strictEqual(fresh.headers['cache-control'], 'no-store');
+    const cookie = (fresh.headers['set-cookie'] || []).find(c => c.startsWith('kage.csrf='));
+    assert.ok(cookie, 'a cookie-less client must receive the kage.csrf cookie');
+    assert.strictEqual(fresh.json && fresh.json.token, cookie.split(';')[0].split('=')[1], 'the body token must match the cookie');
+
+    // A client that already has the cookie gets the same token back and no
+    // second cookie (the middleware only defers one when it was missing).
+    const again = await request(PORT, 'GET', '/api/csrf', { headers: { Cookie: cookie.split(';')[0] } });
+    assert.strictEqual(again.headers['set-cookie'], undefined);
+    assert.strictEqual(again.json.token, fresh.json.token);
+  });
+
+  await check('HTML page responses still issue the CSRF cookie', async () => {
+    const page = await request(PORT, 'GET', '/');
+    assert.strictEqual(page.status, 200);
+    assert.match(page.headers['cache-control'] || '', /no-store/);
+    assert.ok((page.headers['set-cookie'] || []).some(cookie => cookie.startsWith('kage.csrf=')),
+      'the storefront page must hand a fresh visitor its CSRF cookie');
+    const admin = await request(PORT, 'GET', '/admin');
+    assert.ok((admin.headers['set-cookie'] || []).some(cookie => cookie.startsWith('kage.csrf=')),
+      'the admin page must hand a fresh visitor its CSRF cookie');
+    // Publicly cached static assets are not page responses either.
+    const asset = await request(PORT, 'GET', '/images/hero.jpg');
+    assert.strictEqual(asset.headers['set-cookie'], undefined, 'cached static assets must not send Set-Cookie');
+
+    // …and the cookie that page just handed out is usable for a later POST
+    // (the primary browser path). A valid token reaches the handler, which
+    // rejects the deliberately empty order body with a validation 400 — not a
+    // CSRF 403.
+    const pageCookie = (page.headers['set-cookie'] || []).find(c => c.startsWith('kage.csrf=')).split(';')[0];
+    const emptyOrder = await request(PORT, 'POST', '/api/orders', {
+      body: {},
+      headers: { 'X-CSRF-Token': pageCookie.split('=')[1], Cookie: pageCookie }
+    });
+    assert.strictEqual(emptyOrder.status, 400, `a page-issued token must pass requireCsrf: ${JSON.stringify(emptyOrder.json)}`);
+  });
+
+  // ---------------------------------------------------------------
+  // A fresh browser (no cookies at all) still completes a checkout
+  // ---------------------------------------------------------------
+  console.log('CSRF: fresh-browser checkout:');
+  await check('a cookie-less client is refused until it fetches /api/csrf, then places an order', async () => {
+    const catalog = (await request(PORT, 'GET', '/api/products')).json;
+    const product = catalog.find(p => p.in_stock && (p.stock_qty == null || Number(p.stock_qty) > 0) && Array.isArray(p.sizes) && p.sizes.length > 0);
+    assert.ok(product, 'the catalogue must offer an in-stock product');
+    const orderBody = {
+      name: 'Fresh Browser',
+      email: 'fresh.browser@kage.test',
+      phone: '03001234500',
+      address: '1 Fresh St',
+      city: 'Lahore',
+      payment_method: 'cod',
+      items: [{ id: product.id, qty: 1, size: product.sizes[0] }]
+    };
+
+    // 1. No cookie, no token: the state-changing request must be refused.
+    const withoutToken = await request(PORT, 'POST', '/api/orders', { body: orderBody });
+    assert.strictEqual(withoutToken.status, 403, JSON.stringify(withoutToken.json));
+
+    // 2. Double submit: a valid token without its cookie is still refused
+    //    (so a stolen/replayed header value is worthless on its own).
+    const other = await getCsrf();
+    const withoutCookie = await request(PORT, 'POST', '/api/orders', { body: orderBody, headers: { 'X-CSRF-Token': other.token } });
+    assert.strictEqual(withoutCookie.status, 403, JSON.stringify(withoutCookie.json));
+
+    // 3. What the storefront does when document.cookie has no kage.csrf:
+    //    ask the small no-store endpoint for a fresh one.
+    const csrf = await request(PORT, 'GET', '/api/csrf');
+    assert.strictEqual(csrf.status, 200);
+    assert.strictEqual(csrf.headers['cache-control'], 'no-store');
+    const setCookie = (csrf.headers['set-cookie'] || []).find(c => c.startsWith('kage.csrf='));
+    assert.ok(setCookie, 'the endpoint must issue the kage.csrf cookie');
+    const cookie = setCookie.split(';')[0];
+    assert.strictEqual(csrf.json.token, cookie.split('=')[1], 'body token and cookie must agree');
+
+    // 4. With both halves the order goes through — from a browser that never
+    //    loaded an HTML page and never touched a cacheable API read.
+    const placed = await request(PORT, 'POST', '/api/orders', { body: orderBody, headers: { 'X-CSRF-Token': csrf.json.token, Cookie: cookie } });
+    assert.strictEqual(placed.status, 201, JSON.stringify(placed.json));
+    assert.match(String(placed.json.order_number), /^KAGE-[A-Z0-9]{8}$/);
+
+    // 5. …and the shop can track it as a real order.
+    const tracked = await request(PORT, 'GET', `/api/orders/track?number=${encodeURIComponent(placed.json.order_number)}&phone=03001234500`);
+    assert.strictEqual(tracked.status, 200, JSON.stringify(tracked.json));
+    assert.strictEqual(tracked.json.order_number, placed.json.order_number);
+    assert.strictEqual(tracked.json.status, 'pending', 'COD orders start pending');
   });
 
   // ---------------------------------------------------------------
@@ -2517,10 +2624,12 @@ async function main() {
   process.exit(0);
 }
 
-// Fetch + echo a CSRF token (middleware sets it as a cookie on first GET).
+// Fetch + echo a CSRF token from the dedicated no-store endpoint. The public
+// cacheable reads deliberately never send Set-Cookie, so this is the endpoint a
+// cookie-less client uses before its first state-changing request.
 // Returns { cookie, token } — both must accompany the mutating request.
 async function getCsrf() {
-  const r = await request(PORT, 'GET', '/api/products');
+  const r = await request(PORT, 'GET', '/api/csrf');
   const sc = (r.headers['set-cookie'] || []).find((c) => c.startsWith('kage.csrf='));
   if (!sc) throw new Error('no CSRF cookie issued');
   const cookie = sc.split(';')[0];

@@ -596,8 +596,17 @@ frontend scenarios passed.
 - Ordinary static assets and uploads use one-day public caching with revalidation;
   HTML is no-store, while `/vendor` retains version-pinned one-year immutable caching.
   Numeric `/api/products/<digits>` reads get the public API policy; admin/customer
-  APIs are no-store. A first uncookied public API GET still sets the CSRF cookie,
-  while a request with an existing cookie does not set another one.
+  APIs are no-store.
+  **Updated 2026-10-12 (later session):** the earlier caveat — “a first uncookied
+  public API GET still sets the CSRF cookie” — is gone. `kage.csrf` is now issued
+  only on responses a shared cache will not store (HTML pages, the no-store
+  `GET /api/csrf`, other dynamic routes); `/api/products`, `/api/products/:id` and
+  `/api/reviews` never send `Set-Cookie`, with or without an existing cookie, so an
+  edge cache can never replay one visitor's cookie to another. The middleware
+  decides at header-flush time from the response's own `Cache-Control`, so any
+  future route that opts into `public`/`s-maxage` is covered automatically.
+  Clients with no cookie ask the no-store `GET /api/csrf` for a token before their
+  first state-changing request (storefront/admin fetch wrappers do this).
 - Product and standalone upload filters accept raster image extensions/MIME types
   only; SVG remains available as an existing public logo/asset, not as an upload.
 - Auth middleware now reads identity exclusively from signed `req.session` state.
@@ -611,10 +620,16 @@ frontend scenarios passed.
   and token-scoped responses are `private`. Sold-unit and approved-review maps
   share a 60-second cache, invalidated by order, review, and product writes.
 
-**Verification:** `npm test` passes (113/113 E2E, shared rate-limit integration,
-storefront regression, 19/19 frontend scenarios). Headless Chromium confirmed the
-hero image loads, canonical/OG and dynamic sitemap/robots use `SITE_URL`, and a
-reviewer sees their own pending review immediately after submission.
+**Verification:** `npm test` passes (116/116 E2E, shared rate-limit integration,
+storefront regression, 15 upgrade-migration checks, 20/20 frontend scenarios).
+Headless Chromium confirmed the hero image loads, canonical/OG and dynamic
+sitemap/robots use `SITE_URL`, and a reviewer sees their own pending review
+immediately after submission. The CSRF/set-cookie policy is covered by:
+`/api/products`, `/api/products/1` and `/api/reviews` returning no `Set-Cookie`
+(cookie-less and cookie-carrying clients), the no-store `/api/csrf` response, the
+HTML page responses that still hand a fresh visitor its cookie, an API-level
+cookie-less checkout, and a DOM-level fresh-browser checkout that fetches
+`/api/csrf` before the order POST.
 
 ## Remaining work (priority order)
 

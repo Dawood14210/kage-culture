@@ -96,7 +96,7 @@
 
 ## ✅ Verified clean (checked, no fault)
 
-- **CSRF**: `kage.csrf` cookie readable (no HttpOnly) by design; the fetch monkey-patch (`:1330-1345`) attaches `X-CSRF-Token` to every mutating request including FormData uploads; `requireCsrf` compares header to the raw cookie token consistently; explicit tokens on verify/cod-confirm are redundant but harmless. Login/setup are intentionally un-CSRF'd (credential endpoints, rate-limited).
+- **CSRF**: `kage.csrf` cookie readable (no HttpOnly) by design; the fetch monkey-patch attaches `X-CSRF-Token` to every mutating request including FormData uploads, obtaining a token from the no-store `GET /api/csrf` first when the cookie is missing (public cacheable reads never send `Set-Cookie`); `requireCsrf` compares header to the raw cookie token consistently. Verify/cod-confirm no longer pass a manual header — the wrapper supplies it. Login/setup are intentionally un-CSRF'd (credential endpoints, rate-limited).
 - **XSS**: every dynamic insertion in the dashboard renderers goes through `esc()` (orders, products, reviews, dashboard, sales) or is a server-controlled enum/number; no unescaped `innerHTML` sink found.
 - **DOM ids**: all 152 `getElementById`/literal `querySelector` targets exist (static + `id=` created in JS) — zero missing.
 - **Inline script**: `node --check` clean (no syntax errors).

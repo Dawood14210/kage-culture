@@ -45,8 +45,13 @@ async function adminProductList() {
   return products;
 }
 let origin;
-function page(html, path = '/', { storage = {}, offline = false, fetchImpl } = {}) {
-  return new JSDOM(html, {
+// `browserCookies` makes the harness behave like a browser for the storefront's
+// own requests: cookies from the jsdom document are sent with each request and
+// Set-Cookie headers from the response are stored back into it. `requests`
+// records every URL the page asked for, in order.
+function page(html, path = '/', { storage = {}, offline = false, fetchImpl, browserCookies = false } = {}) {
+  const requests = [];
+  const dom = new JSDOM(html, {
     url: origin + path, runScripts: 'dangerously', pretendToBeVisual: true, virtualConsole,
     beforeParse(w) {
       w.scrollTo = () => {};
@@ -61,10 +66,26 @@ function page(html, path = '/', { storage = {}, offline = false, fetchImpl } = {
       w.fetch = (url, options) => {
         if (fetchImpl) return fetchImpl(url, options);
         if (offline && url === '/api/products') return Promise.reject(new Error('offline'));
-        return fetch(origin + url, options);
+        const requestOptions = { ...(options || {}) };
+        if (!browserCookies) return fetch(origin + url, requestOptions);
+        const entry = { url: String(url), method: (requestOptions.method || 'GET').toUpperCase(), setCookie: [] };
+        requests.push(entry);
+        const headers = { ...(requestOptions.headers || {}) };
+        const jar = w.document.cookie;
+        if (jar) headers.Cookie = jar;
+        return fetch(origin + url, { ...requestOptions, headers }).then(res => {
+          entry.setCookie = res.headers.getSetCookie ? res.headers.getSetCookie() : [];
+          for (const cookie of entry.setCookie) {
+            const pair = cookie.split(';')[0].trim();
+            if (pair) w.document.cookie = pair + '; Path=/';
+          }
+          return res;
+        });
       };
     }
   });
+  dom.requests = requests;
+  return dom;
 }
 async function ready(win) {
   for (let i = 0; i < 40; i++) {
@@ -973,8 +994,69 @@ async function ready(win) {
     assert.match(nd.getElementById('vfyError').textContent, /missing its token/i);
     console.log('✅ Email verification: account banner, resend link, verify route and token handling');
 
+    // ---------------------------------------------------------------
+    // Scenario 20: a browser with no CSRF cookie completes a checkout
+    // ---------------------------------------------------------------
+    // The public cacheable reads (/api/products, /api/products/:id, /api/reviews)
+    // must never send Set-Cookie; when the cookie is gone (expired/cleared) the
+    // storefront's fetch wrapper must ask the no-store /api/csrf endpoint for one
+    // before the order POST.
+    const fresh = page(storeHtml, '/', { browserCookies: true });
+    windows.push(fresh);
+    await ready(fresh.window);
+    const fw = fresh.window, fd = fw.document;
+
+    const cacheableReads = fresh.requests.filter(r => r.url === '/api/products'
+      || /^\/api\/products\/\d+$/.test(r.url) || r.url.startsWith('/api/reviews'));
+    assert.ok(cacheableReads.length > 0, 'the storefront must load its catalogue from the API');
+    for (const read of cacheableReads) {
+      assert.deepEqual(read.setCookie, [], `${read.url} must not send Set-Cookie to the browser`);
+    }
+
+    // Simulate the cookie expiring/being cleared mid-session.
+    fd.cookie = 'kage.csrf=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT';
+    assert.equal(fd.cookie.includes('kage.csrf='), false, 'the browser has no CSRF cookie before checkout');
+
+    const added = fw.eval(`(function () {
+      const p = allProducts.find(x => x.in_stock && x.sizes && x.sizes.length && (x.stock_qty == null || Number(x.stock_qty) > 0) && (!x.size_stock || Number(x.size_stock[x.sizes[0]] || 0) > 0));
+      return p ? addToCart(p, p.sizes[0], 1) : false;
+    })()`);
+    assert.equal(added, true, 'an in-stock product must go into the cart');
+
+    fw.navigateTo('checkout');
+    assert.ok(fd.getElementById('page-checkout').classList.contains('active'), 'checkout opens with a filled cart');
+    fd.getElementById('coName').value = 'Fresh Browser';
+    fd.getElementById('coEmail').value = 'fresh.browser@kage.test';
+    fd.getElementById('coPhone').value = '03001234500';
+    fd.getElementById('coAddress').value = '1 Fresh St';
+    fd.getElementById('coCity').value = 'Lahore';
+    await fw.eval('placeOrder()');
+
+    const csrfRequest = fresh.requests.find(r => r.url === '/api/csrf');
+    const orderRequest = fresh.requests.find(r => r.url === '/api/orders' && r.method === 'POST');
+    assert.ok(csrfRequest, `the storefront must fetch a token first (saw: ${JSON.stringify(fresh.requests.map(r => r.url))})`);
+    assert.ok(orderRequest, 'the order must be posted');
+    assert.ok(fresh.requests.indexOf(orderRequest) > fresh.requests.indexOf(csrfRequest), 'the token must be fetched BEFORE the order is posted');
+    assert.ok(csrfRequest.setCookie.some(c => c.startsWith('kage.csrf=')), 'the endpoint hands the browser a CSRF cookie');
+    assert.match(fd.cookie, /kage\.csrf=/, 'the browser stores the CSRF cookie');
+    assert.equal(fd.getElementById('page-confirmation').classList.contains('active'), true, 'the order completes and the confirmation page shows');
+    assert.match(fd.getElementById('confNumber').textContent, /^KAGE-[A-Z0-9]{8}$/, 'the confirmation shows a real order number');
+
+    // The shop really has that order.
+    const tracked = await fetch(`${origin}/api/orders/track?number=${encodeURIComponent(fd.getElementById('confNumber').textContent.trim())}&phone=03001234500`);
+    assert.equal(tracked.status, 200, 'the placed order must be trackable');
+    assert.equal((await tracked.json()).status, 'pending', 'a COD order starts pending');
+
+    // With the cookie now present, no further token request is made: the
+    // cookie's value is reused for the next state-changing call.
+    const csrfRequestsBefore = fresh.requests.filter(r => r.url === '/api/csrf').length;
+    const reused = await fw.eval('ensureCsrfToken()');
+    assert.equal(reused, fd.cookie.match(/kage\.csrf=([^;]*)/)[1], 'the cookie token is reused');
+    assert.equal(fresh.requests.filter(r => r.url === '/api/csrf').length, csrfRequestsBefore, 'no extra token request while the cookie exists');
+    console.log('✅ Fresh browser checkout: no Set-Cookie on cached reads, token from /api/csrf, order placed and tracked');
+
     assert.deepEqual(errors, []);
-    console.log('\n19/19 frontend scenarios passed');
+    console.log('\n20/20 frontend scenarios passed');
   } finally {
     windows.forEach(win => win.window.close());
     await new Promise(resolve => server.close(resolve));

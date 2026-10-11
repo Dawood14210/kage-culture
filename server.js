@@ -9,7 +9,7 @@ const fs = require('fs');
 const dbModule = require('./database');
 const config = require('./config');
 const { globalLimiter } = require('./middleware/rateLimit');
-const { csrfMiddleware } = require('./middleware/csrf');
+const { csrfMiddleware, CSRF_ENDPOINT } = require('./middleware/csrf');
 const { requireAuth } = require('./middleware/auth');
 const { getSessionSecret } = require('./utils/secret');
 const { getSiteUrlForRequest } = require('./utils/siteUrl');
@@ -98,6 +98,17 @@ app.use(globalLimiter);
 // ── CSRF ──────────────────────────────────────────────────────
 app.use(csrfMiddleware);
 
+// The public cacheable reads (`/api/products`, `/api/products/:id`,
+// `/api/reviews`) never send Set-Cookie, so a browser that has no `kage.csrf`
+// cookie yet asks this small no-store endpoint for one before its first
+// state-changing request. Returns the same value that (when the cookie was
+// missing) is set as the cookie by the middleware above; no-store because the
+// response both varies per client and carries a cookie.
+app.get(CSRF_ENDPOINT, (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  res.json({ token: req.csrfRawToken });
+});
+
 // ── Compression ───────────────────────────────────────────────
 app.use(loadCompression()({ level: 6, threshold: 1024 }));
 
@@ -173,11 +184,14 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
 }));
 
 // ── Cache-Control for API ─────────────────────────────────────
+// HEAD follows the GET policy: it must report the same headers a GET would,
+// including the cacheability the CSRF middleware reads before deciding whether
+// this response may carry a cookie.
 app.use((req, res, next) => {
   const sessionVaryingApi = /^\/api\/(?:admin|customers)(?:\/|$)/.test(req.path);
   if (sessionVaryingApi || ['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
     res.setHeader('Cache-Control', 'no-store');
-  } else if (req.method === 'GET') {
+  } else if (req.method === 'GET' || req.method === 'HEAD') {
     if (req.path === '/api/products' || /^\/api\/products\/\d+$/.test(req.path)) {
       res.setHeader('Cache-Control', 'public, max-age=60, s-maxage=60');
     } else if (req.path === '/api/reviews') {
