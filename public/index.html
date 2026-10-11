@@ -352,11 +352,10 @@
       align-items: center; justify-content: center;
       margin-left: 12px;
     }
-    .hamburger span {
-      display: block; width: 16px; height: 1.5px;
-      background: var(--text-primary);
-      transition: all var(--transition-fast);
-    }
+    /* Hamburger → X: the button holds both icons, only one paints. */
+    .hamburger .icon-close { display: none; }
+    .hamburger.active .icon-menu { display: none; }
+    .hamburger.active .icon-close { display: block; }
 
     .nav-search input {
       background: #fff;
@@ -369,9 +368,6 @@
       border-color: var(--border-color);
       color: var(--text-primary);
     }
-    .hamburger.active span:nth-child(1) { transform: translate(0, 3.5px) rotate(45deg); }
-    .hamburger.active span:nth-child(2) { opacity: 0; }
-    .hamburger.active span:nth-child(3) { transform: translate(0, -3.5px) rotate(-45deg); }
 
     /* ================================================================
        PAGE SYSTEM
@@ -1868,14 +1864,6 @@
 
 
 
-    /* Discreet admin entry point in the nav — never part of the hero */
-    .nav-links a.nav-admin {
-      color: var(--text-dim);
-      font-weight: 600;
-      letter-spacing: 0.12em;
-    }
-    .nav-links a.nav-admin:hover { color: var(--accent); }
-    .nav-links a.nav-admin::after { display: none; }
 
 
 
@@ -3667,6 +3655,36 @@
       color: var(--accent); cursor: pointer; font-size: 0.875rem;
     }
 
+    /* ================================================================
+       MOBILE MENU PANEL (hamburger, < 1024px)
+       The panel is opaque and owns the viewport below the fixed header,
+       so page copy can never show through it. Body scroll is locked by
+       the hamburger handler in the script below and restored on close.
+       ================================================================ */
+    @media (max-width: 1023px) {
+      .nav-links.open {
+        position: absolute;
+        top: 100%; left: 0; right: 0;
+        width: 100%;
+        height: calc(100dvh - var(--header-h, 95px));
+        max-height: none;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        background: var(--bg-primary);
+        border-radius: 0;
+        box-shadow: none;
+        padding-bottom: calc(var(--spacing-xl) + env(safe-area-inset-bottom, 0px));
+      }
+      /* Every menu row keeps a 44px tap target on touch layouts. */
+      .nav-links a { min-height: 44px; }
+    }
+
+    /* From 769px the header already shows every icon, so the menu's extra
+       icon row is redundant; on phones it keeps the two the header hides. */
+    @media (min-width: 769px) and (max-width: 1023px) {
+      .nav-links li.mobile-icons-row { display: none; }
+    }
+
     /* Track Order / password reset submit: full width on phones only, so
        the desktop form keeps its left-aligned button. */
     @media (max-width: 768px) {
@@ -3734,19 +3752,20 @@
       </div>
 
       <ul class="nav-links" id="navLinks" aria-label="Main navigation">
-        <li><a data-nav="about" href="/about" onclick="navigateTo('about'); closeMenu(); return false;">About</a></li>
         <li><a data-nav="all" href="/" onclick="navigateTo('home'); closeMenu(); return false;">Home</a></li>
         <li><a data-nav="anime" href="/collection/anime" onclick="navigateTo('collection', 'anime'); closeMenu(); return false;">Anime Shirts</a></li>
-        <li><a data-nav="streetwear" href="/collection/streetwear" onclick="navigateTo('collection', 'streetwear'); closeMenu(); return false;">Streetwear</a></li>
+        <li><a data-nav="graphic-tees" href="/collection/graphic-tees" onclick="navigateTo('collection', 'graphic-tees'); closeMenu(); return false;">Graphic Tees</a></li>
+        <li><a data-nav="pants" href="/collection/all" onclick="navigateTo('collection', 'all'); closeMenu(); return false;">Pants</a></li>
         <li><a data-nav="custom-stickers" href="/custom-stickers" onclick="navigateTo('custom-stickers'); closeMenu(); return false;">Custom Stickers</a></li>
+        <li><a data-nav="about" href="/about" onclick="navigateTo('about'); closeMenu(); return false;">About</a></li>
+        <li><a data-nav="contact" href="/contact" onclick="navigateTo('contact'); closeMenu(); return false;">Contact</a></li>
         <li><a data-nav="tracking" href="/tracking" onclick="navigateTo('tracking'); closeMenu(); return false;">Track Order</a></li>
-        <li><a class="nav-admin" href="/admin" onclick="openAdminLogin(); closeMenu(); return false;" title="Admin">Admin</a></li>
         <li class="mobile-search"><input type="search" id="mobileSearch" placeholder="Search drops…" oninput="onSearchInput(this.value)" /></li>
+        <!-- Only the icons the header hides on phones (Track Order, Account).
+             Wishlist and cart live in the header, so they are not repeated here. -->
         <li class="mobile-icons-row">
-          <button class="nav-icon" onclick="navigateTo('tracking'); closeMenu();" title="Track Order" aria-label="Track Order"><img src="/images/track-order.png" alt="" width="22" height="22" /></button>
-          <button class="nav-icon" onclick="toggleWishlistFilter(); closeMenu();" title="Wishlist" aria-label="Wishlist"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg><span class="badge" id="wishlistCountMobile">0</span></button>
-                    <button class="nav-icon" onclick="handleAccountClick(); closeMenu();" title="Account" aria-label="Account"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></button>
-                    <button class="nav-icon" onclick="toggleCart(); closeMenu();" title="Cart" aria-label="Shopping Cart"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg><span class="badge" id="cartCountMobile">0</span></button>
+          <button class="nav-icon" type="button" onclick="navigateTo('tracking'); closeMenu();" title="Track Order" aria-label="Track Order"><img src="/images/track-order.png" alt="" width="22" height="22" /></button>
+          <button class="nav-icon" type="button" onclick="handleAccountClick(); closeMenu();" title="Account" aria-label="Account"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></button>
         </li>
       </ul>
 
@@ -3763,8 +3782,9 @@
                 <button class="nav-icon" onclick="toggleCart()" title="Cart" aria-label="Shopping Cart">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg><span class="badge" id="cartCount">0</span>
                 </button>
-                <button class="hamburger" id="hamburger" aria-label="Toggle menu">
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+                <button class="hamburger" id="hamburger" type="button" aria-label="Toggle menu">
+                  <svg class="icon-menu" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+                  <svg class="icon-close" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M18 6 6 18M6 6l12 12"/></svg>
                 </button>
               </div>
     </div>
@@ -4645,7 +4665,7 @@
       } catch (e) { cart = []; wishlist.clear(); }
       shopStateReady = true;
       document.getElementById('wishlistCount').textContent = wishlist.size;
-      document.getElementById('wishlistCountMobile').textContent = wishlist.size;
+      var mc0 = document.getElementById('wishlistCountMobile'); if (mc0) mc0.textContent = wishlist.size;
       updateCartUI();
     }
     let currentProduct = null;
@@ -6266,20 +6286,30 @@
       }
     }
 
-    // Mobile menu
+    // Mobile menu — a full-height panel under the fixed header.
     const hamburger = document.getElementById('hamburger');
     const navLinks = document.getElementById('navLinks');
     hamburger.setAttribute('aria-expanded', 'false');
     hamburger.setAttribute('aria-controls', 'navLinks');
-    hamburger.addEventListener('click', () => {
-      const open = navLinks.classList.toggle('open');
+    function setMenuOpen(open) {
+      navLinks.classList.toggle('open', open);
       hamburger.classList.toggle('active', open);
       hamburger.setAttribute('aria-expanded', String(open));
-    });
-    function closeMenu() {
-      hamburger.classList.remove('active'); navLinks.classList.remove('open');
-      hamburger.setAttribute('aria-expanded', 'false');
+      document.body.style.overflow = open ? 'hidden' : '';
     }
+    hamburger.addEventListener('click', () => setMenuOpen(!navLinks.classList.contains('open')));
+    // Only ever unlock the page when the menu was open, so closing an
+    // already-closed menu cannot release another drawer's scroll lock.
+    function closeMenu() {
+      if (!navLinks.classList.contains('open')) return;
+      setMenuOpen(false);
+    }
+    // Tapping outside the panel (the toggle excluded) dismisses it.
+    document.addEventListener('click', e => {
+      if (!navLinks.classList.contains('open')) return;
+      if (navLinks.contains(e.target) || hamburger.contains(e.target)) return;
+      closeMenu();
+    });
 
     // ================================================================
     // PARALLAX WATERMARK
@@ -6369,6 +6399,9 @@
 
     // ---------- Admin login modal (subtle entry to the existing /admin) ----------
     function openAdminLogin() {
+      // The admin entry point is the /admin route only; the public storefront
+      // navigation no longer links here (auth + CSRF behaviour unchanged).
+      if (window.location.pathname !== '/admin') return;
       document.getElementById('adminLoginOverlay')._previousFocus = document.activeElement;
       document.getElementById('adminLoginOverlay').classList.add('open');
       document.getElementById('adminLoginError').style.display = 'none';
