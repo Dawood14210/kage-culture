@@ -494,6 +494,26 @@ scroll restoration and CSS breakpoint contracts at 360, 414, 768 and 1440px. `np
 not browser-rendered screenshots (Chromium is unavailable in this sandbox due to missing
 NSPR/NSS system libraries).
 
+### ✅ Shared footer polish — 2026-10-11
+
+The footer is one global, body-level component outside the route-specific `.page` views;
+renamed its stale "Footer (home)" comment and kept this single copy shared across Returns,
+Shipping, Terms, Privacy, Contact and Track Order. Privacy and Terms now have a visible
+middle-dot separator and 44px minimum-height link targets. Social glyphs use one olive
+accent treatment with a subtle focus/hover tint; the Etsy text glyph is replaced by its
+SVG mark and Snapchat uses the recognizable ghost silhouette. Existing social
+`aria-label`s are unchanged.
+
+Fixed the 481–768px padding override that could reduce the footer clearance below the
+mobile WhatsApp button's footprint. Footer bottom padding now reserves the mobile button,
+its 20px viewport offset, 16px gap and safe-area inset through 768px; wider layouts reserve
+the 60px button, 24px offset and 16px gap. `tests/frontend.test.js` verifies the single
+footer across routes, social/accessibility markup, separators/tap targets, horizontal-fit
+and WhatsApp-clearance CSS/geometry contracts at 360, 414, 768 and 1440px. `npm test` →
+57/57 API + 17/17 frontend scenarios. These are DOM/CSS contract checks rather than
+browser-rendered screenshots; Chromium cannot launch in this sandbox because NSPR/NSS
+system libraries are missing.
+
 ## Remaining work (priority order)
 
 *API-side queue (C1, H1–H4, M1–M7, L1/L3–L7) completed 2026-09-23. FE-criticals

@@ -321,7 +321,32 @@ async function ready(win) {
     assert.equal(d.querySelectorAll('.content-page-back[style]').length, 0, 'repeated back-link paragraph spacing is no longer inline');
     assert.equal(d.querySelectorAll('.content-page-contact h3').length, 3, 'contact headings share their extracted styling');
     assert.equal(d.querySelectorAll('.content-page-contact p[style]').length, 0, 'contact paragraphs share their extracted styling');
-    console.log('✅ Returns, shipping, legal and contact pages have responsive gutters at 360/414/768/1440px; Track Order is unchanged');
+
+    // There is one global footer outside all route-specific page containers.
+    const sharedFooter = d.querySelector('body > footer.site-footer');
+    assert.ok(sharedFooter, 'shared footer is a direct child of body');
+    assert.equal(d.querySelectorAll('footer.site-footer').length, 1, 'all routes use exactly one footer copy');
+    assert.equal(sharedFooter.closest('.page'), null, 'footer is not hidden with the home page container');
+    for (const id of ['returns', 'shipping', 'terms', 'privacy', 'contact', 'tracking']) {
+      w.navigateTo(id);
+      assert.equal(d.getElementById(`page-${id}`).classList.contains('active'), true, `${id} route activates`);
+      assert.equal(sharedFooter.parentElement, d.body, `${id} keeps the same shared footer`);
+      assert.equal(d.querySelectorAll('footer.site-footer').length, 1, `${id} does not introduce a duplicate footer`);
+    }
+    w.navigateTo('home');
+    const footerLinks = [...sharedFooter.querySelectorAll('.footer-bottom-links a')];
+    assert.deepEqual(footerLinks.map(link => link.textContent.trim()), ['Privacy', 'Terms']);
+    const footerSeparator = sharedFooter.querySelector('.footer-bottom-separator');
+    assert.equal(footerSeparator.textContent.trim(), '·', 'Privacy and Terms have a visible middle-dot separator');
+    assert.equal(footerSeparator.getAttribute('aria-hidden'), 'true', 'decorative separator is skipped by assistive technology');
+    const socialLinks = [...sharedFooter.querySelectorAll('.social-icon')];
+    assert.deepEqual(socialLinks.map(link => link.getAttribute('aria-label')), ['Instagram', 'Snapchat', 'Email', 'Etsy', 'WhatsApp'], 'social aria-labels are preserved');
+    assert.ok(socialLinks.every(link => link.querySelector('svg path')), 'all social links use vector icon artwork');
+    const etsyIcon = sharedFooter.querySelector('.social-etsy svg');
+    assert.ok(etsyIcon && etsyIcon.querySelector('path'), 'Etsy uses an SVG logo path');
+    assert.equal(etsyIcon.querySelector('text'), null, 'Etsy no longer uses a text glyph');
+    assert.match(sharedFooter.querySelector('.social-snapchat svg path').getAttribute('d'), /^M12\.206\.793c\.99 0 4\.347/, 'Snapchat uses its recognizable ghost silhouette');
+    console.log('✅ Policies, contact and tracking share one footer; responsive gutters hold at 360/414/768/1440px');
 
     // Static CSS contracts: urgency separator, back link, gutters, footer.
     assert.match(storeHtml, /\.urgency-sold:not\(:first-child\)::before \{ content: '· '; \}/, 'sold-count dot only after another urgency item');
@@ -329,7 +354,43 @@ async function ready(win) {
     assert.match(storeHtml, /@media \(max-width: 1024px\) \{\s*\.container \{ padding-left: 24px; padding-right: 24px; \}/, '24px gutters at 769–1024px');
     assert.match(storeHtml, /@media \(max-width: 768px\) \{\s*\.container \{ padding-left: 16px; padding-right: 16px; \}/, '16px gutters at ≤768px');
     assert.match(storeHtml, /\.product-detail-page \{ max-width: var\(--max-width\); margin-left: auto; margin-right: auto; \}/, 'product page capped at 1280px, centred');
-    assert.match(storeHtml, /@media \(min-width: 481px\) \{\s*\.site-footer \{ padding-bottom: 80px; \}/, '80px footer bottom padding above 480px');
+    const footerLinksCss = storeHtml.match(/\.footer-bottom-links\s*\{([^}]*)\}/);
+    assert.ok(footerLinksCss, 'legal links have a dedicated flex row');
+    assert.match(footerLinksCss[1], /display:\s*flex;[\s\S]*gap:\s*var\(--spacing-xs\)/, 'legal links and their separator have visible spacing');
+    assert.match(storeHtml, /\.footer-bottom-links a\s*\{[^}]*min-height:\s*44px;[^}]*display:\s*inline-flex;[^}]*align-items:\s*center;/, 'Privacy and Terms links meet the 44px tap-height minimum');
+    const socialStart = storeHtml.indexOf('    .footer-social {');
+    const socialEnd = storeHtml.indexOf('FLOATING WHATSAPP BUTTON', socialStart);
+    const socialCss = storeHtml.slice(socialStart, socialEnd);
+    assert.ok(socialStart >= 0 && socialEnd > socialStart, 'footer social CSS block exists');
+    assert.match(socialCss, /\.social-icon\s*\{[^}]*border:\s*1px solid var\(--border-color\);[^}]*color:\s*var\(--accent\);/, 'all social glyphs use the same olive/beige theme treatment');
+    assert.match(socialCss, /\.social-icon:hover,\s*\.social-icon:focus-visible\s*\{[^}]*background:\s*var\(--accent-glow\);/, 'social hover/focus accent remains subtle and theme-colored');
+    assert.doesNotMatch(socialCss, /\.social-(?:instagram|snapchat|email|etsy|whatsapp)(?::hover)?\s*\{/, 'no per-brand rainbow overrides remain');
+    const whatsappStart = storeHtml.indexOf('FLOATING WHATSAPP BUTTON');
+    const whatsappEnd = storeHtml.indexOf('Keep page-bottom content clear', whatsappStart);
+    const whatsappCss = storeHtml.slice(whatsappStart, whatsappEnd);
+    assert.ok(whatsappStart >= 0 && whatsappEnd > whatsappStart, 'WhatsApp/footer spacing rules exist');
+    assert.match(whatsappCss, /\.whatsapp-float \{\s*position: fixed;[\s\S]*?bottom: 24px;[\s\S]*?width: 60px;[\s\S]*?height: 60px;/, 'wide floating button dimensions and edge offset are known');
+    assert.match(whatsappCss, /@media \(max-width: 768px\) \{[\s\S]*?\.whatsapp-float \{\s*bottom: calc\(20px \+ env\(safe-area-inset-bottom, 0px\)\);[\s\S]*?width: 56px;[\s\S]*?height: 56px;/, 'mobile floating button dimensions include the safe-area offset');
+    assert.match(whatsappCss, /@media \(max-width: 768px\) \{[\s\S]*?\.site-footer \{ padding-bottom: calc\(var\(--spacing-md\) \+ 76px \+ env\(safe-area-inset-bottom, 0px\)\); \}/, 'mobile footer reserves button height, bottom offset, gap and safe area');
+    assert.match(whatsappCss, /@media \(min-width: 769px\) \{\s*\.site-footer \{ padding-bottom: calc\(var\(--spacing-md\) \+ 84px\); \}\s*\}/, 'desktop footer also clears the floating button');
+    assert.match(storeHtml, /\.footer-bottom\s*\{[^}]*flex-wrap:\s*wrap;/, 'footer bottom rows wrap instead of forcing horizontal overflow');
+    assert.match(storeHtml, /\.payment-icons\s*\{[^}]*flex-wrap:\s*wrap;/, 'payment badges can wrap on narrow screens');
+    assert.match(storeHtml, /\.social-icon\s*\{[^}]*width:\s*44px;[^}]*height:\s*44px;[^}]*flex:\s*0 0 44px;/, 'social tap targets stay 44px without shrinking');
+    assert.match(storeHtml, /--spacing-sm:\s*0\.5rem;/, 'social-icon gaps are 8px at the 16px root size');
+    assert.match(storeHtml, /--spacing-md:\s*1rem;/, 'footer clearance includes a 16px breathing gap');
+    assert.match(storeHtml, /--spacing-lg:\s*2rem;[\s\S]*--max-width:\s*1280px;/, 'wide footer container uses the 1280px cap and 32px side padding');
+    assert.match(storeHtml, /@media \(max-width: 768px\) \{[\s\S]*?\.footer-main \{ grid-template-columns: 1fr; \}/, 'footer columns collapse into a single mobile column');
+    const socialRowWidth = socialLinks.length * 44 + (socialLinks.length - 1) * 8;
+    for (const width of [360, 414, 768, 1440]) {
+      const gutter = width <= 768 ? 16 : width <= 1024 ? 24 : 32;
+      const footerContainerWidth = Math.min(width, 1280);
+      const usableWidth = footerContainerWidth - gutter * 2;
+      assert.ok(socialRowWidth <= usableWidth, `${width}px footer social row fits inside the container without horizontal overflow`);
+      const mobile = width <= 768;
+      const floatingTopInset = mobile ? 20 + 56 : 24 + 60;
+      const footerContentInset = 16 + (mobile ? 76 : 84);
+      assert.ok(footerContentInset >= floatingTopInset + 16, `${width}px footer padding leaves at least 16px below the floating WhatsApp button`);
+    }
     assert.match(storeHtml, /@media \(min-width: 481px\) \{\s*\.footer-col ul \{ gap: 10px; \}/, 'footer Help links 10px gap above 480px');
     assert.match(storeHtml, /@media \(max-width: 480px\) \{\s*\.footer-col\.footer-help ul \{[\s\S]*?grid-template-columns: 1fr 1fr;/, 'mobile footer Help links in two columns');
     assert.match(storeHtml, /\.review-form textarea \{ resize: vertical; \}/, 'textarea resizes vertically only');
