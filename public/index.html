@@ -653,6 +653,8 @@
 
     /* Homepage product card — clean cream editorial theme */
     .product-grid .product-card {
+      display: flex;
+      flex-direction: column;
       background: var(--bg-card);
       border: 1px solid var(--border-subtle);
       border-radius: var(--radius-md);
@@ -720,6 +722,9 @@
       z-index: 3;
     }
     .product-grid .product-card-body {
+      display: flex;
+      flex-direction: column;
+      flex: 1 1 auto;
       padding: var(--spacing-md);
     }
     .product-grid .product-card-body h3 {
@@ -741,6 +746,7 @@
       font-size: 0.9rem;
       font-weight: 700;
       color: var(--text-primary);
+      margin-bottom: 12px; /* minimum gap before the bottom-pinned button */
     }
     .product-grid .product-card-body .price .sale { color: var(--accent); }
     .product-grid .product-card-body .price .original {
@@ -752,7 +758,7 @@
     }
     .product-grid .quick-view-btn {
       width: 100%;
-      margin-top: 0.5rem;
+      margin-top: auto;
       background: transparent;      border: 1px solid var(--border-color);
       color: var(--text-muted);
       font-family: var(--font-body);
@@ -790,7 +796,7 @@
       justify-content: center;
       min-height: 44px;
       padding: 10px 14px;
-      margin-top: 12px;
+      margin-top: auto;
       border: 2px solid var(--accent);
       background: transparent;
       color: var(--accent);
@@ -1100,6 +1106,8 @@
     }
 
     .product-card {
+      display: flex;
+      flex-direction: column;
       cursor: pointer;
       transition: transform var(--transition-fast);
     }
@@ -1187,6 +1195,9 @@
     .product-wishlist.pop svg { animation: heart-pop 0.35s ease-out; }
 
     .product-card-body {
+      display: flex;
+      flex-direction: column;
+      flex: 1 1 auto;
       padding: var(--spacing-sm) 0;
     }
     .product-card-body h3 {
@@ -1206,6 +1217,7 @@
       font-size: 0.85rem;
       font-weight: 600;
       color: var(--text-primary);
+      margin-bottom: 0.6rem; /* minimum gap before the bottom-pinned button */
     }
     .product-card-body .price .sale {
       color: var(--accent);
@@ -2176,9 +2188,17 @@
       white-space: nowrap;
       color: var(--accent);
     }
+    /* Rating row on product cards: keeps its line even when a product has no
+       reviews yet, so titles, prices and buttons stay on one baseline across
+       every card in a row. */
+    .card-rating {
+      display: flex;
+      align-items: center;
+      min-height: 1.15rem;
+    }
     .quick-add {
       width: 100%;
-      margin-top: 0.6rem;
+      margin-top: auto;
       background: var(--text-primary);
       color: #FFF;
       border: 1px solid var(--text-primary);
@@ -5087,7 +5107,7 @@
           <div class="product-card-body">
             <h3>${esc(p.name)}</h3>
             <div class="fit-label">${esc(p.style || p.fit)}</div>
-            ${starsHtml(p.rating, p.review_count)}
+            <div class="card-rating">${starsHtml(p.rating, p.review_count)}</div>
             <div class="price">${priceHtml}</div>
             ${!isAvailable(p)
               ? '<button class="quick-add" disabled>Out of Stock</button>'
@@ -5319,7 +5339,7 @@
           <div class="product-card-body">
             <h3>${esc(p.name)}</h3>
             <p class="fit-label">${esc(p.fit || p.category || '')}</p>
-            ${starsHtml(p.rating, p.review_count)}
+            <div class="card-rating">${starsHtml(p.rating, p.review_count)}</div>
             <p class="price">
               ${discount > 0 ? `<span class="original">Rs. ${p.original_price}</span> <span class="sale">Rs. ${displayPrice}</span>` : `Rs. ${p.price}`}
             </p>
