@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 const { readFileSync } = require('node:fs');
 const { JSDOM, VirtualConsole } = require('jsdom');
 const { app, ensureReady } = require('../server');
+const { SHIPPING_COST } = require('../config');
 
 const storeHtml = readFileSync(require.resolve('../public/index.html'), 'utf8');
 const adminHtml = readFileSync(require.resolve('../public/admin.html'), 'utf8');
@@ -317,6 +318,30 @@ async function ready(win) {
     assert.equal(d.querySelector('#page-tracking > .container')?.className, 'container tracking-page', 'Track Order keeps its original page class and layout');
     assert.equal(d.querySelector('#page-tracking > .container')?.getAttribute('style'), null, 'Track Order markup is untouched by content-page styles');
     assert.equal(d.querySelectorAll('.content-page-body').length, 4, 'policy copy shares the extracted text styling');
+    const policyPageIds = ['terms', 'privacy', 'returns', 'shipping'];
+    assert.deepEqual(
+      policyPageIds.map(id => d.querySelector(`#page-${id} .section-label`)?.textContent.trim()),
+      policyPageIds.map(() => 'Policy'),
+      'all policy-page eyebrow labels match'
+    );
+    const returnsCopy = d.querySelector('#page-returns .content-page-body').textContent;
+    assert.match(returnsCopy, /within 7 days of receiving your order/, 'existing 7-day return window is unchanged');
+    assert.match(returnsCopy, /contact us within 48 hours with photos/, 'existing 48-hour defective/wrong-item window is unchanged');
+    assert.match(returnsCopy, /Custom-designed items and custom stickers \(non-returnable unless defective or wrong\)/);
+
+    const shippingCopy = d.querySelector('#page-shipping .content-page-body').textContent;
+    assert.match(shippingCopy, /Delivery Charges/);
+    assert.ok(shippingCopy.includes(`Rs. ${SHIPPING_COST}`), 'delivery charge matches config.js');
+    assert.match(shippingCopy, /Free-shipping threshold:\s*TODO/, 'missing free-shipping threshold is marked for confirmation');
+    assert.match(shippingCopy, /Bank Transfer\s+—\s+account details are sent after you place the order/);
+    const checkoutJazzCash = d.querySelector('#page-checkout input[value="jazzcash"]')?.closest('.co-pay-option')?.textContent;
+    assert.match(checkoutJazzCash, /JazzCash account number:\s*\+92 322 804 2633/, 'JazzCash account number remains visible in checkout');
+    assert.match(shippingCopy, /JazzCash\s+—\s+account number:\s*\+92 322 804 2633/, 'Shipping labels the JazzCash account number clearly');
+    assert.doesNotMatch(storeHtml, /0322-8042633/, 'stale local phone formatting is removed');
+    const whatsAppLinks = [...d.querySelectorAll('a[href^="https://wa.me/"]')];
+    assert.ok(whatsAppLinks.length > 0 && whatsAppLinks.every(link => new URL(link.href).pathname === '/923228042633'), 'WhatsApp links use the normalized number');
+    const checkoutBankTransfer = d.querySelector('#page-checkout input[value="bank"]')?.closest('.co-pay-option')?.querySelector('small')?.textContent.trim();
+    assert.equal(checkoutBankTransfer, 'Account details are sent after you place the order.', 'checkout and Shipping use the same bank-transfer timing');
     assert.equal(d.querySelectorAll('.content-page h3[style]').length, 0, 'repeated content-page heading styles are no longer inline');
     assert.equal(d.querySelectorAll('.content-page-back[style]').length, 0, 'repeated back-link paragraph spacing is no longer inline');
     assert.equal(d.querySelectorAll('.content-page-contact h3').length, 4, 'all four contact cards use the shared heading style');

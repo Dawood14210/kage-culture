@@ -535,6 +535,24 @@ focus/size CSS contracts and responsive widths at 360, 414, 768 and 1440px. `npm
 browser screenshots; Chromium cannot launch here because NSPR/NSS system libraries are
 missing.
 
+### ✅ Shipping, returns, and policy copy — 2026-10-11
+
+Shipping now lists Bank Transfer with the same post-order account-details wording as
+checkout, and a Delivery Charges section shows the configured flat fee of Rs. 150. No
+free-shipping threshold exists in `config.js` or checkout, so the page marks that detail
+as a TODO for owner confirmation. JazzCash account references are clearly labeled and
+all displayed phone numbers use `+92 322 804 2633`; WhatsApp URLs retain the normalized
+`wa.me/923228042633` digits. Owner confirmation is still needed on whether the JazzCash
+account number is also the WhatsApp number.
+
+Returns now explicitly exclude custom-designed items and custom stickers unless defective
+or wrong; the existing 7-day return window and 48-hour defective/wrong-item window remain
+unchanged. Terms, Privacy, Returns and Shipping all use the `Policy` eyebrow label.
+`tests/frontend.test.js` covers these copy, fee/config, number/link and label contracts.
+`npm test` → 57/57 API + 17/17 frontend scenarios. These are DOM/CSS assertions, not
+rendered screenshots; Chromium cannot launch here because NSPR/NSS system libraries are
+missing.
+
 ## Remaining work (priority order)
 
 *API-side queue (C1, H1–H4, M1–M7, L1/L3–L7) completed 2026-09-23. FE-criticals
