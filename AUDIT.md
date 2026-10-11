@@ -415,6 +415,16 @@ cold-start optimization. Do not mark these done without a browser/CSP migration.
 
 ---
 
+### ✅ Review star-picker regression — 2026-10-11
+
+The picker highlighted every star through the chosen rating, but submit read the
+*first* highlighted button, silently posting 1 star for every selection. Submit now
+reads the uniquely `aria-pressed="true"` button. Draft ratings clear when switching
+products; focused stars have a visible outline. Frontend tests click and submit all
+five ratings and verify the actual payload/reset. API tests verify delivered-order
+and phone/product checks, duplicate rejection, pending moderation, admin approval,
+and the public review/product-average result. `npm test` → 53/53 API + 12/12 DOM scenarios.
+
 ## Remaining work (priority order)
 
 *API-side queue (C1, H1–H4, M1–M7, L1/L3–L7) completed 2026-09-23. FE-criticals
