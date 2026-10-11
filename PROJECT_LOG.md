@@ -1231,3 +1231,143 @@ Completed the seven requested follow-ups with regression coverage:
   Fonts were intercepted with an empty successful stylesheet because the
   sandbox cannot reach that external host.
 - `git diff --check` and Node syntax checks passed.
+
+---
+
+## 31. Pre-customer_id databases could not boot: an index was created before its column (2026-10-11)
+
+**Incident.** Production (Vercel + Turso) answered 503 for every request while
+the log said `FATAL: Turso is configured (TURSO_DATABASE_URL) but could not be
+reached`. The database was reachable. Booting the current code against a
+database created *before* the customer_id feature failed with
+`SQL_INPUT_ERROR: no such column: customer_id`; freshly provisioned databases
+were fine, which is why local development and new deploys looked healthy.
+
+**Root cause.** `createSchema()` ran
+`CREATE INDEX IF NOT EXISTS idx_orders_customer_id ON orders(customer_id)`
+before the Turso migration block had added `orders.customer_id` to the existing
+(old) `orders` table. An index on a column that does not exist yet is a hard
+error, so the whole boot aborted before any migration could run. The same
+ordering bug existed on the sql.js file backend, where it silently degraded to
+the throwaway in-memory store instead of failing visibly.
+
+**Fixes**
+
+- `createSchema()` now creates tables only; every index moved into
+  `createIndexes()`, which runs **after** the column migrations on all three
+  backends (Turso, sql.js, in-memory). `idx_orders_customer_id` is kept in its
+  own `MIGRATED_COLUMN_INDEXES` list to make the dependency explicit. Audit of
+  the rest of `createSchema()`: it was the only statement referencing a column
+  added by a later migration — the `CREATE TABLE IF NOT EXISTS` bodies are
+  no-ops on an existing table, and the other indexes use columns that existed
+  from the first build.
+- `ensureSqlJsColumns()` (which patched only `orders.customer_id` and
+  `customers.email_verified` on the sql.js path) was replaced by one shared
+  `ADDITIVE_COLUMN_MIGRATIONS` list — `products.unit_cost`, `products.[drop]`,
+  `orders.payment_ref` / `payment_verified` / `cod_confirmed` /
+  `shipping_pending` / `customer_id`, `customers.email_verified`,
+  `reviews.viewer_token` — executed by every backend. Each `ALTER TABLE` has its
+  own try/catch: only `duplicate column name` is ignored, any other error is
+  logged together with the exact failing statement, and the boot fails after all
+  remaining migrations were attempted, so a half-migrated database is never
+  served and one bad column cannot hide the others.
+- Boot-failure messages carry the real error. A SQL/schema failure is reported
+  as `… the database failed to initialize — <real error>`; only socket/DNS-level
+  failures (fetch failed, ECONNREFUSED, DNS …) keep the “could not be reached”
+  summary, with the underlying message appended. The public 503 body is
+  unchanged and still generic.
+
+**New upgrade test** — `tests/upgrade-migration.test.js` (wired into `npm test`)
+
+- `tests/fixtures/legacy-schema.js` builds a database with the pre-migration
+  schema (products without `unit_cost`/`[drop]`; orders without
+  `payment_*`/`customer_id`; customers without `email_verified`; reviews without
+  `viewer_token`; no `app_settings`, `rate_limits` or
+  `customer_verification_tokens`) plus realistic rows: three legacy orders,
+  duplicate mixed-case customers and newsletter subscribers, a live password
+  reset token, reviews and per-size stock.
+- `tests/fixtures/upgrade-child.js` boots the real server against that file in a
+  separate process, once per backend — sql.js file (`KAGE_DB_FILE`) and the
+  libsql/Turso client on a local `file:` URL (`TURSO_DATABASE_URL`) — then places
+  an order, signs a customer up, opens the verification link, reads that
+  account's order history, and logs in as the merged duplicate account.
+- Asserted per backend: boot succeeds on the requested backend (a silent
+  fallback fails the test); the upgraded schema is identical to a freshly created
+  one (all columns, tables and 11 indexes, including `idx_orders_customer_id`,
+  `app_settings`, `rate_limits`, `customer_verification_tokens`); every old row
+  survives; the oldest duplicate customer wins (its password still works, the
+  newer duplicate is gone); orders can be placed and decrement stock; signup +
+  verification links the legacy guest order through `orders.customer_id`; a
+  second boot changes nothing at all (idempotent ALTERs, one-time bootstrap
+  markers intact).
+- Negative control: the same suite run against the pre-fix `database.js`
+  (`KAGE_UPGRADE_DB_MODULE=/tmp/previous-database.js`) fails 15/15 — on the
+  libsql/Turso path with `SQLITE_ERROR: no such column: customer_id`, on the
+  sql.js path by falling back to the in-memory backend — and the
+  misleading-message check fails with the old “could not be reached” text.
+
+**Verification**
+
+- `npm test` → **113/113 E2E scenarios**, shared rate-limit integration passed,
+  storefront regressions passed, **15/15 upgrade-migration checks**, and
+  **19/19 frontend scenarios**.
+- Manual replay of the production shape (legacy database + `VERCEL=1` +
+  `TURSO_DATABASE_URL=file:…`): boot succeeds on the `turso` backend with the
+  legacy rows intact and the email merge applied; the same file previously failed
+  with `no such column: customer_id`.
+
+---
+
+## 32. CSRF cookie no longer rides on publicly cacheable reads (2026-10-12)
+
+**Problem.** `csrfMiddleware` issued `kage.csrf` on the first request that lacked
+it, whatever the response. `/api/products`, `/api/products/:id` and `/api/reviews`
+are served `Cache-Control: public, max-age=…, s-maxage=…`, so an edge/CDN cache
+would store a response that carried one visitor's `Set-Cookie` and replay it to
+every other visitor who got the cached copy — a cache-poisoning hazard for a
+token that protects state-changing requests.
+
+**Fix**
+
+- The cookie is now issued only on responses a shared cache will not store:
+  `public`/`s-maxage` responses never carry it, everything else (HTML pages, the
+  new endpoint, dynamic no-store routes) still does. The decision is made at
+  header-flush time from the response's own `Cache-Control`, so any future route
+  that opts into shared caching is covered automatically — no path list to keep
+  in sync.
+- New `GET /api/csrf`: `no-store`, returns `{ token }`, and (when the caller had
+  no cookie) sets the `kage.csrf` cookie with that same value. It is the only
+  endpoint whose body repeats the cookie value.
+- Storefront and admin `fetch` wrappers now obtain a token before the first
+  state-changing request when the cookie is missing — one in-flight request per
+  page load, retried if it comes back empty — and handle both plain-object and
+  `Headers` header bags. Admin's verify-payment / cod-confirm stopped passing a
+  manual header (the wrapper supplies it), and logout refreshes through the same
+  helper instead of reloading `/`.
+- `HEAD` now follows the `GET` API cache policy. It previously returned no
+  `Cache-Control`, so a `HEAD /api/products` still carried a `Set-Cookie` — HEAD
+  must report the same headers a GET would.
+
+**Tests**
+
+- E2E: `/api/products`, `/api/products/1`, `/api/reviews` return no `Set-Cookie`
+  for GET **and** HEAD, with and without an existing cookie, while keeping their
+  public cache headers; `/api/csrf` is `no-store`, issues the cookie and agrees
+  with its body token (a second call with the cookie returns no new cookie);
+  HTML pages (`/`, `/admin`) still issue the cookie and the token they hand out
+  passes `requireCsrf` on a later POST (validation 400, not 403); `/vendor`-style
+  cached assets send no cookie.
+- E2E fresh-browser checkout: a cookie-less client is refused (403) with no
+  token, and refused again with a token but no matching cookie; after
+  `GET /api/csrf` the order is placed (201) and trackable by number + phone.
+- Frontend (jsdom, new scenario 20; the harness now behaves like a browser —
+  sending the document's cookies and storing response `Set-Cookie`): the
+  catalogue reads the page makes carry no `Set-Cookie`; with the cookie cleared
+  the storefront fetches `/api/csrf` **before** POSTing the order, completes
+  checkout, shows the confirmation, and the order is trackable server-side; with
+  a cookie present no further token request is made.
+
+**Verification:** `npm test` → **116/116 E2E**, shared rate-limit integration,
+storefront regressions, 15 upgrade-migration checks, **20/20 frontend scenarios**.
+Docs updated: `AUDIT.md` (the 2026-10-12 “first uncookied public API GET sets the
+cookie” caveat is now resolved) and `ADMIN_DASHBOARD_FAULTS.md` (CSRF notes).

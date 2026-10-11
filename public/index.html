@@ -4732,20 +4732,51 @@
 
     function fmt(n) { return Number(n).toLocaleString('en-IN'); }
 
-    // CSRF token helper — reads the cookie and returns it as a header value
+    // CSRF token helpers — the token lives in the kage.csrf cookie.
+    const _origFetch = window.fetch;
     function getCsrfToken() {
       const cookies = document.cookie.split(';').map(c => c.trim());
       const csrfCookie = cookies.find(c => c.startsWith('kage.csrf='));
       return csrfCookie ? csrfCookie.split('=')[1] : '';
     }
+    function hasHeader(headers, name) {
+      if (!headers) return false;
+      if (typeof headers.has === 'function') return headers.has(name);
+      return Object.keys(headers).some(k => k.toLowerCase() === name.toLowerCase());
+    }
+    function setHeader(headers, name, value) {
+      if (!headers) return { [name]: value };
+      if (typeof headers.set === 'function') { headers.set(name, value); return headers; }
+      headers[name] = value;
+      return headers;
+    }
 
-    // Monkey-patch fetch to automatically add CSRF token to state-changing requests
-    const _origFetch = window.fetch;
-    window.fetch = function(url, opts) {
+    // Public cacheable API reads (/api/products, /api/products/:id, /api/reviews)
+    // deliberately never send Set-Cookie, so a visitor whose cookie is missing
+    // (fresh browser, cleared cookies, 24h expiry) asks the small no-store
+    // /api/csrf endpoint for a token before the first state-changing request.
+    // One in-flight request per page load; retried if it came back empty.
+    let csrfTokenRequest = null;
+    function ensureCsrfToken() {
+      const existing = getCsrfToken();
+      if (existing) return Promise.resolve(existing);
+      if (!csrfTokenRequest) {
+        csrfTokenRequest = _origFetch.call(window, '/api/csrf', { cache: 'no-store' })
+          .then(res => (res && res.ok ? res.json() : null))
+          .then(data => getCsrfToken() || (data && data.token) || '')
+          .catch(() => getCsrfToken())
+          .then(token => { if (!token) csrfTokenRequest = null; return token; });
+      }
+      return csrfTokenRequest;
+    }
+
+    // Monkey-patch fetch to automatically add the CSRF token to state-changing
+    // requests, fetching one first when the cookie is not there yet.
+    window.fetch = async function(url, opts) {
       if (opts && opts.method && ['POST','PUT','PATCH','DELETE'].includes(opts.method.toUpperCase())) {
-        opts.headers = opts.headers || {};
-        if (!opts.headers['X-CSRF-Token'] && !opts.headers['x-csrf-token']) {
-          opts.headers['X-CSRF-Token'] = getCsrfToken();
+        if (!hasHeader(opts.headers, 'X-CSRF-Token')) {
+          const token = await ensureCsrfToken();
+          if (token) opts.headers = setHeader(opts.headers, 'X-CSRF-Token', token);
         }
       }
       return _origFetch.call(this, url, opts);

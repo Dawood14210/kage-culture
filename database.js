@@ -140,6 +140,10 @@ function memPrepare(sql) {
         if (table && !memStore[table]) memStore[table] = [];
         return {};
       }
+      if (/^\s*CREATE\s+(?:UNIQUE\s+)?INDEX/i.test(upper)) {
+        // Indexes only make reads faster; the regex store has nothing to index.
+        return {};
+      }
       return {};
     }
   };
@@ -644,47 +648,96 @@ async function createSchema(exec) {
       reset_at INTEGER NOT NULL
     )
   `);
-  // --- Performance indexes ---
-  await exec('CREATE INDEX IF NOT EXISTS idx_orders_email ON orders(email)');
-  await exec('CREATE INDEX IF NOT EXISTS idx_orders_customer_id ON orders(customer_id)');
-  await exec('CREATE INDEX IF NOT EXISTS idx_orders_order_number ON orders(order_number)');
-  await exec('CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status)');
-  await exec('CREATE INDEX IF NOT EXISTS idx_reviews_product_id ON reviews(product_id)');
-  await exec('CREATE INDEX IF NOT EXISTS idx_reviews_status ON reviews(status)');
-  await exec('CREATE INDEX IF NOT EXISTS idx_products_category ON products(category)');
-  await exec('CREATE INDEX IF NOT EXISTS idx_customers_email ON customers(email)');
-  await exec('CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_hash ON password_reset_tokens(token_hash)');
-  await exec('CREATE INDEX IF NOT EXISTS idx_customer_verification_tokens_hash ON customer_verification_tokens(token_hash)');
-  await exec('CREATE INDEX IF NOT EXISTS idx_rate_limits_reset_at ON rate_limits(reset_at)');
+}
+
+// ----------------------------------------------------------------
+// ADDITIVE COLUMN MIGRATIONS (Turso, sql.js and in-memory alike)
+// ----------------------------------------------------------------
+// A database created by an earlier build is missing these columns. Each ALTER
+// runs on its own and is idempotent:
+//
+//   * "duplicate column name" — the column is already there. The ONLY error
+//     ignored.
+//   * anything else — logged together with the exact statement that failed and
+//     re-thrown AFTER every remaining migration has been attempted, so a real
+//     schema problem fails the boot loudly (with its real message) instead of
+//     silently leaving the database half-migrated.
+//
+// Indexes that reference one of these columns are created by createIndexes()
+// afterwards — never before the ALTERs.
+const ADDITIVE_COLUMN_MIGRATIONS = [
+  // products: unit_cost (P&L), [drop] (drop-shipping flag).
+  ['products', 'unit_cost', 'REAL'],
+  ['products', '[drop]', "TEXT DEFAULT ''"],
+  // orders: payment review + COD confirmation + delivery-charge state, and the
+  // customer link order history is matched on.
+  ['orders', 'payment_ref', 'TEXT DEFAULT NULL'],
+  ['orders', 'payment_verified', 'INTEGER DEFAULT 0'],
+  ['orders', 'cod_confirmed', 'INTEGER DEFAULT 0'],
+  ['orders', 'shipping_pending', 'INTEGER NOT NULL DEFAULT 0'],
+  ['orders', 'customer_id', 'INTEGER DEFAULT NULL'],
+  // customers: order history is gated on a verified email.
+  ['customers', 'email_verified', 'INTEGER DEFAULT 0'],
+  // reviews: per-device visibility of a reviewer's own pending review.
+  ['reviews', 'viewer_token', "TEXT NOT NULL DEFAULT ''"]
+];
+
+function isDuplicateColumnError(error) {
+  return /duplicate column name/i.test(String((error && error.message) || error));
+}
+
+async function addColumnIfMissing(exec, table, column, definition) {
+  const sql = `ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`;
+  try {
+    await exec(sql);
+    return true;
+  } catch (error) {
+    if (isDuplicateColumnError(error)) return false;
+    console.error(`❌ Column migration failed: ${error.message}\n    statement: ${sql}`);
+    throw new Error(`ALTER TABLE ${table} ADD COLUMN ${column} → ${error.message}`);
+  }
+}
+
+async function runAdditiveColumnMigrations(exec) {
+  const failures = [];
+  for (const [table, column, definition] of ADDITIVE_COLUMN_MIGRATIONS) {
+    try { await addColumnIfMissing(exec, table, column, definition); }
+    catch (error) { failures.push(error.message); }
+  }
+  if (failures.length) throw new Error(`column migration(s) failed — ${failures.join(' | ')}`);
+}
+
+// ----------------------------------------------------------------
+// INDEXES (created only after the migrations above)
+// ----------------------------------------------------------------
+// idx_orders_customer_id references orders.customer_id, which ADDITIVE_COLUMN_
+// MIGRATIONS adds to an old database. Creating it before the ALTER is what
+// broke every pre-customer_id database at startup ("no such column:
+// customer_id"), so every backend creates its indexes after the migrations,
+// once all referenced columns are guaranteed to exist.
+const BASE_INDEXES = [
+  'CREATE INDEX IF NOT EXISTS idx_orders_email ON orders(email)',
+  'CREATE INDEX IF NOT EXISTS idx_orders_order_number ON orders(order_number)',
+  'CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status)',
+  'CREATE INDEX IF NOT EXISTS idx_reviews_product_id ON reviews(product_id)',
+  'CREATE INDEX IF NOT EXISTS idx_reviews_status ON reviews(status)',
+  'CREATE INDEX IF NOT EXISTS idx_products_category ON products(category)',
+  'CREATE INDEX IF NOT EXISTS idx_customers_email ON customers(email)',
+  'CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_hash ON password_reset_tokens(token_hash)',
+  'CREATE INDEX IF NOT EXISTS idx_customer_verification_tokens_hash ON customer_verification_tokens(token_hash)',
+  'CREATE INDEX IF NOT EXISTS idx_rate_limits_reset_at ON rate_limits(reset_at)'
+];
+const MIGRATED_COLUMN_INDEXES = [
+  'CREATE INDEX IF NOT EXISTS idx_orders_customer_id ON orders(customer_id)'
+];
+
+async function createIndexes(exec) {
+  for (const sql of [...BASE_INDEXES, ...MIGRATED_COLUMN_INDEXES]) await exec(sql);
 }
 
 // ----------------------------------------------------------------
 // DATA MIGRATIONS (email casing + order attribution)
 // ----------------------------------------------------------------
-// sql.js always starts from the schema above, but an imported/persisted dump
-// could predate a column — keep the same guards as the Turso path.
-function ensureSqlJsColumns() {
-  if (!sqlJsDb) return;
-  const columns = (table) => {
-    try {
-      const res = sqlJsDb.exec(`PRAGMA table_info(${table})`);
-      return res && res[0] ? res[0].values.map(v => String(v[1])) : [];
-    } catch (e) { return []; }
-  };
-  const orders = columns('orders');
-  if (orders.length && !orders.includes('customer_id')) sqlJsDb.run('ALTER TABLE orders ADD COLUMN customer_id INTEGER DEFAULT NULL');
-  const customers = columns('customers');
-  if (customers.length && !customers.includes('email_verified')) sqlJsDb.run('ALTER TABLE customers ADD COLUMN email_verified INTEGER DEFAULT 0');
-  try {
-    sqlJsDb.run('CREATE TABLE IF NOT EXISTS customer_verification_tokens (id INTEGER PRIMARY KEY AUTOINCREMENT, customer_id INTEGER NOT NULL, token_hash TEXT NOT NULL, expires_at DATETIME NOT NULL, used INTEGER DEFAULT 0, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)');
-  } catch (e) { /* schema already created it */ }
-  try {
-    sqlJsDb.run('CREATE TABLE IF NOT EXISTS app_settings (key TEXT PRIMARY KEY, value TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)');
-  } catch (e) { /* schema already created it */ }
-  try {
-    sqlJsDb.run('CREATE TABLE IF NOT EXISTS rate_limits (key TEXT PRIMARY KEY, count INTEGER NOT NULL, reset_at INTEGER NOT NULL)');
-  } catch (e) { /* schema already created it */ }
-}
 // Emails arrive from forms, so an order might be stored as "Buyer@Kage.test"
 // while the account is "buyer@kage.test". Order history is matched on the
 // lowercased value, so normalise existing rows once at boot.
@@ -822,62 +875,30 @@ async function doInit() {
   // failure leaves it false and the retry does the full job.
   if (module.exports._initialized) return;
 
+  // The real error from the last backend attempt. It is carried into the
+  // thrown message on Vercel — a SQL failure must never be reported as
+  // "could not be reached", which sent the original incident down the wrong
+  // path (the database was reachable; the schema was wrong).
+  let lastInitError = null;
+
   // 1. Try Turso first
   if (USE_TURSO) {
     try {
       await initTurso();
       const exec = async (sql) => { await tursoClient.execute(sql); };
       await createSchema(exec);
-      // Explicit additive migration for existing Turso databases created
-      // before shared rate limits were introduced (also covered by createSchema
-      // on a fresh database).
-      await tursoClient.execute('CREATE TABLE IF NOT EXISTS rate_limits (key TEXT PRIMARY KEY, count INTEGER NOT NULL, reset_at INTEGER NOT NULL)');
-      // Products migrations
-      const info = await tursoClient.execute('PRAGMA table_info(products)');
-      const hasUnitCost = info.rows.some(r => r.name === 'unit_cost');
-      if (!hasUnitCost) await tursoClient.execute('ALTER TABLE products ADD COLUMN unit_cost REAL');
-      const hasDrop = info.rows.some(r => r.name === 'drop');
-      if (!hasDrop) await tursoClient.execute("ALTER TABLE products ADD COLUMN [drop] TEXT DEFAULT ''");
-      // Orders migrations
-      const orderInfo = await tursoClient.execute('PRAGMA table_info(orders)');
-      const hasPayRef = orderInfo.rows.some(r => r.name === 'payment_ref');
-      if (!hasPayRef) await tursoClient.execute('ALTER TABLE orders ADD COLUMN payment_ref TEXT DEFAULT NULL');
-      const hasPayVerified = orderInfo.rows.some(r => r.name === 'payment_verified');
-      if (!hasPayVerified) await tursoClient.execute('ALTER TABLE orders ADD COLUMN payment_verified INTEGER DEFAULT 0');
-      const hasCodConfirmed = orderInfo.rows.some(r => r.name === 'cod_confirmed');
-      if (!hasCodConfirmed) await tursoClient.execute('ALTER TABLE orders ADD COLUMN cod_confirmed INTEGER DEFAULT 0');
-      const hasShippingPending = orderInfo.rows.some(r => r.name === 'shipping_pending');
-      if (!hasShippingPending) await tursoClient.execute('ALTER TABLE orders ADD COLUMN shipping_pending INTEGER NOT NULL DEFAULT 0');
-      // customer_id attributes an order to a signed-in customer; the order
-      // history endpoint matches on it (plus a verified email fallback).
-      const hasCustomerId = orderInfo.rows.some(r => r.name === 'customer_id');
-      if (!hasCustomerId) await tursoClient.execute('ALTER TABLE orders ADD COLUMN customer_id INTEGER DEFAULT NULL');
-      // Customer migrations — email_verified gates order history.
-      const customerInfo = await tursoClient.execute('PRAGMA table_info(customers)');
-      const hasEmailVerified = customerInfo.rows.some(r => r.name === 'email_verified');
-      if (!hasEmailVerified) await tursoClient.execute('ALTER TABLE customers ADD COLUMN email_verified INTEGER DEFAULT 0');
-      // Reviews migrations — viewer_token lets a reviewer see their own
-      // pending review on their device before moderation (routes/reviews.js).
-      const reviewInfo = await tursoClient.execute('PRAGMA table_info(reviews)');
-      const hasViewerToken = reviewInfo.rows.some(r => r.name === 'viewer_token');
-      if (!hasViewerToken) await tursoClient.execute("ALTER TABLE reviews ADD COLUMN viewer_token TEXT NOT NULL DEFAULT ''");
-      // Create indexes
-      await tursoClient.execute('CREATE INDEX IF NOT EXISTS idx_orders_email ON orders(email)');
-      await tursoClient.execute('CREATE INDEX IF NOT EXISTS idx_orders_customer_id ON orders(customer_id)');
-      await tursoClient.execute('CREATE INDEX IF NOT EXISTS idx_orders_order_number ON orders(order_number)');
-      await tursoClient.execute('CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status)');
-      await tursoClient.execute('CREATE INDEX IF NOT EXISTS idx_reviews_product_id ON reviews(product_id)');
-      await tursoClient.execute('CREATE INDEX IF NOT EXISTS idx_reviews_status ON reviews(status)');
-      await tursoClient.execute('CREATE INDEX IF NOT EXISTS idx_products_category ON products(category)');
-      await tursoClient.execute('CREATE INDEX IF NOT EXISTS idx_customers_email ON customers(email)');
-      await tursoClient.execute('CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_hash ON password_reset_tokens(token_hash)');
-      await tursoClient.execute('CREATE INDEX IF NOT EXISTS idx_customer_verification_tokens_hash ON customer_verification_tokens(token_hash)');
+      // Additive column migrations BEFORE the indexes that reference them —
+      // an existing database created before customer_id/email_verified/
+      // viewer_token has these tables but not these columns yet.
+      await runAdditiveColumnMigrations(exec);
+      await createIndexes(exec);
       activeBackend = 'turso';
       await backfillOrderCustomerIds();
       module.exports._initialized = true;
       return;
-    } catch (e) {
-      console.error('❌ Turso init failed, falling back:', e.message);
+    } catch (error) {
+      lastInitError = error;
+      console.error('❌ Turso init failed:', error && error.message ? error.message : error);
     }
   }
 
@@ -888,7 +909,10 @@ async function doInit() {
       try {
         const exec = async (sql) => { sqlJsDb.run(sql); };
         await createSchema(exec);
-        ensureSqlJsColumns();
+        // Same migrations as every other backend: a persisted sql.js dump can
+        // predate a column just like a Turso database can.
+        await runAdditiveColumnMigrations(exec);
+        await createIndexes(exec);
         activeBackend = 'sqljs';
         await backfillOrderCustomerIds();
         // Persist fresh schema/migrations before another process opens the same
@@ -896,8 +920,9 @@ async function doInit() {
         if (SQLJS_FILE) flushSqlJs();
         module.exports._initialized = true;
         return;
-      } catch (e) {
-        console.error('❌ sql.js schema failed:', e.message);
+      } catch (error) {
+        lastInitError = error;
+        console.error('❌ sql.js schema failed:', error && error.message ? error.message : error);
       }
     }
   }
@@ -909,16 +934,45 @@ async function doInit() {
   // WHEREs; DELETE always reports 0 changes) — orders, stats and clan
   // logic would all quietly misbehave. That is worse than a visible outage.
   if (ON_VERCEL) {
+    // The public response body stays generic (see server.js#sendUnavailable);
+    // this message is the LOG and the retry cause, so it carries the backend's
+    // real error verbatim when there is one.
     // The retry cache is cleared by initDatabase() on every rejection.
-    throw new Error(USE_TURSO
-      ? 'FATAL: Turso is configured (TURSO_DATABASE_URL) but could not be reached. The in-memory fallback would silently lose all orders, so the request is refused until Turso answers again.'
-      : 'FATAL: TURSO_DATABASE_URL is not set on Vercel. The in-memory fallback would silently lose all orders and corrupt queries. Configure Turso (TURSO_DATABASE_URL + TURSO_AUTH_TOKEN) before deploying.');
+    if (USE_TURSO) {
+      throw new Error(`FATAL: Turso is configured (TURSO_DATABASE_URL) but the database failed to initialize — ${describeInitFailure(lastInitError)} The in-memory fallback would silently lose all orders, so the request is refused until the database is usable again.`);
+    }
+    throw new Error('FATAL: TURSO_DATABASE_URL is not set on Vercel. The in-memory fallback would silently lose all orders and corrupt queries. Configure Turso (TURSO_DATABASE_URL + TURSO_AUTH_TOKEN) before deploying.');
   }
   console.warn('⚠️  sql.js unavailable — using in-memory store (local dev only; data resets on exit).');
   activeBackend = 'mem';
+  // createSchema + migrations are no-ops on the regex shim (ALTER is a no-op
+  // there), but keeping the same call order means every backend follows the
+  // same path.
   const exec = async (sql) => { memPrepare(sql).run(); };
   await createSchema(exec);
+  await runAdditiveColumnMigrations(exec);
+  await createIndexes(exec);
   module.exports._initialized = true;
+}
+
+// Shape the real backend error for the boot-failure message. Nothing is
+// swallowed: a connection problem and a SQL/schema problem read differently so
+// the log (and the retry cause) match what actually happened. A SQL error is
+// NEVER summarised as "could not be reached" — that is what made the
+// pre-customer_id incident so hard to diagnose.
+function describeInitFailure(error) {
+  if (!error) return 'no backend error was captured.';
+  const message = String(error.message || error);
+  const cause = error.cause && error.cause.message ? String(error.cause.message) : null;
+  const detail = cause && !message.includes(cause) ? `${message} (${cause})` : message;
+  return isConnectionFailureMessage(detail) ? `the database could not be reached (${detail})` : detail;
+}
+
+// Socket/DNS-level failures are the only ones where "could not be reached" is
+// an accurate summary; everything else is a database error and is reported as
+// such.
+function isConnectionFailureMessage(message) {
+  return /fetch failed|econnrefused|econnreset|enotfound|etimedout|eai_again|socket hang up|connection (?:refused|closed|reset)|network|dns/i.test(String(message));
 }
 
 // ----------------------------------------------------------------
