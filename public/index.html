@@ -2970,6 +2970,8 @@
     .review-name { font-weight: 700; font-size: 0.85rem; }
     .review-date { margin-left: auto; font-size: 0.72rem; color: var(--text-gray); }
     .review-comment { font-size: 0.85rem; color: var(--text-muted); line-height: 1.55; margin: 0; }
+    .review-item.pending-own { border-style: dashed; }
+    .review-pending-tag { font-size: 0.62rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #7A6320; background: rgba(160, 130, 40, 0.12); border: 1px solid rgba(160, 130, 40, 0.4); border-radius: 999px; padding: 0.12rem 0.5rem; }
     .review-form-wrap { border: 1px dashed var(--border-color); border-radius: 12px; padding: 1.1rem; }
     .review-form-wrap h4 { font-size: 0.85rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 0.3rem; }
     .review-form-note { font-size: 0.75rem; color: var(--text-gray); margin-bottom: 0.9rem; }
@@ -5864,10 +5866,26 @@
     }
 
     // ---------- Reviews & Ratings ----------
+    // Per-browser token identifying "this reviewer". Sent with review
+    // submissions and review fetches so a reviewer instantly sees their OWN
+    // pending review (only on this device) while it awaits moderation.
+    function getReviewViewerToken() {
+      let token = '';
+      try { token = localStorage.getItem('kageReviewViewerToken') || ''; } catch (e) { /* private mode */ }
+      if (!token) {
+        const bytes = new Uint8Array(24);
+        if (window.crypto && window.crypto.getRandomValues) window.crypto.getRandomValues(bytes);
+        else for (let i = 0; i < bytes.length; i++) bytes[i] = Math.floor(Math.random() * 256);
+        token = Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
+        try { localStorage.setItem('kageReviewViewerToken', token); } catch (e) { /* private mode */ }
+      }
+      return token;
+    }
+
     async function loadReviews(productId) {
       let reviews = [];
       try {
-        const res = await fetch('/api/reviews?product_id=' + productId);
+        const res = await fetch('/api/reviews?product_id=' + productId + '&viewer_token=' + encodeURIComponent(getReviewViewerToken()));
         if (res.ok) reviews = await res.json();
       } catch (e) { reviews = []; }
       const section = document.getElementById('reviewsSection');
@@ -5881,15 +5899,21 @@
         return;
       }
       const sorted = [...reviews].sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
-      list.innerHTML = sorted.map(rv => `
-        <div class="review-item">
+      list.innerHTML = sorted.map(rv => {
+        // A pending review only ever reaches the person who wrote it — flag it
+        // so they know it is not public yet.
+        const pending = rv.status === 'pending';
+        return `
+        <div class="review-item${pending ? ' pending-own' : ''}">
           <div class="review-head">
             <span class="review-name">${esc(rv.customer_name || 'Verified Buyer')}</span>
             <span class="review-stars">${starsOnlyHtml(Number(rv.rating))}</span>
+            ${pending ? '<span class="review-pending-tag" title="Only you can see this review until it is approved">Awaiting approval &middot; only visible to you</span>' : ''}
             <span class="review-date">${esc(String(rv.created_at || '').slice(0, 10))}</span>
           </div>
           ${rv.comment ? `<p class="review-comment">${esc(rv.comment)}</p>` : ''}
-        </div>`).join('');
+        </div>`;
+      }).join('');
     }
 
     async function submitReview(e) {
@@ -5911,15 +5935,23 @@
         const res = await fetch('/api/reviews', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ product_id: currentProduct.id, order_number: order, phone, rating, comment, name })
+          body: JSON.stringify({ product_id: currentProduct.id, order_number: order, phone, rating, comment, name, viewer_token: getReviewViewerToken() })
         });
         const data = await res.json().catch(() => ({}));
         if (res.ok) {
+          // Adopt the server's token if it minted one (e.g. first review
+          // from a browser with storage disabled) so later fetches still
+          // match the reviews this device submitted.
+          if (data.viewer_token) { try { localStorage.setItem('kageReviewViewerToken', data.viewer_token); } catch (e2) { /* private mode */ } }
           e.target.reset();
           window.resetStarInput();
           errEl.style.color = '#1a7f37';
-          errEl.textContent = data.message || 'Thanks for your review! It will appear once approved.';
+          errEl.textContent = data.message || 'Thanks for your review!';
           errEl.style.display = 'block';
+          // Re-fetch immediately so the new review shows up for this person
+          // right away — auto-approved (4–5★) for everyone, pending ones at
+          // least for the author.
+          loadReviews(currentProduct.id);
         } else {
           errEl.textContent = data.error || 'Something went wrong. Please try again.';
           errEl.style.display = 'block';

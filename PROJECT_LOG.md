@@ -342,3 +342,43 @@ horizontal scroll, header stays 95px; touch-emulation at 390px confirmed
 tap→1..3, hold-5 preview→release selects 5, drag 4→2 ends at 2, no sticky
 highlight. Screenshots in `/home/user/screenshots/` (product 390/900 + zoom,
 back-image and footer shots).
+
+---
+
+## 15. Review moderation: auto-approval, instant author visibility, admin stars (2026-10-11)
+
+**Problem:** reviews only appeared on the product page after an admin approved
+them (a 5★ review sat invisible until moderation), the admin Reviews tab
+rendered every star as a hollow outline (rating unreadable), and a reviewer
+could not see their own just-submitted review at all.
+
+**Auto-approval (`routes/reviews.js`, `config.js`):** reviews rated above
+`REVIEW_AUTO_APPROVE_ABOVE` (3.5 — i.e. 4★ and 5★) are inserted with
+`status='approved'` and are public immediately; 1–3★ stay `pending` for
+moderation. Pending reviews still do not count toward `avg_rating` /
+`review_count` (those aggregate approved rows only).
+
+**Instant author visibility (`reviews.js`, `database.js`, `index.html`):**
+reviews gained a `viewer_token` column (Turso gets an `ALTER TABLE` migration;
+fresh schemas include it). The storefront keeps a random per-browser token in
+`localStorage` (`kageReviewViewerToken`), sends it with the review POST, and
+the server echoes/stores it. `GET /api/reviews?product_id&viewer_token` returns
+approved reviews for everyone **plus** the pending reviews whose token matches
+the caller — so a reviewer sees their own pending review instantly, flagged
+"Awaiting approval · only visible to you" (dashed card). Other visitors (and
+other browsers' tokens) never see it; rejected reviews never surface; the token
+is never leaked in responses. After a successful submit the storefront
+re-fetches the list, so the new review appears without a reload.
+
+**Admin stars (`admin.html`):** the global `.icon` rule (`fill:none`, later in
+the stylesheet) was beating the bare `.icon-fill{fill:currentColor}` rule at
+equal specificity, so "filled" stars never filled. Replaced with scoped
+`.review-stars .icon.icon-fill` / `.review-stars .icon:not(.icon-fill)` rules
+that outrank `.icon` — rated stars fill gold, the rest stay dim outlines.
+
+Verification: `npm test` → **57/57 API + 14/14 frontend** (new e2e: 5★
+auto-approves and is public immediately; 3★ is author-visible via token,
+public only after approval, excluded from the rating while pending; new
+frontend: token reuse, refetch-with-token, pending badge, admin star fill).
+Live curl smoke run against `node server.js` confirmed the same flows over
+HTTP.

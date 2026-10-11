@@ -2,8 +2,21 @@
 // KAGE Culture — Review routes
 // ================================================================
 const express = require('express');
+const crypto = require('crypto');
+const config = require('../config');
 const { requireCsrf } = require('../middleware/csrf');
 const { requireAuth } = require('../middleware/auth');
+
+// Reviews strictly above this rating skip moderation and publish immediately.
+// Ratings are integers 1–5, so > 3.5 means 4- and 5-star reviews auto-approve.
+const AUTO_APPROVE_ABOVE = config.REVIEW_AUTO_APPROVE_ABOVE;
+
+// Per-browser token that lets a reviewer see their OWN pending review right
+// away. It is a capability token (only reveals "your" pending reviews), so it
+// is deliberately low-ceremony: sanitized to [A-Za-z0-9_-], max 64 chars.
+function sanitizeViewerToken(raw) {
+  return String(raw || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 64);
+}
 
 module.exports = function createReviewRoutes(db) {
   const router = express.Router();
@@ -27,18 +40,46 @@ module.exports = function createReviewRoutes(db) {
       if (dup) return res.status(409).json({ error: 'You have already reviewed this product.' });
       const cleanComment = String(comment || '').trim().slice(0, 1000); const customerName = String(name || '').trim().slice(0, 60) || 'Verified Buyer';
       const now = new Date().toISOString().replace('T', ' ').slice(0, 19);
-      await db.prepare('INSERT INTO reviews (product_id, order_number, customer_name, rating, comment, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run(pid, num, customerName, r, cleanComment, 'pending', now);
-      res.status(201).json({ success: true, message: 'Thanks for your review! It will appear on the site once approved.' });
+      // Keep the browser's existing viewer token if it sent a sane one;
+      // otherwise mint a fresh one so the submitter can see their own
+      // pending review immediately on this device.
+      const viewerToken = sanitizeViewerToken(req.body.viewer_token) || crypto.randomBytes(24).toString('hex');
+      // 4- and 5-star reviews (> 3.5) publish without moderation; anything
+      // lower waits for admin approval but is still visible to its author.
+      const autoApproved = rf > AUTO_APPROVE_ABOVE;
+      const status = autoApproved ? 'approved' : 'pending';
+      await db.prepare('INSERT INTO reviews (product_id, order_number, customer_name, rating, comment, status, viewer_token, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(pid, num, customerName, r, cleanComment, status, viewerToken, now);
+      res.status(201).json({
+        success: true,
+        approved: autoApproved,
+        viewer_token: viewerToken,
+        message: autoApproved
+          ? "Thanks for your review! It's live on the site."
+          : 'Thanks for your review! It is visible to you below and will appear publicly once approved.'
+      });
     } catch (err) { console.error('reviews route failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
   });
 
-  // GET approved reviews for a product (public)
+  // GET reviews for a product (public)
+  // Everyone sees approved reviews; a reviewer holding the viewer_token that
+  // was returned to them at submit time also sees their OWN pending review,
+  // so it appears for them immediately (rejected reviews never surface).
   router.get('/api/reviews', async (req, res) => {
     try {
       const pid = parseInt(req.query.product_id, 10);
       if (!pid || isNaN(pid)) return res.json([]);
-      const rows = await db.prepare('SELECT id, customer_name, rating, comment, created_at FROM reviews WHERE product_id = ? AND status = ?').all(pid, 'approved');
-      res.json(rows);
+      const viewer = sanitizeViewerToken(req.query.viewer_token);
+      const rows = await db.prepare('SELECT id, customer_name, rating, comment, created_at, status, viewer_token FROM reviews WHERE product_id = ? AND status != ?').all(pid, 'rejected');
+      const visible = rows.filter(rv => rv.status === 'approved' || (rv.status === 'pending' && viewer && rv.viewer_token === viewer));
+      res.json(visible.map(rv => ({
+        id: rv.id,
+        customer_name: rv.customer_name,
+        rating: rv.rating,
+        comment: rv.comment,
+        created_at: rv.created_at,
+        status: rv.status,
+        is_own: rv.status !== 'approved'
+      })));
     } catch (err) { console.error('reviews route failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
   });
 

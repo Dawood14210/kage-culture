@@ -35,6 +35,9 @@ module.exports = {
   // Order statuses
   ORDER_STATUSES: ['pending', 'awaiting_verification', 'confirmed', 'shipped', 'delivered', 'cancelled'],
 
+  // Review moderation
+  REVIEW_AUTO_APPROVE_ABOVE: 3.5, // reviews rated above this publish without admin approval
+
   // Payment methods
   PAYMENT_METHODS: ['cod', 'jazzcash', 'bank'],
 };
