@@ -443,10 +443,11 @@
     }
     .category-strip {
       display: grid;
-      /* One card per row below 800px; the 800px+ rules below turn this into
-         two columns (2x2 with four cards). */
-      grid-template-columns: 1fr;
-      gap: var(--spacing-xl);
+      /* Mobile-first: a full-width 2x2 grid with 20px gaps (the 16px side
+         gutters come from .container). From 600px up the media queries
+         below lay all four cards out in a single row. */
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 20px;
     }
     .cat-tile {
       display: flex;
@@ -457,11 +458,14 @@
       cursor: pointer;
       transition: transform var(--transition-med);
       gap: var(--spacing-md);
+      width: 100%;
+      min-width: 0;
     }
     .cat-tile:hover { transform: translateY(-6px); }
     .cat-thumb {
-      width: 140px;
-      height: 140px;
+      width: 116px;
+      height: 116px;
+      aspect-ratio: 1 / 1;
       border-radius: 50%;
       overflow: hidden;
       flex-shrink: 0;
@@ -513,22 +517,6 @@
     .cat-shop i { font-style: normal; transition: transform var(--transition-fast); }
     .cat-tile:hover .cat-shop i { transform: translateX(4px); }
     .cat-tile:hover .cat-shop { border-color: #FFF; }
-    /* Below 800px the strip stays a single column; each card lays out as a
-       row (circle on the left, copy on the right). */
-    @media (max-width: 799px) {
-      .category-strip {
-        grid-template-columns: 1fr;
-        gap: var(--spacing-lg);
-      }
-      .cat-tile {
-        flex-direction: row;
-        text-align: left;
-        gap: var(--spacing-md);
-      }
-      .cat-info { align-items: flex-start; }
-      .cat-thumb { width: 96px; height: 96px; }
-      .cat-desc { max-width: none; }
-    }
 
     /* ================================================================
        NEW VIBES — promo section
@@ -3423,23 +3411,24 @@
       #page-home .product-grid { margin-top: 24px; }
       #page-home .bestsellers-head { margin-bottom: 0; }
 
-      /* --- Dark category section (navy/olive band) --- */
+      /* --- Dark category section (olive band): one centred row of four --- */
       #page-home .category-band { padding: 64px 0; }
       #page-home .category-strip {
-        grid-template-columns: repeat(2, auto);
+        grid-template-columns: repeat(4, minmax(0, 1fr));
         justify-content: center;
-        justify-items: center;
-        gap: 100px;
+        gap: 40px;
+        max-width: 1200px;
+        margin-inline: auto;
       }
       #page-home .cat-tile {
         flex-direction: column;
         text-align: center;
         gap: var(--spacing-md);
-        max-width: 260px;
+        width: 100%;
       }
       #page-home .cat-thumb {
-        width: 170px;
-        height: 170px;
+        width: 160px;
+        height: 160px;
       }
       #page-home .cat-info { align-items: center; }
       #page-home .cat-name {
@@ -3532,11 +3521,8 @@
       #page-home .vibes-image img {
         border-radius: var(--radius-md);
       }
-      /* Two dark category tiles stacked at 24–32px spacing */
-      #page-home .category-strip {
-        grid-template-columns: 1fr;
-        gap: 28px;
-      }
+      /* Category cards keep the mobile-first 2x2 grid (20px gaps) from the
+         base rules. */
       /* Trust badges: 2x2 grid, 13px description, line-height 1.4 */
       #page-home .why-grid {
         grid-template-columns: repeat(2, 1fr);
@@ -3590,26 +3576,25 @@
     }
 
     /* ================================================================
-       DARK CATEGORY BAND (>=481px) — centre the two tiles on the page
+       DARK CATEGORY BAND (600–1023px) — tablet: all four cards in a
+       single row of equal columns with smaller circles; the copy wraps
+       inside each column, so nothing overlaps at 600px.
        ================================================================ */
-    @media (min-width: 481px) {
-      #page-home .category-band .container,
+    @media (min-width: 600px) and (max-width: 1023px) {
       #page-home .category-strip {
-        margin-inline: auto;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 16px;
       }
-      #page-home .category-strip {
-        justify-content: center;
+      #page-home .cat-thumb {
+        width: 120px;
+        height: 120px;
       }
-      /* 481-768px stacks the tiles, so centre each tile's own row. */
-      #page-home .cat-tile {
-        justify-content: center;
+      #page-home .cat-name {
+        font-size: 0.9rem;
+        letter-spacing: 0.12em;
       }
-    }
-    /* 800-1023px: two content-sized columns, centred as a group — with four
-       cards that lays them out as a 2x2 grid. */
-    @media (min-width: 800px) and (max-width: 1023px) {
-      #page-home .category-strip {
-        grid-template-columns: repeat(2, auto);
+      #page-home .cat-desc {
+        font-size: 0.72rem;
       }
     }
 
@@ -3787,19 +3772,11 @@
       </div>
     </section>
 
-    <!-- KAGE CATEGORIES — anime shirts, graphic tees, custom stickers, pants -->
+    <!-- KAGE CATEGORIES — graphic tees, pants, anime shirts, custom stickers -->
     <section class="section-categories" id="sectionCategories">
       <div class="category-band">
         <div class="container">
           <div class="category-strip">
-            <a class="cat-tile reveal" href="/collection/anime" onclick="navigateTo('collection', 'anime'); return false;">
-              <span class="cat-thumb"><img src="/images/anime-shirts.jpg" alt="Anime Shirts" loading="lazy" /></span>
-              <span class="cat-info">
-                <span class="cat-name">Anime Shirts</span>
-                <span class="cat-desc">Original art on premium cotton. Each piece is wearable fandom.</span>
-                <span class="cat-shop">Explore <i><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg></i></span>
-              </span>
-            </a>
             <a class="cat-tile reveal" href="/collection/graphic-tees" onclick="navigateTo('collection', 'graphic-tees'); return false;">
               <span class="cat-thumb"><img src="/images/graphic-tees.jpg" alt="Graphic Tees" loading="lazy" /></span>
               <span class="cat-info">
@@ -3808,19 +3785,27 @@
                 <span class="cat-shop">Explore <i><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg></i></span>
               </span>
             </a>
-            <a class="cat-tile reveal" href="/custom-stickers" onclick="navigateTo('custom-stickers'); return false;">
-              <span class="cat-thumb"><img src="/images/custom-stickers.jpg" alt="Custom Stickers" loading="lazy" /></span>
-              <span class="cat-info">
-                <span class="cat-name">Custom Stickers</span>
-                <span class="cat-desc">Your design, our print. Peel-proof vinyl, any size.</span>
-                <span class="cat-shop">Explore <i><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg></i></span>
-              </span>
-            </a>
             <a class="cat-tile reveal" href="/collection/all" onclick="navigateTo('collection', 'all'); return false;">
               <span class="cat-thumb"><img src="/images/pants.jpg" alt="Pants" loading="lazy" /></span>
               <span class="cat-info">
                 <span class="cat-name">Pants</span>
                 <span class="cat-desc">Relaxed, baggy fits built for everyday wear.</span>
+                <span class="cat-shop">Explore <i><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg></i></span>
+              </span>
+            </a>
+            <a class="cat-tile reveal" href="/collection/anime" onclick="navigateTo('collection', 'anime'); return false;">
+              <span class="cat-thumb"><img src="/images/anime-shirts.jpg" alt="Anime Shirts" loading="lazy" /></span>
+              <span class="cat-info">
+                <span class="cat-name">Anime Shirts</span>
+                <span class="cat-desc">Original art on premium cotton. Each piece is wearable fandom.</span>
+                <span class="cat-shop">Explore <i><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg></i></span>
+              </span>
+            </a>
+            <a class="cat-tile reveal" href="/custom-stickers" onclick="navigateTo('custom-stickers'); return false;">
+              <span class="cat-thumb"><img src="/images/custom-stickers.jpg" alt="Custom Stickers" loading="lazy" /></span>
+              <span class="cat-info">
+                <span class="cat-name">Custom Stickers</span>
+                <span class="cat-desc">Your design, our print. Peel-proof vinyl, any size.</span>
                 <span class="cat-shop">Explore <i><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg></i></span>
               </span>
             </a>

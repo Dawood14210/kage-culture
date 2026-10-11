@@ -348,18 +348,22 @@ async function ready(win) {
     assert.match(storeHtml, /\.card-rating \{[^}]*min-height: 1\.15rem;[^}]*\}/, 'the rating row keeps its line when there are no reviews');
     console.log('✅ Product cards keep a reserved rating row and pin their button to the card bottom');
 
-    // Category strip: four cards in order with the new artwork, one column on
-    // phones and a 2x2 grid from 800px up.
+    // Category strip: four cards in the new order (Graphic Tees, Pants, Anime
+    // Shirts, Custom Stickers); a full-width 2x2 grid below 600px and a single
+    // row of four from 600px up.
     const catTiles = [...d.querySelectorAll('#page-home .category-strip .cat-tile')];
-    assert.deepEqual(catTiles.map(t => t.querySelector('.cat-name').textContent), ['Anime Shirts', 'Graphic Tees', 'Custom Stickers', 'Pants'], 'category cards keep the requested order');
-    assert.deepEqual(catTiles.map(t => t.querySelector('img').getAttribute('src')), ['/images/anime-shirts.jpg', '/images/graphic-tees.jpg', '/images/custom-stickers.jpg', '/images/pants.jpg'], 'each card uses its new image');
-    assert.deepEqual(catTiles.map(t => t.getAttribute('href')), ['/collection/anime', '/collection/graphic-tees', '/custom-stickers', '/collection/all'], 'each Explore link points at a real route');
+    assert.deepEqual(catTiles.map(t => t.querySelector('.cat-name').textContent), ['Graphic Tees', 'Pants', 'Anime Shirts', 'Custom Stickers'], 'category cards keep the requested order');
+    assert.deepEqual(catTiles.map(t => t.querySelector('img').getAttribute('src')), ['/images/graphic-tees.jpg', '/images/pants.jpg', '/images/anime-shirts.jpg', '/images/custom-stickers.jpg'], 'each card keeps its own image');
+    assert.deepEqual(catTiles.map(t => t.getAttribute('href')), ['/collection/graphic-tees', '/collection/all', '/collection/anime', '/custom-stickers'], 'each Explore link points at a real route');
     assert.ok(catTiles.every(t => /Explore/.test(t.querySelector('.cat-shop').textContent)), 'every card keeps its Explore link');
     assert.ok(catTiles.every(t => t.querySelector('.cat-desc').textContent.trim().length), 'every card keeps its description');
-    assert.match(storeHtml, /\.category-strip \{[\s\S]*?grid-template-columns: 1fr;/, 'the strip is a single column by default');
-    assert.match(storeHtml, /@media \(min-width: 800px\) and \(max-width: 1023px\) \{\s*#page-home \.category-strip \{\s*grid-template-columns: repeat\(2, auto\);/, 'from 800px the strip is two columns');
-    assert.match(storeHtml, /@media \(max-width: 799px\) \{\s*\.category-strip \{\s*grid-template-columns: 1fr;/, 'below 800px the strip stays one column');
-    console.log('✅ Category strip shows four cards with the new artwork; one column below 800px, 2x2 above it');
+    // Breakpoint contracts: mobile-first 2x2 grid with 20px gaps below 600px,
+    // a single row of four equal columns at 600–1023px, and one centred row
+    // capped at 1200px from 1024px up.
+    assert.match(storeHtml, /\.category-strip \{[\s\S]*?grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);[\s\S]*?gap: 20px;/, 'below 600px the strip is a full-width 2x2 grid with 20px gaps');
+    assert.match(storeHtml, /@media \(min-width: 600px\) and \(max-width: 1023px\) \{\s*#page-home \.category-strip \{\s*grid-template-columns: repeat\(4, minmax\(0, 1fr\)\);/, 'from 600px to 1023px the strip is a single row of four');
+    assert.match(storeHtml, /@media \(min-width: 1024px\) \{[\s\S]*?#page-home \.category-strip \{\s*grid-template-columns: repeat\(4, minmax\(0, 1fr\)\);[\s\S]*?max-width: 1200px;/, 'at 1024px and up all four cards stay in one centred row capped at 1200px');
+    console.log('✅ Category strip shows the four cards in the new order; 2x2 below 600px, one row of four above it');
 
     const admin = page(adminHtml, '/admin'); windows.push(admin);
     await wait(100);
