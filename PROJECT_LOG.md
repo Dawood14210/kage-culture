@@ -382,3 +382,15 @@ public only after approval, excluded from the rating while pending; new
 frontend: token reuse, refetch-with-token, pending badge, admin star fill).
 Live curl smoke run against `node server.js` confirmed the same flows over
 HTTP.
+
+---
+
+## 16. Custom Stickers page trimmed to the hero section (2026-10-11)
+
+Removed the three "Coming Soon" cards (Design It Yourself, KAGE Designs,
+Sticker Packs) and their notify-me forms from `#page-custom-stickers`, per
+owner request — the page now shows only the header ("Your Design / Custom
+Stickers" copy + "🎨 Custom Orders Opening Soon" badge). Nav links, deep
+links and the `custom-stickers` nav handling are untouched. Verified in jsdom:
+page active, header + badge present, 0 cards / 0 notify forms; `npm test`
+frontend suite 14/14.
