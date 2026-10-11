@@ -12,6 +12,9 @@ process.env.SESSION_SECRET = process.env.SESSION_SECRET || 'test-secret-for-regr
 // The suite drives all scenarios from one IP in seconds; do not exhaust the
 // storefront's production-wide per-minute request budget during the tests.
 require('../config').RATE_LIMIT_GLOBAL = 1000;
+// Auth and tracking paths share the production strict limiter; the broad E2E
+// regression suite should not exhaust a real visitor's per-minute budget.
+require('../config').RATE_LIMIT_STRICT = 1000;
 // The suite places more orders than a single storefront visitor would.
 require('../config').RATE_LIMIT_ORDERS = 1000;
 // Verification/resend share the reset limiter; the suite exercises them repeatedly.
@@ -2042,6 +2045,77 @@ async function main() {
     const reopen = await request(PORT, 'PATCH', `/api/orders/${lastRow.id}/status`, { body: { status: 'pending' }, headers: await adminHeaders() });
     assert.strictEqual(reopen.status, 200, JSON.stringify(reopen.json));
     assert.strictEqual((await request(PORT, 'GET', `/api/products/${plenty.id}`)).json.size_stock['One Size'], 4, 'reactivation must retake the units');
+  });
+
+  // ---------------------------------------------------------------
+  // Per-account login lockouts (shared rate_limits table)
+  // ---------------------------------------------------------------
+  console.log('\nLogin lockouts:');
+  await check('admin lockout is per email, counts bad credentials only, resets on success, and returns Retry-After', async () => {
+    for (const account of [
+      { email: 'lockout.admin@kage.test', password: 'lockout-secret1' },
+      { email: 'unlocked.admin@kage.test', password: 'unlocked-secret1' }
+    ]) {
+      const created = await request(PORT, 'POST', '/api/admin/create', { body: account, headers: await adminHeaders() });
+      assert.strictEqual(created.status, 200, JSON.stringify(created.json));
+    }
+
+    const missing = await request(PORT, 'POST', '/api/admin/login', { body: { email: 'lockout.admin@kage.test' } });
+    assert.strictEqual(missing.status, 400, 'missing credentials must not count as a password failure');
+    const wrong = await request(PORT, 'POST', '/api/admin/login', { body: { email: 'Lockout.Admin@Kage.Test', password: 'wrong-password' } });
+    const unknown = await request(PORT, 'POST', '/api/admin/login', { body: { email: 'unknown.admin@kage.test', password: 'wrong-password' } });
+    assert.strictEqual(wrong.status, 401);
+    assert.strictEqual(unknown.status, 401);
+    assert.deepStrictEqual(unknown.json, wrong.json, 'unknown emails and wrong passwords must have the same response shape');
+
+    // Three more failures gives four total; the valid password on the next
+    // attempt must succeed and clear the counter before a fresh sequence.
+    for (let i = 0; i < 3; i++) {
+      const failed = await request(PORT, 'POST', '/api/admin/login', { body: { email: 'lockout.admin@kage.test', password: 'wrong-password' } });
+      assert.strictEqual(failed.status, 401, `failure ${i + 2} should not lock yet`);
+    }
+    const success = await request(PORT, 'POST', '/api/admin/login', { body: { email: 'LOCKOUT.ADMIN@KAGE.TEST', password: 'lockout-secret1' } });
+    assert.strictEqual(success.status, 200, JSON.stringify(success.json));
+
+    for (let i = 0; i < 4; i++) {
+      const failed = await request(PORT, 'POST', '/api/admin/login', { body: { email: 'lockout.admin@kage.test', password: 'wrong-password' } });
+      assert.strictEqual(failed.status, 401, `post-success failure ${i + 1} should start a fresh counter`);
+    }
+    const locked = await request(PORT, 'POST', '/api/admin/login', { body: { email: 'lockout.admin@kage.test', password: 'wrong-password' } });
+    assert.strictEqual(locked.status, 429, JSON.stringify(locked.json));
+    assert.match(locked.json.error, /too many attempts/i);
+    assert.ok(Number(locked.headers['retry-after']) >= 899, `expected a 15-minute Retry-After, got ${locked.headers['retry-after']}`);
+
+    const stillLocked = await request(PORT, 'POST', '/api/admin/login', { body: { email: 'lockout.admin@kage.test', password: 'lockout-secret1' } });
+    assert.strictEqual(stillLocked.status, 429, 'a locked email stays locked even with the correct password');
+    const other = await request(PORT, 'POST', '/api/admin/login', { body: { email: 'unlocked.admin@kage.test', password: 'unlocked-secret1' } });
+    assert.strictEqual(other.status, 200, 'another admin email remains unaffected');
+  });
+
+  await check('customer login locks after ten failures without affecting another email', async () => {
+    const created = await signupCustomer('lockout.customer@kage.test', 'customer-secret1', 'Lockout Customer');
+    assert.strictEqual(created.res.status, 200, JSON.stringify(created.res.json));
+    const otherCreated = await signupCustomer('unlocked.customer@kage.test', 'customer-secret2', 'Other Customer');
+    assert.strictEqual(otherCreated.res.status, 200, JSON.stringify(otherCreated.res.json));
+    const csrf = await getCsrf();
+    for (let i = 0; i < 9; i++) {
+      const failed = await request(PORT, 'POST', '/api/customers/login', {
+        body: { email: 'Lockout.Customer@Kage.Test', password: 'wrong-password' },
+        headers: { 'X-CSRF-Token': csrf.token, Cookie: csrf.cookie }
+      });
+      assert.strictEqual(failed.status, 401, `customer failure ${i + 1} should not lock yet`);
+    }
+    const locked = await request(PORT, 'POST', '/api/customers/login', {
+      body: { email: 'lockout.customer@kage.test', password: 'wrong-password' },
+      headers: { 'X-CSRF-Token': csrf.token, Cookie: csrf.cookie }
+    });
+    assert.strictEqual(locked.status, 429, JSON.stringify(locked.json));
+    assert.ok(Number(locked.headers['retry-after']) >= 899, `expected a 15-minute Retry-After, got ${locked.headers['retry-after']}`);
+    const other = await request(PORT, 'POST', '/api/customers/login', {
+      body: { email: 'unlocked.customer@kage.test', password: 'customer-secret2' },
+      headers: { 'X-CSRF-Token': csrf.token, Cookie: csrf.cookie }
+    });
+    assert.strictEqual(other.status, 200, 'another customer email remains unaffected');
   });
 
   // ---------------------------------------------------------------

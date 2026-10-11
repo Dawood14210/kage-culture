@@ -5,7 +5,7 @@ const express = require('express');
 const config = require('../config');
 const { requireCsrf } = require('../middleware/csrf');
 const { requireAuth, requireCustomerAuth, optionalCustomerId } = require('../middleware/auth');
-const { orderLimiter } = require('../middleware/rateLimit');
+const { orderLimiter, strictLimiter } = require('../middleware/rateLimit');
 const { sendOrderConfirmation, sendStatusUpdate } = require('../utils/email');
 const sizeStock = require('../utils/sizes');
 const productShape = require('../utils/productShape');
@@ -186,7 +186,7 @@ module.exports = function createOrderRoutes(db) {
   });
 
   // GET track order (public) — requires order number + matching phone
-  router.get('/api/orders/track', async (req, res) => {
+  router.get('/api/orders/track', strictLimiter, async (req, res) => {
     try {
       const { number, phone } = req.query;
       if (!number || !phone) return res.status(400).json({ error: 'Order number and phone are required.' });
@@ -199,7 +199,7 @@ module.exports = function createOrderRoutes(db) {
   // GET single order (public) — requires the order number AND matching phone
   // (same verification as /track). Previously this returned name, address and
   // payment details to anyone who knew/guessed an order number.
-  router.get('/api/orders/:orderNumber', async (req, res) => {
+  router.get('/api/orders/:orderNumber', strictLimiter, async (req, res) => {
     try {
       const { phone } = req.query;
       if (!phone) return res.status(401).json({ error: 'Phone verification required. Use /api/orders/track?number=...&phone=... instead.' });

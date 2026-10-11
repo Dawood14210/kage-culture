@@ -5,7 +5,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test": "node tests/e2e.test.js && node tests/frontend.test.js",
+    "test": "node tests/e2e.test.js && node tests/rateLimit.test.js && node tests/frontend.test.js",
     "dev": "node scripts/dev.js",
     "build": "node -e \"console.log('KAGE build: static site + Express API ready')\"",
     "seed": "node scripts/seed-demo.js"

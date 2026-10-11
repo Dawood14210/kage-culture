@@ -27,7 +27,10 @@ const PORT = process.env.PORT || 3000;
 
 // M1: behind Vercel's proxy every request arrives with the proxy IP. Without
 // `trust proxy`, express-rate-limit would bucket ALL visitors into one shared
-// bucket — the 120/min global limit could knock the whole site over.
+// bucket — the 120/min global limit could knock the whole site over. Vercel is
+// the single trusted hop, so req.ip resolves its X-Forwarded-For client value;
+// express-rate-limit's built-in keyGenerator then applies ipKeyGenerator's
+// IPv6 subnet normalization (we intentionally do not replace it).
 app.set('trust proxy', 1);
 
 // Session secret — resolved through the single rule in utils/secret.js:

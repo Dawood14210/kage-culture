@@ -1073,3 +1073,61 @@ verifying it.
   dropdown succeeds once the product is restocked. Screenshot:
   `/home/user/screenshots/reactivate-409-alert.png`.
 - `npm test` → **98/98 API + 19/19 frontend scenarios**.
+
+---
+
+## 28. Shared database rate limits and per-account login lockouts (2026-10-11)
+
+The in-memory `express-rate-limit` default was process-local, so Vercel serverless
+instances did not share the 10/min login, 8/min order, 5/min reset or 120/min
+global counters. Added the `rate_limits(key, count, reset_at)` table to the common
+schema and additive migrations for Turso, sql.js and the in-memory backend.
+
+- **Atomic shared store:** new `DatabaseRateLimitStore` implements the v8 store
+  contract (`init`, `increment`, `decrement`, `resetKey`, `get`, `resetAll`).
+  Counters use one `INSERT .. ON CONFLICT .. DO UPDATE .. RETURNING` statement,
+  with expired-window reset and a 1-in-100 opportunistic cleanup. Turso enables
+  it automatically; local/test setups keep the memory store unless
+  `RATE_LIMIT_STORE=db` is set. For `KAGE_DB_FILE`, rate-counter operations use
+  the existing SQLite file via the local libsql client under a small shared
+  file lock, so separately running sql.js server processes really do share the
+  same counter. sql.js snapshots merge the current `rate_limits` rows before
+  persisting so a stale process cannot undo another process's counter.
+- **Failure policy and IP keys:** global, strict, order, reset and customer
+  login store errors log a warning and pass the request rather than returning a
+  500. The admin login IP limiter fails closed with 429 and `Retry-After` if its
+  store is down. The app still trusts exactly one Vercel proxy hop; the built-in
+  express-rate-limit key generator uses `req.ip` and its IPv6 subnet helper.
+- **Account lockouts:** admin failures are keyed by lowercased email and account
+  type in the same table (`login_fail:<email>` for admins and a customer-specific
+  prefix for customer accounts), and the fifth failed
+  credential attempt locks that address for 15 minutes. Customer login uses a
+  threshold of 10. Unknown email and wrong-password responses have the same
+  401 shape and use the same cost-12 password-hash work; missing credentials do
+  not increment, successful login clears the
+  counter, and lockouts return 429 with a 15-minute `Retry-After`.
+- **Sensitive routes/UI:** `/api/orders/track` and `/api/orders/:orderNumber`
+  now use `strictLimiter`; reset-password is on the reset limiter and
+  resend-verification remains limited. The admin page now shows a clear
+  “Too many attempts. Please try again later.” message and translates
+  `Retry-After` into a time-to-retry hint.
+
+**Verification**
+
+- `npm test` → **100/100 API + 19/19 frontend scenarios**, plus the new shared
+  store integration suite.
+- Two real server processes on different ports against one sql.js
+  `KAGE_DB_FILE` shared the login bucket: attempts 1–10 returned 401 and
+  attempt 11 returned 429. Five failed attempts for the same normalized email
+  split across the processes also returned 429 on attempt 5. The tracking
+  endpoint returned 429 on its 11th request across the two processes; the
+  order-number endpoint shares that strict bucket.
+- Short-window store test proves two store instances see the same counter and
+  expiry resets it; a forced pure-memory fallback verifies that backend creates
+  and uses the new table too. Additional checks cover 5/10-failure lockouts,
+  email isolation, success reset, Retry-After, fail-open logging, admin
+  fail-closed, forwarded IPv4, and IPv6 /56 normalization.
+- Manual headless Chromium check (HeadlessChrome 153) submitted the blocked
+  admin form after 10 failures; the login response was **429** with
+  `Retry-After: 60`, and the page showed: “Too many attempts. Please try again
+  later. Try again in about 1 minute.”

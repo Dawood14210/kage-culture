@@ -1645,7 +1645,23 @@
           checkAuth();
         } else {
           const data = await res.json();
-          errEl.textContent = data.error || 'Login failed.';
+          if (res.status === 429) {
+            const retryAfter = res.headers && typeof res.headers.get === 'function'
+              ? Number(res.headers.get('Retry-After'))
+              : 0;
+            let retryText = '';
+            if (Number.isFinite(retryAfter) && retryAfter > 0) {
+              if (retryAfter >= 60) {
+                const minutes = Math.ceil(retryAfter / 60);
+                retryText = ` Try again in about ${minutes} minute${minutes === 1 ? '' : 's'}.`;
+              } else {
+                retryText = ` Try again in ${retryAfter} second${retryAfter === 1 ? '' : 's'}.`;
+              }
+            }
+            errEl.textContent = 'Too many attempts. Please try again later.' + retryText;
+          } else {
+            errEl.textContent = data.error || 'Login failed.';
+          }
           errEl.style.display = 'block';
         }
       } catch (err) {

@@ -7,7 +7,7 @@ const crypto = require('crypto');
 const config = require('../config');
 const { requireCsrf } = require('../middleware/csrf');
 const { requireAuth, requireCustomerAuth } = require('../middleware/auth');
-const { strictLimiter, resetLimiter } = require('../middleware/rateLimit');
+const { strictLimiter, adminLoginLimiter, customerLoginLimiter, resetLimiter } = require('../middleware/rateLimit');
 const { hashToken, isValidEmail } = require('../utils/helpers');
 const { getSessionSecret } = require('../utils/secret');
 const { sendEmail, sendVerificationEmail, buildLink, escapeHtml } = require('../utils/email');
@@ -22,6 +22,40 @@ function clearSessionIdentity(req, key) {
   delete req.session[key];
   const identities = Object.keys(req.session).filter((k) => k === 'adminId' || k === 'customerId');
   if (identities.length === 0) req.session = null; // nothing left — drop the cookie
+}
+
+const LOGIN_LOCKOUT_WINDOW_MS = 15 * 60 * 1000;
+const ADMIN_LOGIN_FAILURES = 5;
+const CUSTOMER_LOGIN_FAILURES = 10;
+const INVALID_LOGIN = { error: 'Invalid credentials.' };
+const LOCKED_LOGIN = { error: 'Too many attempts. Please try again later.' };
+// Reuse a cost-12 hash for unknown addresses so a missing account follows the
+// same password-hash work and never becomes an easy timing-based enum signal.
+const DUMMY_PASSWORD_HASH = '$2a$12$f67gNGt3nUl6QJawSDf7PO3u0ZSfICyQ7VunDLHG4/EGn5a78wfo2';
+
+function loginFailureKey(accountType, email) {
+  // Keep the admin key in the requested login_fail:<email> form, and give
+  // customer accounts a separate namespace if both identities use one email.
+  const cleanEmail = String(email || '').trim().toLowerCase();
+  return accountType === 'admin'
+    ? `login_fail:${cleanEmail}`
+    : `login_fail:customer:${cleanEmail}`;
+}
+
+async function activeLoginLockout(db, key, threshold) {
+  const row = await db.getRateLimit(key);
+  if (!row || Number(row.count) < threshold || Number(row.reset_at) <= Date.now()) return null;
+  return { count: Number(row.count), reset_at: Number(row.reset_at) };
+}
+
+function sendLoginLocked(res, lockout) {
+  const seconds = Math.max(1, Math.ceil((Number(lockout.reset_at) - Date.now()) / 1000));
+  res.setHeader('Retry-After', String(seconds));
+  return res.status(429).json(LOCKED_LOGIN);
+}
+
+async function recordLoginFailure(db, key, threshold) {
+  return db.incrementRateLimit(key, LOGIN_LOCKOUT_WINDOW_MS, threshold);
 }
 
 module.exports = function createAuthRoutes(db, SESSION_SECRET = getSessionSecret()) {
@@ -52,25 +86,45 @@ module.exports = function createAuthRoutes(db, SESSION_SECRET = getSessionSecret
   });
 
   // --- Admin login ---
-  router.post('/api/admin/login', strictLimiter, async (req, res) => {
+  router.post('/api/admin/login', adminLoginLimiter, async (req, res) => {
     try {
       const { email, password } = req.body;
-      if (!email || !password) return res.status(400).json({ error: 'Email and password are required.' });
-      let admin = await db.prepare('SELECT * FROM admin WHERE email = ?').get(email);
+      if (typeof email !== 'string' || typeof password !== 'string' || !email.trim() || !password) {
+        return res.status(400).json({ error: 'Email and password are required.' });
+      }
+      const cleanEmail = email.trim().toLowerCase();
+      if (cleanEmail.length > 254) return res.status(400).json({ error: 'Please enter a valid email address.' });
+      const failureKey = loginFailureKey('admin', cleanEmail);
+      const lockout = await activeLoginLockout(db, failureKey, ADMIN_LOGIN_FAILURES);
+      if (lockout) return sendLoginLocked(res, lockout);
+
+      let admin = await db.prepare('SELECT * FROM admin WHERE LOWER(TRIM(email)) = ?').get(cleanEmail);
       if (!admin && process.env.AUTO_CREATE_ADMIN === 'true' && password.length >= config.ADMIN_AUTO_CREATE_MIN_LENGTH) {
         const hash = await bcrypt.hash(password, 12);
-        const result = await db.prepare('INSERT INTO admin (email, password_hash) VALUES (?, ?)').run([email, hash]);
-        admin = { id: result.lastInsertRowid, email, password_hash: hash };
-        console.log('✅ Auto-created admin:', email);
+        const result = await db.prepare('INSERT INTO admin (email, password_hash) VALUES (?, ?)').run([cleanEmail, hash]);
+        admin = { id: result.lastInsertRowid, email: cleanEmail, password_hash: hash };
+        console.log('✅ Auto-created admin:', cleanEmail);
       }
-      if (!admin) return res.status(401).json({ error: 'Invalid credentials.' });
-      const match = await bcrypt.compare(password, admin.password_hash);
-      if (!match) return res.status(401).json({ error: 'Invalid credentials.' });
-      // cookie-session middleware commits kage.session (payload + HMAC sig)
-      // after this handler — do not also set a manual cookie (double-set).
+
+      const match = await bcrypt.compare(password, admin ? admin.password_hash : DUMMY_PASSWORD_HASH);
+      if (!admin || !match) {
+        // Unknown addresses deliberately follow the identical response and
+        // lockout path; no account-existence signal is returned to the caller.
+        const failed = await recordLoginFailure(db, failureKey, ADMIN_LOGIN_FAILURES);
+        if (failed.count >= ADMIN_LOGIN_FAILURES) return sendLoginLocked(res, failed);
+        return res.status(401).json(INVALID_LOGIN);
+      }
+
+      // A valid password clears accumulated failures before a session is
+      // issued. If the shared store is unavailable, admin login stays closed.
+      await db.resetRateLimit(failureKey);
       req.session.adminId = admin.id;
       res.json({ success: true, admin: { email: admin.email } });
-    } catch (err) { console.error('admin/login failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
+    } catch (err) {
+      console.error('admin/login failed closed:', err && err.message ? err.message : err);
+      res.setHeader('Retry-After', '1');
+      res.status(503).json({ error: 'Login is temporarily unavailable. Please try again.' });
+    }
   });
 
   // --- Admin check auth ---
@@ -148,7 +202,7 @@ module.exports = function createAuthRoutes(db, SESSION_SECRET = getSessionSecret
   });
 
   // --- Password reset: execute ---
-  router.post('/api/auth/reset-password', async (req, res) => {
+  router.post('/api/auth/reset-password', resetLimiter, async (req, res) => {
     try {
       const { token, password, user_type } = req.body;
       if (!token || !password) return res.status(400).json({ error: 'Token and new password are required.' });
@@ -232,14 +286,39 @@ module.exports = function createAuthRoutes(db, SESSION_SECRET = getSessionSecret
   });
 
   // --- Customer login ---
-  router.post('/api/customers/login', requireCsrf, async (req, res) => {
+  router.post('/api/customers/login', customerLoginLimiter, requireCsrf, async (req, res) => {
     try {
       const { email, password } = req.body;
-      if (!email || !password) return res.status(400).json({ error: 'Email and password are required.' });
-      const customer = await db.prepare('SELECT * FROM customers WHERE LOWER(TRIM(email)) = ?').get(email.trim().toLowerCase());
-      if (!customer) return res.status(401).json({ error: 'Invalid email or password.' });
-      const match = await bcrypt.compare(password, customer.password_hash);
-      if (!match) return res.status(401).json({ error: 'Invalid email or password.' });
+      if (typeof email !== 'string' || typeof password !== 'string' || !email.trim() || !password) {
+        return res.status(400).json({ error: 'Email and password are required.' });
+      }
+      const cleanEmail = email.trim().toLowerCase();
+      if (cleanEmail.length > 254) return res.status(400).json({ error: 'Please enter a valid email address.' });
+      const failureKey = loginFailureKey('customer', cleanEmail);
+
+      // Customer login remains fail-open if just the lockout table is briefly
+      // unavailable; the shared per-IP limiter also logs and passes requests.
+      try {
+        const lockout = await activeLoginLockout(db, failureKey, CUSTOMER_LOGIN_FAILURES);
+        if (lockout) return sendLoginLocked(res, lockout);
+      } catch (storeError) {
+        console.warn('⚠️  customer login lockout lookup failed open:', storeError.message);
+      }
+
+      const customer = await db.prepare('SELECT * FROM customers WHERE LOWER(TRIM(email)) = ?').get(cleanEmail);
+      const match = await bcrypt.compare(password, customer ? customer.password_hash : DUMMY_PASSWORD_HASH);
+      if (!customer || !match) {
+        try {
+          const failed = await recordLoginFailure(db, failureKey, CUSTOMER_LOGIN_FAILURES);
+          if (failed.count >= CUSTOMER_LOGIN_FAILURES) return sendLoginLocked(res, failed);
+        } catch (storeError) {
+          console.warn('⚠️  customer login failure counter failed open:', storeError.message);
+        }
+        return res.status(401).json(INVALID_LOGIN);
+      }
+
+      try { await db.resetRateLimit(failureKey); }
+      catch (storeError) { console.warn('⚠️  customer login lockout reset failed open:', storeError.message); }
       // cookie-session middleware commits kage.session after this handler.
       req.session.customerId = customer.id;
       res.json({ success: true, customer: { id: customer.id, email: customer.email, name: customer.name, phone: customer.phone, address: customer.address, city: customer.city, email_verified: Number(customer.email_verified) === 1 } });

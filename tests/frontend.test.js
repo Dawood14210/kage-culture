@@ -82,6 +82,27 @@ async function ready(win) {
   origin = `http://127.0.0.1:${server.address().port}`;
   const windows = [];
   try {
+    const admin429 = page(adminHtml, '/admin', {
+      fetchImpl: async (url) => {
+        if (url === '/api/admin/me') return { ok: false, status: 401, json: async () => ({ error: 'Unauthorized' }) };
+        if (url === '/api/admin/login') return {
+          ok: false, status: 429,
+          headers: { get: (name) => String(name).toLowerCase() === 'retry-after' ? '900' : null },
+          json: async () => ({ error: 'Too many attempts. Please try again later.' })
+        };
+        return { ok: false, status: 404, headers: { get: () => null }, json: async () => ({ error: 'Not found' }) };
+      }
+    });
+    windows.push(admin429);
+    await wait(25);
+    admin429.window.document.getElementById('loginEmail').value = 'admin@example.test';
+    admin429.window.document.getElementById('loginPassword').value = 'bad-password';
+    await admin429.window.handleLogin();
+    const login429Text = admin429.window.document.getElementById('loginError').textContent;
+    assert.match(login429Text, /too many attempts\. please try again later/i);
+    assert.match(login429Text, /15 minutes/i, 'the admin login screen must display Retry-After');
+    console.log('✅ Admin login 429 displays a clear lockout message and Retry-After duration');
+
     const store = page(storeHtml); windows.push(store);
     const w = store.window, d = w.document;
     await ready(w);
