@@ -328,6 +328,34 @@ async function ready(win) {
     assert.match(returnsCopy, /contact us within 48 hours with photos/, 'existing 48-hour defective/wrong-item window is unchanged');
     assert.match(returnsCopy, /Custom-designed items and custom stickers \(non-returnable unless defective or wrong\)/);
 
+    const termsBody = d.querySelector('#page-terms .content-page-body');
+    const termsCopy = termsBody.textContent;
+    assert.match(termsCopy, /Last updated: October 2026/);
+    assert.match(termsCopy, /By accessing and using this website/);
+    assert.doesNotMatch(termsCopy, /kage-culture-ruby\.vercel\.app/i, 'Terms do not hardcode the production domain');
+    assert.match(termsCopy, /Custom-designed items and custom stickers cannot be returned unless they are defective or the wrong item was supplied/);
+    const customOrdersHeading = [...termsBody.querySelectorAll('h3')].find(heading => heading.textContent.trim() === '7. Custom Orders & Returns');
+    const returnsPolicyLink = customOrdersHeading?.nextElementSibling?.querySelector('a');
+    assert.equal(returnsPolicyLink?.getAttribute('href'), '/returns', 'custom-order terms link to the Returns page');
+    assert.equal(returnsPolicyLink?.textContent.trim(), 'Returns & Refund Policy');
+    assert.match(termsCopy, /governed by the laws of Pakistan/i);
+    assert.match(termsCopy, /not legal advice.*reviewed by a qualified legal professional/i);
+
+    const privacyBody = d.querySelector('#page-privacy .content-page-body');
+    const privacyCopy = privacyBody.textContent;
+    assert.match(privacyCopy, /Last updated: October 2026/);
+    assert.doesNotMatch(privacyCopy, /solely for order fulfillment/i, 'Privacy no longer limits use solely to order fulfillment');
+    assert.match(privacyCopy, /customer account details.*password stored as a hash/i);
+    assert.match(privacyCopy, /newsletter sign-up emails are for product-drop, restock, and KAGE Clan updates/i);
+    assert.match(privacyCopy, /courier partner handling the delivery/i);
+    assert.match(privacyCopy, /kage\.session.*customer and admin login sessions/i);
+    assert.match(privacyCopy, /kage\.csrf.*cross-site request forgery/i);
+    assert.doesNotMatch(privacyCopy, /kage\.cust/, 'Privacy lists the active session cookie rather than the legacy fallback name');
+    assert.match(privacyCopy, /does not provide a self-service unsubscribe control/i);
+    const newsletterRemovalParagraph = [...privacyBody.querySelectorAll('p')].find(paragraph => paragraph.textContent.includes('self-service unsubscribe control'));
+    assert.equal(newsletterRemovalParagraph?.querySelector('a')?.getAttribute('href'), 'https://wa.me/923228042633', 'newsletter removal requests have an existing WhatsApp contact path');
+    assert.match(privacyCopy, /not legal advice.*reviewed by a qualified legal professional/i);
+
     const shippingCopy = d.querySelector('#page-shipping .content-page-body').textContent;
     assert.match(shippingCopy, /Delivery Charges/);
     assert.match(shippingCopy, /Delivery charges depend on your delivery location\. We will contact you about the delivery charges\./);

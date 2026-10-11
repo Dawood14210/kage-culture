@@ -569,6 +569,29 @@ amounts, and Turso gets a safe schema migration for the new flag. The Shipping p
 we will contact customers about delivery charges. The free-shipping-threshold TODO remains
 unresolved. `npm test` → 57/57 API + 17/17 frontend scenarios.
 
+### ✅ Privacy & Terms policy copy — 2026-10-11
+
+`public/index.html` now dates the Terms and Privacy pages October 2026. Terms refer to
+“this website,” state that Pakistan law governs, and link the custom-designed/custom-sticker
+exception (returnable only if defective or wrong) to the Returns page. Both pages carry a
+short legal-review disclaimer.
+
+The Privacy page now covers order and customer-account data (including hashed account
+passwords), newsletter/product-notification signups, requested courier-partner sharing,
+and the cookies verified in the app: `kage.session` for customer/admin sessions and
+`kage.csrf` for CSRF protection. It no longer says information is used “solely” for order
+fulfillment, and retains the no-sale statement.
+
+Implementation check: `/api/newsletter` stores subscriber emails; there is no newsletter
+campaign sender or unsubscribe endpoint/UI. The policy offers WhatsApp as a manual removal
+request path and discloses that self-service unsubscribe is not available. The app uses
+`kage.session`; `kage.cust` is only a legacy auth fallback/cleared on logout, not issued by
+current login. No automated courier API/integration was found in this repo; the delivery
+partner clause reflects the requested operational disclosure.
+
+`tests/frontend.test.js` covers these policy details. `npm test` → 57/57 API + 17/17
+frontend scenarios passed.
+
 ## Remaining work (priority order)
 
 *API-side queue (C1, H1–H4, M1–M7, L1/L3–L7) completed 2026-09-23. FE-criticals
