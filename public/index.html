@@ -2966,6 +2966,7 @@
     .star-input button { background:none; border:0; font:inherit; cursor:pointer; padding:0 0.15rem; min-width:36px; min-height:44px; }
     .star-input button { color: var(--border-color); transition: color 0.15s ease, transform 0.15s ease; }
     .star-input button:hover, .star-input button.selected { color: #f5b301; transform: scale(1.08); }
+    .star-input button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
     .review-error { font-size: 0.8rem; color: var(--accent); }
 
     /* Low stock urgency (real inventory only) */
@@ -4118,7 +4119,7 @@
           <h4>Leave a Review</h4>
           <p class="review-form-note">Only customers with a <strong>delivered</strong> order can review — we verify your order number and phone to keep reviews authentic.</p>
           <form class="review-form" onsubmit="submitReview(event)">
-            <div class="star-input" id="starInput">
+            <div class="star-input" id="starInput" role="group" aria-label="Rate this product from 1 to 5 stars">
               <button type="button" data-v="1" aria-label="1 star rating" aria-pressed="false">★</button><button type="button" data-v="2" aria-label="2 star rating" aria-pressed="false">★</button><button type="button" data-v="3" aria-label="3 star rating" aria-pressed="false">★</button><button type="button" data-v="4" aria-label="4 star rating" aria-pressed="false">★</button><button type="button" data-v="5" aria-label="5 star rating" aria-pressed="false">★</button>
             </div>
             <input type="text" id="rvName" placeholder="Your name (optional)" maxlength="60" />
@@ -5620,6 +5621,12 @@ n    <!-- CONTENT PAGES -->
     function openProductDetail(productId) {
       const p = allProducts.find(x => x.id === productId);
       if (!p) return;
+      if (currentProduct && currentProduct.id !== p.id) {
+        // A draft rating/order belongs to the previous product, not this one.
+        document.querySelector('.review-form').reset();
+        document.querySelectorAll('#starInput button').forEach(s => { s.classList.remove('selected'); s.setAttribute('aria-pressed', 'false'); });
+        document.getElementById('rvError').style.display = 'none';
+      }
       currentProduct = p; detailQty = 1; detailSize = defaultSizeFor(p); detailAngle = 0;
       navigateTo('product');
       document.getElementById('detailName').textContent = p.name;
@@ -5785,7 +5792,7 @@ n    <!-- CONTENT PAGES -->
       e.preventDefault();
       const errEl = document.getElementById('rvError');
       if (!currentProduct) return;
-      const selected = document.querySelector('#starInput button.selected');
+      const selected = document.querySelector('#starInput button[aria-pressed="true"]');
       const rating = selected ? Number(selected.dataset.v) : 0;
       const comment = document.getElementById('rvComment').value.trim();
       const order = document.getElementById('rvOrder').value.trim();

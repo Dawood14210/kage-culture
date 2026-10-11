@@ -145,6 +145,46 @@ async function ready(win) {
     assert.equal(offline.window.document.querySelectorAll('#collectionGrid .product-card').length, 0);
     console.log('✅ Unknown paths return 404; catalog outages show a warning, not fake products');
 
+    // A filled star is not necessarily the chosen rating: the picker highlights
+    // every star up to the clicked one. Test the actual payload, not just color.
+    w.openProductDetail(1);
+    const reviewForm = d.querySelector('.review-form');
+    const starButtons = [...d.querySelectorAll('#starInput button')];
+    const originalStoreFetch = w.fetch;
+    const sentReviews = [];
+    try {
+      w.fetch = (url, options) => {
+        if (url === '/api/reviews' && options?.method === 'POST') {
+          sentReviews.push(JSON.parse(options.body));
+          return Promise.resolve({ ok: true, json: async () => ({ message: 'Review pending approval.' }) });
+        }
+        return originalStoreFetch(url, options);
+      };
+      for (let rating = 1; rating <= 5; rating++) {
+        // Native button click also covers keyboard activation (Enter/Space).
+        starButtons[rating - 1].click();
+        assert.equal(starButtons.filter(b => b.classList.contains('selected')).length, rating);
+        assert.deepEqual(starButtons.filter(b => b.getAttribute('aria-pressed') === 'true').map(b => Number(b.dataset.v)), [rating]);
+        d.getElementById('rvOrder').value = 'KAGE-REVIEW';
+        d.getElementById('rvPhone').value = '03001234567';
+        await w.submitReview({ preventDefault() {}, target: reviewForm });
+        assert.equal(sentReviews.at(-1).rating, rating, 'submitted rating must match clicked star');
+        assert.equal(sentReviews.at(-1).product_id, 1);
+        assert.equal(starButtons.some(b => b.classList.contains('selected') || b.getAttribute('aria-pressed') === 'true'), false, 'successful submit clears stars');
+        assert.match(d.getElementById('rvError').textContent, /pending approval/);
+      }
+      starButtons[4].click();
+      w.openProductDetail(2);
+      assert.equal(starButtons.some(b => b.classList.contains('selected') || b.getAttribute('aria-pressed') === 'true'), false, 'switching product clears draft rating');
+      const count = sentReviews.length;
+      await w.submitReview({ preventDefault() {}, target: reviewForm });
+      assert.equal(sentReviews.length, count, 'cannot submit without a rating');
+      assert.match(d.getElementById('rvError').textContent, /select a star rating/);
+    } finally {
+      w.fetch = originalStoreFetch;
+    }
+    console.log('✅ Review stars 1–5 send the chosen rating; reset and product switching clear the picker');
+
     const admin = page(adminHtml, '/admin'); windows.push(admin);
     await wait(100);
     const aw = admin.window, ad = aw.document;

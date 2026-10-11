@@ -8,6 +8,9 @@
 // ================================================================
 process.env.ALLOW_ADMIN_SETUP = 'true'; // tests exercise the gated bootstrap
 process.env.SESSION_SECRET = process.env.SESSION_SECRET || 'test-secret-for-regression-tests';
+// The suite drives all scenarios from one IP in seconds; do not exhaust the
+// storefront's production-wide per-minute request budget during the tests.
+require('../config').RATE_LIMIT_GLOBAL = 1000;
 
 const assert = require('assert');
 const http = require('http');
@@ -164,6 +167,52 @@ async function main() {
     const r = await request(PORT, 'GET', `/api/orders/track?number=${encodeURIComponent(orderNumber)}&phone=03001234567`);
     assert.strictEqual(r.status, 200);
     assert.ok(r.json && r.json.order_number === orderNumber);
+  });
+
+  // ---------------------------------------------------------------
+  // Reviews: delivered purchase → pending → admin approval → public rating
+  // ---------------------------------------------------------------
+  console.log('\nReview endpoints:');
+  const reviewBody = { product_id: 1, order_number: orderNumber, phone: '03001234567', rating: 5, name: 'Test Buyer', comment: 'Great fit' };
+  const postReview = async (body) => {
+    const csrf = await getCsrf();
+    return request(PORT, 'POST', '/api/reviews', {
+      body, headers: { Cookie: csrf.cookie, 'X-CSRF-Token': csrf.token }
+    });
+  };
+  await check('review requires a delivered order and matching phone/product', async () => {
+    const pending = await postReview(reviewBody);
+    assert.strictEqual(pending.status, 403);
+    assert.match(pending.json.error, /delivered/);
+    const row = await dbModule.prepare('SELECT id FROM orders WHERE order_number = ?').get(orderNumber);
+    const csrf = await getCsrf();
+    const delivered = await request(PORT, 'PATCH', `/api/orders/${row.id}/status`, {
+      body: { status: 'delivered' }, headers: { Cookie: `${adminCookie}; ${csrf.cookie}`, 'X-CSRF-Token': csrf.token }
+    });
+    assert.strictEqual(delivered.status, 200, JSON.stringify(delivered.json));
+    assert.strictEqual((await postReview({ ...reviewBody, phone: '03000000000' })).status, 404);
+    assert.strictEqual((await postReview({ ...reviewBody, product_id: 2 })).status, 403);
+    assert.strictEqual((await postReview({ ...reviewBody, rating: 0 })).status, 400);
+  });
+  await check('selected rating persists pending moderation, then appears after approval', async () => {
+    const created = await postReview(reviewBody);
+    assert.strictEqual(created.status, 201, JSON.stringify(created.json));
+    assert.strictEqual((await postReview(reviewBody)).status, 409, 'same purchase cannot review twice');
+    assert.deepStrictEqual((await request(PORT, 'GET', '/api/reviews?product_id=1')).json, []);
+    const headers = await getCsrf();
+    const adminHeaders = { Cookie: `${adminCookie}; ${headers.cookie}`, 'X-CSRF-Token': headers.token };
+    const all = await request(PORT, 'GET', '/api/reviews/all', { headers: { Cookie: adminCookie } });
+    assert.strictEqual(all.status, 200);
+    const rv = all.json.find(r => r.order_number === orderNumber && r.product_id === 1);
+    assert.strictEqual(rv.rating, 5);
+    assert.strictEqual(rv.status, 'pending');
+    const approved = await request(PORT, 'PATCH', `/api/reviews/${rv.id}`, { body: { status: 'approved' }, headers: adminHeaders });
+    assert.strictEqual(approved.status, 200, JSON.stringify(approved.json));
+    assert.strictEqual((await request(PORT, 'GET', '/api/reviews?product_id=1')).json[0].rating, 5);
+    const product = await request(PORT, 'GET', '/api/products');
+    const p = product.json.find(p => p.id === 1);
+    assert.strictEqual(p.avg_rating, 5);
+    assert.strictEqual(p.review_count, 1);
   });
 
   // ---------------------------------------------------------------
