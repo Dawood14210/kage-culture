@@ -1351,6 +1351,7 @@
     }
     .filter-drawer-footer .btn {
       flex: 1;
+      min-height: 44px; /* btn-sm's 36px is under the 44px touch-target floor */
     }
 
     .filter-section {
@@ -3634,6 +3635,42 @@
         grid-template-columns: 1fr 1fr;
         gap: 4px 10px;
       }
+    }
+
+    /* ================================================================
+       SHARED CONTENT PAGES — returns, shipping, terms, privacy, contact
+       One class replaces the per-page inline container style, so every
+       content page keeps the fixed-header offset, a 720px centred column
+       and real side padding on phones (16px, 20px from 600px up).
+       ================================================================ */
+    .container.content-page {
+      max-width: 720px;
+      margin-inline: auto;
+      padding: calc(104px + var(--spacing-lg)) 16px var(--spacing-xl);
+    }
+    @media (min-width: 600px) {
+      .container.content-page { padding-left: 20px; padding-right: 20px; }
+    }
+    .content-page .policy-body { margin-top: var(--spacing-lg); color: var(--text-muted); font-size: 0.9rem; line-height: 1.8; }
+    .content-page .policy-body h3 { color: var(--text-primary); font-size: 1rem; margin: var(--spacing-lg) 0 var(--spacing-sm); }
+    .content-page .policy-body strong { color: var(--text-primary); }
+    .content-page .policy-body a { color: var(--accent); }
+    .content-page .policy-body ul { list-style: none; padding: 0; }
+    .content-page .policy-body ol { padding-left: 1.2rem; }
+    .content-page .policy-body li { padding: 0.3rem 0; }
+    .content-page .policy-body .two-col { columns: 2; }
+    .content-page .policy-body .after-list { margin-top: var(--spacing-sm); }
+    .content-page .policy-updated { margin-bottom: var(--spacing-md); }
+    .content-page .back-to-shop { margin-top: var(--spacing-xl); }
+    .content-page .back-to-shop a {
+      display: inline-flex; align-items: center; min-height: 44px;
+      color: var(--accent); cursor: pointer; font-size: 0.875rem;
+    }
+
+    /* Track Order / password reset submit: full width on phones only, so
+       the desktop form keeps its left-aligned button. */
+    @media (max-width: 768px) {
+      .tracking-form .btn { align-self: stretch; width: 100%; }
     }
 
   </style>
