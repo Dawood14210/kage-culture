@@ -125,7 +125,7 @@ module.exports = function createOrderRoutes(db) {
       const result = await db.prepare('INSERT INTO orders (order_number, customer_name, email, phone, address, city, notes, payment_method, payment_ref, subtotal, shipping, shipping_pending, total, items_json, status, customer_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(orderNumber, String(name).slice(0, 120), cleanEmail.slice(0, 160), String(phone).slice(0, 40), String(address).slice(0, 300), String(city).slice(0, 120), String(notes || '').slice(0, 500), method, String(payment_ref || '').slice(0, 100) || null, Math.round(subtotal), shipping, shippingPending, total, JSON.stringify(lineItems), initialStatus, orderCustomerId, now);
       // A new order changes every affected product's sold_count — drop the
       // cached aggregate so the storefront shows it right away.
-      productShape.invalidateSoldCounts();
+      productShape.invalidateProductAggregates();
 
       // Atomic stock decrement — `WHERE stock_qty >= ?` guards against the
       // SELECT-then-UPDATE overselling race: if stock changed between the
@@ -282,7 +282,7 @@ module.exports = function createOrderRoutes(db) {
       const oldStatus = order.status;
       await db.prepare('UPDATE orders SET status = ? WHERE id = ?').run(status, id);
       // Cancel/reactivate moves units in or out of the sold totals.
-      if (oldStatus !== status) productShape.invalidateSoldCounts();
+      if (oldStatus !== status) productShape.invalidateProductAggregates();
       const updated = await db.prepare('SELECT * FROM orders WHERE id = ?').get(id);
       updated.items = JSON.parse(updated.items_json || '[]');
       if (oldStatus !== status) {

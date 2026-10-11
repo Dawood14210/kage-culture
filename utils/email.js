@@ -3,15 +3,19 @@
 // ================================================================
 
 const { escapeHtml, stripHeaderChars } = require('./helpers');
+const { getConfiguredSiteUrl } = require('./siteUrl');
 
-// Links emailed to users are built from SITE_URL plus a server-generated,
-// URL-encoded token — never from anything a requester supplied.
-const SITE_URL = () => process.env.SITE_URL || 'https://kage-culture-ruby.vercel.app';
+// Links emailed to users require an explicitly configured public origin. Page
+// rendering has a request-origin fallback; email links deliberately do not.
 function buildLink(path, params) {
+  const siteUrl = getConfiguredSiteUrl();
+  if (!siteUrl) throw new Error('SITE_URL must be configured before building password-reset or verification email links.');
+  const emailPath = String(path || '');
+  if (!emailPath.startsWith('/')) throw new Error('Email link paths must start with /.');
   const query = Object.entries(params || {})
     .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
     .join('&');
-  return `${SITE_URL()}${path}${query ? '?' + query : ''}`;
+  return `${siteUrl}${emailPath}${query ? '?' + query : ''}`;
 }
 
 async function sendEmail(to, subject, html) {
@@ -101,7 +105,7 @@ async function sendStatusUpdate(order, oldStatus) {
 
 async function sendVerificationEmail(customer, verifyUrl) {
   const name = escapeHtml((customer && customer.name) || 'there');
-  // The URL is server-built (SITE_URL + hex token) and escaped for the href.
+  // The URL is built from an explicitly configured SITE_URL plus a server token.
   const safeUrl = escapeHtml(verifyUrl);
   const html = `
   <div style="font-family:'Archivo',Arial,sans-serif;background:#D9D4C8;padding:32px;color:#1A1815;">
@@ -117,4 +121,4 @@ async function sendVerificationEmail(customer, verifyUrl) {
   return sendEmail(customer && customer.email, 'Verify your KAGE Culture email', html);
 }
 
-module.exports = { sendEmail, sendOrderConfirmation, sendStatusUpdate, sendVerificationEmail, escapeHtml, stripHeaderChars, buildLink, SITE_URL };
+module.exports = { sendEmail, sendOrderConfirmation, sendStatusUpdate, sendVerificationEmail, escapeHtml, stripHeaderChars, buildLink };

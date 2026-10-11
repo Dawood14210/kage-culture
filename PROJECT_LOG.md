@@ -1189,3 +1189,45 @@ Chrome logged as a console error; that was reproduced separately before fixing.
   stylesheet request with an empty successful response rather than reporting a
   sandbox-only network error.
 - `git diff --check` and JavaScript syntax checks passed.
+
+---
+
+## 30. Seven-item follow-up hardening (2026-10-12)
+
+Completed the seven requested follow-ups with regression coverage:
+
+- Ordinary static assets and `/uploads` now use one-day public caching with
+  revalidation; HTML stays no-store, and only `/vendor` assets keep the one-year
+  immutable policy. Numeric `/api/products/<digits>` GETs match the public cache
+  rule; session-varying admin/customer APIs are no-store.
+- Confirmed the CSRF caveat: a first uncookied public API GET sets `kage.csrf`,
+  while a public cached read with an existing CSRF cookie does not send a new
+  `Set-Cookie`. No cache/cookie redesign was made.
+- Product and standalone uploads now require an allowed raster extension and
+  MIME type; all four admin file pickers exclude SVG/wildcards. Existing public
+  SVG logos/assets were left intact.
+- Removed manual signed-cookie parsing, `readSignedSession`, and the legacy
+  `kage.cust` identity fallback. Auth uses only verified `req.session`; valid
+  cookie-session login and forged/detached-cookie regressions pass.
+- Centralized `SITE_URL` in `utils/siteUrl.js`. Page canonical/OG/JSON-LD tags,
+  dynamic `/sitemap.xml` and `/robots.txt`, and reset/verification links share
+  that configuration. Missing production configuration warns and uses request
+  origin for page tags, but reset/verification emails are suppressed rather
+  than using a guessed domain. Updated `DEPLOY.md`, `.env.example`, `AGENTS.md`
+  and the audit notes.
+- Review GETs send `X-Viewer-Token`; the legacy query parameter remains accepted
+  during rollout. Token-scoped responses are `Cache-Control: private`, and the
+  storefront regression checks the token never appears in the URL.
+- Sold-unit counts and approved-review aggregates now share a 60-second cache,
+  invalidated after order, review, and product writes.
+
+**Verification**
+
+- `npm test` → **113/113 E2E scenarios**, shared rate-limit integration passed,
+  storefront regression suite passed, and **19/19 frontend scenarios**.
+- Headless Chromium confirmed the hero image loads, canonical/OG and dynamic
+  sitemap/robots URLs use `SITE_URL`, and a reviewer sees their own pending
+  review immediately after submission. No browser console/page errors. Google
+  Fonts were intercepted with an empty successful stylesheet because the
+  sandbox cannot reach that external host.
+- `git diff --check` and Node syntax checks passed.

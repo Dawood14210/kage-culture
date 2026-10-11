@@ -242,7 +242,7 @@ async function ready(win) {
         if (String(url).startsWith('/api/reviews?')) {
           // Stand in for the server: the author's own pending review comes
           // back alongside the approved ones, flagged is_own.
-          reviewGets.push(String(url));
+          reviewGets.push({ url: String(url), headers: options?.headers || {} });
           return Promise.resolve({ ok: true, json: async () => ([
             { id: 9001, customer_name: 'Second Buyer', rating: 3, comment: 'Fabric is okay', created_at: '2026-10-11 09:00:00', status: 'pending', is_own: true },
             { id: 9002, customer_name: 'Test Buyer', rating: 5, comment: 'Great fit', created_at: '2026-10-10 09:00:00', status: 'approved', is_own: false }
@@ -275,7 +275,9 @@ async function ready(win) {
       assert.ok(sentReviews.every(r => /^[a-f0-9]{48}$/.test(r.viewer_token)), 'each submission carries a viewer token');
       assert.equal(new Set(sentReviews.map(r => r.viewer_token)).size, 1, 'same browser reuses one viewer token');
       assert.ok(reviewGets.length >= 5, 'each successful submit must refresh the review list');
-      assert.match(reviewGets.at(-1), /viewer_token=[a-f0-9]{48}/, 'the refetch carries the viewer token');
+      assert.match(reviewGets.at(-1).url, /product_id=1/, 'the refetch identifies the product');
+      assert.ok(!reviewGets.at(-1).url.includes('viewer_token='), 'the viewer token must not appear in the URL');
+      assert.match(reviewGets.at(-1).headers['X-Viewer-Token'] || '', /^[a-f0-9]{48}$/, 'the refetch carries the viewer token in a header');
       // Await the same function the submit path fires so the DOM assertion is
       // deterministic (an earlier real-fetch render must not race the mock).
       await w.loadReviews(1);

@@ -107,9 +107,9 @@ function shapePublicProducts(rows, extrasById) {
 }
 
 // ----------------------------------------------------------------
-// Approved-review aggregates — one query, reused by both shapes.
+// Approved-review aggregates
 // ----------------------------------------------------------------
-async function loadReviewAggregates(db) {
+async function computeReviewAggregates(db) {
   let rows = [];
   try { rows = await db.prepare('SELECT product_id, rating FROM reviews WHERE status = ?').all('approved'); } catch (e) { rows = []; }
   const agg = new Map();
@@ -136,7 +136,8 @@ function ratingFields(aggregate) {
 // request; this one asks SQLite for the aggregate in a single statement
 // (JSON1 is built into every SQLite since 3.38, and Turso/libSQL ships it),
 // falls back to one scan on backends without JSON1 (the pure-JS in-memory
-// store), and caches the map for SOLD_COUNT_CACHE_MS either way.
+// store), and combines this map with approved-review aggregates in a shared
+// 60-second cache.
 const SOLD_COUNT_SQL = `
   SELECT CAST(json_extract(it.value, '$.id') AS INTEGER) AS product_id,
          SUM(COALESCE(NULLIF(CAST(json_extract(it.value, '$.qty') AS INTEGER), 0), 1)) AS units
@@ -145,7 +146,8 @@ const SOLD_COUNT_SQL = `
    GROUP BY product_id
 `;
 
-const soldCache = { map: null, at: 0, pending: null, strategy: 'unknown' };
+const productAggregateCache = { result: null, at: 0, pending: null, version: 0, strategy: 'unknown' };
+const PRODUCT_AGGREGATE_CACHE_MS = Number(config.SOLD_COUNT_CACHE_MS) || 60 * 1000;
 let json1Support = null;
 
 async function json1Available(db) {
@@ -174,44 +176,72 @@ async function scanSoldCounts(db) {
   return map;
 }
 
-// Map<productId, unitsSold>, cached. Concurrent callers share one computation.
-async function getSoldCounts(db) {
-  if (soldCache.map && Date.now() - soldCache.at < config.SOLD_COUNT_CACHE_MS) return soldCache.map;
-  if (soldCache.pending) return soldCache.pending;
-  soldCache.pending = (async () => {
-    let map = null;
-    if (await json1Available(db)) {
+async function computeSoldCounts(db) {
+  if (await json1Available(db)) {
+    try {
       const rows = await db.prepare(SOLD_COUNT_SQL).all('cancelled');
       // A backend that silently refuses the query returns rows without the
       // aggregate columns — treat that as unsupported rather than "no sales".
       if (Array.isArray(rows) && rows.every(r => r && 'product_id' in r && 'units' in r)) {
-        map = new Map(rows.map(r => [Number(r.product_id), Number(r.units) || 0]));
-        soldCache.strategy = 'json1';
+        return { map: new Map(rows.map(r => [Number(r.product_id), Number(r.units) || 0])), strategy: 'json1' };
       }
-    }
-    if (!map) {
-      map = await scanSoldCounts(db);
-      soldCache.strategy = 'scan';
-    }
-    soldCache.map = map;
-    soldCache.at = Date.now();
-    return map;
+    } catch (_) { /* fall back to the single-pass JSON scan below */ }
+  }
+  return { map: await scanSoldCounts(db), strategy: 'scan' };
+}
+
+// The sold-unit and approved-review maps are one cache entry so every public
+// product response is built from a consistent snapshot. Concurrent reads
+// share one computation; invalidation bumps a generation so an older in-flight
+// query cannot repopulate the cache after a write.
+async function getProductAggregates(db) {
+  if (productAggregateCache.result && Date.now() - productAggregateCache.at < PRODUCT_AGGREGATE_CACHE_MS) {
+    return productAggregateCache.result;
+  }
+  if (productAggregateCache.pending) return productAggregateCache.pending;
+
+  const version = productAggregateCache.version;
+  const pending = (async () => {
+    const [soldResult, reviews] = await Promise.all([computeSoldCounts(db), computeReviewAggregates(db)]);
+    return { sold: soldResult.map, reviews, strategy: soldResult.strategy };
   })();
+  productAggregateCache.pending = pending;
   try {
-    return await soldCache.pending;
+    const result = await pending;
+    if (productAggregateCache.version === version) {
+      productAggregateCache.result = result;
+      productAggregateCache.at = Date.now();
+      productAggregateCache.strategy = result.strategy;
+    }
+    return result;
   } finally {
-    soldCache.pending = null;
+    if (productAggregateCache.pending === pending) productAggregateCache.pending = null;
   }
 }
 
-// Order writes call this so "N sold" stays correct inside the cache window.
-function invalidateSoldCounts() {
-  soldCache.map = null;
-  soldCache.at = 0;
+async function getSoldCounts(db) {
+  return (await getProductAggregates(db)).sold;
 }
 
-// Observability for tests: which strategy the last computation used.
-function soldCountsStrategy() { return soldCache.strategy; }
+async function loadReviewAggregates(db) {
+  return (await getProductAggregates(db)).reviews;
+}
+
+function invalidateProductAggregates() {
+  productAggregateCache.version++;
+  productAggregateCache.result = null;
+  productAggregateCache.at = 0;
+  productAggregateCache.pending = null;
+  productAggregateCache.strategy = 'unknown';
+}
+
+// Backward-compatible name; order writes now invalidate both aggregate maps.
+function invalidateSoldCounts() {
+  invalidateProductAggregates();
+}
+
+// Observability for tests: which sold-count strategy the last computation used.
+function soldCountsStrategy() { return productAggregateCache.strategy; }
 
 module.exports = {
   PUBLIC_PRODUCT_COLUMNS,
@@ -223,8 +253,10 @@ module.exports = {
   shapeAdminProduct,
   loadReviewAggregates,
   ratingFields,
+  getProductAggregates,
   getSoldCounts,
   scanSoldCounts,
+  invalidateProductAggregates,
   invalidateSoldCounts,
   soldCountsStrategy
 };

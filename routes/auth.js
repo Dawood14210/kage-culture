@@ -10,6 +10,7 @@ const { requireAuth, requireCustomerAuth, optionalCustomerId } = require('../mid
 const { strictLimiter, adminLoginLimiter, customerLoginLimiter, resetLimiter } = require('../middleware/rateLimit');
 const { hashToken, isValidEmail } = require('../utils/helpers');
 const { getSessionSecret } = require('../utils/secret');
+const { getConfiguredSiteUrl } = require('../utils/siteUrl');
 const { sendEmail, sendVerificationEmail, buildLink, escapeHtml } = require('../utils/email');
 
 // SESSION_SECRET defaults through utils/secret.js so this route file can never
@@ -176,6 +177,10 @@ module.exports = function createAuthRoutes(db, SESSION_SECRET = getSessionSecret
       if (!email) return res.status(400).json({ error: 'Email is required.' });
       const clean = String(email).trim().toLowerCase();
       const type = user_type === 'customer' ? 'customer' : 'admin';
+      if (!getConfiguredSiteUrl()) {
+        console.error('Password reset email not sent: SITE_URL is not configured.');
+        return res.json({ success: true, message: 'If an account exists, a reset link has been sent.' });
+      }
       const table = type === 'customer' ? 'customers' : 'admin';
       const user = await db.prepare(`SELECT id, email FROM ${table} WHERE LOWER(TRIM(email)) = ?`).get(clean);
       if (!user) return res.json({ success: true, message: 'If an account exists, a reset link has been sent.' });
@@ -232,6 +237,10 @@ module.exports = function createAuthRoutes(db, SESSION_SECRET = getSessionSecret
   // Issue a fresh single-use token and email the link. Any older unused token
   // for the account is burned first, so only the newest link works.
   async function issueVerificationToken(customer) {
+    if (!getConfiguredSiteUrl()) {
+      console.error('Verification email not sent: SITE_URL is not configured.');
+      return null;
+    }
     const rawToken = crypto.randomBytes(32).toString('hex');
     const tokenHash = hashToken(rawToken);
     const expiresAt = new Date(Date.now() + VERIFY_TOKEN_TTL_MS).toISOString().replace('T', ' ').slice(0, 19);
@@ -280,8 +289,11 @@ module.exports = function createAuthRoutes(db, SESSION_SECRET = getSessionSecret
       // cookie-session middleware commits kage.session after this handler.
       req.session.customerId = customerId;
       const stored = { id: customerId, email: clean, name: customerName };
-      await issueVerificationToken(stored);
-      res.json({ success: true, customer: { ...stored, email_verified: false }, message: 'Account created. Check your email to verify your address and see your order history.' });
+      const verification = await issueVerificationToken(stored);
+      const message = verification
+        ? 'Account created. Check your email to verify your address and see your order history.'
+        : 'Account created, but verification email is unavailable. Please contact support.';
+      res.json({ success: true, customer: { ...stored, email_verified: false }, message });
     } catch (err) { console.error('customer/signup failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
   });
 
@@ -404,7 +416,8 @@ module.exports = function createAuthRoutes(db, SESSION_SECRET = getSessionSecret
       const customer = await db.prepare('SELECT id, email, name, email_verified FROM customers WHERE id = ?').get(req.customerId);
       if (!customer) return res.status(404).json({ error: 'Account not found.' });
       if (Number(customer.email_verified) === 1) return res.json({ success: true, message: 'Your email is already verified.' });
-      await issueVerificationToken(customer);
+      const verification = await issueVerificationToken(customer);
+      if (!verification) return res.status(503).json({ error: 'Verification email is unavailable. Please try again later.' });
       res.json({ success: true, message: 'Verification email sent. Check your inbox.' });
     } catch (err) { console.error('resend-verification failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
   });

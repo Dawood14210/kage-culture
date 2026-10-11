@@ -12,11 +12,15 @@ const productShape = require('../utils/productShape');
 const sizeStock = require('../utils/sizes');
 
 // SECURITY: without fileFilter, /api/upload accepted ANY file (e.g. .html/.js
-// payloads served from /uploads). Same image-only filter as products routes.
+// payloads served from /uploads). Allow raster types only; SVG can execute
+// scripts when served from this origin.
+const ALLOWED_IMAGE_EXTENSIONS = new Set(['.jpeg', '.jpg', '.png', '.gif', '.webp']);
+const ALLOWED_IMAGE_MIME_TYPES = new Set(['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp']);
 const IMAGE_FILE_FILTER = (req, file, cb) => {
-  const allowed = /jpeg|jpg|png|gif|webp|svg/;
-  if (allowed.test(path.extname(file.originalname || '').toLowerCase()) && allowed.test(file.mimetype)) cb(null, true);
-  else { const err = new Error('Only image files (JPEG, PNG, GIF, WebP, SVG) are allowed'); err.status = 400; cb(err); }
+  const extension = path.extname(file.originalname || '').toLowerCase();
+  const mimeType = String(file.mimetype || '').toLowerCase();
+  if (ALLOWED_IMAGE_EXTENSIONS.has(extension) && ALLOWED_IMAGE_MIME_TYPES.has(mimeType)) cb(null, true);
+  else { const err = new Error('Only image files (JPEG, PNG, GIF, WebP) are allowed'); err.status = 400; cb(err); }
 };
 
 const upload = multer({

@@ -8,7 +8,8 @@ The app is **serverless-ready** when configured with persistent production stora
 
 > ⚠️ Vercel's function filesystem is ephemeral/read-only. Do not rely on local
 > `./uploads` for deployed product images. If Blob storage is missing, product
-> image uploads will fail. Set all four variables below before using the admin panel.
+> image uploads will fail. Set the required production variables below before
+> using the admin panel or sending account-verification emails.
 
 ---
 
@@ -54,8 +55,15 @@ In the Vercel project: **Settings → Environment Variables**, add for **Product
 | `TURSO_DATABASE_URL` | `libsql://kage-xxxx.turso.io` (from Step 2) |
 | `TURSO_AUTH_TOKEN` | the token from Step 2 |
 | `BLOB_READ_WRITE_TOKEN` | **Required for product image uploads:** create/connect a **Public** Vercel Blob store, then use its read-write token |
-| `SESSION_SECRET` | **required, >= 32 characters.** Generate one: `node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"` |
+| `SESSION_SECRET` | **Required, >= 32 characters.** Generate one: `node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"` |
+| `SITE_URL` | The canonical public HTTPS origin for this shop. Set it to your assigned production URL or your configured custom domain; do not copy another shop's domain. |
 | `RATE_LIMIT_STORE` | Optional: set to `db` for a non-Turso deployment using a database shared by its instances. Turso enables the DB store automatically. |
+
+`SITE_URL` is the single source for page canonical/Open Graph URLs, structured data,
+`/sitemap.xml`, `/robots.txt`, and password-reset/verification email links. If it is
+unset in production, page metadata and crawler files fall back to the current request
+origin and a warning is logged; password-reset and verification emails are suppressed
+rather than sent with a guessed domain.
 
 Vercel's Storage quickstart may show a store-prefixed variable such as `kage_READ_WRITE_TOKEN`; this app accepts that variable as well as `BLOB_READ_WRITE_TOKEN`.
 

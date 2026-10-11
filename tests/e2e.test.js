@@ -9,6 +9,7 @@
 process.env.NODE_ENV = process.env.NODE_ENV || 'test'; // allows the dev fallback in utils/secret.js
 process.env.ALLOW_ADMIN_SETUP = 'true'; // tests exercise the gated bootstrap
 process.env.SESSION_SECRET = process.env.SESSION_SECRET || 'test-secret-for-regression-tests';
+process.env.SITE_URL = 'https://shop.kage.test';
 // The suite drives all scenarios from one IP in seconds; do not exhaust the
 // storefront's production-wide per-minute request budget during the tests.
 require('../config').RATE_LIMIT_GLOBAL = 1000;
@@ -34,7 +35,6 @@ const dbModule = require('../database.js');
 
 const { app, ensureReady } = require('../server.js');
 const productShape = require('../utils/productShape');
-const { readSignedSession } = require('../middleware/auth');
 const serverModule = require('../server.js');
 
 const BASE = 'http://127.0.0.1:0';
@@ -162,7 +162,83 @@ async function main() {
   console.log(`\nTest server on :${PORT}\n`);
 
   // ---------------------------------------------------------------
-  // 1. requireAuth — HMAC verification (regression for the fixed bypass)
+  // Static asset cache contracts (run before changing server.js)
+  // ---------------------------------------------------------------
+  console.log('Static cache headers:');
+  await check('replaceable images use one-day public caching with revalidation', async () => {
+    const image = await request(PORT, 'GET', '/images/hero.jpg', { headers: { Cookie: 'kage.csrf=cache-probe' } });
+    assert.strictEqual(image.status, 200);
+    assert.strictEqual(image.headers['cache-control'], 'public, max-age=86400, must-revalidate');
+  });
+
+  await check('HTML remains no-store', async () => {
+    const page = await request(PORT, 'GET', '/');
+    assert.match(page.headers['cache-control'] || '', /no-store/);
+  });
+
+  await check('canonical, Open Graph and JSON-LD tags use SITE_URL; sitemap and robots are dynamic', async () => {
+    const [page, sitemap, robots] = await Promise.all([
+      request(PORT, 'GET', '/'),
+      request(PORT, 'GET', '/sitemap.xml'),
+      request(PORT, 'GET', '/robots.txt')
+    ]);
+    const rootUrl = `${process.env.SITE_URL}/`;
+    assert.ok(page.text.includes(`<link rel="canonical" href="${rootUrl}" />`));
+    assert.ok(page.text.includes(`<meta property="og:url" content="${rootUrl}" />`));
+    assert.ok(page.text.includes(`"url": "${rootUrl}"`));
+    assert.ok(page.text.includes(`"logo": "${process.env.SITE_URL}/images/icon-512.png"`));
+    assert.ok(sitemap.text.includes(`<loc>${rootUrl}</loc>`));
+    assert.ok(robots.text.includes(`Sitemap: ${process.env.SITE_URL}/sitemap.xml`));
+  });
+
+  await check('production page tags fall back to the request origin and warn when SITE_URL is unset', async () => {
+    const previousSiteUrl = process.env.SITE_URL;
+    const previousNodeEnv = process.env.NODE_ENV;
+    const originalWarn = console.warn;
+    const warnings = [];
+    delete process.env.SITE_URL;
+    process.env.NODE_ENV = 'production';
+    console.warn = (...args) => warnings.push(args.map(String).join(' '));
+    try {
+      const page = await request(PORT, 'GET', '/');
+      const requestOrigin = `http://127.0.0.1:${PORT}/`;
+      assert.strictEqual(page.status, 200);
+      assert.ok(page.text.includes(`href="${requestOrigin}"`), 'canonical must use the current request origin');
+      assert.ok(warnings.some(message => /SITE_URL.*request origin/i.test(message)), 'production fallback must be logged');
+    } finally {
+      console.warn = originalWarn;
+      if (previousNodeEnv === undefined) delete process.env.NODE_ENV; else process.env.NODE_ENV = previousNodeEnv;
+      if (previousSiteUrl === undefined) delete process.env.SITE_URL; else process.env.SITE_URL = previousSiteUrl;
+    }
+  });
+
+  await check('/vendor assets retain their long cache lifetime', async () => {
+    const vendor = await request(PORT, 'GET', '/vendor/chart.umd.min.js', { headers: { Cookie: 'kage.csrf=cache-probe' } });
+    assert.strictEqual(vendor.status, 200);
+    assert.match(vendor.headers['cache-control'] || '', /max-age=31536000/);
+  });
+
+  console.log('API cache headers:');
+  await check('single-product GET uses public cache headers', async () => {
+    const product = await request(PORT, 'GET', '/api/products/1', { headers: { Cookie: 'kage.csrf=cache-probe' } });
+    assert.strictEqual(product.status, 200);
+    assert.strictEqual(product.headers['cache-control'], 'public, max-age=60, s-maxage=60');
+  });
+
+  await check('public cached API reads with an existing CSRF cookie do not Set-Cookie', async () => {
+    const products = await request(PORT, 'GET', '/api/products', { headers: { Cookie: 'kage.csrf=cache-probe' } });
+    assert.strictEqual(products.status, 200);
+    assert.strictEqual(products.headers['set-cookie'], undefined);
+  });
+
+  await check('first public API read sets the CSRF cookie (CDN caveat)', async () => {
+    const products = await request(PORT, 'GET', '/api/products');
+    assert.strictEqual(products.status, 200);
+    assert.ok((products.headers['set-cookie'] || []).some(cookie => cookie.startsWith('kage.csrf=')));
+  });
+
+  // ---------------------------------------------------------------
+  // 1. requireAuth — cookie-session state only; reject forged raw cookies
   // ---------------------------------------------------------------
   console.log('Auth middleware:');
   await check('admin login sets a signed session cookie', async () => {
@@ -178,6 +254,12 @@ async function main() {
     const r = await request(PORT, 'POST', '/api/admin/login', { body: { email: 'root@kage.test', password: 'supersecret1' } });
     adminCookie = cookieHeader(r);
   }
+
+  await check('session-varying admin responses are no-store', async () => {
+    const response = await request(PORT, 'GET', '/api/admin/me', { headers: { Cookie: adminCookie } });
+    assert.strictEqual(response.status, 200);
+    assert.strictEqual(response.headers['cache-control'], 'no-store');
+  });
 
   await check('valid admin cookie → 200', async () => {
     const r = await request(PORT, 'GET', '/api/admin/me', { headers: { Cookie: adminCookie } });
@@ -203,13 +285,25 @@ async function main() {
     assert.strictEqual(r.status, 401);
   });
 
-  await check('customer session on admin route → 401', async () => {
+  await check('customer session on admin route → 401; customer session data is no-store', async () => {
     const csrf = await getCsrf();
     await request(PORT, 'POST', '/api/customers/signup', { body: { email: 'cust@kage.test', password: 'custpass1', name: 'Cust' }, headers: { 'X-CSRF-Token': csrf.token, Cookie: csrf.cookie } });
     const login = await request(PORT, 'POST', '/api/customers/login', { body: { email: 'cust@kage.test', password: 'custpass1' }, headers: { 'X-CSRF-Token': csrf.token, Cookie: csrf.cookie } });
     const custCookie = cookieHeader(login);
-    const r = await request(PORT, 'GET', '/api/admin/me', { headers: { Cookie: custCookie } });
-    assert.strictEqual(r.status, 401);
+    const adminResponse = await request(PORT, 'GET', '/api/admin/me', { headers: { Cookie: custCookie } });
+    assert.strictEqual(adminResponse.status, 401);
+    const customerResponse = await request(PORT, 'GET', '/api/customers/me', { headers: { Cookie: custCookie } });
+    assert.strictEqual(customerResponse.status, 200);
+    assert.strictEqual(customerResponse.headers['cache-control'], 'no-store');
+
+    const storedCustomer = await dbModule.prepare('SELECT id FROM customers WHERE email = ?').get('cust@kage.test');
+    const payload = Buffer.from(JSON.stringify({ customerId: Number(storedCustomer.id) })).toString('base64');
+    const secret = require('../utils/secret').getSessionSecret();
+    const signature = crypto.createHmac('sha256', secret).update(payload).digest('base64');
+    const legacyCookie = await request(PORT, 'GET', '/api/customers/me', {
+      headers: { Cookie: `kage.cust=${payload}.${signature}` }
+    });
+    assert.deepStrictEqual(legacyCookie.json, { customer: null }, 'the removed kage.cust cookie must not authorize a customer');
   });
 
   // ---------------------------------------------------------------
@@ -330,12 +424,22 @@ async function main() {
     assert.strictEqual(low.json.approved, false, '3★ review must not auto-approve');
     assert.strictEqual(low.json.viewer_token, 'e2e-viewer-token-2', 'server keeps the submitted viewer token');
 
-    // Invisible to the public and to any other browser's token...
-    assert.deepStrictEqual((await request(PORT, 'GET', '/api/reviews?product_id=2')).json, []);
+    // Invisible to the public and to any other browser's token; anonymous
+    // responses remain publicly cacheable because they contain no private data.
+    const publicReviews = await request(PORT, 'GET', '/api/reviews?product_id=2');
+    assert.deepStrictEqual(publicReviews.json, []);
+    assert.strictEqual(publicReviews.headers['cache-control'], 'public, max-age=120, s-maxage=120');
     assert.deepStrictEqual((await request(PORT, 'GET', '/api/reviews?product_id=2&viewer_token=someone-elses-token')).json, []);
-    // ...but the author sees it right away, flagged as their own.
-    const mine = await request(PORT, 'GET', '/api/reviews?product_id=2&viewer_token=e2e-viewer-token-2');
+    // The header token is the primary path; the query parameter remains a
+    // temporary compatibility path for older storefront clients.
+    const mine = await request(PORT, 'GET', '/api/reviews?product_id=2', {
+      headers: { 'X-Viewer-Token': 'e2e-viewer-token-2' }
+    });
     assert.strictEqual(mine.json.length, 1, 'author must see their own pending review immediately');
+    assert.strictEqual(mine.headers['cache-control'], 'private', 'token-scoped responses must never be shared-cacheable');
+    const legacyMine = await request(PORT, 'GET', '/api/reviews?product_id=2&viewer_token=e2e-viewer-token-2');
+    assert.strictEqual(legacyMine.json.length, 1, 'legacy query tokens remain accepted during the transition');
+    assert.strictEqual(legacyMine.headers['cache-control'], 'private', 'legacy token responses must not be shared-cacheable');
     assert.strictEqual(mine.json[0].status, 'pending');
     assert.strictEqual(mine.json[0].is_own, true);
     assert.strictEqual(mine.json[0].rating, 3);
@@ -625,6 +729,47 @@ async function main() {
 
   // Frontend/API contract: stock and sale editing must agree with checkout.
   console.log('\nCatalog contract:');
+  await check('SVG uploads are rejected by product and standalone upload filters', async () => {
+    const oldVercel = process.env.VERCEL;
+    const oldBlobToken = process.env.BLOB_READ_WRITE_TOKEN;
+    const oldKageBlobToken = process.env.kage_READ_WRITE_TOKEN;
+    process.env.VERCEL = '1'; // if a broken filter accepts SVG, Blob config stops it before persistence
+    delete process.env.BLOB_READ_WRITE_TOKEN;
+    delete process.env.kage_READ_WRITE_TOKEN;
+    try {
+      const csrf = await getCsrf();
+      const headers = { Cookie: `${adminCookie}; ${csrf.cookie}`, 'X-CSRF-Token': csrf.token };
+      const svg = '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>';
+      const productForm = new FormData();
+      productForm.append('front_image', new Blob([svg], { type: 'image/svg+xml' }), 'unsafe.svg');
+      const productResponse = await fetch(`http://127.0.0.1:${PORT}/api/products`, { method: 'POST', headers, body: productForm });
+      const productBody = await productResponse.json();
+      assert.strictEqual(productResponse.status, 400, JSON.stringify(productBody));
+      assert.match(productBody.error || '', /Only image files/i);
+
+      const uploadForm = new FormData();
+      uploadForm.append('image', new Blob([svg], { type: 'image/svg+xml' }), 'unsafe.svg');
+      const uploadResponse = await fetch(`http://127.0.0.1:${PORT}/api/upload`, { method: 'POST', headers, body: uploadForm });
+      const uploadBody = await uploadResponse.json();
+      assert.strictEqual(uploadResponse.status, 400, JSON.stringify(uploadBody));
+      assert.match(uploadBody.error || '', /Only image files/i);
+    } finally {
+      if (oldVercel === undefined) delete process.env.VERCEL;
+      else process.env.VERCEL = oldVercel;
+      if (oldBlobToken === undefined) delete process.env.BLOB_READ_WRITE_TOKEN;
+      else process.env.BLOB_READ_WRITE_TOKEN = oldBlobToken;
+      if (oldKageBlobToken === undefined) delete process.env.kage_READ_WRITE_TOKEN;
+      else process.env.kage_READ_WRITE_TOKEN = oldKageBlobToken;
+    }
+  });
+
+  await check('admin file pickers exclude SVG and wildcard image types', async () => {
+    const adminHtml = fs.readFileSync(path.join(__dirname, '..', 'public', 'admin.html'), 'utf8');
+    const accepts = [...adminHtml.matchAll(/<input\b[^>]*type="file"[^>]*accept="([^"]+)"/gi)].map(match => match[1]);
+    assert.ok(accepts.length >= 3, 'all product image pickers should declare their accepted types');
+    assert.ok(accepts.every(value => !value.includes('*') && !/svg/i.test(value)), JSON.stringify(accepts));
+  });
+
   await check('admin can create a product with an image, unit cost and stock', async () => {
     const oldVercel = process.env.VERCEL;
     const oldBlobToken = process.env.BLOB_READ_WRITE_TOKEN;
@@ -1393,9 +1538,37 @@ async function main() {
     assert.strictEqual(sent.length, 1, 'exactly one reset email');
     // The href is escaped in the HTML, so the & of the second query param shows as &amp;.
     const href = hrefOf(sent[0].html);
-    assert.match(href, /^https:\/\/kage-culture-ruby\.vercel\.app\/reset-password\?token=[a-f0-9]{64}&amp;type=customer$/, href);
+    assert.match(href, /^https:\/\/shop\.kage\.test\/reset-password\?token=[a-f0-9]{64}&amp;type=customer$/, href);
     assert.ok(!/<script/i.test(sent[0].html), 'no script may appear in the reset email');
     assert.ok(!/[\r\n]/.test(sent[0].subject), 'the subject must not carry CR/LF');
+  });
+
+  await check('unset SITE_URL never sends guessed reset or verification links', async () => {
+    const previousSiteUrl = process.env.SITE_URL;
+    delete process.env.SITE_URL;
+    try {
+      const { buildLink } = require('../utils/email');
+      assert.throws(() => buildLink('/reset-password', { token: 'test' }), /SITE_URL/i);
+
+      const { result: reset, sent: resetEmails } = await captureEmails(async () => {
+        const csrf = await getCsrf();
+        return request(PORT, 'POST', '/api/auth/forgot-password', {
+          body: { email: 'cust@kage.test', user_type: 'customer' },
+          headers: { 'X-CSRF-Token': csrf.token, Cookie: csrf.cookie }
+        });
+      });
+      assert.strictEqual(reset.status, 200, JSON.stringify(reset.json));
+      assert.strictEqual(resetEmails.length, 0, 'password reset must not send a guessed link');
+
+      const { result: signup, sent: verificationEmails } = await captureEmails(() => signupCustomer('missing.site.url@kage.test', 'nositepass1', 'No URL'));
+      assert.strictEqual(signup.res.status, 200, JSON.stringify(signup.res.json));
+      assert.strictEqual(verificationEmails.length, 0, 'verification must not send a guessed link');
+      const customer = await dbModule.prepare('SELECT id FROM customers WHERE email = ?').get('missing.site.url@kage.test');
+      const tokens = await dbModule.prepare('SELECT COUNT(*) AS count FROM customer_verification_tokens WHERE customer_id = ?').get(customer.id);
+      assert.strictEqual(Number(tokens.count), 0, 'no unusable verification token should be stored');
+    } finally {
+      if (previousSiteUrl === undefined) delete process.env.SITE_URL; else process.env.SITE_URL = previousSiteUrl;
+    }
   });
 
   await check('the verification email escapes the name and encodes the token', async () => {
@@ -1406,7 +1579,7 @@ async function main() {
     assert.ok(html.includes('&lt;img src=x onerror=alert(1)&gt;'), 'the customer name must be escaped');
     assert.ok(!/<img\s/i.test(html), 'no injected image/tag may survive');
     const href = hrefOf(html);
-    assert.match(href, /^https:\/\/kage-culture-ruby\.vercel\.app\/verify-email\?token=[a-f0-9]{64}$/, href);
+    assert.match(href, /^https:\/\/shop\.kage\.test\/verify-email\?token=[a-f0-9]{64}$/, href);
     assert.ok(!/[^a-zA-Z0-9:/.?=&%-]/.test(href), 'the href must stay a plain URL');
   });
 
@@ -1644,6 +1817,48 @@ async function main() {
     assert.deepStrictEqual(fromAggregate, fromScan, 'SQL aggregate must match the JSON scan');
 
     await request(PORT, 'DELETE', `/api/products/${id}`, { headers });
+  });
+
+  await check('sold and review aggregates share a 60-second cache invalidated by product writes', async () => {
+    let reviewQueries = 0;
+    let soldQueries = 0;
+    const originalPrepare = dbModule.prepare;
+    dbModule.prepare = function (sql) {
+      const text = String(sql);
+      if (/SELECT product_id, rating FROM reviews WHERE status = \?/i.test(text)) reviewQueries++;
+      if (text.includes('json_each(o.items_json)') || /SELECT items_json FROM orders WHERE status != \?/i.test(text)) soldQueries++;
+      return originalPrepare.call(dbModule, sql);
+    };
+    try {
+      productShape.invalidateSoldCounts();
+      await request(PORT, 'GET', '/api/products');
+      await request(PORT, 'GET', '/api/products');
+      assert.strictEqual(reviewQueries, 1, 'repeat reads should share the approved-review aggregate');
+      assert.strictEqual(soldQueries, 1, 'repeat reads should share the sold-unit aggregate');
+
+      const headers = await adminHeaders();
+      const created = await request(PORT, 'POST', '/api/products', {
+        body: { name: 'Aggregate Invalidation Probe', category: 'anime', price: 500, sizes: JSON.stringify(['M']), stock_qty: 4 },
+        headers
+      });
+      assert.strictEqual(created.status, 201, JSON.stringify(created.json));
+      await request(PORT, 'GET', '/api/products');
+      assert.strictEqual(reviewQueries, 2, 'creating a product must invalidate the combined aggregate cache');
+
+      const updated = await request(PORT, 'PUT', `/api/products/${created.json.id}`, {
+        body: { description: 'Updated description' }, headers
+      });
+      assert.strictEqual(updated.status, 200, JSON.stringify(updated.json));
+      await request(PORT, 'GET', '/api/products');
+      assert.strictEqual(reviewQueries, 3, 'updating a product must invalidate the combined aggregate cache');
+
+      const deleted = await request(PORT, 'DELETE', `/api/products/${created.json.id}`, { headers });
+      assert.strictEqual(deleted.status, 200, JSON.stringify(deleted.json));
+      await request(PORT, 'GET', '/api/products');
+      assert.strictEqual(reviewQueries, 4, 'deleting a product must invalidate the combined aggregate cache');
+    } finally {
+      dbModule.prepare = originalPrepare;
+    }
   });
 
   // ---------------------------------------------------------------
@@ -2188,22 +2403,18 @@ async function main() {
     const payload = Buffer.from(JSON.stringify({ adminId: 1 })).toString('base64');
     const sig = crypto.createHmac('sha256', DEV_FALLBACK_SECRET).update(payload).digest('base64');
     const forged = `${payload}.${sig}`;
-    // The cookie really is a valid signature — just for the string in the repo.
-    assert.ok(readSignedSession(forged, DEV_FALLBACK_SECRET), 'the fallback signature must verify on its own');
-    assert.strictEqual(readSignedSession(forged), null, 'the configured secret must not accept it');
     const res = await request(PORT, 'GET', '/api/admin/me', { headers: { Cookie: `kage.session=${forged}` } });
     assert.strictEqual(res.status, 401, JSON.stringify(res.json));
   });
 
-  await check('every module signs with the same resolved secret', async () => {
+  await check('standalone kage.session payloads are ignored without cookie-session middleware state', async () => {
     const secret = require('../utils/secret').getSessionSecret();
     const payload = Buffer.from(JSON.stringify({ adminId: 1 })).toString('base64');
     const unsigned = await request(PORT, 'GET', '/api/admin/me', { headers: { Cookie: `kage.session=${payload}` } });
     assert.strictEqual(unsigned.status, 401, 'an unsigned payload must never pass');
     const sig = crypto.createHmac('sha256', secret).update(payload).digest('base64');
-    const res = await request(PORT, 'GET', '/api/admin/me', { headers: { Cookie: `kage.session=${payload}.${sig}` } });
-    assert.strictEqual(res.status, 200, JSON.stringify(res.json));
-    assert.strictEqual(res.json.admin.email, 'root@kage.test');
+    const detached = await request(PORT, 'GET', '/api/admin/me', { headers: { Cookie: `kage.session=${payload}.${sig}` } });
+    assert.strictEqual(detached.status, 401, 'a raw signature without cookie-session state must not authorize');
   });
 
   // ---------------------------------------------------------------

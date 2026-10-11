@@ -10,15 +10,16 @@
   <meta name="keywords" content="streetwear, anime, graphic tees, oversized, compression, KAGE, culture, Pakistan" />
   <meta name="author" content="KAGE Culture" />
 
-  <!-- Canonical -->
-  <link rel="canonical" href="https://kage-culture-ruby.vercel.app" />
+  <!-- Canonical origin is injected by the server from SITE_URL (or request origin). -->
+  <meta name="site-url" content="__SITE_URL__" />
+  <link rel="canonical" href="__PAGE_URL__" />
 
   <!-- Open Graph -->
   <meta property="og:type" content="website" />
   <meta property="og:title" content="KAGE Culture — Engineered Fit. Original Art." />
   <meta property="og:description" content="Premium streetwear. Anime inspired. Built for everyday." />
   <meta property="og:image" content="/images/animal-white-tiger.jpg" />
-  <meta property="og:url" content="https://kage-culture-ruby.vercel.app" />
+  <meta property="og:url" content="__PAGE_URL__" />
   <meta property="og:site_name" content="KAGE Culture" />
 
   <!-- Twitter -->
@@ -43,8 +44,8 @@
     "@context": "https://schema.org",
     "@type": "Organization",
     "name": "KAGE Culture",
-    "url": "https://kage-culture-ruby.vercel.app",
-    "logo": "https://kage-culture-ruby.vercel.app/images/icon-512.png",
+    "url": "__SITE_URL__/",
+    "logo": "__SITE_URL__/images/icon-512.png",
     "description": "Premium streetwear. Anime inspired. Built for everyday.",
     "sameAs": [
       "https://instagram.com/kage__culture"
@@ -4919,7 +4920,9 @@
         if (url !== location.pathname + location.search) history.pushState(null, '', url);
       }
       // Keep share previews and canonical tags aligned with the visible SPA route.
-      const canonicalUrl = 'https://kage-culture-ruby.vercel.app' + location.pathname;
+      const configuredSiteUrl = document.querySelector('meta[name="site-url"]')?.content || '';
+      const siteRoot = /^https?:\/\//i.test(configuredSiteUrl) ? configuredSiteUrl.replace(/\/+$/, '') : location.origin;
+      const canonicalUrl = siteRoot + location.pathname;
       document.querySelector('link[rel="canonical"]').href = canonicalUrl;
       document.querySelector('meta[property="og:url"]').content = canonicalUrl;
       document.title = target === 'home' ? 'KAGE CULTURE — Engineered Fit. Original Art.'
@@ -5807,7 +5810,9 @@
     async function loadReviews(productId) {
       let reviews = [];
       try {
-        const res = await fetch('/api/reviews?product_id=' + productId + '&viewer_token=' + encodeURIComponent(getReviewViewerToken()));
+        const res = await fetch('/api/reviews?product_id=' + encodeURIComponent(productId), {
+          headers: { 'X-Viewer-Token': getReviewViewerToken() }
+        });
         if (res.ok) reviews = await res.json();
       } catch (e) { reviews = []; }
       const section = document.getElementById('reviewsSection');

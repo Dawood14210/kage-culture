@@ -5,12 +5,14 @@
 // ================================================================
 const express = require('express');
 const path = require('path');
+const fs = require('fs');
 const dbModule = require('./database');
 const config = require('./config');
 const { globalLimiter } = require('./middleware/rateLimit');
 const { csrfMiddleware } = require('./middleware/csrf');
 const { requireAuth } = require('./middleware/auth');
 const { getSessionSecret } = require('./utils/secret');
+const { getSiteUrlForRequest } = require('./utils/siteUrl');
 const demoProducts = require('./utils/demoProducts');
 
 // Lazy-loaded heavy modules (loaded on first use, not on every cold start)
@@ -32,6 +34,28 @@ const PORT = process.env.PORT || 3000;
 // express-rate-limit's built-in keyGenerator then applies ipKeyGenerator's
 // IPv6 subnet normalization (we intentionally do not replace it).
 app.set('trust proxy', 1);
+
+const STOREFRONT_HTML_TEMPLATE = fs.readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf8');
+function setHtmlNoStore(res) {
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+}
+function escapeXml(value) {
+  return String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
+}
+function renderStorefrontHtml(req) {
+  const siteUrl = getSiteUrlForRequest(req);
+  const pagePath = req.path === '/index.html' ? '/' : req.path;
+  const pageUrl = new URL(pagePath || '/', `${siteUrl}/`).href;
+  return STOREFRONT_HTML_TEMPLATE
+    .replaceAll('__SITE_URL__', siteUrl)
+    .replaceAll('__PAGE_URL__', pageUrl);
+}
+function sendStorefrontHtml(req, res, status = 200) {
+  setHtmlNoStore(res);
+  res.status(status).type('html').send(renderStorefrontHtml(req));
+}
 
 // Session secret — resolved through the single rule in utils/secret.js:
 // SESSION_SECRET must be >= 32 chars, and the development fallback is allowed
@@ -98,11 +122,37 @@ app.use((req, res, next) => {
   if (req.path === '/admin.html') return res.redirect(301, '/admin');
   next();
 });
-app.use(express.static(path.join(__dirname, 'public'), {
-  // M7: HTML stays uncacheable (fresh deployments must show immediately);
-  // everything else (images, fonts, icons) is fingerprint-free but stable, so
-  // clients may reuse it for a year with must-revalidate as a safety net.
+// Vendored assets are treated as version-pinned; changing one should include a
+// filename bump so its one-year cache can remain immutable.
+app.use('/vendor', express.static(path.join(__dirname, 'public', 'vendor'), {
   maxAge: '365d',
+  immutable: true,
+  etag: true,
+  lastModified: true,
+  setHeaders: (res) => res.setHeader('Cache-Control', 'public, max-age=31536000, immutable')
+}));
+
+// These small public documents and the storefront shell use the same canonical
+// origin configuration. Keep them no-store: CSRF middleware may set a cookie
+// on a first GET, and an origin is expected to be configured before crawling.
+app.get('/sitemap.xml', (req, res) => {
+  const siteUrl = escapeXml(getSiteUrlForRequest(req));
+  const sitemap = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n  <url>\n    <loc>${siteUrl}/</loc>\n    <changefreq>daily</changefreq>\n    <priority>1.0</priority>\n  </url>\n</urlset>\n`;
+  res.setHeader('Cache-Control', 'no-store');
+  res.type('application/xml').send(sitemap);
+});
+app.get('/robots.txt', (req, res) => {
+  const siteUrl = getSiteUrlForRequest(req);
+  res.setHeader('Cache-Control', 'no-store');
+  res.type('text/plain').send(`User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /api/\n\nSitemap: ${siteUrl}/sitemap.xml\n`);
+});
+app.get(['/', '/index.html'], (req, res) => sendStorefrontHtml(req, res));
+
+app.use(express.static(path.join(__dirname, 'public'), {
+  // HTML stays uncacheable so deployments take effect immediately. Replaceable
+  // static files get one day of public caching and must revalidate with ETag or
+  // Last-Modified before a stale copy is used.
+  maxAge: '1d',
   etag: true,
   lastModified: true,
   setHeaders: (res, filePath) => {
@@ -110,18 +160,30 @@ app.use(express.static(path.join(__dirname, 'public'), {
       res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
       res.setHeader('Pragma', 'no-cache');
       res.setHeader('Expires', '0');
+    } else {
+      res.setHeader('Cache-Control', 'public, max-age=86400, must-revalidate');
     }
   }
 }));
-app.use('/uploads', express.static(path.join(__dirname, 'uploads'), { maxAge: '7d' }));
+app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
+  maxAge: '1d',
+  etag: true,
+  lastModified: true,
+  setHeaders: (res) => res.setHeader('Cache-Control', 'public, max-age=86400, must-revalidate')
+}));
 
 // ── Cache-Control for API ─────────────────────────────────────
 app.use((req, res, next) => {
-  if (req.method === 'GET') {
-    if (req.path === '/api/products' || req.path === '/api/products/:id') res.setHeader('Cache-Control', 'public, max-age=60, s-maxage=60');
-    else if (req.path === '/api/reviews') res.setHeader('Cache-Control', 'public, max-age=120, s-maxage=120');
+  const sessionVaryingApi = /^\/api\/(?:admin|customers)(?:\/|$)/.test(req.path);
+  if (sessionVaryingApi || ['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
+    res.setHeader('Cache-Control', 'no-store');
+  } else if (req.method === 'GET') {
+    if (req.path === '/api/products' || /^\/api\/products\/\d+$/.test(req.path)) {
+      res.setHeader('Cache-Control', 'public, max-age=60, s-maxage=60');
+    } else if (req.path === '/api/reviews') {
+      res.setHeader('Cache-Control', 'public, max-age=120, s-maxage=120');
+    }
   }
-  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) res.setHeader('Cache-Control', 'no-store');
   next();
 });
 
@@ -292,12 +354,15 @@ async function ensureReady() {
     // L4: admin.html IS the login page, so it must stay publicly reachable;
     // the data APIs behind it are the real protection. /admin.html already
     // redirects to /admin above (before static), giving one canonical entry.
-    app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin.html')));
+    app.get('/admin', (req, res) => {
+      setHtmlNoStore(res);
+      res.sendFile(path.join(__dirname, 'public', 'admin.html'));
+    });
     const spaPages = new Set(['/', '/about', '/contact', '/tracking', '/shipping', '/returns', '/privacy', '/terms', '/account', '/checkout', '/confirmation', '/reset-password', '/verify-email', '/custom-stickers', '/coming-soon']);
     app.get('*', (req, res) => {
       if (req.path.startsWith('/api/')) return res.status(404).json({ error: 'Not found.' });
       const known = spaPages.has(req.path) || /^\/product\/\d+$/.test(req.path) || /^\/collection\/[a-z0-9-]+$/.test(req.path);
-      res.status(known ? 200 : 404).sendFile(path.join(__dirname, 'public', 'index.html'));
+      sendStorefrontHtml(req, res, known ? 200 : 404);
     });
 
     // Must sit AFTER the routes so route/middleware errors reach it as JSON
