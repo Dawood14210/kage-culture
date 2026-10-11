@@ -514,6 +514,27 @@ and WhatsApp-clearance CSS/geometry contracts at 360, 414, 768 and 1440px. `npm 
 browser-rendered screenshots; Chromium cannot launch in this sandbox because NSPR/NSS
 system libraries are missing.
 
+### ✅ Contact cards and Track Order mobile action — 2026-10-11
+
+Replaced the Contact page’s WhatsApp, support and Instagram emojis with matching theme-colored
+inline SVGs; added an Email icon/card linking to `mailto:kageculture01@gmail.com`. Contact
+Instagram now links to the existing footer URL and displays `@kage__culture` in both places;
+the JSON-LD `sameAs` value was synchronized to that URL as well. The repo cannot confirm
+whether the Instagram account itself is the intended one, so owner verification is still
+needed. Order Support’s primary link now routes to `/tracking`, with its existing WhatsApp
+route retained as the secondary “or message us on WhatsApp” action.
+
+All four cards share equal grid rows, style, hover treatment and a visible keyboard-focus
+outline. A Working hours line deliberately remains `TODO — [hours not provided]`; no hours
+were inferred. The Track Order button stretches to the form width through 768px while its
+desktop `align-self:flex-start` styling remains unchanged.
+
+`tests/frontend.test.js` verifies card/link destinations, handle parity, SVG presence, TODO,
+focus/size CSS contracts and responsive widths at 360, 414, 768 and 1440px. `npm test` →
+57/57 API + 17/17 frontend scenarios. Viewport tests are DOM/CSS geometry contracts, not
+browser screenshots; Chromium cannot launch here because NSPR/NSS system libraries are
+missing.
+
 ## Remaining work (priority order)
 
 *API-side queue (C1, H1–H4, M1–M7, L1/L3–L7) completed 2026-09-23. FE-criticals

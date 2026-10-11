@@ -319,8 +319,39 @@ async function ready(win) {
     assert.equal(d.querySelectorAll('.content-page-body').length, 4, 'policy copy shares the extracted text styling');
     assert.equal(d.querySelectorAll('.content-page h3[style]').length, 0, 'repeated content-page heading styles are no longer inline');
     assert.equal(d.querySelectorAll('.content-page-back[style]').length, 0, 'repeated back-link paragraph spacing is no longer inline');
-    assert.equal(d.querySelectorAll('.content-page-contact h3').length, 3, 'contact headings share their extracted styling');
+    assert.equal(d.querySelectorAll('.content-page-contact h3').length, 4, 'all four contact cards use the shared heading style');
     assert.equal(d.querySelectorAll('.content-page-contact p[style]').length, 0, 'contact paragraphs share their extracted styling');
+    const contactCards = [...d.querySelectorAll('#page-contact .content-page-contact > .contact-card')];
+    assert.deepEqual(contactCards.map(card => card.querySelector('h3').textContent.trim()), ['WhatsApp', 'Order Support', 'Instagram', 'Email']);
+    assert.deepEqual(contactCards.map(card => card.tagName), ['A', 'ARTICLE', 'A', 'A'], 'all actions are links except the support card that contains two distinct links');
+    assert.ok(contactCards.every(card => card.querySelector('.contact-card-icon svg[viewBox="0 0 24 24"] path, .contact-card-icon svg[viewBox="0 0 24 24"] circle, .contact-card-icon svg[viewBox="0 0 24 24"] rect')), 'each card has an inline vector icon');
+    assert.ok(contactCards.every(card => card.querySelector('.contact-card-icon').getAttribute('aria-hidden') === 'true'), 'contact icons are decorative to screen readers');
+    assert.doesNotMatch(contactCards.map(card => card.innerHTML).join(''), /💬|📦|📸/, 'contact emoji icons are removed');
+    const instagramUrl = 'https://instagram.com/kage__culture';
+    const instagramCard = contactCards[2];
+    assert.equal(instagramCard.getAttribute('href'), instagramUrl, 'Instagram card links to the footer URL');
+    assert.match(instagramCard.textContent, /@kage__culture/, 'contact handle matches the Instagram URL');
+    const footerHandle = d.querySelector('.footer-instagram-handle a');
+    assert.equal(footerHandle?.getAttribute('href'), instagramUrl, 'footer handle links to the same Instagram URL');
+    assert.equal(footerHandle?.textContent.trim(), '@kage__culture', 'footer visibly shows the matching handle');
+    assert.equal(d.querySelector('.footer-social .social-instagram').getAttribute('href'), instagramUrl);
+    assert.match(storeHtml, /"sameAs":\s*\[\s*"https:\/\/instagram\.com\/kage__culture"/, 'structured data also uses the footer Instagram URL');
+    assert.doesNotMatch(storeHtml, /instagram\.com\/kageculture/, 'the stale unseparated Instagram handle is removed');
+    const orderSupport = contactCards[1];
+    const trackLink = orderSupport.querySelector('.contact-card-primary');
+    assert.equal(trackLink.getAttribute('href'), '/tracking', 'Order Support main link goes to Track Order');
+    assert.match(trackLink.getAttribute('onclick'), /navigateTo\('tracking'\)/);
+    assert.equal(orderSupport.querySelector('.contact-card-secondary a').textContent.trim(), 'message us on WhatsApp');
+    assert.match(orderSupport.querySelector('.contact-card-secondary').textContent, /^or\s/);
+    assert.match(orderSupport.querySelector('.contact-card-secondary a').getAttribute('href'), /^https:\/\/wa\.me\//);
+    assert.equal(contactCards[3].getAttribute('href'), 'mailto:kageculture01@gmail.com', 'Email card uses the footer address in a mailto link');
+    const workingHours = d.querySelector('.contact-working-hours');
+    assert.match(workingHours.textContent, /Working hours:\s*TODO/);
+    assert.match(workingHours.textContent, /hours not provided/);
+    w.navigateTo('contact');
+    trackLink.click();
+    assert.equal(d.getElementById('page-tracking').classList.contains('active'), true, 'Order Support link navigates to the Track Order page');
+    w.navigateTo('contact');
 
     // There is one global footer outside all route-specific page containers.
     const sharedFooter = d.querySelector('body > footer.site-footer');
@@ -346,7 +377,7 @@ async function ready(win) {
     assert.ok(etsyIcon && etsyIcon.querySelector('path'), 'Etsy uses an SVG logo path');
     assert.equal(etsyIcon.querySelector('text'), null, 'Etsy no longer uses a text glyph');
     assert.match(sharedFooter.querySelector('.social-snapchat svg path').getAttribute('d'), /^M12\.206\.793c\.99 0 4\.347/, 'Snapchat uses its recognizable ghost silhouette');
-    console.log('✅ Policies, contact and tracking share one footer; responsive gutters hold at 360/414/768/1440px');
+    console.log('✅ Shared footer, contact cards/links and Track Order responsive contracts pass at 360/414/768/1440px');
 
     // Static CSS contracts: urgency separator, back link, gutters, footer.
     assert.match(storeHtml, /\.urgency-sold:not\(:first-child\)::before \{ content: '· '; \}/, 'sold-count dot only after another urgency item');
@@ -354,6 +385,31 @@ async function ready(win) {
     assert.match(storeHtml, /@media \(max-width: 1024px\) \{\s*\.container \{ padding-left: 24px; padding-right: 24px; \}/, '24px gutters at 769–1024px');
     assert.match(storeHtml, /@media \(max-width: 768px\) \{\s*\.container \{ padding-left: 16px; padding-right: 16px; \}/, '16px gutters at ≤768px');
     assert.match(storeHtml, /\.product-detail-page \{ max-width: var\(--max-width\); margin-left: auto; margin-right: auto; \}/, 'product page capped at 1280px, centred');
+    const contactGridCss = storeHtml.match(/\.content-page-contact\s*\{([^}]*)\}/);
+    assert.ok(contactGridCss, 'contact cards use a shared responsive grid');
+    assert.match(contactGridCss[1], /grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/);
+    assert.match(contactGridCss[1], /grid-auto-rows:\s*1fr/, 'contact cards share equal row heights');
+    const mobileContactCss = storeHtml.match(/@media \(max-width: 600px\) \{\s*\.content-page-contact \{([^}]*)\}/);
+    assert.ok(mobileContactCss, 'contact cards collapse to one column on narrow screens');
+    assert.match(mobileContactCss[1], /grid-template-columns:\s*1fr/);
+    const contactCardCss = storeHtml.match(/\.contact-card\s*\{([^}]*)\}/);
+    assert.ok(contactCardCss);
+    assert.match(contactCardCss[1], /min-width:\s*0;[\s\S]*min-height:\s*160px;[\s\S]*padding:\s*var\(--spacing-lg\)/, 'contact cards share minimum dimensions and padding');
+    assert.match(storeHtml, /\.contact-card:hover,\s*\.contact-card:focus-within\s*\{[^}]*border-color:\s*var\(--accent\);/, 'contact cards have a visible theme-colored hover state');
+    assert.match(storeHtml, /\.contact-card:focus-visible,\s*\.contact-card:focus-within\s*\{[^}]*outline:\s*3px solid var\(--accent\);[^}]*outline-offset:\s*3px;/, 'keyboard focus draws a clear outline around each card');
+    assert.match(storeHtml, /\.contact-card-icon svg\s*\{[^}]*stroke:\s*currentColor;[^}]*stroke-width:\s*1\.7;[^}]*stroke-linecap:\s*round;[^}]*stroke-linejoin:\s*round;/, 'contact SVGs share a consistent themed stroke style');
+    assert.match(storeHtml, /\.tracking-form \.btn \{ align-self: flex-start; \}/, 'desktop Track Order button retains its original alignment');
+    assert.match(storeHtml, /@media \(max-width: 768px\) \{\s*#page-tracking \.tracking-form \.btn \{ width: 100%; align-self: stretch; \}/, 'Track Order button expands to the form width on mobile');
+    for (const width of [360, 414, 768, 1440]) {
+      const pageOuterWidth = Math.min(width, 720);
+      const pageGutter = width < 600 ? 16 : 20;
+      const pageContentWidth = pageOuterWidth - pageGutter * 2;
+      const columns = width <= 600 ? 1 : 2;
+      const cardGap = 16;
+      const cardWidth = (pageContentWidth - cardGap * (columns - 1)) / columns;
+      assert.ok(pageOuterWidth <= width && pageContentWidth > 0, `${width}px contact page has no horizontal overflow`);
+      assert.ok(cardWidth > 0 && cardWidth * columns + cardGap * (columns - 1) <= pageContentWidth, `${width}px contact cards fit their responsive columns`);
+    }
     const footerLinksCss = storeHtml.match(/\.footer-bottom-links\s*\{([^}]*)\}/);
     assert.ok(footerLinksCss, 'legal links have a dedicated flex row');
     assert.match(footerLinksCss[1], /display:\s*flex;[\s\S]*gap:\s*var\(--spacing-xs\)/, 'legal links and their separator have visible spacing');
