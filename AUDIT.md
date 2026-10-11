@@ -459,6 +459,139 @@ the 800px breakpoint). **Open:** the Pants card has no category of its own yet �
 its Explore link points at `/collection/all` as a placeholder; Graphic Tees
 routes to `/collection/graphic-tees`, which intentionally shows Coming Soon.
 
+### ✅ Responsive gutters for policy/contact pages — 2026-10-11
+
+Returns, Shipping, Terms, Privacy and Contact now share `.content-page`. The shared
+layout keeps the original top offset, bottom padding, 720px maximum width and centering,
+with 16px inline padding below 600px and 20px from 600px up. The repeated policy copy,
+heading, back-link and Contact text styles moved into scoped classes without changing
+their declarations. Track Order remains on its existing `.tracking-page` layout.
+
+`tests/frontend.test.js` verifies all five page classes, the responsive gutter/box-model
+contract at 360, 414, 768 and 1440px, and that Track Order remains outside the new styles.
+`npm test` → 57/57 API + 17/17 frontend scenarios. A Chromium screenshot check could not
+launch in this sandbox because system `libnspr4.so`, `libnss3.so` and `libnssutil3.so` are
+missing; the requested-width check is therefore CSS-contract/geometry testing, not a
+browser-rendered visual comparison.
+
+### ✅ Mobile navigation menu — 2026-10-11
+
+The public navigation is ordered Home, Anime Shirts, Graphic Tees, Pants, Custom Stickers,
+About, Contact and Track Order. Category links mirror the homepage cards (Graphic Tees
+uses `/collection/graphic-tees`; Pants temporarily uses `/collection/all`). Removed the
+Admin item but retained the storefront `openAdminLogin()` modal and the existing `/admin`
+login entry. Header Wishlist, Account and Cart remain visible on mobile; the menu’s icon
+row now contains only Track Order.
+
+The hamburger SVG animates into an X and updates `aria-expanded`. The open menu is an
+opaque, bounded panel; opening it locks body scrolling and closing restores the previous
+inline overflow value. It closes on menu-link click, Escape and outside pointer/tap.
+Desktop horizontal-nav rules and the desktop-only hiding of mobile rows remain intact.
+
+`tests/frontend.test.js` checks category route parity, admin entry points, menu state,
+scroll restoration and CSS breakpoint contracts at 360, 414, 768 and 1440px. `npm test`
+→ 57/57 API + 17/17 frontend scenarios. Viewport assertions are CSS/DOM contract tests,
+not browser-rendered screenshots (Chromium is unavailable in this sandbox due to missing
+NSPR/NSS system libraries).
+
+### ✅ Shared footer polish — 2026-10-11
+
+The footer is one global, body-level component outside the route-specific `.page` views;
+renamed its stale "Footer (home)" comment and kept this single copy shared across Returns,
+Shipping, Terms, Privacy, Contact and Track Order. Privacy and Terms now have a visible
+middle-dot separator and 44px minimum-height link targets. Social glyphs use one olive
+accent treatment with a subtle focus/hover tint; the Etsy text glyph is replaced by its
+SVG mark and Snapchat uses the recognizable ghost silhouette. Existing social
+`aria-label`s are unchanged.
+
+Fixed the 481–768px padding override that could reduce the footer clearance below the
+mobile WhatsApp button's footprint. Footer bottom padding now reserves the mobile button,
+its 20px viewport offset, 16px gap and safe-area inset through 768px; wider layouts reserve
+the 60px button, 24px offset and 16px gap. `tests/frontend.test.js` verifies the single
+footer across routes, social/accessibility markup, separators/tap targets, horizontal-fit
+and WhatsApp-clearance CSS/geometry contracts at 360, 414, 768 and 1440px. `npm test` →
+57/57 API + 17/17 frontend scenarios. These are DOM/CSS contract checks rather than
+browser-rendered screenshots; Chromium cannot launch in this sandbox because NSPR/NSS
+system libraries are missing.
+
+### ✅ Contact cards and Track Order mobile action — 2026-10-11
+
+Replaced the Contact page’s WhatsApp, support and Instagram emojis with matching theme-colored
+inline SVGs; added an Email icon/card linking to `mailto:kageculture01@gmail.com`. Contact
+Instagram now links to the existing footer URL and displays `@kage__culture` in both places;
+the JSON-LD `sameAs` value was synchronized to that URL as well. The repo cannot confirm
+whether the Instagram account itself is the intended one, so owner verification is still
+needed. Order Support’s primary link now routes to `/tracking`, with its existing WhatsApp
+route retained as the secondary “or message us on WhatsApp” action.
+
+All four cards share equal grid rows, style, hover treatment and a visible keyboard-focus
+outline. A Working hours line deliberately remains `TODO — [hours not provided]`; no hours
+were inferred. The Track Order button stretches to the form width through 768px while its
+desktop `align-self:flex-start` styling remains unchanged.
+
+`tests/frontend.test.js` verifies card/link destinations, handle parity, SVG presence, TODO,
+focus/size CSS contracts and responsive widths at 360, 414, 768 and 1440px. `npm test` →
+57/57 API + 17/17 frontend scenarios. Viewport tests are DOM/CSS geometry contracts, not
+browser screenshots; Chromium cannot launch here because NSPR/NSS system libraries are
+missing.
+
+### ✅ Shipping, returns, and policy copy — 2026-10-11
+
+Shipping now lists Bank Transfer with the same post-order account-details wording as
+checkout, and a Delivery Charges section shows the configured flat fee of Rs. 150. No
+free-shipping threshold exists in `config.js` or checkout, so the page marks that detail
+as a TODO for owner confirmation. JazzCash account references are clearly labeled and
+all displayed phone numbers use `+92 322 804 2633`; WhatsApp URLs retain the normalized
+`wa.me/923228042633` digits. Owner confirmation is still needed on whether the JazzCash
+account number is also the WhatsApp number.
+
+Returns now explicitly exclude custom-designed items and custom stickers unless defective
+or wrong; the existing 7-day return window and 48-hour defective/wrong-item window remain
+unchanged. Terms, Privacy, Returns and Shipping all use the `Policy` eyebrow label.
+`tests/frontend.test.js` covers these copy, fee/config, number/link and label contracts.
+`npm test` → 57/57 API + 17/17 frontend scenarios. These are DOM/CSS assertions, not
+rendered screenshots; Chromium cannot launch here because NSPR/NSS system libraries are
+missing.
+
+### ✅ COD-only storefront + post-order delivery charge confirmation — 2026-10-11
+
+The customer-facing checkout, footer, product shipping tab, Shipping policy and Terms show
+only Cash on Delivery; checkout submits `payment_method: 'cod'` and no longer renders
+non-COD radios or payment-reference controls. Historical/admin payment handling and refund
+instructions remain intact.
+
+Per the owner's direction, delivery charges are confirmed with customers after order
+placement instead of adding an unconfirmed flat fee. Checkout shows “To be confirmed” and
+an items subtotal; the order API stores `shipping = 0`, `total = subtotal`, and a new
+`shipping_pending` flag. Confirmation UI, email and tracking all explain the pending charge;
+the admin orders list and CSV mark it pending. Existing orders retain their stored shipping
+amounts, and Turso gets a safe schema migration for the new flag. The Shipping page says
+we will contact customers about delivery charges. The free-shipping-threshold TODO remains
+unresolved. `npm test` → 57/57 API + 17/17 frontend scenarios.
+
+### ✅ Privacy & Terms policy copy — 2026-10-11
+
+`public/index.html` now dates the Terms and Privacy pages October 2026. Terms refer to
+“this website,” state that Pakistan law governs, and link the custom-designed/custom-sticker
+exception (returnable only if defective or wrong) to the Returns page. Both pages carry a
+short legal-review disclaimer.
+
+The Privacy page now covers order and customer-account data (including hashed account
+passwords), newsletter/product-notification signups, requested courier-partner sharing,
+and the cookies verified in the app: `kage.session` for customer/admin sessions and
+`kage.csrf` for CSRF protection. It no longer says information is used “solely” for order
+fulfillment, and retains the no-sale statement.
+
+Implementation check: `/api/newsletter` stores subscriber emails; there is no newsletter
+campaign sender or unsubscribe endpoint/UI. The policy offers WhatsApp as a manual removal
+request path and discloses that self-service unsubscribe is not available. The app uses
+`kage.session`; `kage.cust` is only a legacy auth fallback/cleared on logout, not issued by
+current login. No automated courier API/integration was found in this repo; the delivery
+partner clause reflects the requested operational disclosure.
+
+`tests/frontend.test.js` covers these policy details. `npm test` → 57/57 API + 17/17
+frontend scenarios passed.
+
 ## Remaining work (priority order)
 
 *API-side queue (C1, H1–H4, M1–M7, L1/L3–L7) completed 2026-09-23. FE-criticals

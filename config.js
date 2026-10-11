@@ -11,9 +11,6 @@ module.exports = {
   // Product images: front + back + up to this many extra gallery photos
   MAX_EXTRA_IMAGES: 4,
 
-  // Shipping
-  SHIPPING_COST: 150, // Flat delivery charge in PKR
-
   // KAGE Clan
   CLAN_THRESHOLD: 5, // shirts needed to join the clan
 

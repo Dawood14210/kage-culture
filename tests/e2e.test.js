@@ -144,6 +144,9 @@ async function main() {
       headers: { 'X-CSRF-Token': csrf.token, Cookie: csrf.cookie }
     });
     assert.strictEqual(r.status, 201, JSON.stringify(r.json));
+    assert.strictEqual(r.json.shipping, 0, 'new orders do not include an unconfirmed delivery charge');
+    assert.strictEqual(r.json.shipping_pending, true, 'delivery charge is marked pending');
+    assert.strictEqual(r.json.total, r.json.subtotal, 'initial order total excludes the delivery charge');
     orderNumber = r.json.order_number;
   }
 
@@ -169,6 +172,7 @@ async function main() {
     const r = await request(PORT, 'GET', `/api/orders/track?number=${encodeURIComponent(orderNumber)}&phone=03001234567`);
     assert.strictEqual(r.status, 200);
     assert.ok(r.json && r.json.order_number === orderNumber);
+    assert.strictEqual(r.json.shipping_pending, true, 'tracking exposes the pending delivery charge');
   });
 
   // ---------------------------------------------------------------

@@ -47,7 +47,7 @@
     "logo": "https://kage-culture-ruby.vercel.app/images/icon-512.png",
     "description": "Premium streetwear. Anime inspired. Built for everyday.",
     "sameAs": [
-      "https://www.instagram.com/kageculture"
+      "https://instagram.com/kage__culture"
     ]
   }
   </script>
@@ -293,7 +293,18 @@
       z-index: 100;
       list-style: none;
     }
-    .nav-links.open { display: flex; max-height: calc(100dvh - 75px); overflow-y: auto; overscroll-behavior: contain; }
+    @media (max-width: 1023px) {
+      .nav-links.open {
+        display: flex;
+        max-height: calc(100dvh - 95px);
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        background-color: var(--bg-primary);
+        border-bottom: 1px solid var(--border-color);
+        box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+        z-index: 1001;
+      }
+    }
     .nav-links a { padding: 10px 12px; min-height: 40px; width: 100%; display: flex; align-items: center; font-size: 0.8rem; border-radius: var(--radius-sm); transition: background var(--transition-fast), color var(--transition-fast); }
     .nav-links a:hover { background: var(--bg-secondary); color: var(--text-primary); }
     .nav-links a::after { display: none; }
@@ -352,10 +363,11 @@
       align-items: center; justify-content: center;
       margin-left: 12px;
     }
-    .hamburger span {
-      display: block; width: 16px; height: 1.5px;
-      background: var(--text-primary);
-      transition: all var(--transition-fast);
+    .hamburger svg { display: block; }
+    .hamburger svg line {
+      transform-box: fill-box;
+      transform-origin: center;
+      transition: transform var(--transition-fast), opacity var(--transition-fast);
     }
 
     .nav-search input {
@@ -369,9 +381,10 @@
       border-color: var(--border-color);
       color: var(--text-primary);
     }
-    .hamburger.active span:nth-child(1) { transform: translate(0, 3.5px) rotate(45deg); }
-    .hamburger.active span:nth-child(2) { opacity: 0; }
-    .hamburger.active span:nth-child(3) { transform: translate(0, -3.5px) rotate(-45deg); }
+    /* SVG lines are ordered middle, top, bottom; the outer lines converge into an X. */
+    .hamburger.active svg line:nth-child(1) { opacity: 0; }
+    .hamburger.active svg line:nth-child(2) { transform: translateY(6px) rotate(45deg); }
+    .hamburger.active svg line:nth-child(3) { transform: translateY(-6px) rotate(-45deg); }
 
     /* ================================================================
        PAGE SYSTEM
@@ -1867,17 +1880,6 @@
 
 
 
-    /* Discreet admin entry point in the nav — never part of the hero */
-    .nav-links a.nav-admin {
-      color: var(--text-dim);
-      font-weight: 600;
-      letter-spacing: 0.12em;
-    }
-    .nav-links a.nav-admin:hover { color: var(--accent); }
-    .nav-links a.nav-admin::after { display: none; }
-
-
-
     /* Admin login modal */
     .admin-login-overlay {
       position: fixed;
@@ -2433,27 +2435,28 @@
     .social-icon {
       width: 44px;
       height: 44px;
+      flex: 0 0 44px;
       border: 1px solid var(--border-color);
       border-radius: 50%;
       display: flex;
       align-items: center;
       justify-content: center;
       cursor: pointer;
-      color: var(--text-muted);
-      transition: all var(--transition-fast);
+      color: var(--accent);
+      transition: transform var(--transition-fast), color var(--transition-fast), background-color var(--transition-fast), border-color var(--transition-fast), box-shadow var(--transition-fast);
     }
-    .social-icon:hover { transform: translateY(-2px); }
+    .social-icon:hover,
+    .social-icon:focus-visible {
+      color: var(--accent-hover);
+      background: var(--accent-glow);
+      border-color: var(--accent);
+      box-shadow: 0 2px 8px rgba(74,68,51,0.12);
+      transform: translateY(-2px);
+    }
     .social-icon svg { width: 18px; height: 18px; fill: currentColor; }
-    .social-instagram { color: #E1306C; border-color: #E1306C; }
-    .social-instagram:hover { background: rgba(225,48,108,0.1); box-shadow: 0 0 12px rgba(225,48,108,0.25); }
-    .social-snapchat { color: #FFFC00; border-color: #FFD000; }
-    .social-snapchat:hover { background: rgba(255,252,0,0.12); box-shadow: 0 0 12px rgba(255,252,0,0.25); }
-    .social-email { color: #4285F4; border-color: #4285F4; }
-    .social-email:hover { background: rgba(66,133,244,0.1); box-shadow: 0 0 12px rgba(66,133,244,0.25); }
-    .social-etsy { color: #F56400; border-color: #F56400; }
-    .social-etsy:hover { background: rgba(245,100,0,0.1); box-shadow: 0 0 12px rgba(245,100,0,0.25); }
-    .social-whatsapp { color: #25D366; border-color: #25D366; }
-    .social-whatsapp:hover { color: #128C7E; border-color: #128C7E; background: rgba(37,211,102,0.1); box-shadow: 0 0 12px rgba(37,211,102,0.25); }
+    .footer-instagram-handle { margin: var(--spacing-xs) 0 0; font-size: 0.75rem; color: var(--text-muted); }
+    .footer-instagram-handle a:hover,
+    .footer-instagram-handle a:focus-visible { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
 
     /* ================================================================
        FLOATING WHATSAPP BUTTON
@@ -2502,11 +2505,10 @@
       /* Footer keeps its last lines clear of the floating button. */
       .site-footer { padding-bottom: calc(var(--spacing-md) + 76px + env(safe-area-inset-bottom, 0px)); }
     }
-    /* Above the mobile breakpoint the footer needs 80px of bottom padding so
-       the floating WhatsApp button never covers Privacy Policy or the payment
-       badges. */
-    @media (min-width: 481px) {
-      .site-footer { padding-bottom: 80px; }
+    /* The desktop WhatsApp button is 84px from the viewport edge; keep 16px
+       of breathing room between it and the last footer content row. */
+    @media (min-width: 769px) {
+      .site-footer { padding-bottom: calc(var(--spacing-md) + 84px); }
     }
     /* Keep page-bottom content clear of the floating WhatsApp button
        on touch layouts (it sits over the last row otherwise). */
@@ -2576,10 +2578,11 @@
       .nav-links a { padding: 10px 0; min-height: 44px; width: 100%; display: flex; align-items: center; font-size: 0.85rem; }
       .hamburger { margin: 0; padding: 8px; border-right: none; order: 2; }
       .nav-search { display: none; }
-      /* Keep primary actions reachable; the menu toggle is inside .nav-icons. */
+      /* Keep primary actions reachable in the header; the menu toggle is inside .nav-icons. */
       .nav-icons { display: flex; margin-left: auto; gap: 0; }
       .nav-icons > .nav-icon { display: none; }
       .nav-icons > #wishlistNav,
+      .nav-icons > #customerAccountBtn,
       .nav-icons > .nav-icon[title="Cart"] { display: flex; }
       .nav-icon { min-width: 44px; min-height: 44px; }
       .hamburger { min-width: 44px; min-height: 44px; }
@@ -3018,6 +3021,9 @@
     .tracking-form input { width: 100%; padding: 0.75rem 0.9rem; border: 1.5px solid var(--border-color); border-radius: 10px; font-family: var(--font-body); font-size: 0.9rem; background: var(--bg-panel); }
     .tracking-form input:focus { outline: none; border-color: var(--accent); }
     .tracking-form .btn { align-self: flex-start; }
+    @media (max-width: 768px) {
+      #page-tracking .tracking-form .btn { width: 100%; align-self: stretch; }
+    }
     .tracking-error { font-size: 0.85rem; color: var(--accent); margin-bottom: var(--spacing-md); }
     .track-result { border: 1px solid var(--border-color); border-radius: 14px; padding: var(--spacing-lg); background: var(--bg-panel); }
     .track-top { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem; margin-bottom: var(--spacing-md); }
@@ -3598,12 +3604,20 @@
       }
     }
 
-    /* Footer bottom links (Privacy / Terms): 44px tap targets at every width */
+    /* Keep the legal links distinct and comfortable to tap at every width. */
+    .footer-bottom-links {
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-xs);
+      white-space: nowrap;
+    }
     .footer-bottom-links a {
       min-height: 44px;
+      padding: 0 2px;
       display: inline-flex;
       align-items: center;
     }
+    .footer-bottom-separator { color: var(--text-muted); }
 
     /* ================================================================
        TABLET + MOBILE GUTTERS (481–1024px parity)
@@ -3621,6 +3635,93 @@
     }
     /* Product page container: capped at 1280px and centred at every width */
     .product-detail-page { max-width: var(--max-width); margin-left: auto; margin-right: auto; }
+
+    /* Shared layout and copy styles for the returns, shipping, legal and contact pages. */
+    .container.content-page {
+      padding: calc(104px + var(--spacing-lg)) 16px var(--spacing-xl);
+      max-width: 720px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    @media (min-width: 600px) {
+      .container.content-page { padding-inline: 20px; }
+    }
+    .content-page h3 { color: var(--text-primary); font-size: 1rem; }
+    .content-page-body {
+      margin-top: var(--spacing-lg);
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      line-height: 1.8;
+    }
+    .content-page-body h3 { margin: var(--spacing-lg) 0 var(--spacing-sm); }
+    .content-page-contact {
+      margin-top: var(--spacing-xl);
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-auto-rows: 1fr;
+      align-items: stretch;
+      gap: var(--spacing-md);
+    }
+    .contact-card {
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-md);
+      min-width: 0;
+      min-height: 160px;
+      padding: var(--spacing-lg);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      background: var(--bg-secondary);
+      color: var(--text-primary);
+      text-decoration: none;
+      transition: transform var(--transition-fast), background-color var(--transition-fast), border-color var(--transition-fast), box-shadow var(--transition-fast);
+    }
+    .contact-card:hover,
+    .contact-card:focus-within {
+      transform: translateY(-2px);
+      background: var(--bg-card-hover);
+      border-color: var(--accent);
+      box-shadow: var(--shadow-card);
+    }
+    .contact-card:focus-visible,
+    .contact-card:focus-within {
+      outline: 3px solid var(--accent);
+      outline-offset: 3px;
+    }
+    .contact-card-icon {
+      width: 48px;
+      height: 48px;
+      flex: 0 0 48px;
+      display: grid;
+      place-items: center;
+      border: 1px solid var(--border-color);
+      border-radius: 50%;
+      background: var(--bg-primary);
+      color: var(--accent);
+    }
+    .contact-card-icon svg {
+      width: 24px;
+      height: 24px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.7;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .contact-card-body { flex: 1; min-width: 0; }
+    .content-page-contact h3 { margin: 0 0 var(--spacing-xs); }
+    .content-page-contact p { margin: 0; color: var(--text-muted); font-size: 0.85rem; overflow-wrap: anywhere; }
+    .contact-card-primary { display: block; color: var(--text-primary); text-decoration: none; }
+    .contact-card-primary:hover { color: var(--accent); }
+    .contact-card-secondary { margin-top: var(--spacing-sm) !important; font-size: 0.8rem !important; }
+    .contact-card-secondary a { color: var(--accent); font-weight: 600; text-decoration: underline; text-underline-offset: 2px; }
+    .contact-card-secondary a:hover { color: var(--accent-hover); }
+    .contact-working-hours { margin-top: var(--spacing-lg); color: var(--text-muted); font-size: 0.85rem; }
+    .contact-working-hours strong { color: var(--text-primary); }
+    @media (max-width: 600px) {
+      .content-page-contact { grid-template-columns: 1fr; }
+    }
+    .content-page-back { margin-top: var(--spacing-xl); }
 
     /* Footer Help links: the 10px gap applies at all widths above 480px
        (the 80px bottom padding for the WhatsApp button already does). */
@@ -3697,19 +3798,17 @@
       </div>
 
       <ul class="nav-links" id="navLinks" aria-label="Main navigation">
-        <li><a data-nav="about" href="/about" onclick="navigateTo('about'); closeMenu(); return false;">About</a></li>
         <li><a data-nav="all" href="/" onclick="navigateTo('home'); closeMenu(); return false;">Home</a></li>
         <li><a data-nav="anime" href="/collection/anime" onclick="navigateTo('collection', 'anime'); closeMenu(); return false;">Anime Shirts</a></li>
-        <li><a data-nav="streetwear" href="/collection/streetwear" onclick="navigateTo('collection', 'streetwear'); closeMenu(); return false;">Streetwear</a></li>
+        <li><a data-nav="graphic-tees" href="/collection/graphic-tees" onclick="navigateTo('collection', 'graphic-tees'); closeMenu(); return false;">Graphic Tees</a></li>
+        <li><a href="/collection/all" onclick="navigateTo('collection', 'all'); closeMenu(); return false;">Pants</a></li>
         <li><a data-nav="custom-stickers" href="/custom-stickers" onclick="navigateTo('custom-stickers'); closeMenu(); return false;">Custom Stickers</a></li>
+        <li><a data-nav="about" href="/about" onclick="navigateTo('about'); closeMenu(); return false;">About</a></li>
+        <li><a data-nav="contact" href="/contact" onclick="navigateTo('contact'); closeMenu(); return false;">Contact</a></li>
         <li><a data-nav="tracking" href="/tracking" onclick="navigateTo('tracking'); closeMenu(); return false;">Track Order</a></li>
-        <li><a class="nav-admin" href="/admin" onclick="openAdminLogin(); closeMenu(); return false;" title="Admin">Admin</a></li>
         <li class="mobile-search"><input type="search" id="mobileSearch" placeholder="Search drops…" oninput="onSearchInput(this.value)" /></li>
         <li class="mobile-icons-row">
-          <button class="nav-icon" onclick="navigateTo('tracking'); closeMenu();" title="Track Order" aria-label="Track Order"><img src="/images/track-order.png" alt="" width="22" height="22" /></button>
-          <button class="nav-icon" onclick="toggleWishlistFilter(); closeMenu();" title="Wishlist" aria-label="Wishlist"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg><span class="badge" id="wishlistCountMobile">0</span></button>
-                    <button class="nav-icon" onclick="handleAccountClick(); closeMenu();" title="Account" aria-label="Account"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></button>
-                    <button class="nav-icon" onclick="toggleCart(); closeMenu();" title="Cart" aria-label="Shopping Cart"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg><span class="badge" id="cartCountMobile">0</span></button>
+          <button class="nav-icon" type="button" onclick="navigateTo('tracking'); closeMenu();" title="Track Order" aria-label="Track Order"><img src="/images/track-order.png" alt="" width="22" height="22" /></button>
         </li>
       </ul>
 
@@ -3726,8 +3825,8 @@
                 <button class="nav-icon" onclick="toggleCart()" title="Cart" aria-label="Shopping Cart">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg><span class="badge" id="cartCount">0</span>
                 </button>
-                <button class="hamburger" id="hamburger" aria-label="Toggle menu">
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+                <button class="hamburger" id="hamburger" type="button" aria-label="Open menu" aria-controls="navLinks" aria-expanded="false">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
                 </button>
               </div>
     </div>
@@ -3954,7 +4053,7 @@
 
   </main>
 
-    <!-- Footer (home) -->
+    <!-- Shared site footer: this single footer stays visible on every SPA page. -->
     <footer class="site-footer watermark wm-bottom" style="position:relative;overflow:hidden;">
       <div class="container">
         <div class="footer-main reveal">
@@ -3977,18 +4076,19 @@
                 <svg viewBox="0 0 24 24"><path d="M12 2.2c3.2 0 3.6 0 4.9.1 1.2.1 1.8.2 2.2.4.6.2 1 .5 1.4.9.4.4.7.8.9 1.4.2.4.4 1 .4 2.2.1 1.3.1 1.7.1 4.9s0 3.6-.1 4.9c-.1 1.2-.2 1.8-.4 2.2-.2.6-.5 1-.9 1.4-.4.4-.8.7-1.4.9-.4.2-1 .4-2.2.4-1.3.1-1.7.1-4.9.1s-3.6 0-4.9-.1c-1.2-.1-1.8-.2-2.2-.4-.6-.2-1-.5-1.4-.9-.4-.4-.7-.8-.9-1.4-.2-.4-.4-1-.4-2.2-.1-1.3-.1-1.7-.1-4.9s0-3.6.1-4.9c.1-1.2.2-1.8.4-2.2.2-.6.5-1 .9-1.4.4-.4.8-.7 1.4-.9.4-.2 1-.4 2.2-.4 1.3-.1 1.7-.1 4.9-.1zm0 1.8a4.1 4.1 0 1 0 0 8.2 4.1 4.1 0 0 0 0-8.2zm0 6.4a2.3 2.3 0 1 1 0-4.6 2.3 2.3 0 0 1 0 4.6zm4.9-6.6a1 1 0 1 0 0 2 1 1 0 0 0 0-2z"/></svg>
               </a>
               <a class="social-icon social-snapchat" href="https://snapchat.com/add/kage_culture" target="_blank" rel="noopener" aria-label="Snapchat">
-                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C9.5 2 8 4 8 6.5V8c-1.5.2-3 1.2-3 3 0 .3 0 .6.1.9-.3.1-.6.3-.6.7 0 .5.5.8 1.2 1 .2.1.4.1.5.2-.1.8-.5 2-1.2 2.8-.5.6-1 1-1.5 1.3-.2.1-.3.3-.1.5.4.3 1.2.4 2 .5.1.4.3 1 .8 1.5.5.5 1.2.8 2 .8h3.2c.8 0 1.5-.3 2-.8.5-.5.7-1.1.8-1.5.8-.1 1.6-.2 2-.5.2-.2.1-.4-.1-.5-.5-.3-1-.7-1.5-1.3-.7-.8-1.1-2-1.2-2.8.1-.1.3-.1.5-.2.7-.2 1.2-.5 1.2-1 0-.4-.3-.6-.6-.7.1-.3.1-.6.1-.9 0-1.8-1.5-2.8-3-3V6.5C16 4 14.5 2 12 2z"/></svg>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12.206.793c.99 0 4.347.276 5.93 3.821.529 1.193.403 3.219.299 4.847l-.003.06c-.012.18-.022.345-.03.51.075.045.203.09.401.09.3-.016.659-.12 1.033-.301.165-.088.344-.104.464-.104.182 0 .359.029.509.09.45.149.734.479.734.838.015.449-.39.839-1.213 1.168-.089.029-.209.075-.344.119-.45.135-1.139.36-1.333.81-.09.224-.061.524.12.868l.015.015c.06.136 1.526 3.475 4.791 4.014.255.044.435.27.42.509 0 .075-.015.149-.045.225-.24.569-1.273.988-3.146 1.271-.059.091-.12.375-.164.57-.029.179-.074.36-.134.553-.076.271-.27.405-.555.405h-.03c-.135 0-.313-.031-.538-.074-.36-.075-.765-.135-1.273-.135-.3 0-.599.015-.913.074-.6.104-1.123.464-1.723.884-.853.599-1.826 1.288-3.294 1.288-.06 0-.119-.015-.18-.015h-.149c-1.468 0-2.427-.675-3.279-1.288-.599-.42-1.107-.779-1.707-.884-.314-.045-.629-.074-.928-.074-.54 0-.958.089-1.272.149-.211.043-.391.074-.54.074-.374 0-.523-.224-.583-.42-.061-.192-.09-.389-.135-.567-.046-.181-.105-.494-.166-.57-1.918-.222-2.95-.642-3.189-1.226-.031-.063-.052-.15-.055-.225-.015-.243.165-.465.42-.509 3.264-.54 4.73-3.879 4.791-4.02l.016-.029c.18-.345.224-.645.119-.869-.195-.434-.884-.658-1.332-.809-.121-.029-.24-.074-.346-.119-1.107-.435-1.257-.93-1.197-1.273.09-.479.674-.793 1.168-.793.146 0 .27.029.383.074.42.194.789.3 1.104.3.234 0 .384-.06.465-.105l-.046-.569c-.098-1.626-.225-3.651.307-4.837C7.392 1.077 10.739.807 11.727.807l.419-.015h.06z"/></svg>
               </a>
               <a class="social-icon social-email" href="https://mail.google.com/mail/?view=cm&fs=1&to=kageculture01@gmail.com" target="_blank" rel="noopener" aria-label="Email">
                 <svg viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
               </a>
               <a class="social-icon social-etsy" href="https://etsy.com/shop/kageinetsy22" target="_blank" rel="noopener" aria-label="Etsy">
-                <svg viewBox="0 0 24 24" fill="currentColor"><text x="12" y="17" text-anchor="middle" font-family="Georgia,serif" font-size="16" font-style="italic" font-weight="bold">E</text></svg>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.559 2.445c0-.325.033-.52.59-.52h7.465c1.3 0 2.02 1.11 2.54 3.193l.42 1.666h1.27c.23-4.728.43-6.784.43-6.784s-3.196.36-5.09.36H6.635L1.521.196v1.37l1.725.326c1.21.24 1.5.496 1.6 1.606 0 0 .11 3.27.11 8.64 0 5.385-.09 8.61-.09 8.61 0 .973-.39 1.333-1.59 1.573l-1.722.33V24l5.13-.165h8.55c1.935 0 6.39.165 6.39.165.105-1.17.75-6.48.855-7.064h-1.2l-1.284 2.91c-1.005 2.28-2.476 2.445-4.11 2.445h-4.906c-1.63 0-2.415-.64-2.415-2.05V12.8s3.62 0 4.79.096c.912.064 1.463.325 1.76 1.598l.39 1.695h1.41l-.09-4.278.192-4.305h-1.391l-.45 1.89c-.283 1.244-.48 1.47-1.754 1.6-1.666.17-4.815.14-4.815.14V2.45h-.05z"/></svg>
               </a>
               <a class="social-icon social-whatsapp" href="https://wa.me/923228042633?text=Hi%20Kage%20Culture%2C%20I%20need%20help" target="_blank" rel="noopener" aria-label="WhatsApp">
                 <svg viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
               </a>
             </div>
+            <p class="footer-instagram-handle"><a href="https://instagram.com/kage__culture" target="_blank" rel="noopener">@kage__culture</a></p>
           </div>
           <div class="footer-newsletter">
             <h4>JOIN THE CLAN.</h4>
@@ -4004,11 +4104,10 @@
           <span>&copy; 2026 KAGE CULTURE</span>
           <div class="payment-icons">
             <span class="payment-icon">COD</span>
-            <span class="payment-icon">JazzCash</span>
-            <span class="payment-icon">Bank Transfer</span>
           </div>
           <div class="footer-bottom-links">
             <a href="/privacy" onclick="navigateTo('privacy'); return false;">Privacy</a>
+            <span class="footer-bottom-separator" aria-hidden="true">·</span>
             <a href="/terms" onclick="navigateTo('terms'); return false;">Terms</a>
           </div>
         </div>
@@ -4075,14 +4174,6 @@
           <h3>Payment method</h3>
           <div class="co-payment">
             <label class="co-pay-option"><input type="radio" name="payMethod" value="cod" checked /> <span><strong>Cash on Delivery</strong><small>Pay when your order arrives</small></span></label>
-            <label class="co-pay-option"><input type="radio" name="payMethod" value="jazzcash" /> <span><strong>JazzCash</strong><small>Send payment to 0322-8042633</small></span></label>
-            <label class="co-pay-option"><input type="radio" name="payMethod" value="bank" /> <span><strong>Bank Transfer</strong><small>Transfer details emailed after ordering</small></span></label>
-          </div>
-          <div id="paymentRefGroup" style="display:none;margin-top:0.6rem;">
-            <div class="co-field">
-              <label for="coPaymentRef">Payment Reference / Transaction ID *</label>
-              <input type="text" id="coPaymentRef" placeholder="Enter reference number after sending payment" autocomplete="off" />
-            </div>
           </div>
         </div>
 
@@ -4091,11 +4182,11 @@
           <div class="co-items" id="coItems"></div>
           <div class="co-totals">
             <div><span>Subtotal</span><span id="coSubtotal">Rs. 0</span></div>
-            <div><span>Shipping</span><span id="coShipping">Rs. 0</span></div>
-            <div class="co-grand"><span>Total</span><span id="coTotal">Rs. 0</span></div>
+            <div><span>Delivery charge</span><span id="coShipping">To be confirmed</span></div>
+            <div class="co-grand"><span>Total before delivery</span><span id="coTotal">Rs. 0</span></div>
           </div>
           <button class="btn btn-primary co-place" id="coPlaceBtn" onclick="placeOrder()">Place Order</button>
-          <p class="co-safe">Cash on Delivery, JazzCash &amp; Bank Transfer accepted</p>
+          <p class="co-safe">Cash on Delivery accepted. We will contact you about the delivery charges.</p>
         </aside>
       </div>
     </div>
@@ -4113,11 +4204,12 @@
           <div><span>Status</span><span id="confStatus" class="conf-status">Pending</span></div>
           <div><span>Payment</span><span id="confPayment"></span></div>
           <div><span>Delivery</span><span id="confAddress"></span></div>
-          <div><span>Total</span><span id="confTotal"></span></div>
+          <div><span>Delivery charge</span><span id="confShipping">To be confirmed</span></div>
+          <div><span>Items subtotal</span><span id="confTotal"></span></div>
         </div>
         <div class="confirm-items" id="confItems"></div>
         <div class="confirm-next">
-          <p>We'll confirm your order by email or phone shortly. Keep your order number handy.</p>
+          <p>We'll confirm your order and contact you about the delivery charges by email or phone shortly. Keep your order number handy.</p>
           <p style="text-align:center;margin-bottom:0.6rem;"><a class="track-order-link" href="/tracking" onclick="goTrackOrder(); return false;">Track your order anytime <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg></a></p>
           <button class="btn btn-primary" onclick="navigateTo('home'); initShop('all')">Continue Shopping</button>
         </div>
@@ -4168,7 +4260,7 @@
             <div class="tab-content">
               <div class="tab-pane active" id="tab-fabric"><ul><li>100% heavyweight cotton — 220 GSM</li><li>Pre-shrunk fabric, wash cold inside out</li><li>Do not bleach — tumble dry low</li><li>Screen-printed with eco-friendly water-based inks</li></ul></div>
               <div class="tab-pane" id="tab-fit"><ul><li>Compression: 4-way stretch, muscle-hugging fit — size up for relaxed</li><li>Graphic Tees: Regular fit, true to size</li><li>Oversized: Drop-shoulder, relaxed body — size down for regular</li><li>Full size chart available in the Size Guide</li></ul></div>
-              <div class="tab-pane" id="tab-shipping"><ul><li>Dispatch within 48 hours — delivered in 5-7 business days</li><li>Easy returns within 7 days of delivery</li><li>Cash on Delivery (COD), JazzCash, and Bank Transfer accepted</li></ul></div>
+              <div class="tab-pane" id="tab-shipping"><ul><li>Dispatch within 48 hours — delivered in 5-7 business days</li><li>Easy returns within 7 days of delivery</li><li>Cash on Delivery (COD) accepted</li></ul></div>
             </div>
           </div>
         </div>
@@ -4287,22 +4379,23 @@
 
   <!-- CONTENT PAGES -->
     <div class="page" id="page-returns">
-      <div class="container" style="padding: calc(104px + var(--spacing-lg)) 0 var(--spacing-xl); max-width: 720px;">
+      <div class="container content-page">
         <p class="section-label">Policy</p>
         <h1 class="section-title">Return & Refund Policy</h1>
-        <div style="margin-top: var(--spacing-lg); color: var(--text-muted); font-size: 0.9rem; line-height: 1.8;">
-          <h3 style="color: var(--text-primary); font-size: 1rem; margin: var(--spacing-lg) 0 var(--spacing-sm);">Return Window</h3>
+        <div class="content-page-body">
+          <h3>Return Window</h3>
           <p>You may request a return within <strong style="color: var(--text-primary);">7 days</strong> of receiving your order. Items must be unworn, unwashed, and in original packaging with tags attached.</p>
 
-          <h3 style="color: var(--text-primary); font-size: 1rem; margin: var(--spacing-lg) 0 var(--spacing-sm);">Eligible Items</h3>
+          <h3>Eligible Items</h3>
           <ul style="list-style: none; padding: 0;">
             <li style="padding: 0.3rem 0;">✓ All clothing items (tees, compression, oversized)</li>
             <li style="padding: 0.3rem 0;">✓ Items in original condition with tags</li>
             <li style="padding: 0.3rem 0;">✗ Sale items (final sale unless defective)</li>
+            <li style="padding: 0.3rem 0;">✗ Custom-designed items and custom stickers (non-returnable unless defective or wrong)</li>
             <li style="padding: 0.3rem 0;">✗ Worn, washed, or damaged items</li>
           </ul>
 
-          <h3 style="color: var(--text-primary); font-size: 1rem; margin: var(--spacing-lg) 0 var(--spacing-sm);">How to Request a Return</h3>
+          <h3>How to Request a Return</h3>
           <ol style="padding-left: 1.2rem;">
             <li style="padding: 0.3rem 0;">Contact us via WhatsApp at <a href="https://wa.me/923228042633?text=Hi%20Kage%20Culture%2C%20I%20want%20to%20return%20an%20order" style="color: var(--accent);" target="_blank">+92 322 804 2633</a> with your order number</li>
             <li style="padding: 0.3rem 0;">We'll confirm eligibility and provide return instructions</li>
@@ -4310,25 +4403,29 @@
             <li style="padding: 0.3rem 0;">Refund processed within 3-5 business days of receiving the return</li>
           </ol>
 
-          <h3 style="color: var(--text-primary); font-size: 1rem; margin: var(--spacing-lg) 0 var(--spacing-sm);">Refund Method</h3>
+          <h3>Refund Method</h3>
           <p>Refunds are issued via bank transfer to the account you specify. COD orders are refunded via bank transfer only.</p>
 
-          <h3 style="color: var(--text-primary); font-size: 1rem; margin: var(--spacing-lg) 0 var(--spacing-sm);">Defective Items</h3>
+          <h3>Defective Items</h3>
           <p>If you received a defective or wrong item, contact us within 48 hours with photos. We'll cover return shipping and send a replacement or full refund.</p>
         </div>
-        <p style="margin-top: var(--spacing-xl);"><a href="/" onclick="navigateTo('home'); return false;" style="color: var(--accent); cursor: pointer; font-size: 0.85rem;">← Back to Shop</a></p>
+        <p class="content-page-back"><a href="/" onclick="navigateTo('home'); return false;" style="color: var(--accent); cursor: pointer; font-size: 0.85rem;">← Back to Shop</a></p>
       </div>
     </div>
 
     <div class="page" id="page-shipping">
-      <div class="container" style="padding: calc(104px + var(--spacing-lg)) 0 var(--spacing-xl); max-width: 720px;">
+      <div class="container content-page">
         <p class="section-label">Policy</p>
         <h1 class="section-title">Shipping & Delivery</h1>
-        <div style="margin-top: var(--spacing-lg); color: var(--text-muted); font-size: 0.9rem; line-height: 1.8;">
-          <h3 style="color: var(--text-primary); font-size: 1rem; margin: var(--spacing-lg) 0 var(--spacing-sm);">Delivery Time</h3>
+        <div class="content-page-body">
+          <h3>Delivery Time</h3>
           <p>Orders are processed within 1-2 business days. Delivery takes <strong style="color: var(--text-primary);">3-5 business days</strong> for major cities and <strong style="color: var(--text-primary);">5-7 business days</strong> for other areas.</p>
 
-          <h3 style="color: var(--text-primary); font-size: 1rem; margin: var(--spacing-lg) 0 var(--spacing-sm);">Cities Currently Served</h3>
+          <h3>Delivery Charges</h3>
+          <p>Delivery charges depend on your delivery location. We will contact you about the delivery charges.</p>
+          <p><strong style="color: var(--text-primary);">Free-shipping threshold:</strong> TODO — confirm whether a free-shipping threshold applies.</p>
+
+          <h3>Cities Currently Served</h3>
           <p>We deliver nationwide across Pakistan, including:</p>
           <ul style="list-style: none; padding: 0; columns: 2;">
             <li style="padding: 0.3rem 0;">• Lahore</li>
@@ -4344,75 +4441,84 @@
           </ul>
           <p style="margin-top: var(--spacing-sm);">And all other major cities via our delivery partners.</p>
 
-          <h3 style="color: var(--text-primary); font-size: 1rem; margin: var(--spacing-lg) 0 var(--spacing-sm);">Payment Methods</h3>
+          <h3>Payment Methods</h3>
           <ul style="list-style: none; padding: 0;">
             <li style="padding: 0.3rem 0;"><strong style="color: var(--text-primary);">Cash on Delivery (COD)</strong> — pay when your order arrives</li>
-            <li style="padding: 0.3rem 0;"><strong style="color: var(--text-primary);">JazzCash</strong> — send payment to <strong style="color: var(--text-primary);">0322-8042633</strong></li>
           </ul>
         </div>
-        <p style="margin-top: var(--spacing-xl);"><a href="/" onclick="navigateTo('home'); return false;" style="color: var(--accent); cursor: pointer; font-size: 0.85rem;">← Back to Shop</a></p>
+        <p class="content-page-back"><a href="/" onclick="navigateTo('home'); return false;" style="color: var(--accent); cursor: pointer; font-size: 0.85rem;">← Back to Shop</a></p>
       </div>
     </div>
 
     <div class="page" id="page-terms">
-      <div class="container" style="padding: calc(104px + var(--spacing-lg)) 0 var(--spacing-xl); max-width: 720px;">
-        <p class="section-label">Legal</p>
+      <div class="container content-page">
+        <p class="section-label">Policy</p>
         <h1 class="section-title">Terms of Service</h1>
-        <div style="margin-top: var(--spacing-lg); color: var(--text-muted); font-size: 0.9rem; line-height: 1.8;">
-          <p style="margin-bottom: var(--spacing-md);">Last updated: August 2026</p>
+        <div class="content-page-body">
+          <p style="margin-bottom: var(--spacing-md);">Last updated: October 2026</p>
 
-          <h3 style="color: var(--text-primary); font-size: 1rem; margin: var(--spacing-lg) 0 var(--spacing-sm);">1. Acceptance of Terms</h3>
-          <p>By accessing and using the KAGE Culture website (kage-culture-ruby.vercel.app), you agree to be bound by these Terms of Service.</p>
+          <h3>1. Acceptance of Terms</h3>
+          <p>By accessing and using this website, you agree to be bound by these Terms of Service.</p>
 
-          <h3 style="color: var(--text-primary); font-size: 1rem; margin: var(--spacing-lg) 0 var(--spacing-sm);">2. Products & Pricing</h3>
+          <h3>2. Products &amp; Pricing</h3>
           <p>All product descriptions, images, and specifications are as accurate as possible. Colors may vary slightly due to screen settings. Prices are in Pakistani Rupees (PKR) and include applicable taxes. We reserve the right to modify prices without prior notice.</p>
 
-          <h3 style="color: var(--text-primary); font-size: 1rem; margin: var(--spacing-lg) 0 var(--spacing-sm);">3. Orders & Payment</h3>
-          <p>Orders are subject to availability. We reserve the right to cancel any order. Payment must be completed before shipping for bank transfer orders. COD orders are payable upon delivery.</p>
+          <h3>3. Orders &amp; Payment</h3>
+          <p>Orders are subject to availability. We reserve the right to cancel any order. Cash on Delivery orders are payable upon delivery.</p>
 
-          <h3 style="color: var(--text-primary); font-size: 1rem; margin: var(--spacing-lg) 0 var(--spacing-sm);">4. Intellectual Property</h3>
+          <h3>4. Intellectual Property</h3>
           <p>All content on this site, including designs, logos, and graphics, is the property of KAGE Culture and protected by intellectual property laws.</p>
 
-          <h3 style="color: var(--text-primary); font-size: 1rem; margin: var(--spacing-lg) 0 var(--spacing-sm);">5. Limitation of Liability</h3>
+          <h3>5. Limitation of Liability</h3>
           <p>KAGE Culture shall not be liable for any indirect, incidental, or consequential damages arising from the use of our products or services.</p>
 
-          <h3 style="color: var(--text-primary); font-size: 1rem; margin: var(--spacing-lg) 0 var(--spacing-sm);">6. Contact</h3>
+          <h3>6. Contact</h3>
           <p>For questions about these terms, contact us via WhatsApp at <a href="https://wa.me/923228042633" style="color: var(--accent);" target="_blank">+92 322 804 2633</a>.</p>
+
+          <h3>7. Custom Orders &amp; Returns</h3>
+          <p>Custom-designed items and custom stickers cannot be returned unless they are defective or the wrong item was supplied. See our <a href="/returns" onclick="navigateTo('returns'); return false;" style="color: var(--accent);">Returns &amp; Refund Policy</a> for the return process and eligibility.</p>
+
+          <h3>8. Governing Law</h3>
+          <p>These Terms are governed by the laws of Pakistan.</p>
+
+          <p><em>This policy is provided for general information only, is not legal advice, and should be reviewed by a qualified legal professional.</em></p>
         </div>
-        <p style="margin-top: var(--spacing-xl);"><a href="/" onclick="navigateTo('home'); return false;" style="color: var(--accent); cursor: pointer; font-size: 0.85rem;">← Back to Shop</a></p>
+        <p class="content-page-back"><a href="/" onclick="navigateTo('home'); return false;" style="color: var(--accent); cursor: pointer; font-size: 0.85rem;">← Back to Shop</a></p>
       </div>
     </div>
 
     <div class="page" id="page-privacy">
-      <div class="container" style="padding: calc(104px + var(--spacing-lg)) 0 var(--spacing-xl); max-width: 720px;">
-        <p class="section-label">Legal</p>
+      <div class="container content-page">
+        <p class="section-label">Policy</p>
         <h1 class="section-title">Privacy Policy</h1>
-        <div style="margin-top: var(--spacing-lg); color: var(--text-muted); font-size: 0.9rem; line-height: 1.8;">
-          <p style="margin-bottom: var(--spacing-md);">Last updated: August 2026</p>
+        <div class="content-page-body">
+          <p style="margin-bottom: var(--spacing-md);">Last updated: October 2026</p>
 
-          <h3 style="color: var(--text-primary); font-size: 1rem; margin: var(--spacing-lg) 0 var(--spacing-sm);">Information We Collect</h3>
-          <p>When you place an order, we collect:</p>
+          <h3>Information We Collect</h3>
+          <p>Depending on how you use this website, we may collect:</p>
           <ul style="list-style: none; padding: 0;">
-            <li style="padding: 0.3rem 0;">• Name</li>
-            <li style="padding: 0.3rem 0;">• Email address</li>
-            <li style="padding: 0.3rem 0;">• Phone number</li>
-            <li style="padding: 0.3rem 0;">• Shipping address</li>
-            <li style="padding: 0.3rem 0;">• City</li>
+            <li style="padding: 0.3rem 0;">• Order details, including your name, email address, phone number, delivery address, and city</li>
+            <li style="padding: 0.3rem 0;">• Customer account details, including your name and email address, a password stored as a hash, and any phone number, address, and city added to your profile</li>
+            <li style="padding: 0.3rem 0;">• Email addresses submitted through newsletter or product-notification forms; product-notification requests also record the selected collection</li>
           </ul>
 
-          <h3 style="color: var(--text-primary); font-size: 1rem; margin: var(--spacing-lg) 0 var(--spacing-sm);">How We Use Your Information</h3>
-          <p>Your personal information is used <strong style="color: var(--text-primary);">solely for order fulfillment</strong> — processing your order, coordinating delivery, and providing customer support. We do not sell, rent, or share your personal data with third parties for marketing purposes.</p>
+          <h3>How We Use Your Information</h3>
+          <p>We use this information to process and support orders, manage customer accounts, respond to requests, and coordinate delivery. When needed to deliver an order, we may share the necessary delivery details—such as your name, phone number, address, and city—with the courier partner handling the delivery.</p>
+          <p>Newsletter sign-up emails are for product-drop, restock, and KAGE Clan updates. The current website stores sign-ups but does not provide a self-service unsubscribe control. To request removal from the newsletter list, contact us via WhatsApp at <a href="https://wa.me/923228042633" style="color: var(--accent);" target="_blank">+92 322 804 2633</a>.</p>
+          <p>We do not sell your personal data or share it with third parties for their marketing.</p>
 
-          <h3 style="color: var(--text-primary); font-size: 1rem; margin: var(--spacing-lg) 0 var(--spacing-sm);">Data Security</h3>
+          <h3>Data Security</h3>
           <p>We implement appropriate security measures to protect your personal information. However, no method of transmission over the internet is 100% secure.</p>
 
-          <h3 style="color: var(--text-primary); font-size: 1rem; margin: var(--spacing-lg) 0 var(--spacing-sm);">Cookies</h3>
-          <p>We use essential cookies for session management (admin login). These are necessary for the site to function and do not track your browsing behavior.</p>
+          <h3>Cookies</h3>
+          <p>We use essential cookies for session management and request protection. The <code>kage.session</code> cookie supports customer and admin login sessions, while <code>kage.csrf</code> helps protect requests against cross-site request forgery. These cookies are not used for advertising or analytics.</p>
 
-          <h3 style="color: var(--text-primary); font-size: 1rem; margin: var(--spacing-lg) 0 var(--spacing-sm);">Your Rights</h3>
+          <h3>Your Rights</h3>
           <p>You may request access to, correction of, or deletion of your personal data by contacting us via WhatsApp at <a href="https://wa.me/923228042633" style="color: var(--accent);" target="_blank">+92 322 804 2633</a>.</p>
+
+          <p><em>This policy is provided for general information only, is not legal advice, and should be reviewed by a qualified legal professional.</em></p>
         </div>
-        <p style="margin-top: var(--spacing-xl);"><a href="/" onclick="navigateTo('home'); return false;" style="color: var(--accent); cursor: pointer; font-size: 0.85rem;">← Back to Shop</a></p>
+        <p class="content-page-back"><a href="/" onclick="navigateTo('home'); return false;" style="color: var(--accent); cursor: pointer; font-size: 0.85rem;">← Back to Shop</a></p>
       </div>
     </div>
 
@@ -4495,33 +4601,52 @@
     </div>
 
     <div class="page" id="page-contact">
-      <div class="container" style="padding: calc(104px + var(--spacing-lg)) 0 var(--spacing-xl); max-width: 720px;">
+      <div class="container content-page">
         <p class="section-label">Get in Touch</p>
         <h1 class="section-title">CONTACT US</h1>
-        <div style="margin-top: var(--spacing-xl); display: grid; gap: var(--spacing-lg);">
-          <a href="https://wa.me/923228042633?text=Hi%20Kage%20Culture%2C%20I%20have%20a%20question" target="_blank" style="display: flex; align-items: center; gap: var(--spacing-md); padding: var(--spacing-lg); background: var(--bg-secondary); border-radius: var(--radius-md); border: 1px solid var(--border-color); text-decoration: none; transition: all var(--transition-med);" onmouseover="this.style.borderColor='#25D366'" onmouseout="this.style.borderColor='var(--border-color)'">
-            <div style="width: 48px; height: 48px; background: #25D366; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-size: 1.5rem; flex-shrink: 0;">💬</div>
-            <div>
-              <h3 style="color: var(--text-primary); font-size: 1rem; margin-bottom: 0.2rem;">WhatsApp</h3>
-              <p style="color: var(--text-muted); font-size: 0.85rem;">+92 322 804 2633 — Tap to chat instantly</p>
-            </div>
+        <div class="content-page-contact">
+          <a class="contact-card" href="https://wa.me/923228042633?text=Hi%20Kage%20Culture%2C%20I%20have%20a%20question" target="_blank" rel="noopener">
+            <span class="contact-card-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M20 11.5a8.25 8.25 0 0 1-12.1 7.3L4 20l1.2-3.9A8.25 8.25 0 1 1 20 11.5Z"/><path d="M9 8.2c.2-.4.7-.5 1-.2l.8 1.3c.2.3.1.6-.1.8l-.5.5a6.8 6.8 0 0 0 2.3 2.3l.5-.5c.2-.2.5-.3.8-.1l1.3.8c.3.2.3.7.1 1-.4.4-.9.6-1.5.5a7.1 7.1 0 0 1-5-5c-.1-.5.1-1.1.5-1.4Z"/></svg>
+            </span>
+            <span class="contact-card-body">
+              <h3>WhatsApp</h3>
+              <p>+92 322 804 2633 — Tap to chat instantly</p>
+            </span>
           </a>
-          <a href="https://wa.me/923228042633?text=Hi%20Kage%20Culture%2C%20I%20have%20an%20order%20inquiry" target="_blank" style="display: flex; align-items: center; gap: var(--spacing-md); padding: var(--spacing-lg); background: var(--bg-secondary); border-radius: var(--radius-md); border: 1px solid var(--border-color); text-decoration: none; transition: all var(--transition-med);" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border-color)'">
-            <div style="width: 48px; height: 48px; background: var(--accent); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-size: 1.5rem; flex-shrink: 0;">📦</div>
-            <div>
-              <h3 style="color: var(--text-primary); font-size: 1rem; margin-bottom: 0.2rem;">Order Support</h3>
-              <p style="color: var(--text-muted); font-size: 0.85rem;">Track your order, ask about returns, or get help</p>
+          <article class="contact-card contact-card-support">
+            <span class="contact-card-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 18 0"/><path d="M3 12v4a2 2 0 0 0 2 2h2v-7H5a2 2 0 0 0-2 2Z"/><path d="M21 12v4a2 2 0 0 1-2 2h-2v-7h2a2 2 0 0 1 2 2Z"/><path d="M17 20a3 3 0 0 1-3 2h-2"/></svg>
+            </span>
+            <div class="contact-card-body">
+              <a class="contact-card-primary" href="/tracking" onclick="navigateTo('tracking'); return false;">
+                <h3>Order Support</h3>
+                <p>Track your order</p>
+              </a>
+              <p class="contact-card-secondary">or <a href="https://wa.me/923228042633?text=Hi%20Kage%20Culture%2C%20I%20have%20an%20order%20inquiry" target="_blank" rel="noopener">message us on WhatsApp</a></p>
             </div>
+          </article>
+          <a class="contact-card" href="https://instagram.com/kage__culture" target="_blank" rel="noopener noreferrer">
+            <span class="contact-card-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="0.75" fill="currentColor" stroke="none"/></svg>
+            </span>
+            <span class="contact-card-body">
+              <h3>Instagram</h3>
+              <p>@kage__culture — Follow for drops &amp; behind the scenes</p>
+            </span>
           </a>
-          <div style="display: flex; align-items: center; gap: var(--spacing-md); padding: var(--spacing-lg); background: var(--bg-secondary); border-radius: var(--radius-md); border: 1px solid var(--border-color);">
-            <div style="width: 48px; height: 48px; background: var(--text-primary); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: var(--bg-primary); font-size: 1.5rem; flex-shrink: 0;">📸</div>
-            <div>
-              <h3 style="color: var(--text-primary); font-size: 1rem; margin-bottom: 0.2rem;">Instagram</h3>
-              <p style="color: var(--text-muted); font-size: 0.85rem;">@kageculture — Follow for drops & behind the scenes</p>
-            </div>
-          </div>
+          <a class="contact-card" href="mailto:kageculture01@gmail.com">
+            <span class="contact-card-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m4 7 8 6 8-6"/></svg>
+            </span>
+            <span class="contact-card-body">
+              <h3>Email</h3>
+              <p>kageculture01@gmail.com</p>
+            </span>
+          </a>
         </div>
-        <p style="margin-top: var(--spacing-xl);"><a href="/" onclick="navigateTo('home'); return false;" style="color: var(--accent); cursor: pointer; font-size: 0.85rem;">← Back to Shop</a></p>
+        <p class="contact-working-hours"><strong>Working hours:</strong> <span>TODO — [hours not provided]</span></p>
+        <p class="content-page-back"><a href="/" onclick="navigateTo('home'); return false;" style="color: var(--accent); cursor: pointer; font-size: 0.85rem;">← Back to Shop</a></p>
       </div>
     </div>
 
@@ -4608,7 +4733,6 @@
       } catch (e) { cart = []; wishlist.clear(); }
       shopStateReady = true;
       document.getElementById('wishlistCount').textContent = wishlist.size;
-      document.getElementById('wishlistCountMobile').textContent = wishlist.size;
       updateCartUI();
     }
     let currentProduct = null;
@@ -4885,20 +5009,11 @@
           <div class="co-item-price">Rs. ${t}</div>
         </div>`;
       }).join('');
-      const shipping = 150;
       document.getElementById('coSubtotal').textContent = 'Rs. ' + fmt(sub);
-      document.getElementById('coShipping').textContent = 'Rs. ' + shipping;
-      document.getElementById('coTotal').textContent = 'Rs. ' + fmt(sub + shipping);
-      updatePaymentRefVisibility();
+      document.getElementById('coShipping').textContent = 'To be confirmed';
+      document.getElementById('coTotal').textContent = 'Rs. ' + fmt(sub);
     }
 
-    function updatePaymentRefVisibility() {
-      const selected = document.querySelector('input[name="payMethod"]:checked');
-      document.getElementById('paymentRefGroup').style.display = selected && selected.value !== 'cod' ? 'block' : 'none';
-    }
-    document.getElementById('page-checkout').addEventListener('change', e => {
-      if (e.target.matches('input[name="payMethod"]')) updatePaymentRefVisibility();
-    });
 
     async function placeOrder() {
       const errEl = document.getElementById('checkoutError');
@@ -4911,8 +5026,7 @@
         address: document.getElementById('coAddress').value.trim(),
         city: document.getElementById('coCity').value.trim(),
         notes: document.getElementById('coNotes').value.trim(),
-        payment_method: document.querySelector('input[name="payMethod"]:checked').value,
-        payment_ref: document.getElementById('coPaymentRef').value.trim()
+        payment_method: 'cod'
       };
       if (!f.name || !f.email || !f.phone || !f.address || !f.city) {
         errEl.textContent = 'Please fill in all required fields (name, email, phone, address, city).';
@@ -4921,12 +5035,6 @@
       }
       if (!/^\S+@\S+\.\S+$/.test(f.email)) {
         errEl.textContent = 'Please enter a valid email address.';
-        errEl.style.display = 'block';
-        return;
-      }
-      // Require payment reference for non-COD
-      if ((f.payment_method === 'jazzcash' || f.payment_method === 'bank') && !f.payment_ref) {
-        errEl.textContent = 'Payment reference number is required for JazzCash/Bank Transfer.';
         errEl.style.display = 'block';
         return;
       }
@@ -4965,6 +5073,7 @@
       const payLabel = order.payment_method === 'bank' ? 'Bank Transfer' : order.payment_method === 'jazzcash' ? 'JazzCash' : 'Cash on Delivery';
       document.getElementById('confPayment').textContent = order.payment_ref ? `${payLabel} (Ref: ${order.payment_ref})` : payLabel;
       document.getElementById('confAddress').textContent = order.address + ', ' + order.city;
+      document.getElementById('confShipping').textContent = order.shipping_pending ? 'To be confirmed' : 'Rs. ' + fmt(order.shipping);
       document.getElementById('confTotal').textContent = 'Rs. ' + fmt(order.total);
       document.getElementById('confItems').innerHTML = (order.items || []).map(it => `
         <div class="conf-item">
@@ -5207,7 +5316,6 @@
         }
       }
       document.getElementById('wishlistCount').textContent = wishlist.size;
-      var mc = document.getElementById('wishlistCountMobile'); if (mc) mc.textContent = wishlist.size;
       persistShopState();
       if (wishlistOnly) renderCollectionGrid();
     }
@@ -6115,7 +6223,8 @@
             </div>
             <div class="track-details">
               <div><span>Placed</span><span>${esc(formatTrackDate(o.created_at))}</span></div>
-              <div><span>Total</span><span>Rs. ${o.total}</span></div>
+              <div><span>Delivery charge</span><span>${o.status === 'cancelled' ? 'Not charged' : o.shipping_pending ? 'To be confirmed' : 'Rs. ' + fmt(o.shipping)}</span></div>
+              <div><span>${o.shipping_pending || o.status === 'cancelled' ? 'Items subtotal' : 'Total'}</span><span>Rs. ${o.total}</span></div>
             </div>
             <div class="track-items">${(o.items || []).map(it => `
               <div class="conf-item">
@@ -6154,10 +6263,11 @@
           <div class="track-details">
             <div><span>Placed</span><span>${esc(formatTrackDate(o.created_at))}</span></div>
             <div><span>Payment</span><span>${o.payment_method === 'bank' ? 'Bank Transfer' : o.payment_method === 'jazzcash' ? 'JazzCash' : 'Cash on Delivery'}</span></div>
-            <div><span>Total</span><span>Rs. ${o.total}</span></div>
+            <div><span>Delivery charge</span><span>${o.status === 'cancelled' ? 'Not charged' : o.shipping_pending ? 'To be confirmed' : 'Rs. ' + fmt(o.shipping)}</span></div>
+              <div><span>${o.shipping_pending || o.status === 'cancelled' ? 'Items subtotal' : 'Total'}</span><span>Rs. ${o.total}</span></div>
           </div>
           <div class="track-items">${items}</div>
-          <p class="track-help">Questions about your order? WhatsApp us at +92 322 804 2633 with your order number.</p>
+          <p class="track-help">${o.shipping_pending ? 'We will contact you about the delivery charges. ' : ''}Questions about your order? WhatsApp us at +92 322 804 2633 with your order number.</p>
         </div>`;
       document.getElementById('trkResult').style.display = 'block';
     }
@@ -6195,7 +6305,6 @@
       const c = cart.reduce((s,i) => s + i.qty, 0);
       persistShopState();
       document.getElementById('cartCount').textContent = c;
-      var mcc = document.getElementById('cartCountMobile'); if (mcc) mcc.textContent = c;
       const items = document.getElementById('cartItems'), footer = document.getElementById('cartFooter');
       if (!cart.length) { items.innerHTML = '<div class="cart-empty"><p>Your cart is empty.</p></div>'; footer.style.display = 'none'; return; }
       footer.style.display = 'flex';
@@ -6232,17 +6341,34 @@
     // Mobile menu
     const hamburger = document.getElementById('hamburger');
     const navLinks = document.getElementById('navLinks');
+    let menuPreviousBodyOverflow = '';
     hamburger.setAttribute('aria-expanded', 'false');
     hamburger.setAttribute('aria-controls', 'navLinks');
-    hamburger.addEventListener('click', () => {
-      const open = navLinks.classList.toggle('open');
+    hamburger.setAttribute('aria-label', 'Open menu');
+    function setMenuOpen(open) {
+      const wasOpen = navLinks.classList.contains('open');
+      if (open && !wasOpen) {
+        menuPreviousBodyOverflow = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+      } else if (!open && wasOpen) {
+        document.body.style.overflow = menuPreviousBodyOverflow;
+        menuPreviousBodyOverflow = '';
+      }
+      navLinks.classList.toggle('open', open);
       hamburger.classList.toggle('active', open);
       hamburger.setAttribute('aria-expanded', String(open));
-    });
-    function closeMenu() {
-      hamburger.classList.remove('active'); navLinks.classList.remove('open');
-      hamburger.setAttribute('aria-expanded', 'false');
+      hamburger.setAttribute('aria-label', open ? 'Close menu' : 'Open menu');
     }
+    hamburger.addEventListener('click', () => setMenuOpen(!navLinks.classList.contains('open')));
+    navLinks.addEventListener('click', event => {
+      if (event.target && typeof event.target.closest === 'function' && event.target.closest('a')) closeMenu();
+    });
+    document.addEventListener('pointerdown', event => {
+      if (!navLinks.classList.contains('open')) return;
+      if (navLinks.contains(event.target) || hamburger.contains(event.target)) return;
+      closeMenu();
+    });
+    function closeMenu() { setMenuOpen(false); }
 
     // ================================================================
     // PARALLAX WATERMARK
