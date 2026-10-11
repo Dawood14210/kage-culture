@@ -533,6 +533,134 @@ async function ready(win) {
     assert.match(ad.getElementById('ordersList').textContent, /No orders match/);
     console.log('✅ Admin product search, order filter and sort work');
 
+    // ------------------------------------------------------------------
+    // Menu: order + routes, no public admin entry, no duplicated icons.
+    const navAnchors = [...d.querySelectorAll('#navLinks > li > a')];
+    assert.deepEqual(navAnchors.map(a => a.textContent.trim()),
+      ['Home', 'Anime Shirts', 'Graphic Tees', 'Pants', 'Custom Stickers', 'About', 'Contact', 'Track Order'],
+      'menu order is Home, Anime Shirts, Graphic Tees, Pants, Custom Stickers, About, Contact, Track Order');
+    assert.deepEqual(navAnchors.map(a => a.getAttribute('href')),
+      ['/', '/collection/anime', '/collection/graphic-tees', '/collection/all', '/custom-stickers', '/about', '/contact', '/tracking'],
+      'menu links use the same routes as the homepage cards');
+    assert.equal(d.querySelector('#navLinks a.nav-admin'), null, 'the public nav has no Admin link');
+    assert.equal(d.querySelectorAll('#navLinks a[data-nav="streetwear"], #navLinks a[href*="streetwear"]').length, 0, 'Streetwear is gone from the menu');
+    assert.equal(typeof w.openAdminLogin, 'function', 'the admin login modal code is kept');
+    w.openAdminLogin();
+    assert.equal(d.getElementById('adminLoginOverlay').classList.contains('open'), false, 'the admin modal cannot be opened from the storefront');
+    assert.match(storeHtml, /if \(window\.location\.pathname !== '\/admin'\) return;/, 'the admin modal is gated to /admin');
+    const menuIconRow = d.querySelector('#navLinks .mobile-icons-row');
+    assert.deepEqual([...menuIconRow.querySelectorAll('button')].map(b => b.getAttribute('title')), ['Track Order', 'Account'],
+      'the menu only repeats what the mobile header hides');
+    assert.equal(d.querySelector('#navLinks .mobile-icons-row [title="Cart"], #navLinks .mobile-icons-row [title="Wishlist"]'), null,
+      'wishlist and cart are not duplicated inside the menu');
+    assert.deepEqual([...d.querySelectorAll('#hamburger svg')].map(s => s.getAttribute('class')), ['icon-menu', 'icon-close'],
+      'the hamburger holds a menu icon and a close icon');
+    console.log('OK menu order, routes, and the /admin-only admin modal');
+
+    // Menu behaviour: scroll lock, close on link tap / Escape / outside tap.
+    const hamburgerBtn = d.getElementById('hamburger');
+    hamburgerBtn.click();
+    assert.equal(d.getElementById('navLinks').classList.contains('open'), true);
+    assert.equal(hamburgerBtn.getAttribute('aria-expanded'), 'true', 'aria-expanded follows the menu');
+    assert.equal(hamburgerBtn.classList.contains('active'), true, 'the toggle shows the X state');
+    assert.equal(d.body.style.overflow, 'hidden', 'body scroll is locked while the menu is open');
+    d.getElementById('siteHeader').click();
+    assert.equal(d.getElementById('navLinks').classList.contains('open'), false, 'tapping outside the panel closes it');
+    assert.equal(d.body.style.overflow, '', 'body scroll is restored on close');
+    hamburgerBtn.click();
+    d.querySelector('#navLinks a[href="/tracking"]').click();
+    assert.equal(d.getElementById('navLinks').classList.contains('open'), false, 'tapping a menu link closes the menu');
+    assert.equal(d.body.style.overflow, '', 'scroll stays restored after a link tap');
+    w.navigateTo('home');
+    hamburgerBtn.click();
+    d.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    assert.equal(d.getElementById('navLinks').classList.contains('open'), false, 'Escape closes the menu');
+    assert.equal(d.body.style.overflow, '', 'Escape restores body scroll');
+    assert.match(storeHtml, /\.hamburger \.icon-close \{ display: none; \}/, 'the close icon is hidden while the menu is closed');
+    assert.match(storeHtml, /\.hamburger\.active \.icon-close \{ display: block; \}/, 'the close icon shows while the menu is open');
+    assert.match(storeHtml, /@media \(max-width: 1023px\) \{[\s\S]*?\.nav-links\.open \{[\s\S]*?background: var\(--bg-primary\);/, 'the open menu is an opaque full-height panel');
+    console.log('OK mobile menu locks scroll and closes on link, Escape and outside taps');
+
+    // ------------------------------------------------------------------
+    // Shared content-page layout (returns, shipping, terms, privacy, contact).
+    for (const id of ['returns', 'shipping', 'terms', 'privacy', 'contact']) {
+      const contentPage = d.getElementById('page-' + id);
+      assert.ok(contentPage.querySelector('.container.content-page'), id + ' uses the shared .content-page container');
+      assert.equal(contentPage.querySelector('.container[style]'), null, id + ' has no inline container padding');
+      assert.equal(contentPage.querySelector('.content-page [style]'), null, id + ' keeps its copy in the shared stylesheet');
+    }
+    assert.match(storeHtml, /\.container\.content-page \{[\s\S]*?max-width: 720px;[\s\S]*?padding: calc\(104px \+ var\(--spacing-lg\)\) 16px var\(--spacing-xl\);/, 'content pages keep the header offset, a 720px column and 16px phone gutters');
+    assert.match(storeHtml, /@media \(min-width: 600px\) \{\s*\.container\.content-page \{ padding-left: 20px; padding-right: 20px; \}/, '20px gutters from 600px up');
+    assert.match(storeHtml, /@media \(max-width: 768px\) \{\s*\.tracking-form \.btn \{ align-self: stretch; width: 100%; \}/, 'the Track Order button is full width on phones');
+    assert.match(storeHtml, /\.tracking-form \.btn \{ align-self: flex-start; \}/, 'the desktop Track Order button stays left-aligned');
+    console.log('OK five content pages share one padded container; tracking button is mobile-full-width');
+
+    // ------------------------------------------------------------------
+    // Footer: one shared copy for every page, separator, theme social icons.
+    const footer = d.querySelector('footer.site-footer');
+    const bodyKids = [...d.body.children];
+    assert.equal(d.querySelector('#page-home footer'), null, 'the footer is not owned by the home page');
+    assert.ok(bodyKids.indexOf(footer) > bodyKids.findIndex(el => el.id === 'page-contact'), 'the single footer renders after the last page');
+    const footerLinks = [...d.querySelectorAll('.footer-bottom-links a')];
+    assert.deepEqual(footerLinks.map(a => a.textContent.trim()), ['Privacy', 'Terms']);
+    assert.equal(d.querySelector('.footer-bottom-links .footer-dot').textContent, '\u00b7', 'Privacy and Terms are separated by a visible dot');
+    assert.match(storeHtml, /\.footer-bottom-links a \{\s*min-height: 44px;[\s\S]*?display: inline-flex;/, 'footer bottom links keep 44px tap targets');
+    assert.deepEqual([...d.querySelectorAll('.social-icons a')].map(a => a.getAttribute('aria-label')), ['Instagram', 'Snapchat', 'Email', 'Etsy', 'WhatsApp'], 'social aria-labels are unchanged');
+    assert.match(storeHtml, /\.social-icon:hover \{[\s\S]*?background: var\(--accent\);/, 'social icons use the theme colour with an accent hover');
+    assert.equal(/\.social-(instagram|snapchat|email|etsy|whatsapp) \{/.test(storeHtml), false, 'per-brand colour rules are gone');
+    assert.equal(d.querySelector('.social-etsy text'), null, 'Etsy uses a real SVG glyph, not a letter');
+    assert.ok(d.querySelector('.social-etsy path').getAttribute('d').length > 200 && d.querySelector('.social-snapchat path').getAttribute('d').length > 200, 'Snapchat and Etsy keep full brand glyphs');
+    assert.match(storeHtml, /\.site-footer \{ padding-bottom: calc\(var\(--spacing-md\) \+ 76px \+ env\(safe-area-inset-bottom, 0px\)\); \}/, 'the footer keeps clear of the floating WhatsApp button on phones');
+    console.log('OK shared footer with separator, 44px targets and theme social icons');
+
+    // ------------------------------------------------------------------
+    // Contact page: inline theme SVG icons, real links, TODO hours.
+    const contactCards = [...d.querySelectorAll('#page-contact .contact-card')];
+    assert.deepEqual(contactCards.map(c => c.querySelector('h3').textContent), ['WhatsApp', 'Order Support', 'Instagram', 'Email']);
+    assert.ok(contactCards.every(c => c.querySelector('.contact-icon svg')), 'every contact card uses an inline SVG icon');
+    assert.equal(/[\u{1F4AC}\u{1F4E6}\u{1F4F8}]/u.test(d.getElementById('page-contact').textContent), false, 'the emoji icons are gone');
+    const footerInstagram = d.querySelector('.social-icons a[aria-label="Instagram"]').getAttribute('href');
+    const contactInstagram = d.querySelector('#page-contact a[href*="instagram.com"]');
+    assert.equal(contactInstagram.getAttribute('href'), footerInstagram, 'contact and footer link to the same Instagram URL');
+    assert.match(contactInstagram.textContent, /@kage__culture/, 'the contact card shows the handle from the footer URL');
+    assert.equal(d.querySelector('#page-contact .contact-main').getAttribute('href'), '/tracking', 'Order Support points at the Track Order page');
+    assert.match(d.querySelector('#page-contact .contact-main').getAttribute('onclick'), /navigateTo\('tracking'\)/);
+    assert.match(d.getElementById('page-contact').textContent, /or message us on WhatsApp/, 'Order Support keeps a WhatsApp alternative');
+    assert.equal(d.querySelector('#page-contact a[href^="mailto:"]').getAttribute('href'), 'mailto:kageculture01@gmail.com', 'the Email card uses the footer address');
+    assert.match(d.getElementById('page-contact').textContent, /TODO/, 'working hours is a clearly marked TODO');
+    console.log('OK contact page uses theme SVG icons and real links, hours marked TODO');
+
+    // ------------------------------------------------------------------
+    // Policy copy: payment methods, charges, returns rule, privacy rewrite.
+    const shippingText = d.getElementById('page-shipping').textContent;
+    assert.match(shippingText, /Bank Transfer/);
+    assert.match(shippingText, /account details are sent after you place the order/, 'shipping matches the checkout bank-transfer wording');
+    assert.match(shippingText, /Rs\. 150/, 'delivery charge matches config.SHIPPING_COST');
+    assert.equal(require('../config').SHIPPING_COST, 150);
+    assert.equal(/0322-8042633/.test(storeHtml), false, 'the old phone format is gone');
+    assert.match(storeHtml, /Send payment to \+92 322 804 2633/, 'checkout JazzCash shows the display number');
+    const returnsText = d.getElementById('page-returns').textContent;
+    assert.match(returnsText, /7 days/);
+    assert.match(returnsText, /48 hours/);
+    assert.match(returnsText, /custom stickers/i);
+    assert.match(returnsText, /non-returnable/i);
+    const privacyText = d.getElementById('page-privacy').textContent;
+    assert.equal(/solely for order fulfillment/.test(privacyText), false, 'the "solely" claim is gone');
+    assert.match(privacyText, /newsletter/i);
+    assert.match(privacyText, /unsubscribe/i, 'privacy says how to unsubscribe');
+    assert.match(privacyText, /kage\.session/, 'privacy lists the customer session cookie');
+    assert.match(privacyText, /courier/i, 'privacy covers courier partners');
+    assert.match(privacyText, /Last updated: October 2026/);
+    const termsText = d.getElementById('page-terms').textContent;
+    assert.match(termsText, /Last updated: October 2026/);
+    assert.match(termsText, /laws of Pakistan/, 'terms carry a governing-law line');
+    assert.match(termsText, /Custom Orders/, 'terms carry the custom-orders clause');
+    assert.equal(/kage-culture-ruby\.vercel\.app/.test(termsText), false, 'the terms copy no longer hardcodes the host');
+    assert.match(termsText, /using this website/, 'terms describe the site as "this website"');
+    assert.match(d.querySelector('#page-terms a[href="/returns"]').getAttribute('onclick'), /navigateTo\('returns'\)/, 'terms link to the Returns page');
+    assert.deepEqual(['returns', 'shipping', 'terms', 'privacy'].map(id => d.querySelector('#page-' + id + ' .section-label').textContent), ['Policy', 'Policy', 'Policy', 'Policy'], 'the four policy pages share one eyebrow label');
+    console.log('OK policy copy: bank transfer, flat Rs.150, custom-item rule, privacy rewrite');
+
     // The menu toggle must remain operable, and hidden admin tabs must stay
     // inside the main column (not become siblings in the dashboard flex row).
     d.getElementById('hamburger').click();
@@ -551,7 +679,7 @@ async function ready(win) {
     console.log('✅ Mobile navigation and admin tab layout stay reachable');
 
     assert.deepEqual(errors, []);
-    console.log('\n16/16 frontend scenarios passed');
+    console.log('\n22/22 frontend scenarios passed');
   } finally {
     windows.forEach(win => win.window.close());
     await new Promise(resolve => server.close(resolve));

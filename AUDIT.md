@@ -459,6 +459,84 @@ the 800px breakpoint). **Open:** the Pants card has no category of its own yet �
 its Explore link points at `/collection/all` as a placeholder; Graphic Tees
 routes to `/collection/graphic-tees`, which intentionally shows Coming Soon.
 
+### ✅ Storefront layout, menu, footer, contact & policy pass — 2026-10-11
+
+A user-reported fault list was fixed in `public/index.html` (+ `tests/frontend.test.js`):
+
+- **Side padding (root cause).** The five content pages carried an inline container style
+  `padding: calc(104px + var(--spacing-lg)) 0 var(--spacing-xl); max-width: 720px;` — the `0`
+  removed the side padding, so policy/contact copy touched the screen edge on phones. All five
+  now use one shared `.container.content-page` class: same 104px+lg top offset, `max-width:
+  720px` centred, `padding-inline` 16px, 20px from 600px up. The repeated inline `h3`/`p`/`ul`
+  styles became `.policy-body` rules, so no content page carries inline styles any more. The
+  Track Order page (`/tracking`) keeps its own layout.
+- **Mobile menu.** Order is now Home, Anime Shirts, Graphic Tees, Pants, Custom Stickers, About,
+  Contact, Track Order, with routes matching the homepage cards (`/collection/graphic-tees`,
+  `/collection/all` for Pants). "Streetwear" (`/collection/streetwear`) is gone. The Admin item
+  left the public nav; the admin login modal is kept but `openAdminLogin()` now returns unless
+  the path is `/admin` (no auth/CSRF change). The hamburger holds a menu icon and a close icon
+  and swaps them via `.hamburger.active`, with `aria-expanded` tracking the state. The panel is
+  opaque (`--bg-primary`), spans the viewport below the fixed header at every width under
+  1024px, and locks body scroll while open (restored on close); it closes on link tap, Escape and
+  outside taps. The duplicate wishlist/cart buttons left `.mobile-icons-row` (the header keeps
+  those); it now holds Track Order + Account, the two the header hides on phones, and is hidden
+  from 769px up where the header shows everything.
+- **Footer.** The footer is now ONE copy placed after the last SPA page, so the home, policy,
+  contact and tracking pages all render the identical footer (the old markup nested it inside
+  `#page-home`, and the stray `</div>` that closed `#page-home` after the footer is gone).
+  Home-only footer spacing (`#page-home .site-footer …`) was hoisted to shared rules; the mobile
+  WhatsApp clearance and the ≥481px 80px padding are unchanged. Privacy/Terms in
+  `.footer-bottom-links` are separated by a visible middle dot and keep ≥44px tap targets. The
+  social icons dropped the pink/yellow/orange/green per-brand colours for one theme colour with
+  an accent hover, keeping their aria-labels; the hand-drawn Snapchat glyph was replaced with the
+  official simple-icons path and the text "E" Etsy icon with the real Etsy wordmark path.
+- **Contact page.** The 💬 📦 📸 emoji are now inline theme-coloured SVGs (WhatsApp, package,
+  Instagram) plus a mail icon; every card is a link. Instagram uses the footer URL
+  (`https://instagram.com/kage__culture`) and shows `@kage__culture` — the page previously said
+  `@kageculture`, i.e. the footer handle and the page copy disagreed; the footer is treated as the
+  source of truth. Order Support now goes to the Track Order page with a secondary "or message us
+  on WhatsApp" link. A new Email card uses the footer address (`mailto:kageculture01@gmail.com`),
+  and a "Working hours" line carries a clearly marked TODO (hours unconfirmed).
+- **Track Order page.** `.tracking-form .btn` is full width at ≤768px (desktop keeps
+  `align-self: flex-start`).
+- **Content consistency.** Shipping lists Bank Transfer ("account details are sent after you place
+  the order", matching checkout) and gained a Delivery Charges section using the real flat fee —
+  `config.SHIPPING_COST = 150` PKR, the same value `routes/orders.js` adds to every order; there is
+  no free-shipping threshold in code. Phone display format is now `+92 322 804 2633` everywhere
+  (the old `0322-8042633` is gone from Shipping and checkout) while wa.me links stay
+  `wa.me/923228042633`. Privacy no longer claims data is used "solely for order fulfillment": it
+  covers newsletter emails (with the honest unsubscribe route — there is no `/api/newsletter`
+  DELETE, so removal is by email/WhatsApp, flagged with a TODO), customer-account data, delivery
+  details shared with courier partners, and cookies (customer/admin session + CSRF, plus
+  localStorage cart/wishlist). Returns gained a custom-designed items / custom stickers
+  non-returnable rule (defective or wrong item excepted) with the 7-day and 48-hour rules
+  untouched. Terms dropped the hardcoded `kage-culture-ruby.vercel.app` ("this website"), gained a
+  governing-law (Pakistan) line, a custom-orders clause matching Returns, and a link to the
+  Returns page. Terms and Privacy now read "Last updated: October 2026", and all four policy pages
+  use the "Policy" eyebrow.
+
+**Verification.** `npm test` → **57/57 API + 22/22 DOM scenarios** (six new frontend scenarios pin
+the menu order/routes, the /admin-only admin modal, the menu scroll-lock and close paths, the
+shared `.content-page` class, the footer separator + theme social icons, the contact links, Bank
+Transfer and Rs. 150 on Shipping, the custom-items rule, and the removal of the "solely" claim).
+A real headless Chromium pass (server on :3999) rendered `/`, `/returns`, `/shipping`, `/terms`,
+`/privacy`, `/contact`, `/tracking` and `/about` at 360/414/768/1440px: **125 checks passed, 0
+failed** — no horizontal scroll, no element past the viewport, no header-child overlap, content-page
+copy ≥14px line box, ≥44px tap targets for every control on touch widths, the footer below each
+page's content, the menu panel solid + full height with body scroll locked and the X icon shown,
+and the Track Order button full width at ≤768px / left-aligned above it. Two real defects were
+caught by that pass and fixed: the contact cards' `grid-template-columns` needed `minmax(0, 1fr)`
+(the Order Support card forced a 17px document overflow at 360px), and the card body needed
+`flex: 1 1 auto`/stacked layout (its copy collapsed into a narrow column). Existing
+`.btn-sm` buttons inside the mobile filter drawer (Reset/Apply, 36px) were also raised to 44px.
+Not touched by design: `'unsafe-inline'` (FE-H2 is a separate task) and the canonical/OG host
+meta tags, which must keep the production URL.
+
+**Still open (owner input needed):** working hours (TODO on Contact), the JazzCash account number
+(displayed as the WhatsApp number with a TODO to confirm they are the same), delivery charges are
+confirmed as the flat Rs. 150 from `config.js`, and whether the Instagram handle should be
+`@kage__culture` (footer, now used everywhere) rather than `@kageculture`.
+
 ## Remaining work (priority order)
 
 *API-side queue (C1, H1–H4, M1–M7, L1/L3–L7) completed 2026-09-23. FE-criticals
@@ -486,7 +564,8 @@ routes to `/collection/graphic-tees`, which intentionally shows Coming Soon.
 ### 🟠 High
 - **FE-H1.** ✅ `esc()` applied to `src="${front}"` / `data-src="${back}"` in the
   collection-grid template — M6 parity reached across all rendering sinks.
-- **FE-H2.** Drop script `'unsafe-inline'` via event delegation (long-term).
+- **FE-H2.** Drop script `'unsafe-inline'` via event delegation (long-term). Untouched by the
+  2026-10-11 storefront pass on purpose.
 
 ### 🟡 Medium
 - **FE-M1.** ✅ pushState, Back, product/collection deep links, HTTP 404 (2026-10-10).
