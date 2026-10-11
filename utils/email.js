@@ -26,6 +26,9 @@ async function sendOrderConfirmation(order) {
   const itemsList = (order.items || []).map(i => `<tr><td style="padding:6px 12px;border:1px solid #D9D4C8;">${i.name}</td><td style="padding:6px 12px;border:1px solid #D9D4C8;">${i.size}</td><td style="padding:6px 12px;border:1px solid #D9D4C8;text-align:center;">${i.qty}</td><td style="padding:6px 12px;border:1px solid #D9D4C8;text-align:right;">Rs. ${i.total}</td></tr>`).join('');
   const payLabel = order.payment_method === 'bank' ? 'Bank Transfer' : order.payment_method === 'jazzcash' ? 'JazzCash' : 'Cash on Delivery';
   const payRef = order.payment_ref ? `<p style="color:#504C47;font-size:14px;">Payment Reference: <strong>${order.payment_ref}</strong></p>` : '';
+  const shippingLabel = order.shipping_pending ? 'To be confirmed' : `Rs. ${order.shipping}`;
+  const totalLabel = order.shipping_pending ? 'Items subtotal (delivery charge pending)' : 'Total';
+  const deliveryContactNote = order.shipping_pending ? '<p style="font-size:13px;color:#504C47;margin-top:16px;">We will contact you about the delivery charges and confirm the final amount.</p>' : '';
   const html = `
   <div style="font-family:'Archivo',Arial,sans-serif;background:#D9D4C8;padding:32px;color:#1A1815;">
     <div style="max-width:560px;margin:0 auto;background:#FFF;border-radius:12px;padding:32px;border:1px solid #BDB6A6;">
@@ -44,8 +47,9 @@ async function sendOrderConfirmation(order) {
         <tbody>${itemsList}</tbody>
       </table>
       <p style="font-size:14px;color:#1A1815;">Subtotal: Rs. ${order.subtotal}</p>
-      <p style="font-size:14px;color:#1A1815;">Shipping: Rs. ${order.shipping}</p>
-      <p style="font-size:18px;font-weight:700;color:#4A4433;border-top:2px solid #BDB6A6;padding-top:12px;margin-top:12px;">Total: Rs. ${order.total}</p>
+      <p style="font-size:14px;color:#1A1815;">Delivery charge: ${shippingLabel}</p>
+      <p style="font-size:18px;font-weight:700;color:#4A4433;border-top:2px solid #BDB6A6;padding-top:12px;margin-top:12px;">${totalLabel}: Rs. ${order.total}</p>
+      ${deliveryContactNote}
       <p style="font-size:13px;color:#504C47;margin-top:16px;">Ship to: ${order.address}, ${order.city}</p>
       <p style="font-size:12px;color:#8A8578;margin-top:24px;">This is an automated order confirmation from KAGE Culture.</p>
     </div>

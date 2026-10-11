@@ -64,12 +64,14 @@ module.exports = function createOrderRoutes(db) {
       if (skipped.length > 0) return res.status(400).json({ error: 'Some items in your cart are unavailable or out of stock. Please review your cart.' });
       if (lineItems.length === 0) return res.status(400).json({ error: 'Your cart is empty.' });
 
-      const shipping = config.SHIPPING_COST; const total = Math.round(subtotal) + shipping;
+      // Delivery charges are confirmed with the customer after placement; do not
+      // add an unconfirmed flat fee to the checkout/API total.
+      const shipping = 0; const shippingPending = 1; const total = Math.round(subtotal);
       let orderNumber;
       do { orderNumber = 'KAGE-' + Math.random().toString(36).replace(/[^a-z0-9]/g, '').slice(2, 10).toUpperCase().padEnd(8, 'Z'); } while (await db.prepare('SELECT id FROM orders WHERE order_number = ?').get(orderNumber));
       const now = new Date().toISOString().replace('T', ' ').slice(0, 19);
       const initialStatus = method === 'cod' ? 'pending' : 'awaiting_verification';
-      const result = await db.prepare('INSERT INTO orders (order_number, customer_name, email, phone, address, city, notes, payment_method, payment_ref, subtotal, shipping, total, items_json, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(orderNumber, String(name).slice(0, 120), String(email).slice(0, 160), String(phone).slice(0, 40), String(address).slice(0, 300), String(city).slice(0, 120), String(notes || '').slice(0, 500), method, String(payment_ref || '').slice(0, 100) || null, Math.round(subtotal), shipping, total, JSON.stringify(lineItems), initialStatus, now);
+      const result = await db.prepare('INSERT INTO orders (order_number, customer_name, email, phone, address, city, notes, payment_method, payment_ref, subtotal, shipping, shipping_pending, total, items_json, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(orderNumber, String(name).slice(0, 120), String(email).slice(0, 160), String(phone).slice(0, 40), String(address).slice(0, 300), String(city).slice(0, 120), String(notes || '').slice(0, 500), method, String(payment_ref || '').slice(0, 100) || null, Math.round(subtotal), shipping, shippingPending, total, JSON.stringify(lineItems), initialStatus, now);
 
       // Atomic stock decrement — `WHERE stock_qty >= ?` guards against the
       // SELECT-then-UPDATE overselling race: if stock changed between the
@@ -118,7 +120,7 @@ module.exports = function createOrderRoutes(db) {
       const clanEligible = totalShirts >= config.CLAN_THRESHOLD;
       const alreadyMember = !!(await db.prepare('SELECT id FROM newsletter_subscribers WHERE email = ?').get(String(email).toLowerCase()));
 
-      const payload = { order_number: order.order_number, customer_name: order.customer_name, email: order.email, phone: order.phone, address: order.address, city: order.city, notes: order.notes, payment_method: order.payment_method, payment_ref: order.payment_ref, subtotal: order.subtotal, shipping: order.shipping, total: order.total, items: order.items, status: order.status, created_at: order.created_at, total_shirts: totalShirts, clan_eligible: clanEligible, clan_member: alreadyMember };
+      const payload = { order_number: order.order_number, customer_name: order.customer_name, email: order.email, phone: order.phone, address: order.address, city: order.city, notes: order.notes, payment_method: order.payment_method, payment_ref: order.payment_ref, subtotal: order.subtotal, shipping: order.shipping, shipping_pending: !!order.shipping_pending, total: order.total, items: order.items, status: order.status, created_at: order.created_at, total_shirts: totalShirts, clan_eligible: clanEligible, clan_member: alreadyMember };
 
       // Await the confirmation email BEFORE responding — on Vercel the lambda
       // can freeze right after res.json(), killing fire-and-forget promises.
@@ -136,7 +138,7 @@ module.exports = function createOrderRoutes(db) {
       if (!number || !phone) return res.status(400).json({ error: 'Order number and phone are required.' });
       const order = await db.prepare('SELECT * FROM orders WHERE order_number = ?').get(String(number).trim().toUpperCase());
       if (!order || normPhone(order.phone) !== normPhone(phone)) return res.status(404).json({ error: "We couldn't find an order with that number and phone." });
-      const { email, address, notes, items_json, ...safe } = order; safe.items = JSON.parse(order.items_json || '[]'); res.json(safe);
+      const { email, address, notes, items_json, ...safe } = order; safe.items = JSON.parse(order.items_json || '[]'); safe.shipping_pending = !!safe.shipping_pending; res.json(safe);
     } catch (err) { console.error('order track failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
   });
 
@@ -149,7 +151,7 @@ module.exports = function createOrderRoutes(db) {
       if (!phone) return res.status(401).json({ error: 'Phone verification required. Use /api/orders/track?number=...&phone=... instead.' });
       const order = await db.prepare('SELECT * FROM orders WHERE order_number = ?').get(String(req.params.orderNumber).trim().toUpperCase());
       if (!order || normPhone(order.phone) !== normPhone(phone)) return res.status(404).json({ error: "We couldn't find an order with that number and phone." });
-      const { email, address, notes, items_json, ...safe } = order; safe.items = JSON.parse(order.items_json || '[]'); res.json(safe);
+      const { email, address, notes, items_json, ...safe } = order; safe.items = JSON.parse(order.items_json || '[]'); safe.shipping_pending = !!safe.shipping_pending; res.json(safe);
     } catch (err) { console.error('order lookup failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
   });
 
@@ -175,8 +177,8 @@ module.exports = function createOrderRoutes(db) {
     try {
       const { status } = req.query;
       let orders = status && status.trim() ? await db.prepare('SELECT * FROM orders WHERE status = ? ORDER BY created_at DESC, id DESC').all(status.trim()) : await db.prepare('SELECT * FROM orders ORDER BY created_at DESC, id DESC').all();
-      const header = 'Order Number,Customer Name,Email,Phone,Address,City,Payment Method,Payment Reference,COD Confirmed,Subtotal,Shipping,Total,Status,Created At\n';
-      const rows = orders.map(o => [o.order_number, `"${String(o.customer_name || '').replace(/"/g, '""')}"`, o.email, o.phone, `"${String(o.address || '').replace(/"/g, '""')}"`, o.city, o.payment_method, o.payment_ref || '', o.cod_confirmed ? 'Yes' : 'No', o.subtotal, o.shipping, o.total, o.status, o.created_at].join(',')).join('\n');
+      const header = 'Order Number,Customer Name,Email,Phone,Address,City,Payment Method,Payment Reference,COD Confirmed,Subtotal,Shipping,Delivery Charge Pending,Total,Status,Created At\n';
+      const rows = orders.map(o => [o.order_number, `"${String(o.customer_name || '').replace(/"/g, '""')}"`, o.email, o.phone, `"${String(o.address || '').replace(/"/g, '""')}"`, o.city, o.payment_method, o.payment_ref || '', o.cod_confirmed ? 'Yes' : 'No', o.subtotal, o.shipping, o.shipping_pending && o.status !== 'cancelled' ? 'Yes' : 'No', o.total, o.status, o.created_at].join(',')).join('\n');
       res.setHeader('Content-Type', 'text/csv');
       res.setHeader('Content-Disposition', `attachment; filename="kage-orders-${new Date().toISOString().slice(0,10)}.csv"`);
       res.send(header + rows);

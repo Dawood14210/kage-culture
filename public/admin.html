@@ -2727,6 +2727,7 @@
         const statusLabel = { pending:'Pending', awaiting_verification:'Awaiting Payment', confirmed:'Confirmed', shipped:'Shipped', delivered:'Delivered', cancelled:'Cancelled' }[st] || st;
         const payRef = o.payment_ref ? `<div class="p-category" style="font-size:0.65rem;color:var(--accent);">Ref: ${esc(o.payment_ref)}</div>` : '';
         const codBadge = o.payment_method === 'cod' && o.cod_confirmed ? `<div class="p-category" style="font-size:0.62rem;color:var(--green);">${icon('check')} COD Confirmed</div>` : '';
+        const shippingPendingBadge = o.shipping_pending && o.status !== 'cancelled' ? `<div class="p-category" style="font-size:0.62rem;color:var(--accent);">Delivery charge pending</div>` : '';
         const verifiedBadge = o.payment_method !== 'cod' && o.payment_verified ? `<div class="p-category" style="font-size:0.62rem;color:var(--green);">${icon('check')} Payment Verified</div>` : '';
         const payOpts = o.payment_method !== 'cod'
           ? `<button onclick="verifyPayment(${o.id}, ${o.payment_verified ? 'false' : 'true'})" class="status-opt status-opt-confirmed">${icon('credit-card')} ${o.payment_verified ? 'Remove Verification' : 'Verify Payment'}</button>`
@@ -2742,7 +2743,7 @@
               <div class="p-category">${esc(o.phone)}</div>
             </div>
             <div class="p-category">${count} item${count === 1 ? '' : 's'}</div>
-            <div class="p-price">${fmtRs(o.total)}</div>
+            <div><div class="p-price">${fmtRs(o.total)}</div>${shippingPendingBadge}</div>
             <div class="p-category">${pay}${payRef}${codBadge}${verifiedBadge}</div>
             <div class="status-cell">
               <span class="status-badge status-${esc(st)}">${statusLabel}</span>

@@ -426,6 +426,7 @@ async function createSchema(exec) {
       cod_confirmed INTEGER DEFAULT 0,
       subtotal REAL NOT NULL,
       shipping REAL NOT NULL,
+      shipping_pending INTEGER NOT NULL DEFAULT 0,
       total REAL NOT NULL,
       items_json TEXT NOT NULL,
       status TEXT NOT NULL DEFAULT 'pending',
@@ -517,6 +518,8 @@ async function doInit() {
       if (!hasPayVerified) await tursoClient.execute('ALTER TABLE orders ADD COLUMN payment_verified INTEGER DEFAULT 0');
       const hasCodConfirmed = orderInfo.rows.some(r => r.name === 'cod_confirmed');
       if (!hasCodConfirmed) await tursoClient.execute('ALTER TABLE orders ADD COLUMN cod_confirmed INTEGER DEFAULT 0');
+      const hasShippingPending = orderInfo.rows.some(r => r.name === 'shipping_pending');
+      if (!hasShippingPending) await tursoClient.execute('ALTER TABLE orders ADD COLUMN shipping_pending INTEGER NOT NULL DEFAULT 0');
       // Reviews migrations — viewer_token lets a reviewer see their own
       // pending review on their device before moderation (routes/reviews.js).
       const reviewInfo = await tursoClient.execute('PRAGMA table_info(reviews)');

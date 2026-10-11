@@ -4182,11 +4182,11 @@
           <div class="co-items" id="coItems"></div>
           <div class="co-totals">
             <div><span>Subtotal</span><span id="coSubtotal">Rs. 0</span></div>
-            <div><span>Shipping</span><span id="coShipping">Rs. 0</span></div>
-            <div class="co-grand"><span>Total</span><span id="coTotal">Rs. 0</span></div>
+            <div><span>Delivery charge</span><span id="coShipping">To be confirmed</span></div>
+            <div class="co-grand"><span>Total before delivery</span><span id="coTotal">Rs. 0</span></div>
           </div>
           <button class="btn btn-primary co-place" id="coPlaceBtn" onclick="placeOrder()">Place Order</button>
-          <p class="co-safe">Cash on Delivery accepted</p>
+          <p class="co-safe">Cash on Delivery accepted. We will contact you about the delivery charges.</p>
         </aside>
       </div>
     </div>
@@ -4204,11 +4204,12 @@
           <div><span>Status</span><span id="confStatus" class="conf-status">Pending</span></div>
           <div><span>Payment</span><span id="confPayment"></span></div>
           <div><span>Delivery</span><span id="confAddress"></span></div>
-          <div><span>Total</span><span id="confTotal"></span></div>
+          <div><span>Delivery charge</span><span id="confShipping">To be confirmed</span></div>
+          <div><span>Items subtotal</span><span id="confTotal"></span></div>
         </div>
         <div class="confirm-items" id="confItems"></div>
         <div class="confirm-next">
-          <p>We'll confirm your order by email or phone shortly. Keep your order number handy.</p>
+          <p>We'll confirm your order and contact you about the delivery charges by email or phone shortly. Keep your order number handy.</p>
           <p style="text-align:center;margin-bottom:0.6rem;"><a class="track-order-link" href="/tracking" onclick="goTrackOrder(); return false;">Track your order anytime <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg></a></p>
           <button class="btn btn-primary" onclick="navigateTo('home'); initShop('all')">Continue Shopping</button>
         </div>
@@ -4421,8 +4422,7 @@
           <p>Orders are processed within 1-2 business days. Delivery takes <strong style="color: var(--text-primary);">3-5 business days</strong> for major cities and <strong style="color: var(--text-primary);">5-7 business days</strong> for other areas.</p>
 
           <h3>Delivery Charges</h3>
-          <p>Delivery charges depend on your delivery location.</p>
-          <p><strong style="color: var(--text-primary);">Location-based rates:</strong> TODO — confirm area-wise fees. Checkout currently applies a flat Rs. 150 charge.</p>
+          <p>Delivery charges depend on your delivery location. We will contact you about the delivery charges.</p>
           <p><strong style="color: var(--text-primary);">Free-shipping threshold:</strong> TODO — confirm whether a free-shipping threshold applies.</p>
 
           <h3>Cities Currently Served</h3>
@@ -4999,10 +4999,9 @@
           <div class="co-item-price">Rs. ${t}</div>
         </div>`;
       }).join('');
-      const shipping = 150;
       document.getElementById('coSubtotal').textContent = 'Rs. ' + fmt(sub);
-      document.getElementById('coShipping').textContent = 'Rs. ' + shipping;
-      document.getElementById('coTotal').textContent = 'Rs. ' + fmt(sub + shipping);
+      document.getElementById('coShipping').textContent = 'To be confirmed';
+      document.getElementById('coTotal').textContent = 'Rs. ' + fmt(sub);
     }
 
 
@@ -5064,6 +5063,7 @@
       const payLabel = order.payment_method === 'bank' ? 'Bank Transfer' : order.payment_method === 'jazzcash' ? 'JazzCash' : 'Cash on Delivery';
       document.getElementById('confPayment').textContent = order.payment_ref ? `${payLabel} (Ref: ${order.payment_ref})` : payLabel;
       document.getElementById('confAddress').textContent = order.address + ', ' + order.city;
+      document.getElementById('confShipping').textContent = order.shipping_pending ? 'To be confirmed' : 'Rs. ' + fmt(order.shipping);
       document.getElementById('confTotal').textContent = 'Rs. ' + fmt(order.total);
       document.getElementById('confItems').innerHTML = (order.items || []).map(it => `
         <div class="conf-item">
@@ -6213,7 +6213,8 @@
             </div>
             <div class="track-details">
               <div><span>Placed</span><span>${esc(formatTrackDate(o.created_at))}</span></div>
-              <div><span>Total</span><span>Rs. ${o.total}</span></div>
+              <div><span>Delivery charge</span><span>${o.status === 'cancelled' ? 'Not charged' : o.shipping_pending ? 'To be confirmed' : 'Rs. ' + fmt(o.shipping)}</span></div>
+              <div><span>${o.shipping_pending || o.status === 'cancelled' ? 'Items subtotal' : 'Total'}</span><span>Rs. ${o.total}</span></div>
             </div>
             <div class="track-items">${(o.items || []).map(it => `
               <div class="conf-item">
@@ -6252,10 +6253,11 @@
           <div class="track-details">
             <div><span>Placed</span><span>${esc(formatTrackDate(o.created_at))}</span></div>
             <div><span>Payment</span><span>${o.payment_method === 'bank' ? 'Bank Transfer' : o.payment_method === 'jazzcash' ? 'JazzCash' : 'Cash on Delivery'}</span></div>
-            <div><span>Total</span><span>Rs. ${o.total}</span></div>
+            <div><span>Delivery charge</span><span>${o.status === 'cancelled' ? 'Not charged' : o.shipping_pending ? 'To be confirmed' : 'Rs. ' + fmt(o.shipping)}</span></div>
+              <div><span>${o.shipping_pending || o.status === 'cancelled' ? 'Items subtotal' : 'Total'}</span><span>Rs. ${o.total}</span></div>
           </div>
           <div class="track-items">${items}</div>
-          <p class="track-help">Questions about your order? WhatsApp us at +92 322 804 2633 with your order number.</p>
+          <p class="track-help">${o.shipping_pending ? 'We will contact you about the delivery charges. ' : ''}Questions about your order? WhatsApp us at +92 322 804 2633 with your order number.</p>
         </div>`;
       document.getElementById('trkResult').style.display = 'block';
     }

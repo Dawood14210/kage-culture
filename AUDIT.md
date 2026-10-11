@@ -553,19 +553,21 @@ unchanged. Terms, Privacy, Returns and Shipping all use the `Policy` eyebrow lab
 rendered screenshots; Chromium cannot launch here because NSPR/NSS system libraries are
 missing.
 
-### ✅ COD-only storefront + location-based delivery note — 2026-10-11
+### ✅ COD-only storefront + post-order delivery charge confirmation — 2026-10-11
 
-The customer-facing checkout, footer, product shipping tab, Shipping policy and Terms now
-show only Cash on Delivery; checkout submits `payment_method: 'cod'` and no longer renders
+The customer-facing checkout, footer, product shipping tab, Shipping policy and Terms show
+only Cash on Delivery; checkout submits `payment_method: 'cod'` and no longer renders
 non-COD radios or payment-reference controls. Historical/admin payment handling and refund
 instructions remain intact.
 
-The Shipping policy now says delivery charges depend on location. No area-wise price table
-was provided, so it marks location rates TODO and explicitly notes that checkout/order
-creation still apply the existing flat Rs. 150 from `config.js`; do not claim actual
-location-based totals until those rates are supplied. The free-shipping threshold TODO is
-still unresolved. Frontend tests verify COD-only customer-facing choices and the location
-rate TODO; `npm test` → 57/57 API + 17/17 frontend scenarios.
+Per the owner's direction, delivery charges are confirmed with customers after order
+placement instead of adding an unconfirmed flat fee. Checkout shows “To be confirmed” and
+an items subtotal; the order API stores `shipping = 0`, `total = subtotal`, and a new
+`shipping_pending` flag. Confirmation UI, email and tracking all explain the pending charge;
+the admin orders list and CSV mark it pending. Existing orders retain their stored shipping
+amounts, and Turso gets a safe schema migration for the new flag. The Shipping page says
+we will contact customers about delivery charges. The free-shipping-threshold TODO remains
+unresolved. `npm test` → 57/57 API + 17/17 frontend scenarios.
 
 ## Remaining work (priority order)
 

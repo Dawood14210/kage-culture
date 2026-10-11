@@ -4,7 +4,6 @@ const assert = require('node:assert/strict');
 const { readFileSync } = require('node:fs');
 const { JSDOM, VirtualConsole } = require('jsdom');
 const { app, ensureReady } = require('../server');
-const { SHIPPING_COST } = require('../config');
 
 const storeHtml = readFileSync(require.resolve('../public/index.html'), 'utf8');
 const adminHtml = readFileSync(require.resolve('../public/admin.html'), 'utf8');
@@ -331,17 +330,22 @@ async function ready(win) {
 
     const shippingCopy = d.querySelector('#page-shipping .content-page-body').textContent;
     assert.match(shippingCopy, /Delivery Charges/);
-    assert.match(shippingCopy, /Delivery charges depend on your delivery location/);
-    assert.match(shippingCopy, /Location-based rates:\s*TODO/, 'missing location rates are marked for confirmation');
-    assert.match(shippingCopy, new RegExp(`Checkout currently applies a flat Rs\\. ${SHIPPING_COST} charge`), 'policy discloses the current flat checkout fee while rates are unresolved');
+    assert.match(shippingCopy, /Delivery charges depend on your delivery location\. We will contact you about the delivery charges\./);
+    assert.doesNotMatch(shippingCopy, /Location-based rates|Rs\. 150/, 'shipping policy no longer promises an unconfigured fee');
     assert.match(shippingCopy, /Free-shipping threshold:\s*TODO/, 'missing free-shipping threshold is marked for confirmation');
+    assert.equal(d.getElementById('coShipping').textContent.trim(), 'To be confirmed', 'checkout does not add a delivery charge before confirmation');
+    assert.equal(d.querySelector('#page-checkout .co-grand span').textContent.trim(), 'Total before delivery');
+    assert.match(d.querySelector('#page-checkout .co-safe').textContent, /contact you about the delivery charges/);
+    assert.ok(d.getElementById('confShipping'), 'order confirmation has a pending delivery-charge field');
+    assert.match(d.querySelector('#page-confirmation .confirm-next').textContent, /contact you about the delivery charges/);
+    assert.doesNotMatch(storeHtml, /const shipping = 150/, 'checkout no longer hardcodes the old flat charge');
 
     const checkoutPaymentValues = [...d.querySelectorAll('#page-checkout input[name="payMethod"]')].map(input => input.value);
     assert.deepEqual(checkoutPaymentValues, ['cod'], 'checkout offers only Cash on Delivery');
     assert.match(storeHtml, /payment_method:\s*'cod'/, 'checkout submits Cash on Delivery only');
     assert.equal(d.getElementById('paymentRefGroup'), null, 'non-COD payment reference controls are removed');
     assert.equal(d.getElementById('coPaymentRef'), null, 'non-COD payment reference input is removed');
-    assert.equal(d.querySelector('#page-checkout .co-safe').textContent.trim(), 'Cash on Delivery accepted');
+    assert.equal(d.querySelector('#page-checkout .co-safe').textContent.trim(), 'Cash on Delivery accepted. We will contact you about the delivery charges.');
     assert.deepEqual([...d.querySelectorAll('.payment-icons .payment-icon')].map(icon => icon.textContent.trim()), ['COD'], 'footer only advertises COD');
     const shippingPaymentHeading = [...d.querySelectorAll('#page-shipping .content-page-body h3')].find(h => h.textContent.trim() === 'Payment Methods');
     assert.deepEqual([...shippingPaymentHeading.nextElementSibling.querySelectorAll('li')].map(li => li.textContent.trim()), ['Cash on Delivery (COD) — pay when your order arrives']);
