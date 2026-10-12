@@ -134,7 +134,15 @@
       line-height: 1.5;
       -webkit-font-smoothing: antialiased;
       overflow-x: hidden;
+      /* Sticky footer: on short pages the empty space goes inside the footer (above its
+         copyright bar) instead of opening blank canvas below the footer on tall windows. */
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
     }
+    body > .site-footer { flex: 1 0 auto; display: flex; flex-direction: column; }
+    body > .site-footer > .container { flex: 1 0 auto; width: 100%; display: flex; flex-direction: column; }
+    body > .site-footer .footer-bottom { margin-top: auto; }
     ::selection { background: var(--accent); color: #FFF; }
     ::-webkit-scrollbar { width: 6px; }
     ::-webkit-scrollbar-track { background: var(--bg-primary); }
