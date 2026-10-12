@@ -8,6 +8,10 @@
 process.env.NODE_ENV = process.env.NODE_ENV || 'test'; // allows the dev fallback in utils/secret.js
 process.env.ALLOW_ADMIN_SETUP = 'true';
 process.env.SESSION_SECRET = process.env.SESSION_SECRET || 'frontend-test-secret-0123456789abcdefghij';
+// The real-Chromium scenarios open dozens of pages (and fetch their images) from one IP within a
+// minute, far past the production per-minute request budget. Lift the global limiter for this
+// process the way e2e.test.js does, before the server (and its limiter) is loaded.
+require('../config').RATE_LIMIT_GLOBAL = 1000;
 const assert = require('node:assert/strict');
 const { readFileSync } = require('node:fs');
 const { JSDOM, VirtualConsole } = require('jsdom');
@@ -167,7 +171,7 @@ async function ready(win) {
     size.dispatchEvent(new w.Event('change', { bubbles: true }));
     assert.equal(d.querySelector('#pageInfo').textContent, 'Page 1 of 1');
     assert.ok(d.querySelector('#collectionGrid .product-card'));
-    assert.ok(w.eval('renderHomeProductCard(allProducts.find(p => p.name === "Wrath Silhouette"))').includes('class="product-discount-badge"'));
+    assert.ok(w.eval('renderProductCard(allProducts.find(p => p.name === "Wrath Silhouette"))').includes('class="product-discount-badge"'));
     console.log('✅ Filters clamp pagination; homepage sale badge is displayed');
 
     w.quickAdd(9);
@@ -654,18 +658,113 @@ async function ready(win) {
     console.log('✅ Product page: rating text, zoom, related section, trust line, stars and gutters behave');
 
     // Side-by-side cards must line up even when only one of them has reviews:
-    // every card reserves a rating row and the Quick View / Add to Cart button
+    // every card reserves a rating row and the Quick View button
     // is pinned to the bottom of the (equal-height) card.
     assert.match(storeHtml, /<div class="card-rating">\$\{starsHtml\(p\.rating, p\.review_count\)\}\<\/div>/, 'product cards render the rating in its own row');
     assert.ok(d.querySelector('.product-grid .product-card .card-rating'), 'rendered cards keep the reserved rating row');
-    assert.match(w.renderHomeProductCard({ id: 1, name: 'No reviews yet', price: 10, fit: 'Regular', stock_qty: 10 }), /<div class="card-rating"><\/div>/, 'a product with no reviews still reserves the rating row');
-    assert.match(w.renderHomeProductCard({ id: 1, name: 'Reviewed', price: 10, fit: 'Regular', stock_qty: 10, rating: 5, review_count: 2 }), /<div class="card-rating"><span class="star-rating"/, 'a reviewed product fills that row with stars');
+    assert.match(w.renderProductCard({ id: 1, name: 'No reviews yet', price: 10, fit: 'Regular', stock_qty: 10 }), /<div class="card-rating"><\/div>/, 'a product with no reviews still reserves the rating row');
+    assert.match(w.renderProductCard({ id: 1, name: 'Reviewed', price: 10, fit: 'Regular', stock_qty: 10, rating: 5, review_count: 2 }), /<div class="card-rating"><span class="star-rating"/, 'a reviewed product fills that row with stars');
     assert.match(storeHtml, /\.product-grid \.product-card \{[^}]*display: flex;[^}]*flex-direction: column;/, 'cards are flex columns so a grid row stretches them to equal height');
     assert.match(storeHtml, /\.product-grid \.product-card-body \{[^}]*flex: 1 1 auto;[^}]*\}/, 'the card body fills the remaining card height');
     assert.match(storeHtml, /\.product-grid \.quick-view-btn \{[^}]*margin-top: auto;/, 'Quick View is pinned to the bottom of the card');
     assert.match(storeHtml, /#page-home \.product-grid \.quick-view-btn \{[^}]*margin-top: auto;/, 'the storefront override keeps Quick View pinned too');
     assert.match(storeHtml, /\.card-rating \{[^}]*min-height: 1\.15rem;[^}]*\}/, 'the rating row keeps its line when there are no reviews');
     console.log('✅ Product cards keep a reserved rating row and pin their button to the card bottom');
+
+    // ---- ONE card renderer for every product grid. The /collection/* and
+    // ---- search grid (#collectionGrid) used to render its own big single-column
+    // ---- card with "Add to Cart"; it now shows exactly the home Best Sellers card.
+    const sharedPage = page(storeHtml, '/collection/all'); windows.push(sharedPage);
+    await ready(sharedPage.window);
+    await wait(100);
+    const sharedWin = sharedPage.window, sharedDoc = sharedWin.document;
+    // Source contract: one template, one function, every grid goes through it.
+    assert.equal((storeHtml.match(/<div class="product-card"/g) || []).length, 1, 'the page contains exactly one product-card template');
+    assert.equal((storeHtml.match(/function renderProductCard\(/g) || []).length, 1, 'there is exactly one card renderer');
+    for (const fn of ['loadBestSellers', 'renderCollectionGrid', 'renderRelated', 'loadRecentlyViewed']) {
+      const body = storeHtml.match(new RegExp(`function ${fn}\\([\\s\\S]*?\\n    \\}`));
+      assert.ok(body, `${fn}() exists`);
+      assert.match(body[0], /\.map\(renderProductCard\)/, `${fn}() renders its cards through the shared renderProductCard`);
+    }
+    assert.strictEqual(sharedWin.renderHomeProductCard, sharedWin.renderProductCard, 'the old home-only name is an alias of the shared renderer, not a second one');
+    assert.doesNotMatch(storeHtml, /animateProductGrid/, 'no load-time stagger that would leave inline transform/opacity on collection cards (it killed their hover lift)');
+    // Both grids are .product-grid, so one set of card CSS styles them.
+    const bsGridEl = sharedDoc.getElementById('bestSellersGrid');
+    const colGridEl = sharedDoc.getElementById('collectionGrid');
+    assert.ok(bsGridEl.classList.contains('product-grid'), 'Best Sellers is a .product-grid');
+    assert.ok(colGridEl.classList.contains('product-grid') && colGridEl.classList.contains('collection-grid'), 'the collection grid is a .product-grid too');
+    assert.equal(sharedDoc.getElementById('shopSection').closest('#page-home') !== null, true, 'the shop grid sits under #page-home with the Best Sellers CSS scope');
+    // Same products in the same order → byte-identical cards in both grids.
+    sharedWin.eval('allProducts = allProducts.map((p, i) => Object.assign({}, p, { order_count: 100 - i })); currentPage = 1; loadBestSellers(); renderCollectionGrid();');
+    const bsMarkup = [...bsGridEl.children].map(card => card.outerHTML);
+    const colMarkup = [...colGridEl.children].map(card => card.outerHTML);
+    assert.ok(colMarkup.length >= 4, 'the collection grid shows the catalog');
+    assert.deepEqual(colMarkup, bsMarkup, 'Best Sellers and the collection grid render byte-identical cards for the same products');
+    // Every collection card has the Best Sellers anatomy and none of the old collection-card pieces.
+    for (const card of colGridEl.children) {
+      const name = card.querySelector('h3').textContent;
+      assert.ok(card.classList.contains('product-card'), `${name}: grid children are product cards`);
+      for (const part of ['.product-card-image', '.product-wishlist svg', '.product-card-body > h3', '.fit-label', '.card-rating', '.price', '.quick-view-btn']) {
+        assert.ok(card.querySelector(part), `${name}: card has ${part}`);
+      }
+      assert.equal(card.querySelector('.quick-view-btn').textContent.trim(), 'Quick View', `${name}: the button reads Quick View`);
+      for (const legacy of ['.quick-add', '.wishlist-icon', '.product-fit-tag', '.img-back', '.angle-dots']) {
+        assert.equal(card.querySelector(legacy), null, `${name}: no ${legacy} (old collection card)`);
+      }
+      assert.doesNotMatch(card.textContent, /Add to Cart|Out of Stock/, `${name}: no Add to Cart / Out of Stock button text`);
+    }
+    // Wiring on a real catalog: the heart saves without opening the product…
+    const heart = colGridEl.children[1].querySelector('.product-wishlist');
+    heart.click();
+    assert.ok(heart.classList.contains('active'), 'the heart saves the product');
+    assert.equal(sharedDoc.getElementById('wishlistCount').textContent, '1', 'the wishlist counter follows the heart');
+    assert.equal(sharedWin.location.pathname, '/collection/all', 'the heart does not open the product page');
+    sharedWin.eval('renderCollectionGrid(); loadBestSellers();');
+    assert.equal(sharedDoc.querySelectorAll('#collectionGrid .product-wishlist.active').length, 1, 'the saved heart is filled after a re-render');
+    assert.equal(sharedDoc.querySelectorAll('#bestSellersGrid .product-wishlist.active').length, 1, 'and filled in Best Sellers too');
+    // …Quick View, a click on the card and Enter on a focused card all open it.
+    const firstId = sharedDoc.querySelector('#collectionGrid .product-card').dataset.pid;
+    sharedDoc.querySelector('#collectionGrid .product-card .quick-view-btn').click();
+    assert.equal(sharedWin.location.pathname, '/product/' + firstId, 'Quick View opens the product page');
+    sharedWin.navigateTo('collection', 'all');
+    const cardToClick = sharedDoc.querySelectorAll('#collectionGrid .product-card')[1];
+    cardToClick.click();
+    assert.equal(sharedWin.location.pathname, '/product/' + cardToClick.dataset.pid, 'clicking the card opens the product page');
+    sharedWin.navigateTo('collection', 'all');
+    const cardForKeyboard = sharedDoc.querySelectorAll('#collectionGrid .product-card')[2];
+    assert.equal(cardForKeyboard.getAttribute('tabindex'), '0', 'cards are keyboard focusable');
+    assert.equal(cardForKeyboard.getAttribute('role'), 'link');
+    cardForKeyboard.dispatchEvent(new sharedWin.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+    assert.equal(sharedWin.location.pathname, '/product/' + cardForKeyboard.dataset.pid, 'Enter on a focused card opens the product page');
+    // Card states: sale, low stock, reviews, sold out, price range, and products with no images at all
+    // (the old collection template threw on a missing images array).
+    sharedWin.navigateTo('collection', 'all');
+    sharedWin.eval(`allProducts = [
+      { id: 7001, name: 'Probe Sale', price: 799, original_price: 999, sale_price: 799, on_sale: true, fit: 'Regular', collection: 'graphic-tees', style: 'Typography', sizes: ['M'], images: ['/images/hero.jpg'], stock_qty: 3, in_stock: true, rating: 4.5, review_count: 12 },
+      { id: 7002, name: 'Probe Sold Out', price: 1200, original_price: 1200, sale_price: null, on_sale: false, fit: 'Oversized', collection: 'anime', style: 'Anime-Inspired', sizes: ['L'], images: [], stock_qty: 0, in_stock: false },
+      { id: 7003, name: 'Probe No Images', price: 1500, fit: 'Regular', collection: 'pants', style: 'Typography', sizes: ['L'], stock_qty: 9, in_stock: true },
+      { id: 7004, name: 'Probe Range', price: 1199, original_price: 1199, fit: 'Oversized', collection: 'anime', style: 'Anime-Inspired', sizes: ['L'], images: ['/images/hero.jpg'], stock_qty: 9, in_stock: true, variants: [{ price: 1199 }, { price: 1249 }] }
+    ]; currentPage = 1; renderCollectionGrid();`);
+    const probe = (id) => sharedDoc.querySelector(`#collectionGrid .product-card[data-pid="${id}"]`);
+    const saleCard = probe(7001);
+    assert.equal(saleCard.querySelector('.product-discount-badge').textContent, '-20%', 'a sale card shows its discount badge');
+    assert.equal(saleCard.querySelector('.price .original').textContent, 'Rs. 999', 'the struck-through regular price');
+    assert.equal(saleCard.querySelector('.price .sale').textContent, 'Rs. 799', 'the sale price');
+    assert.equal(saleCard.querySelector('.low-stock-flag').textContent, 'Only 3 left', 'the low-stock badge works');
+    assert.ok(saleCard.querySelector('.card-rating .star-rating'), 'a reviewed product shows its stars');
+    assert.equal(saleCard.querySelector('.rating-count').textContent, '12', 'and its review count');
+    const soldOutCard = probe(7002);
+    assert.equal(soldOutCard.querySelector('.sale-flag').textContent, 'SOLD OUT', 'an out-of-stock card carries the Sold out flag');
+    assert.equal(soldOutCard.querySelector('.low-stock-flag'), null, 'sold out cards never show a low-stock badge');
+    assert.equal(soldOutCard.querySelector('.quick-view-btn').disabled, false, 'a sold-out card still opens its product page');
+    assert.match(soldOutCard.querySelector('.product-card-image').textContent, /No Image/, 'a product without a photo shows the placeholder');
+    assert.ok(probe(7003), 'a product with no images array no longer breaks the grid');
+    assert.equal(probe(7004).querySelector('.price').textContent.replace(/\s+/g, ' ').trim(), 'Rs. 1,199 — Rs. 1,249', 'price ranges keep working');
+    assert.equal(probe(7001).querySelector('.price .original').nextElementSibling.className, 'sale', 'struck price first, sale price second — as on the home page');
+    sharedWin.onSearchInput('probe sale');
+    assert.deepEqual([...sharedDoc.querySelectorAll('#collectionGrid .product-card h3')].map(h => h.textContent), ['Probe Sale'], 'search results render through the same cards');
+    sharedWin.onSearchInput('');
+    console.log('✅ Collection grid = Best Sellers cards: ONE shared renderer, identical markup, Quick View, heart, keyboard, sale / sold-out / low-stock states');
 
     // ---- Four category tiles (Graphic Tees, Anime Shirts, Pants,
     // ---- Custom Stickers). Phones get a 2×2 grid of equal columns inside the
@@ -945,6 +1044,301 @@ async function ready(win) {
       assert.equal(focus.outlineStyle, 'solid', 'the focus ring is solid');
       console.log('✅ Real Chromium keyboard check — category grid focus ring is 2px solid white');
       await kp.close();
+
+      // ================================================================
+      // The /collection/* + search grid shows the home Best Sellers cards,
+      // in real Chromium: 2 columns on phones (<600px), 3 on tablets, 4 on
+      // desktop, with the home gaps and card proportions, equal-height
+      // cards whose buttons share one line, and no horizontal page scroll.
+      // ================================================================
+      const apiProduct = (id, extra) => ({
+        id, name: 'Product ' + id, price: 1499, sale_price: null, category: 'graphic-tees', fit: 'Regular',
+        style: 'Typography', front_image: '/images/pants.jpg', back_image: null, stock_qty: 20, in_stock: true,
+        avg_rating: null, review_count: 0, order_count: 100 - id, sizes: ['S', 'M', 'L'],
+        created_at: '2026-01-01T00:00:00.000Z', ...extra
+      });
+      // Every state a card can be in, side by side: very long names and fit labels, a sale with big
+      // numbers, low stock, sold out, reviews (few and many), price ranges (the two names that have
+      // variants), 2-digit and 4-digit prices. Prices stay under the filter's default Rs. 10,000 cap.
+      // order_count = 100 - id keeps Best Sellers in catalog order, so home and collection show the same 8 products.
+      const stressCatalog = [
+        apiProduct(1, { name: 'Kage Relaxed Tapered Cargo Pant — Extra Long Marketing Name Edition', price: 2499, category: 'pants', fit: 'Relaxed' }),
+        apiProduct(2, { name: 'Tiny', avg_rating: 4.5, review_count: 2 }),
+        apiProduct(3, { name: 'Wrath Silhouette Premium Heavyweight Tee', price: 9999, sale_price: 7499, stock_qty: 3, avg_rating: 4.9, review_count: 1200 }),
+        apiProduct(4, { name: 'Sold Out Legend', stock_qty: 0, in_stock: false, fit: 'Oversized Boxy Relaxed Fit Edition' }),
+        apiProduct(5, { name: 'Drift Oversized', price: 1199, fit: 'Oversized' }),
+        apiProduct(6, { name: 'Supercalifragilisticexpialidocious-Oversized-Anime-Tee', fit: 'Supercalifragilisticexpialidocious', price: 9950, sale_price: 8999, category: 'anime' }),
+        apiProduct(7, { name: 'Blade Wolf', price: 1149, avg_rating: 3.2, review_count: 7, stock_qty: 1 }),
+        apiProduct(8, { name: 'Plain', price: 99, category: 'anime' }),
+        apiProduct(9, { name: 'Page two A' }),
+        apiProduct(10, { name: 'Page two B', price: 1000, sale_price: 750, category: 'anime' })
+      ];
+      const pageErrors = [];
+      // Opens `route` at `vw` px (serving `catalog` instead of the live one when given) and waits until
+      // `readySelector` is on screen: the route is applied after the catalog and the session check resolve.
+      const openStore = async (vw, route, catalog, readySelector) => {
+        const sp = await browser.newPage();
+        sp.on('pageerror', (e) => pageErrors.push(`${vw}px ${route}: ${e.message}`));
+        await sp.setViewport({ width: vw, height: 900 });
+        if (catalog) {
+          await sp.setRequestInterception(true);
+          sp.on('request', (r) => (new URL(r.url()).pathname === '/api/products'
+            ? r.respond({ status: 200, contentType: 'application/json', body: JSON.stringify(catalog) })
+            : r.continue()));
+        }
+        await sp.goto(origin + route, { waitUntil: 'domcontentloaded' });
+        await waitForCatalog(sp);
+        await sp.waitForFunction((sel) => { const el = document.querySelector(sel); return !!el && el.getClientRects().length > 0; }, { timeout: 20000 }, readySelector);
+        await sp.evaluate(() => document.fonts.ready);   // web fonts change text wrapping: measure after they settle
+        await settleLayout(sp);
+        return sp;
+      };
+      const measureGrid = (sp, gridSel) => sp.evaluate((sel) => {
+        const grid = document.querySelector(sel);
+        const cs = getComputedStyle(grid);
+        const home = getComputedStyle(document.getElementById('bestSellersGrid'));
+        const show = (selector) => { const el = document.querySelector(selector); return el ? getComputedStyle(el).display : null; };
+        const cards = [...grid.querySelectorAll(':scope > .product-card')].map((card) => {
+          const r = card.getBoundingClientRect();
+          const btn = card.querySelector('.quick-view-btn');
+          const b = btn.getBoundingClientRect();
+          return {
+            id: card.dataset.pid, html: card.outerHTML,
+            top: r.top, left: r.left, right: r.right, w: r.width, h: r.height,
+            imgW: card.querySelector('.product-card-image').getBoundingClientRect().width,
+            imgH: card.querySelector('.product-card-image').getBoundingClientRect().height,
+            btnTop: b.top, btnBottom: b.bottom, btnW: b.width, btnH: b.height, btnOpacity: getComputedStyle(btn).opacity
+          };
+        });
+        return {
+          columns: cs.gridTemplateColumns.trim().split(/\s+/).length,
+          colGap: cs.columnGap, rowGap: cs.rowGap, homeColGap: home.columnGap, homeRowGap: home.rowGap,
+          sidebar: show('#filterSidebar'), filterButton: show('.filter-toggle-btn'),
+          cards, docW: document.documentElement.scrollWidth, innerW: window.innerWidth
+        };
+      }, gridSel);
+      // Computed look of one card's parts (layout-dependent sizes excluded — those are compared as geometry).
+      const STYLE_PARTS = {
+        card: ['', ['display', 'flexDirection', 'backgroundColor', 'borderTopLeftRadius', 'borderTopWidth', 'borderTopColor', 'boxShadow', 'overflow', 'cursor']],
+        image: ['.product-card-image', ['backgroundColor', 'position', 'overflow']],
+        heart: ['.product-wishlist', ['position', 'top', 'right', 'width', 'height', 'borderTopLeftRadius', 'backgroundColor', 'color']],
+        badge: ['.product-discount-badge', ['position', 'top', 'left', 'color', 'backgroundColor', 'fontSize', 'fontWeight', 'paddingTop', 'paddingLeft']],
+        soldOut: ['.sale-flag', ['position', 'top', 'left', 'color', 'backgroundColor', 'fontSize', 'fontWeight']],
+        lowStock: ['.low-stock-flag', ['position', 'bottom', 'left', 'color', 'backgroundColor', 'fontSize', 'fontWeight']],
+        name: ['h3', ['fontFamily', 'fontSize', 'fontWeight', 'color', 'whiteSpace', 'textOverflow']],
+        fit: ['.fit-label', ['fontSize', 'color']],
+        rating: ['.card-rating', ['display', 'minHeight']],
+        price: ['.price', ['fontSize', 'fontWeight', 'color']],
+        original: ['.price .original', ['color', 'fontSize', 'textDecorationLine']],
+        sale: ['.price .sale', ['color']],
+        button: ['.quick-view-btn', ['display', 'minHeight', 'fontSize', 'fontWeight', 'letterSpacing', 'textTransform', 'color', 'backgroundColor', 'borderTopWidth', 'borderTopColor', 'borderTopLeftRadius', 'paddingTop', 'paddingLeft', 'opacity']]
+      };
+      const styleSnapshot = (sp, gridSel, ids) => sp.evaluate((sel, pids, parts) => {
+        const out = {};
+        for (const id of pids) {
+          const card = document.querySelector(`${sel} > .product-card[data-pid="${id}"]`);
+          out[id] = {};
+          for (const [part, [partSel, props]] of Object.entries(parts)) {
+            const el = partSel ? card.querySelector(partSel) : card;
+            out[id][part] = el ? Object.fromEntries(props.map((k) => [k, getComputedStyle(el)[k]])) : null;
+          }
+        }
+        return out;
+      }, gridSel, ids, STYLE_PARTS);
+      const groupRows = (cards) => {
+        const rows = [];
+        for (const c of cards) {
+          let row = rows.find((r) => Math.abs(r.top - c.top) <= 1);
+          if (!row) { row = { top: c.top, cards: [] }; rows.push(row); }
+          row.cards.push(c);
+        }
+        return rows.sort((a, b) => a.top - b.top);
+      };
+      const spread = (xs) => Math.max(...xs) - Math.min(...xs);
+      const fmt1 = (xs) => xs.map((x) => +x.toFixed(1)).join('/');
+
+      // ---- 1. Columns, gaps, equal heights and one button line — at every width, under stress ----
+      const measuredCollection = {}, collectionStyles = {};
+      const snapshotIds = ['3', '4', '5'];   // sale + low stock + reviews / sold out / price range
+      for (const [vw, cols] of [[320, 2], [360, 2], [414, 2], [599, 2], [600, 3], [768, 3], [1023, 3], [1024, 4], [1025, 4], [1440, 4]]) {
+        const sp = await openStore(vw, '/collection/all', stressCatalog, '#collectionGrid .product-card');
+        const m = measuredCollection[vw] = await measureGrid(sp, '#collectionGrid');
+        if ([360, 414, 1440].includes(vw)) collectionStyles[vw] = await styleSnapshot(sp, '#collectionGrid', snapshotIds);
+        const rows = groupRows(m.cards);
+        assert.equal(m.cards.length, 8, `${vw}px: the first page shows 8 cards`);
+        assert.equal(m.columns, cols, `${vw}px: the grid has ${cols} columns (got ${m.columns})`);
+        assert.equal(rows[0].cards.length, cols, `${vw}px: the first row really holds ${cols} cards`);
+        assert.ok(rows.every((r) => r.cards.length <= cols), `${vw}px: never more than ${cols} cards per row`);
+        assert.equal(m.colGap, m.homeColGap, `${vw}px: column gap equals the home grid's (${m.colGap} vs ${m.homeColGap})`);
+        assert.equal(m.rowGap, m.homeRowGap, `${vw}px: row gap equals the home grid's (${m.rowGap} vs ${m.homeRowGap})`);
+        assert.ok(spread(rows[0].cards.map((c) => c.w)) <= 1, `${vw}px: equal column widths (${fmt1(rows[0].cards.map((c) => c.w))})`);
+        rows.forEach((row, i) => {
+          for (const [key, label] of [['h', 'card heights'], ['btnTop', 'button tops'], ['btnBottom', 'button bottoms'], ['btnH', 'button heights']]) {
+            assert.ok(spread(row.cards.map((c) => c[key])) <= 1, `${vw}px row ${i + 1}: equal ${label} (${fmt1(row.cards.map((c) => c[key]))})`);
+          }
+        });
+        assert.ok(m.cards.every((c) => Math.abs(c.imgH / c.imgW - 4 / 3) < 0.01), `${vw}px: image area keeps the home 3:4 proportion`);
+        assert.ok(m.cards.every((c) => c.btnOpacity === '1' && c.btnH >= 43.5 && c.btnW > 60), `${vw}px: every Quick View button is visible, 44px tall and full width`);
+        assert.ok(m.docW <= m.innerW, `${vw}px: no horizontal overflow (${m.docW} <= ${m.innerW})`);
+        assert.ok(m.cards.every((c) => c.left >= -0.5 && c.right <= m.innerW + 0.5), `${vw}px: every card sits inside the viewport`);
+        // The filter UI keeps its breakpoints: sidebar from 1025px, the Filter button below.
+        assert.equal(m.sidebar !== 'none', vw >= 1025, `${vw}px: the filter sidebar shows only on desktop (${m.sidebar})`);
+        assert.equal(m.filterButton !== 'none', vw < 1025, `${vw}px: the Filter button shows only below 1025px (${m.filterButton})`);
+        console.log(`✅ ${vw}px real Chromium — collection grid: ${m.columns} cols, gap ${m.colGap}, card ${fmt1([m.cards[0].w])}px, row heights ${fmt1(rows.map((r) => r.cards[0].h))}, buttons share one line per row`);
+        await sp.close();
+      }
+
+      // ---- 2. Same renderer, same classes, same look as Best Sellers ----
+      // At 360 and 414px both grids are 2 columns with the same gap, so the same product is the same
+      // card — pixel for pixel. At 1440px the sizes differ (the shop has a sidebar) but not the styling.
+      for (const vw of [360, 414, 1440]) {
+        const hp = await openStore(vw, '/', stressCatalog, '#bestSellersGrid .product-card');
+        const home = await measureGrid(hp, '#bestSellersGrid');
+        const homeStyles = await styleSnapshot(hp, '#bestSellersGrid', snapshotIds);
+        await hp.close();
+        const byId = (m) => Object.fromEntries(m.cards.map((c) => [c.id, c]));
+        const homeCards = byId(home), colCards = byId(measuredCollection[vw]);
+        assert.deepEqual(Object.keys(colCards).sort(), Object.keys(homeCards).sort(), `${vw}px: Best Sellers and the collection grid show the same products`);
+        for (const id of Object.keys(colCards)) {
+          assert.equal(colCards[id].html, homeCards[id].html, `${vw}px product ${id}: identical card markup (same renderer, same classes)`);
+        }
+        assert.deepEqual(collectionStyles[vw], homeStyles, `${vw}px: sale, sold-out and range cards are styled identically to their Best Sellers twins`);
+        assert.ok(snapshotIds.every((id) => homeStyles[id].button && homeStyles[id].name && homeStyles[id].heart), `${vw}px: the sampled cards have all their parts`);
+        if (vw < 1024) {
+          assert.equal(home.columns, 2, `${vw}px: Best Sellers is 2 columns`);
+          for (const id of Object.keys(colCards)) {
+            for (const key of ['w', 'h', 'imgW', 'imgH', 'btnW', 'btnH']) {
+              assert.ok(Math.abs(colCards[id][key] - homeCards[id][key]) <= 0.5,
+                `${vw}px product ${id}: card ${key} is the same in both grids (collection ${colCards[id][key]} / home ${homeCards[id][key]})`);
+            }
+          }
+          assert.equal(measuredCollection[vw].colGap, home.colGap, `${vw}px: same gap as home`);
+        }
+        console.log(`✅ ${vw}px real Chromium — collection cards are the Best Sellers cards: identical markup, identical computed styles${vw < 1024 ? ', identical sizes' : ''}`);
+      }
+
+      // ---- 3. No horizontal page scroll at 320 / 360 / 414 / 768 / 1024 / 1440, on every collection state ----
+      const overflowReport = (sp) => sp.evaluate(() => {
+        window.scrollTo(500, 0);
+        const iw = window.innerWidth;
+        const offenders = [];
+        for (const el of document.querySelectorAll('#shopSection *')) {
+          const cs = getComputedStyle(el);
+          if (cs.display === 'none' || cs.visibility === 'hidden') continue;
+          const r = el.getBoundingClientRect();
+          if (!r.width && !r.height) continue;
+          if (r.left >= -0.5 && r.right <= iw + 0.5) continue;
+          let clipped = false;   // sticks out only inside a box that clips it (e.g. a card's overflow: hidden)
+          for (let a = el.parentElement; a && a.id !== 'shopSection'; a = a.parentElement) {
+            if (getComputedStyle(a).overflowX === 'visible') continue;
+            const ar = a.getBoundingClientRect();
+            if (ar.left >= -0.5 && ar.right <= iw + 0.5) { clipped = true; break; }
+          }
+          if (!clipped) offenders.push(`${el.tagName.toLowerCase()}${el.id ? '#' + el.id : ''}.${String(el.className).split(' ')[0]} ${Math.round(r.left)}→${Math.round(r.right)}`);
+        }
+        return { scrollWidth: document.documentElement.scrollWidth, bodyScrollWidth: document.body.scrollWidth, innerWidth: iw, scrollX: window.scrollX, offenders: offenders.slice(0, 5) };
+      });
+      for (const vw of [320, 360, 414, 768, 1024, 1440]) {
+        const rp = await openStore(vw, '/collection/all', null, '#collectionGrid .product-card');
+        const states = [
+          ['all', ''],
+          ['anime', "navigateTo('collection', 'anime')"],
+          ['graphic tees', "navigateTo('collection', 'graphic-tees')"],
+          ['pants (empty state)', "navigateTo('collection', 'pants')"],
+          ['sale', "navigateTo('collection', 'sale')"],
+          ['search results', "onSearchInput('wolf')"],
+          ['page 2', "onSearchInput(''); navigateTo('collection', 'all'); nextPage()"]
+        ];
+        for (const [state, action] of states) {
+          if (action) await rp.evaluate(action);
+          await settleLayout(rp);
+          const o = await overflowReport(rp);
+          assert.ok(o.scrollWidth <= o.innerWidth, `${vw}px ${state}: the page is not wider than the screen (${o.scrollWidth} <= ${o.innerWidth})`);
+          assert.ok(o.bodyScrollWidth <= o.innerWidth, `${vw}px ${state}: <body> is not wider than the screen (${o.bodyScrollWidth})`);
+          assert.equal(o.scrollX, 0, `${vw}px ${state}: the page cannot be scrolled sideways`);
+          assert.deepEqual(o.offenders, [], `${vw}px ${state}: nothing in the shop sticks out of the viewport`);
+        }
+        await rp.close();
+      }
+      console.log('✅ No horizontal page scroll at 320 / 360 / 414 / 768 / 1024 / 1440px on all, anime, graphic tees, pants (empty), sale, search and page 2');
+
+      // ---- 4. Header, sort, Filter button + drawer and pagination keep working (320px phone) ----
+      {
+        const fp = await openStore(320, '/collection/all', stressCatalog, '#collectionGrid .product-card');
+        for (const sel of ['#collectionTitle', '#collectionDesc', '#resultCount', '#sortSelect', '.filter-toggle-btn', '#pagination']) {
+          const box = await fp.$eval(sel, (el) => { const r = el.getBoundingClientRect(); return { l: r.left, r: r.right, w: r.width, h: r.height, iw: innerWidth }; });
+          assert.ok(box.w > 0 && box.h > 0 && box.l >= -0.5 && box.r <= box.iw + 0.5, `320px: ${sel} is visible and inside the screen (${JSON.stringify(box)})`);
+        }
+        assert.equal(await fp.$eval('#collectionTitle', (el) => el.textContent), 'FEATURED DROPS | NEW ARRIVALS');
+        assert.equal(await fp.$eval('#resultCount', (el) => el.textContent), '10 results');
+        assert.equal(await fp.$eval('#pageInfo', (el) => el.textContent), 'Page 1 of 2');
+        // Sort: cheapest first (price range → its lowest price), and the grid really re-renders.
+        await fp.select('#sortSelect', 'price-low');
+        const sortedMins = await fp.evaluate(() => [...document.querySelectorAll('#collectionGrid .product-card')]
+          .map((c) => getPriceRange(allProducts.find((p) => String(p.id) === c.dataset.pid)).min));
+        assert.deepEqual(sortedMins, [...sortedMins].sort((a, b) => a - b), `sorting by price puts the cheapest first (${sortedMins})`);
+        assert.equal(sortedMins[0], 99, 'the Rs. 99 product leads');
+        await fp.select('#sortSelect', 'featured');
+        // Filter button opens the drawer; Apply closes it.
+        await fp.click('.filter-toggle-btn');
+        await fp.waitForSelector('#filterDrawer.open');
+        await settleLayout(fp);   // let the drawer finish sliding in before measuring / clicking inside it
+        const drawerLeft = await fp.$eval('#filterDrawer', (el) => Math.round(el.getBoundingClientRect().left));
+        assert.ok(drawerLeft >= 0, `the Filter drawer slides fully on screen (left ${drawerLeft})`);
+        await fp.click('#filterDrawer .filter-drawer-footer .btn');
+        await fp.waitForFunction(() => !document.getElementById('filterDrawer').classList.contains('open'));
+        await settleLayout(fp);   // the drawer is a fixed layer until it has finished sliding out
+        // Pagination: Next shows the last two products.
+        await fp.click('#nextBtn');
+        await fp.waitForFunction(() => document.getElementById('pageInfo').textContent === 'Page 2 of 2');
+        assert.equal(await fp.$$eval('#collectionGrid .product-card', (cards) => cards.length), 2, 'page 2 holds the remaining two products');
+        assert.equal(await fp.$eval('#nextBtn', (el) => getComputedStyle(el).display), 'none', 'there is no Next on the last page');
+        await settleLayout(fp);
+        const last = await measureGrid(fp, '#collectionGrid');
+        assert.equal(groupRows(last.cards).length, 1, 'the two cards of the last page share one row');
+        assert.ok(spread(last.cards.map((c) => c.h)) <= 1 && spread(last.cards.map((c) => c.btnTop)) <= 1, 'and line up too');
+        console.log('✅ 320px real Chromium — page header, result count, sort, Filter drawer and pagination all work');
+        await fp.close();
+      }
+
+      // ---- 5. Real clicks and keys: heart, Quick View (even when sold out), Enter on a card; hover lift ----
+      {
+        const ip = await openStore(360, '/collection/all', stressCatalog, '#collectionGrid .product-card');
+        const heart = '#collectionGrid .product-card[data-pid="2"] .product-wishlist';
+        await ip.click(heart);
+        assert.equal(await ip.$eval(heart, (el) => el.classList.contains('active')), true, 'a real tap on the heart saves the product');
+        assert.equal(await ip.$eval('#wishlistCount', (el) => el.textContent), '1');
+        assert.equal(new URL(ip.url()).pathname, '/collection/all', 'the heart does not open the product');
+        await ip.click(heart);
+        assert.equal(await ip.$eval(heart, (el) => el.classList.contains('active')), false, 'a second tap removes it');
+        assert.equal(await ip.$eval('#wishlistCount', (el) => el.textContent), '0');
+        await ip.click('#collectionGrid .product-card[data-pid="4"] .quick-view-btn');   // the sold-out card
+        assert.equal(new URL(ip.url()).pathname, '/product/4', 'Quick View opens the product page, sold out or not');
+        await ip.evaluate(() => navigateTo('collection', 'all'));
+        await ip.waitForSelector('#collectionGrid .product-card[data-pid="5"]', { visible: true });
+        await ip.focus('#collectionGrid .product-card[data-pid="5"]');
+        await ip.keyboard.press('Enter');
+        assert.equal(new URL(ip.url()).pathname, '/product/5', 'Enter on a focused card opens its product page');
+        await ip.evaluate(() => navigateTo('collection', 'all'));
+        await ip.waitForSelector('#collectionGrid .product-card[data-pid="1"]', { visible: true });
+        await ip.click('#collectionGrid .product-card[data-pid="1"] h3');
+        assert.equal(new URL(ip.url()).pathname, '/product/1', 'tapping the card itself opens its product page');
+        await ip.close();
+
+        const dp = await openStore(1440, '/collection/all', stressCatalog, '#collectionGrid .product-card');
+        await new Promise((resolve) => setTimeout(resolve, 1200));   // longer than any load-time card animation could run
+        assert.equal(await dp.$$eval('#collectionGrid .product-card[style]', (cards) => cards.length), 0,
+          'collection cards carry no inline styles, so their look (and hover lift) comes from the shared CSS only');
+        const lift = async (selector) => {
+          await dp.hover(selector);
+          await settleLayout(dp);
+          return dp.$eval(selector, (el) => new DOMMatrix(getComputedStyle(el).transform).m42);
+        };
+        assert.ok(await lift('#collectionGrid .product-card[data-pid="2"]') <= -4, 'a collection card lifts ~6px on hover, like a Best Sellers card');
+        await dp.close();
+        console.log('✅ 360px/1440px real Chromium — heart, Quick View, Enter key, card tap and hover lift work on collection cards');
+      }
+      assert.deepEqual(pageErrors, [], 'no script errors while the collection grid rendered in any of the above');
     } finally {
       await browser.close();
     }
@@ -1422,7 +1816,7 @@ async function ready(win) {
     console.log('✅ Filter drawer opens and its style/price/size filters still work');
 
     assert.deepEqual(errors, []);
-    console.log('\n26/26 frontend scenarios passed');
+    console.log('\n28/28 frontend scenarios passed');
   } finally {
     windows.forEach(win => win.window.close());
     await new Promise(resolve => server.close(resolve));

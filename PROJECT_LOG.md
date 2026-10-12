@@ -1765,3 +1765,156 @@ identical 28px label heights.
 integration, **all storefront-regression checks**, **all upgrade-migration
 checks**, and **25/25 frontend scenarios** (including real-Chromium geometry
 at 320/360/414/599/768/1440px) — exit 0.
+
+## 2026-10-12 — Collection grid shows the home Best Sellers cards (one shared renderer, 2 / 3 / 4 columns)
+
+**Scope:** every collection page (`/collection/all`, `anime`, `graphic-tees`,
+`pants`, `sale`) and the search results — i.e. `#collectionGrid` — now render
+the **same card as the home Best Sellers** (`#bestSellersGrid`) in a 2 / 3 / 4
+column grid, through **one shared card renderer**. Design, colours and fonts
+are untouched; only `public/index.html`, the tests and this log changed.
+
+**The problem.** The shop grid had its own, second card template: a big
+single-column card (one column at ≤640px) with a hover back-image + touch angle
+dots, a `.wishlist-icon` heart, a `.product-fit-tag` pill, a `SALE` flag, the
+style as its label and an **Add to Cart / Out of Stock** `.quick-add` button.
+The same product therefore looked different on Home and in the shop, every card
+fix had to be made twice (the e2e suite even asserted `${HEART_SVG}` appeared
+in *both* renderers), and the template read `p.images[0]` unguarded, so one
+product without images broke the whole grid. Separately, the filter bar
+("n results" + Sort + Filter) was 296px wide inside a 288px column, so
+`/collection/all` was **355px wide on a 320px phone**.
+
+**Storefront (`public/index.html`).**
+
+*One renderer*
+- `renderProductCard(p)` is the only card template. `loadBestSellers`,
+  `loadRecentlyViewed`, `renderRelated` (product page) **and
+  `renderCollectionGrid`** all call `.map(renderProductCard)`. The old name
+  survives as the alias `window.renderHomeProductCard = renderProductCard`.
+  Markup, classes, attributes, `role="link"` / `tabindex` / Enter handling,
+  heart (`toggleWishlist`), discount badge, `SOLD OUT` / low-stock flags,
+  `.card-rating` row and the `Quick View` button are exactly the Best Sellers
+  card's. Removed with the old collection template: the back-image hover swap,
+  the angle-dots handler and `isTouchDevice`.
+- **Prices** come from the storefront's own helpers (`getPriceRange` + `fmt`,
+  the ones the product page and cart use): `Rs. 1,149` (Home used to print
+  `Rs. 1149`), the range for variant products (`Rs. 1,199 — Rs. 1,249`; Home
+  used to show only the base price), and struck-through original + sale price
+  + `-N%` badge whenever a product is on sale. Each amount is an unbreakable
+  unit (`.amt`, `.original`, `.sale` → `white-space: nowrap`), so in a 140–190px
+  phone column the price wraps *between* amounts instead of stranding "Rs." at
+  the end of a line (this affects the Home cards too, for the better).
+- A product with no `images` now shows the "No Image" placeholder instead of
+  throwing.
+- `animateProductGrid()` is gone. It ran once, 300ms after load, and left
+  inline `opacity` / `transform` / `transition` on whichever collection cards
+  existed at that moment — which beat the `:hover` lift (Best Sellers cards
+  lift, those cards did not) and made card positions depend on timing.
+
+*Grid*
+- `#collectionGrid` is now `class="product-grid collection-grid"`, so it gets
+  every `.product-grid` card rule (home theme, `#page-home` Quick View button,
+  heart sizes, 3:4 image area). One override,
+  `#page-home .product-grid.collection-grid`, sets the columns —
+  `repeat(2, minmax(0, 1fr))` below 600px, 3 from 600px, 4 from 1024px — and
+  `margin-top: 0`. **Gaps are inherited from `.product-grid`, i.e. the home's:**
+  8px up to 768px, 16px at 769–1023px, 24px from 1024px. `minmax(0, 1fr)` lets a
+  column shrink to its share, so a long name or price cannot widen the page.
+  The old `.collection-grid` rules (4 columns, 2 columns at ≤1024 / ≤768,
+  1 column + 16px gap at ≤640) are deleted — the last one would also have
+  overridden the shared 8px phone gap. Home's own grid breakpoints are untouched.
+- Cards in a row share one height and their Quick View buttons share one line
+  by the existing rules the home already had (`.product-card` flex column,
+  body `flex: 1 1 auto`, button `margin-top: auto`, reserved `.card-rating`
+  row) — nothing new needed, it just applies now.
+- **Filter bar, ≤420px:** `.filter-bar` wraps — the result count on its own
+  line, the toolbar full-width beneath it, the Sort box shrinking
+  (`min-width: 0`) to leave room for Filter. Page header, sort, Filter button +
+  drawer (below 1025px), the sidebar (from 1025px) and pagination behave as
+  before.
+- **Left in place:** the legacy collection-card CSS (`.quick-add`,
+  `.img-front` / `.img-back`, `.angle-dots`, `.product-fit-tag`, the
+  `.wishlist-icon` base rules) is now unreferenced and inert. The e2e suite
+  still pins the `.wishlist-icon` heart-state selectors, so pruning it is a
+  separate clean-up. Not changed either: the filter's default Rs. 10,000 price
+  cap still hides dearer products from the grid.
+
+**Tests.**
+- `tests/frontend.test.js` (26 → **28/28**).
+  - New jsdom scenario "Collection grid = Best Sellers cards": exactly one
+    `<div class="product-card"` template and one `renderProductCard` in the
+    page; `loadBestSellers`, `renderCollectionGrid`, `renderRelated` and
+    `loadRecentlyViewed` all map through it; `renderHomeProductCard` is the
+    same function; both grids are `.product-grid`; the same 8 products give
+    **byte-identical `outerHTML` in both grids**; no `.quick-add` /
+    `.wishlist-icon` / `.product-fit-tag` / `.img-back` / `.angle-dots` / "Add to
+    Cart" in any collection card; heart toggles without opening the product and
+    shows filled in both grids; Quick View, a card click and Enter on a focused
+    card open the product; sale (`-20%`, struck + sale price), low-stock,
+    reviews, sold-out (`SOLD OUT`, button still opens the page), no-photo and
+    price-range cards; search results use the same cards.
+  - New real-Chromium scenario (served an adversarial 10-product catalog via
+    request interception: very long names / fit labels, a sale with big
+    numbers, low stock, sold out, many and few reviews, price ranges):
+    columns **2 / 2 / 2 / 2 / 3 / 3 / 3 / 4 / 4 / 4** at 320 / 360 / 414 / 599 /
+    600 / 768 / 1023 / 1024 / 1025 / 1440px; column and row gap equal to the
+    home grid's at every width; equal column widths; per row, card heights,
+    button tops, button bottoms and button heights within 1px; 3:4 image area;
+    Quick View visible and 44px tall; sidebar only from 1025px, Filter button
+    only below. At 360 / 414 / 1440px each product's collection card is
+    compared with its Best Sellers twin on the real home page: identical
+    markup, identical computed styles (sale, sold-out and range cards, every
+    part) and — at 360 / 414px, where both grids are 2 columns — identical card,
+    image and button sizes within 0.5px. **No horizontal scroll** at 320 / 360 /
+    414 / 768 / 1024 / 1440px on the live catalog across *all, anime, graphic
+    tees, pants (empty state), sale, search results and page 2*:
+    `scrollWidth <= innerWidth`, `scrollX` stays 0, nothing in the shop sticks
+    out. At 320px: title, description, result count, sort, Filter button,
+    drawer (opens on screen, Apply closes it) and pagination work. At 360px real
+    taps on the heart / Quick View (sold-out card too) / the card and Enter on
+    a focused card; at 1440px no inline styles on cards and a ~6px hover lift;
+    no page errors anywhere.
+  - The suite lifts the global per-minute request limiter
+    (`require('../config').RATE_LIMIT_GLOBAL = 1000`, the way `e2e.test.js`
+    does): the Chromium scenarios open about two dozen pages from one IP, which
+    otherwise exhausts the 120 requests/minute budget and made the later
+    checkout scenario fail with a 429.
+  - Existing assertions follow the rename (`renderProductCard`).
+- `tests/e2e.test.js` (125 → **126/126**): the heart assertion now expects the
+  shared renderer instead of two (`>= 1`), and a new served-HTML check pins
+  `#collectionGrid` as `.product-grid`, one `product-card` template, one
+  renderer, both grids mapped through it, and no `quick-add` / `wishlist-icon`
+  card markup.
+- **Mutation-checked:** ten deliberate breakages of the page (original page;
+  no tablet column rule; cards not stretched; filter-bar fix removed; own gap;
+  own card markup; load-time inline styles back; restyled heading; Quick View
+  unpinned; grid wider than the screen) each turn the frontend suite red with
+  the matching message (e.g. "600px: the grid has 3 columns (got 2)",
+  "320px: no horizontal overflow (355 <= 320)").
+
+**Measured in real Chromium** (adversarial catalog above; spread = largest
+difference between cards of one row, 0.00px everywhere; `scrollWidth` equals the
+viewport at every width — `/collection/all` was 355 at 320px before):
+
+| width | layout | columns | gap | card height / button top / button bottom spread | page `scrollWidth` |
+|---|---|---|---|---|---|
+| 320px | phone | 2 × 140px | 8px | 0.00 / 0.00 / 0.00px | 320 (was 355) |
+| 360px | phone | 2 × 160px | 8px | 0.00 / 0.00 / 0.00px | 360 |
+| 414px | phone | 2 × 187px | 8px | 0.00 / 0.00 / 0.00px | 414 |
+| 599px | phone | 2 × 279.5px | 8px | 0.00 / 0.00 / 0.00px | 599 |
+| 600px | tablet | 3 × 184px | 8px | 0.00 / 0.00 / 0.00px | 600 |
+| 768px | tablet | 3 × 240px | 8px | 0.00 / 0.00 / 0.00px | 768 |
+| 1023px | tablet | 3 × 314.3px | 16px | 0.00 / 0.00 / 0.00px | 1023 |
+| 1024px | desktop, filter drawer | 4 × 226px | 24px | 0.00 / 0.00 / 0.00px | 1024 |
+| 1025px | desktop, sidebar | 4 × 151.8px | 24px | 0.00 / 0.00 / 0.00px | 1025 |
+| 1440px | desktop, sidebar | 4 × 215.5px (grid 934px) | 24px | 0.00 / 0.00 / 0.00px | 1440 |
+
+At 360 and 414px a collection card is the Best Sellers card pixel for pixel
+(160px / 187px wide, same 8px gap). Before: 1 column of 328px "Add to Cart" cards at
+360px, 2 columns at 768 / 1024px and 4 only from 1025px.
+
+**Verification:** `npm test` → **126/126 E2E**, shared rate-limit integration,
+**all storefront-regression checks**, **all upgrade-migration checks**, and
+**28/28 frontend scenarios** (including the real-Chromium collection-grid
+scenario at 320–1440px) — exit 0.

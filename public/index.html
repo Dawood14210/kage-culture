@@ -668,7 +668,10 @@
     .bestsellers-viewall:hover i { transform: translateX(4px); }
 
     /* ================================================================
-       HOMEPAGE PRODUCT GRID
+       PRODUCT GRID — shared by the homepage sections (Best Sellers, Recently
+       Viewed), the product page's related items and the /collection/* +
+       search grid (#collectionGrid). One card renderer (renderProductCard)
+       plus the rules below = one card look everywhere.
        ================================================================ */
     .product-grid {
       display: grid;
@@ -683,7 +686,7 @@
       .product-grid { grid-template-columns: repeat(2, 1fr); gap: var(--spacing-sm); }
     }
 
-    /* Homepage product card — clean cream editorial theme */
+    /* Product card (every grid) — clean cream editorial theme */
     .product-grid .product-card {
       display: flex;
       flex-direction: column;
@@ -788,6 +791,11 @@
       margin-right: 0.3rem;
       font-size: 0.8rem;
     }
+    /* Each amount is one unbreakable unit: on a narrow card the price wraps
+       between amounts, never inside one ("Rs." stranded at the end of a line). */
+    .product-grid .product-card-body .price .amt,
+    .product-grid .product-card-body .price .original,
+    .product-grid .product-card-body .price .sale { white-space: nowrap; }
     .product-grid .quick-view-btn {
       width: 100%;
       margin-top: auto;
@@ -1055,10 +1063,22 @@
     /* ================================================================
        PRODUCT GRID — LIGHT
        ================================================================ */
-    .collection-grid {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: var(--spacing-md);
+    /* The /collection/* + search grid (#collectionGrid) IS a .product-grid: it
+       shows the home Best Sellers cards (one renderer, one set of card rules)
+       with the same gaps and the same card proportions. Only the column count
+       is its own: 2 on phones (<600px), 3 on tablets, 4 from 1024px up. The
+       #page-home prefix outranks the homepage's own column rules, and
+       minmax(0, 1fr) lets every column shrink to its share so a long name or
+       price can never push the page wider than the screen. */
+    #page-home .product-grid.collection-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      margin-top: 0;
+    }
+    @media (min-width: 600px) {
+      #page-home .product-grid.collection-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    }
+    @media (min-width: 1024px) {
+      #page-home .product-grid.collection-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
     }
 
     .product-card {
@@ -2023,6 +2043,15 @@
     .shop-main { min-width: 0; position: relative; z-index: 1; }
     .filter-toolbar { display: flex; align-items: center; gap: 0.5rem; }
     .filter-toolbar .sort-select { width: auto; }
+    /* Phones: "n results" + Sort + Filter no longer fit on one line below ~410px
+       (the bar used to push the whole page wider than a 320px screen). Let the
+       bar wrap: the count on its own line, the toolbar full-width beneath it,
+       with the Sort box giving way to the Filter button. */
+    @media (max-width: 420px) {
+      .filter-bar { flex-wrap: wrap; row-gap: var(--spacing-xs); }
+      .filter-toolbar { flex: 1 1 100%; min-width: 0; }
+      .filter-toolbar .sort-select { flex: 1 1 auto; min-width: 0; }
+    }
 
     /* Collapsible filter sections */
     .filter-head {
@@ -2421,7 +2450,6 @@
     }
 
     @media (max-width: 1024px) {
-      .collection-grid { grid-template-columns: repeat(2, 1fr); }
       .shop-layout { grid-template-columns: 1fr; }
       .filter-sidebar { display: none; }
     }
@@ -2462,7 +2490,6 @@
       .footer-main { grid-template-columns: 1fr; }
       .footer-bottom { flex-direction: column; text-align: center; }
       .cart-drawer { width: 100%; max-width: 100vw; }
-      .collection-grid { grid-template-columns: repeat(2, 1fr); }
       .explore-links { grid-template-columns: 1fr 1fr; }
       .sticky-cart-bar { display: flex; }
       .product-detail-page { padding-bottom: calc(70px); }
@@ -2470,7 +2497,6 @@
     }
 
     @media (max-width: 640px) {
-      .collection-grid { grid-template-columns: 1fr; gap: var(--spacing-md); }
       .container { padding-left: var(--spacing-sm); padding-right: var(--spacing-sm); }
     }
 
@@ -3871,7 +3897,7 @@
                 </button>
               </div>
             </div>
-            <div class="collection-grid" id="collectionGrid"></div>
+            <div class="product-grid collection-grid" id="collectionGrid"></div>
             <div class="pagination" id="pagination">
               <div class="progress-bar">
                 <div class="progress-fill" id="progressFill" style="width:100%"></div>
@@ -4616,7 +4642,6 @@
     let currentCollectionFilter = 'all';
     let currentPage = 1;
     const perPage = 8;
-    let isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
 
     // The shop grid (#shopSection) replaces the marketing homepage while a
     // collection is open or a search is active. `shopCollectionMode` is set by
@@ -5155,58 +5180,8 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
         return;
       }
 
-      grid.innerHTML = pageItems.map(p => {
-        const front = p.images[0], back = p.images[1] || p.images[0];
-        const r = getPriceRange(p);
-        let priceHtml;
-        if (r.isRange) priceHtml = 'Rs. ' + fmt(r.min) + ' — Rs. ' + fmt(r.max);
-        else if (r.onSale) priceHtml = '<span class="original">Rs. ' + fmt(r.max) + '</span><span class="sale">Rs. ' + fmt(r.min) + '</span>';
-        else priceHtml = 'Rs. ' + fmt(r.min);
-        return `<div class="product-card" role="link" tabindex="0" aria-label="View ${esc(p.name)}" onclick="openProductDetail(${p.id})" onkeydown="if(event.key==='Enter'&&event.target===this){event.preventDefault();openProductDetail(${p.id});}">
-          <div class="product-card-image" data-id="${p.id}">
-            <img class="img-front" src="${esc(front)}" alt="${esc(p.name)}" loading="lazy" />
-            <img class="img-back" data-src="${esc(back)}" alt="${esc(p.name)} back" />
-            <button class="wishlist-icon ${wishlist.has(p.id) ? 'active' : ''}" onclick="event.stopPropagation();toggleWishlist(${p.id}, this)" aria-label="Add to wishlist">${HEART_SVG}</button>
-            <span class="product-fit-tag">${esc(p.fit)}</span>
-            ${r.onSale ? '<span class="sale-flag">SALE</span>' : ''}
-            ${lowStockBadge(p)}
-            ${isTouchDevice ? '<div class="angle-dots"><span class="angle-dot active"></span><span class="angle-dot"></span></div>' : ''}
-          </div>
-          <div class="product-card-body">
-            <h3>${esc(p.name)}</h3>
-            <div class="fit-label">${esc(p.style || p.fit)}</div>
-            <div class="card-rating">${starsHtml(p.rating, p.review_count)}</div>
-            <div class="price">${priceHtml}</div>
-            ${!isAvailable(p)
-              ? '<button class="quick-add" disabled>Out of Stock</button>'
-              : `<button class="quick-add" onclick="event.stopPropagation();quickAdd(${p.id})">Add to Cart</button>`}
-          </div>
-        </div>`;
-      }).join('');
-
-      document.querySelectorAll('#collectionGrid .product-card-image').forEach(el => {
-        const loadBack = () => {
-          const back = el.querySelector('.img-back');
-          if (back && back.dataset.src && !back.src) { back.src = back.dataset.src; back.removeAttribute('data-src'); }
-        };
-        if (!isTouchDevice) {
-          el.addEventListener('mouseenter', loadBack);
-        } else {
-          el.addEventListener('click', function(e) {
-            e.stopPropagation();
-            loadBack();
-            const dots = this.querySelector('.angle-dots');
-            if (!dots) return;
-            const da = dots.querySelectorAll('.angle-dot');
-            const cur = dots.querySelector('.active');
-            let idx = 0;
-            da.forEach((d,i) => { if (d === cur) idx = i + 1; });
-            if (idx >= da.length) idx = 0;
-            da.forEach((d,i) => d.classList.toggle('active', i === idx));
-            this.classList.toggle('show-back');
-          });
-        }
-      });
+      // Same cards as the home Best Sellers: one shared renderer (renderProductCard).
+      grid.innerHTML = pageItems.map(renderProductCard).join('');
     }
 
     function nextPage() {
@@ -5387,14 +5362,26 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
 
     // ---------- HOMEPAGE SECTION LOADERS ----------
 
-    // Render a single product card for the homepage sections
-    function renderHomeProductCard(p) {
+    // ---------- THE product card ----------
+    // Every product grid renders its cards through this ONE function: the home
+    // Best Sellers and Recently Viewed, the product page's related items and the
+    // /collection/* + search grid (#collectionGrid). All of those grids carry the
+    // `product-grid` class, so a card has a single markup and a single set of CSS
+    // wherever it shows up — change it here and every grid follows.
+    function renderProductCard(p) {
       const imgs = (p.images && p.images.length) ? p.images : (p.image ? [p.image] : []);
       const img = imgs[0] || '';
-      const discount = (p.sale_price && p.original_price && p.sale_price < p.original_price)
-        ? Math.round((1 - p.sale_price / p.original_price) * 100)
+      const range = getPriceRange(p);
+      const discount = (range.onSale && range.max > 0)
+        ? Math.round((1 - range.min / range.max) * 100)
         : 0;
-      const displayPrice = p.sale_price || p.price;
+      // Each amount is its own unit (see .amt / .original / .sale in the CSS), so on a
+      // narrow card the price wraps between amounts, never inside one.
+      const priceHtml = range.isRange
+        ? `<span class="amt">Rs. ${fmt(range.min)} —</span> <span class="amt">Rs. ${fmt(range.max)}</span>`
+        : range.onSale
+          ? `<span class="original">Rs. ${fmt(range.max)}</span> <span class="sale">Rs. ${fmt(range.min)}</span>`
+          : `Rs. ${fmt(range.min)}`;
       const isWishlisted = wishlist && wishlist.has(p.id);
       return `
         <div class="product-card" data-pid="${p.id}" role="link" tabindex="0" aria-label="View ${esc(p.name)}" onclick="openProductDetail(${p.id})" onkeydown="if(event.key==='Enter'&&event.target===this){event.preventDefault();openProductDetail(${p.id});}">
@@ -5411,12 +5398,14 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
             <p class="fit-label">${esc(p.fit || p.category || '')}</p>
             <div class="card-rating">${starsHtml(p.rating, p.review_count)}</div>
             <p class="price">
-              ${discount > 0 ? `<span class="original">Rs. ${p.original_price}</span> <span class="sale">Rs. ${displayPrice}</span>` : `Rs. ${p.price}`}
+              ${priceHtml}
             </p>
             <button class="quick-view-btn" onclick="event.stopPropagation();openProductDetail(${p.id})">Quick View</button>
           </div>
         </div>`;
     }
+    // The renderer used to be home-only; the old name still points at it.
+    window.renderHomeProductCard = renderProductCard;
 
     // Load Best Sellers (sorted by order count if available, else newest)
     function loadBestSellers() {
@@ -5430,7 +5419,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
         const db = b.created_at ? new Date(b.created_at).getTime() : 0;
         return db - da;
       }).slice(0, 8);
-      grid.innerHTML = sorted.map(renderHomeProductCard).join('');
+      grid.innerHTML = sorted.map(renderProductCard).join('');
       initScrollReveal();
     }
 
@@ -5992,7 +5981,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       // Hide the whole section (padding included) when there is nothing to show.
       if (!rel.length) { section.style.display = 'none'; return; }
       section.style.display = '';
-      grid.innerHTML = rel.map(renderHomeProductCard).join('');
+      grid.innerHTML = rel.map(renderProductCard).join('');
     }
 
     // ---------- Recently viewed (session localStorage) ----------
@@ -6032,12 +6021,12 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
         const fresh = items.filter(p => !bsIds.has(String(p.id)));
         if (!fresh.length) { section.style.display = 'none'; return; }
         section.style.display = '';
-        grid.innerHTML = fresh.map(renderHomeProductCard).join('');
+        grid.innerHTML = fresh.map(renderProductCard).join('');
         initScrollReveal();
         return;
       }
       section.style.display = '';
-      grid.innerHTML = items.map(renderHomeProductCard).join('');
+      grid.innerHTML = items.map(renderProductCard).join('');
       initScrollReveal();
     }
 
@@ -6765,25 +6754,6 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
 
       imgs.forEach(img => imgObserver.observe(img));
     }
-
-    // ================================================================
-    // SMOOTH STAGGER ANIMATION FOR PRODUCT CARDS
-    // ================================================================
-    function animateProductGrid() {
-      const cards = document.querySelectorAll('.collection-grid .product-card');
-      cards.forEach((card, i) => {
-        card.style.opacity = '0';
-        card.style.transform = 'translateY(20px)';
-        setTimeout(() => {
-          card.style.transition = 'opacity 0.4s ease, transform 0.4s ease';
-          card.style.opacity = '1';
-          card.style.transform = 'translateY(0)';
-        }, 60 * i);
-      });
-    }
-
-    // Trigger product grid stagger animation on initial load
-    setTimeout(() => animateProductGrid(), 300);
 
     // ================================================================
     // HEADER SCROLL EFFECT

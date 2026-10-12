@@ -778,11 +778,24 @@ async function main() {
   // 9. FE-C1 — product cards route through openProductDetail
   // ---------------------------------------------------------------
   console.log('\nCard wiring (FE-C1):');
-  await check('renderHomeProductCard uses openProductDetail, not navigateTo', async () => {
+  await check('the shared product-card renderer uses openProductDetail, not navigateTo', async () => {
     const r = await request(PORT, 'GET', '/');
     assert.strictEqual(r.status, 200);
     assert.ok(!r.text.includes("onclick=\"navigateTo('product', "), 'stale navigateTo(product) wiring must be gone');
     assert.ok(r.text.includes('openProductDetail(${p.id})'), 'cards must call openProductDetail');
+  });
+
+  await check('collection grid and Best Sellers share ONE card template (no second renderer, no Add to Cart card)', async () => {
+    const r = await request(PORT, 'GET', '/');
+    assert.strictEqual(r.status, 200);
+    assert.ok(/<div class="product-grid collection-grid" id="collectionGrid"><\/div>/.test(r.text),
+      '#collectionGrid is a .product-grid, so it picks up the Best Sellers card CSS');
+    assert.strictEqual((r.text.match(/<div class="product-card"/g) || []).length, 1, 'exactly one product-card template may exist');
+    assert.strictEqual((r.text.match(/function renderProductCard\(/g) || []).length, 1, 'exactly one card renderer may exist');
+    assert.ok(/pageItems\.map\(renderProductCard\)/.test(r.text), 'renderCollectionGrid renders through renderProductCard');
+    assert.ok(/sorted\.map\(renderProductCard\)/.test(r.text), 'Best Sellers renders through renderProductCard');
+    assert.ok(!r.text.includes('class="quick-add"') && !r.text.includes('class="wishlist-icon ${'),
+      'the old collection-only card markup (Add to Cart / wishlist-icon) is gone');
   });
 
   // ---------------------------------------------------------------
@@ -825,7 +838,7 @@ async function main() {
     const constant = r.text.match(/const HEART_SVG = .(<svg[\s\S]*?<\/svg>).;/);
     assert.ok(constant, 'HEART_SVG constant must be defined');
     assert.strictEqual(norm(constant[1]), svgAfter('id="wishlistNav"'), 'card heart must match the navbar icon exactly');
-    assert.ok((r.text.match(/\$\{HEART_SVG\}/g) || []).length >= 2, 'both card renderers must use HEART_SVG');
+    assert.ok((r.text.match(/\$\{HEART_SVG\}/g) || []).length >= 1, 'the shared card renderer must use HEART_SVG');
     assert.ok(!r.text.includes('&#9825;') && !r.text.includes('&#9829;'), 'text-glyph hearts must be gone');
     assert.ok(!/toggleWishlist\(\$\{p\.id\}\)"/.test(r.text), 'card buttons must pass their element so the heart updates on click');
     assert.ok(/\.wishlist-icon\.active svg,/.test(r.text) && /\.product-wishlist\.active svg \{ fill: currentColor/.test(r.text), 'saved items must fill the heart');
