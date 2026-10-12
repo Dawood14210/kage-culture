@@ -515,7 +515,7 @@ the list on purpose. The list was derived from what `public/index.html`
 actually reads (grep of the field map and the card/detail renderers): `id`,
 `name`, `category`, `fit`, `price`, `sale_price`, `description`, `sizes`,
 `front_image`, `back_image`, `extra_images`, `in_stock`, `stock_qty`,
-`collections`, `created_at`, plus the computed `size_stock`, `sold_count`,
+`created_at`, plus the computed `size_stock`, `sold_count`,
 `order_count`, `avg_rating`, `review_count`. `unit_cost` and `updated_at` are
 admin-only; the single-product route now also carries the ratings/sold
 aggregates the detail page already consumed client-side.
@@ -1525,3 +1525,70 @@ checks cover:
 **Verification:** `npm test` → **125/125 E2E**, shared rate-limit
 integration, **all storefront-regression checks**, **all upgrade-migration
 checks**, and **20/20 frontend scenarios**.
+
+## 2026-10-12 — Themed collections removed; frontend test syntax repaired
+
+**Scope:** delete the themed collections feature (The Vault / Iron Code /
+After Hours) end-to-end while keeping the existing design, colours and
+fonts, and the category system (Graphic Tees, Anime Shirts, Pants) exactly
+as it is.
+
+**Storefront (`public/index.html`).**
+- Removed the "Collection" dropdown (The Vault / Iron Code / After Hours)
+  from the Filter drawer / filter panel. The drawer keeps its Style,
+  Price Range and Size filters, and they still work.
+- Removed `filterState.collection` and every code path that filtered on
+  `p.collections` / `filterState.collection` (route filter branch, drawer
+  read/sync, active-filter counter, empty-state condition).
+- Removed the three collection pages' titles and descriptions from the
+  shop title/description maps.
+- `/collection/the-vault`, `/collection/iron-code` and `/collection/after-hours`
+  (and any other unknown slug) now behave like any unknown collection URL:
+  the router `replaceState`s to `/collection/all` and renders the normal
+  catalog — no themed page, no broken page. Direct `navigateTo()` calls with
+  a deleted slug are normalized the same way.
+- Removed `collections` from the demo/fallback products and from the API
+  product mapping in `loadProductsFromAPI()`.
+- Deleted the dead "featured collections" / "product collection cards" /
+  `home-collections` CSS (nothing referenced it) and the legacy `page ===
+  'collections'` alias. Category-page CSS (`/collection/` routes, collection
+  grid) is untouched — categories stay.
+
+**API / admin / data.**
+- `utils/productShape.js`: `collections` dropped from the public allow-list
+  and the field-by-field payload builder, so neither the public nor the admin
+  products API returns it. No Collections field was added to (or exists in)
+  the admin forms.
+- The legacy `products.collections` column is left in place in
+  `database.js` (annotated as inert) — it is never dropped, so databases
+  created by older versions keep upgrading cleanly; nothing reads or writes
+  it any more. `tests/fixtures/legacy-schema.js` keeps the column in its
+  historical DDL for the same reason (and no longer seeds values into it).
+- Seed data (`utils/demoProducts.js`) was already free of collections; the
+  demo/fallback catalog in `public/index.html` is now too. The admin
+  coming-soon endpoint's error copy now says "Unknown category." (it
+  validates categories, not collections). Sitemap/robots and the orders CSV
+  export never carried collections.
+
+**Tests.**
+- New frontend scenario "Removed collection pages and the Collection filter
+  are gone; deleted URLs land on /collection/all": deep-links to all three
+  deleted URLs must land on `/collection/all` with the normal catalog (not
+  404/not-found/coming-soon, no themed title), the markup must not mention
+  the three names, the Collection dropdown / `filterState.collection` /
+  product `collections` fields must be absent, and the public products API
+  must not return `collections`.
+- New frontend scenario "Filter drawer opens and its style/price/size
+  filters still work": the drawer opens with its overlay, style/price/size
+  filtering narrows the grid, changes sync to the desktop panel, the active
+  filter badge counts style/price/size only, Apply closes, Reset clears.
+- New storefront-regression check: the three deleted slugs (deep link +
+  popstate) land on `/collection/all` and never render a broken page.
+- `tests/frontend.test.js` also had its Pants-tile identifier collision
+  repaired (the second declaration is scoped/renamed so `node
+  tests/frontend.test.js` parses and runs clean standalone).
+
+**Verification:** `npm test` → **125/125 E2E**, shared rate-limit
+integration, **all storefront-regression checks**, **all upgrade-migration
+checks** (schema parity with the legacy column intact), and **22/22
+frontend scenarios**.

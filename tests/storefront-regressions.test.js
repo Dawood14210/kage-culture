@@ -108,7 +108,7 @@ async function waitForCatalog(window) {
     await check('Graphic Tees with stock opens a filtered product grid (never Coming Soon)', () => {
       w.eval(`allProducts.push({
         id: 987654, name: 'Graphic Route Probe', price: 999, original_price: 999,
-        collection: 'graphic-tees', collections: [], style: 'Japanese Art', fit: 'Regular',
+        collection: 'graphic-tees', style: 'Japanese Art', fit: 'Regular',
         sizes: ['L'], images: ['data:image/svg+xml,%3Csvg xmlns=\"http://www.w3.org/2000/svg\"%3E%3C/svg%3E'],
         stock_qty: 5, in_stock: true, on_sale: false, sale_price: null, rating: null, review_count: 0
       });`);
@@ -147,7 +147,7 @@ async function waitForCatalog(window) {
     await check('adding a live pants product activates the Pants tile, nav link and footer link', () => {
       w.eval(`allProducts.push({
         id: 987655, name: 'Kage Cargo Pant', price: 2499, original_price: 2499,
-        collection: 'pants', collections: [], style: 'Everyday', fit: 'Relaxed',
+        collection: 'pants', style: 'Everyday', fit: 'Relaxed',
         sizes: ['M','L'], images: ['data:image/svg+xml,%3Csvg xmlns=\"http://www.w3.org/2000/svg\"%3E%3C/svg%3E'],
         stock_qty: 3, in_stock: true, on_sale: false, sale_price: null, rating: null, review_count: 0
       });`);
@@ -210,6 +210,27 @@ async function waitForCatalog(window) {
       await wait(100);
       assert.equal(hw.location.pathname, '/about');
       assert.equal(hw.document.getElementById('page-about').classList.contains('active'), true);
+    });
+
+    const removedCollection = makePage('/collection/the-vault');
+    windows.push(removedCollection);
+    await waitForCatalog(removedCollection.window);
+    await wait(75);
+
+    await check('removed themed collection slugs land on /collection/all and never render a broken page', () => {
+      const rw = removedCollection.window, rd = rw.document;
+      for (const slug of ['the-vault', 'iron-code', 'after-hours']) {
+        rw.history.pushState(null, '', '/collection/' + slug);
+        rw.dispatchEvent(new rw.PopStateEvent('popstate'));
+        assert.equal(rw.location.pathname, '/collection/all', `/collection/${slug} must land on /collection/all like any unknown slug`);
+        assert.equal(rd.getElementById('page-home').classList.contains('active'), true, 'the normal catalog renders');
+        assert.equal(rd.getElementById('page-not-found').classList.contains('active'), false, 'no not-found page');
+        assert.equal(rd.getElementById('page-coming-soon').classList.contains('active'), false);
+      }
+      assert.equal(rd.getElementById('collectionTitle').textContent, 'FEATURED DROPS | NEW ARRIVALS', 'no themed collection title');
+      assert.ok(rd.querySelectorAll('#collectionGrid .product-card').length > 0, 'the full catalog is shown');
+      assert.equal(rd.querySelector('.fp-collection'), null, 'the Collection filter dropdown is gone');
+      assert.equal(rd.querySelector('.filter-section[data-group="collection"]'), null);
     });
 
     await check('no stale kage-clothes route is advertised or served as an SPA page', async () => {

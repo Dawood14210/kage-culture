@@ -209,7 +209,7 @@ module.exports = function createAdminRoutes(db) {
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean)) return res.status(400).json({ error: 'Please provide a valid email address.' });
       const cat = typeof category === 'string' ? category.trim().toLowerCase() : '';
       const allowed = ['graphic-tees', 'compression', 'oversized', 'sale', 'kage-bear-series', 'kage-white-tiger-series', 'kage-black-panther-series', 'kage-white-fox-series', 'custom-design-it-yourself', 'custom-kage-designs', 'custom-sticker-packs'];
-      if (!allowed.includes(cat)) return res.status(400).json({ error: 'Unknown collection.' });
+      if (!allowed.includes(cat)) return res.status(400).json({ error: 'Unknown category.' });
       const existing = await db.prepare('SELECT id FROM coming_soon_signups WHERE LOWER(TRIM(email)) = ? AND category = ?').get(clean, cat);
       if (existing) return res.json({ success: true, message: "You're on the list!" });
       await db.prepare('INSERT INTO coming_soon_signups (email, category) VALUES (?, ?)').run(clean, cat);

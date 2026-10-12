@@ -367,7 +367,7 @@ async function ready(win) {
     }
     // A product with front + back shows both thumbnails; tapping one swaps
     // the main image (the admin back-image upload lands here).
-    w.eval('allProducts.push({ id: 999001, name: "Gallery Probe", price: 100, original_price: 100, fit: "Regular", collection: "anime", collections: [], style: [], rating: null, variants: null, desc: "", sizes: ["L"], images: ["/uploads/probe-front.webp", "/uploads/probe-back.webp"], in_stock: true, on_sale: false, sale_price: null, created_at: null, order_count: 0, stock_qty: 5, size_stock: null, sold_count: 0, avg_rating: null, review_count: 0 })');
+    w.eval('allProducts.push({ id: 999001, name: "Gallery Probe", price: 100, original_price: 100, fit: "Regular", collection: "anime", style: [], rating: null, variants: null, desc: "", sizes: ["L"], images: ["/uploads/probe-front.webp", "/uploads/probe-back.webp"], in_stock: true, on_sale: false, sale_price: null, created_at: null, order_count: 0, stock_qty: 5, size_stock: null, sold_count: 0, avg_rating: null, review_count: 0 })');
     w.openProductDetail(999001);
     assert.equal(d.querySelectorAll('#galleryTrack img').length, 2, 'front and back images both render');
     assert.equal(d.querySelectorAll('#detailThumbnails .detail-thumb').length, 2, 'front and back thumbnails both render');
@@ -1068,8 +1068,94 @@ async function ready(win) {
     assert.equal(fresh.requests.filter(r => r.url === '/api/csrf').length, csrfRequestsBefore, 'no extra token request while the cookie exists');
     console.log('✅ Fresh browser checkout: no Set-Cookie on cached reads, token from /api/csrf, order placed and tracked');
 
+    // ---- The themed collections (The Vault / Iron Code / After Hours) were
+    // ---- removed: no pages, no titles, no Collection filter, no data field.
+    for (const slug of ['the-vault', 'iron-code', 'after-hours']) {
+      const removed = page(storeHtml, '/collection/' + slug); windows.push(removed);
+      await ready(removed.window);
+      await wait(100);
+      const rw = removed.window, rd = rw.document;
+      assert.equal(rw.location.pathname, '/collection/all',
+        `/collection/${slug} must land on /collection/all like any unknown collection URL`);
+      assert.equal(rd.getElementById('page-home').classList.contains('active'), true,
+        `/collection/${slug} renders the normal catalog view, not a broken page`);
+      assert.equal(rd.getElementById('page-not-found').classList.contains('active'), false);
+      assert.equal(rd.getElementById('page-coming-soon').classList.contains('active'), false);
+      assert.equal(rd.getElementById('collectionTitle').textContent, 'FEATURED DROPS | NEW ARRIVALS',
+        'no themed collection title is shown');
+      assert.ok(rd.querySelectorAll('#collectionGrid .product-card').length > 0, 'the full catalog is shown');
+    }
+    // The three pages, their titles/descriptions and the dropdown options are
+    // gone from the storefront source entirely.
+    for (const needle of ['the-vault', 'iron-code', 'after-hours', 'the vault', 'iron code', 'after hours']) {
+      assert.equal(storeHtml.toLowerCase().includes(needle), false,
+        `storefront markup must not mention "${needle}"`);
+    }
+    assert.equal(d.querySelector('.filter-section[data-group="collection"]'), null,
+      'the Collection filter section is gone from the filter panel');
+    assert.equal(d.querySelector('.fp-collection'), null, 'no Collection dropdown remains');
+    assert.equal(d.getElementById('filterDrawerBody').querySelector('.fp-collection'), null,
+      'the mobile Filter drawer has no Collection dropdown either');
+    assert.equal(w.eval('typeof filterState.collection'), 'undefined',
+      'filterState no longer carries a collection filter');
+    assert.ok(w.eval('allProducts.every(p => !("collections" in p))'),
+      'fallback catalog products carry no collections field');
+    const publicCatalog = await (await fetch(origin + '/api/products')).json();
+    assert.ok(publicCatalog.length > 0);
+    assert.ok(publicCatalog.every(p => !('collections' in p)),
+      'the public products API no longer returns collections');
+    // Direct navigation with a deleted slug is normalized the same way.
+    w.navigateTo('collection', 'the-vault');
+    assert.equal(w.location.pathname, '/collection/all');
+    assert.equal(d.getElementById('collectionTitle').textContent, 'FEATURED DROPS | NEW ARRIVALS');
+    w.resetFilters();
+    console.log('✅ Removed collection pages and the Collection filter are gone; deleted URLs land on /collection/all');
+
+    // ---- The Filter drawer still opens and its remaining filters still work.
+    w.navigateTo('collection', 'all');
+    const drawer = d.getElementById('filterDrawer');
+    assert.ok(drawer, 'the Filter drawer exists');
+    w.openFilterDrawer();
+    assert.ok(drawer.classList.contains('open'), 'the Filter drawer opens');
+    assert.ok(d.getElementById('filterOverlay').classList.contains('open'), 'the drawer overlay opens with it');
+    const drawerBody = d.getElementById('filterDrawerBody');
+    assert.ok(drawerBody.querySelector('.fp-cat'), 'style filters are in the drawer');
+    assert.ok(drawerBody.querySelector('.price-min') && drawerBody.querySelector('.price-max'), 'price filter is in the drawer');
+    assert.ok(drawerBody.querySelector('.fp-size'), 'size filter is in the drawer');
+    // Style filter: keep only Anime-Inspired and the grid narrows to that style.
+    for (const cb of drawerBody.querySelectorAll('.fp-cat')) {
+      cb.checked = cb.value === 'Anime-Inspired';
+      cb.dispatchEvent(new w.Event('change', { bubbles: true }));
+    }
+    assert.ok(w.eval('getFilteredProducts().length > 0 && getFilteredProducts().every(p => p.style === "Anime-Inspired")'),
+      'the drawer style filter narrows the grid to the checked style');
+    assert.equal(d.querySelector('#filterSidebar .fp-cat[value="Anime-Inspired"]').checked, true,
+      'drawer changes sync to the desktop filter panel');
+    // Size filter through the drawer.
+    const drawerSize = drawerBody.querySelector('.fp-size');
+    drawerSize.value = 'XXL';
+    drawerSize.dispatchEvent(new w.Event('change', { bubbles: true }));
+    assert.ok(w.eval('getFilteredProducts().every(p => p.sizes.includes("XXL"))'),
+      'the drawer size filter keeps only matching sizes');
+    assert.equal(d.querySelector('#filterSidebar .fp-size').value, 'XXL', 'the size change syncs to the sidebar');
+    // Price filter through the drawer: clamping to 0 must empty the grid.
+    const drawerMax = drawerBody.querySelector('.price-max');
+    drawerMax.value = '0';
+    drawerMax.dispatchEvent(new w.Event('change', { bubbles: true }));
+    assert.equal(d.getElementById('resultCount').textContent, '0 results', 'the price filter still filters');
+    assert.ok(d.getElementById('collectionGrid').textContent.includes('No products match your filters'));
+    assert.equal(d.getElementById('filterBadge').textContent, '4',
+      'two unchecked styles + size + price count as four active filters — the collection filter no longer counts');
+    // Apply closes the drawer; Reset restores everything.
+    [...drawer.querySelectorAll('button')].find(b => b.textContent.trim() === 'Apply').click();
+    assert.equal(drawer.classList.contains('open'), false, 'Apply closes the Filter drawer');
+    w.resetFilters();
+    assert.equal(d.getElementById('filterBadge').textContent, '0', 'Reset Filters clears every remaining filter');
+    assert.ok(w.eval('getFilteredProducts().length > 0'), 'the full catalog returns after reset');
+    console.log('✅ Filter drawer opens and its style/price/size filters still work');
+
     assert.deepEqual(errors, []);
-    console.log('\n20/20 frontend scenarios passed');
+    console.log('\n22/22 frontend scenarios passed');
   } finally {
     windows.forEach(win => win.window.close());
     await new Promise(resolve => server.close(resolve));

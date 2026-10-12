@@ -372,7 +372,7 @@ DevTools-device-mode pass on iPhone SE / 390px widths before calling it done.
   Catalog failures display an alert and block shopping instead of selling mock data.
   Cart/wishlist persist as IDs and quantities, then hydrate against current API prices
   and inventory (unavailable/removed products are dropped).
-- Client pages/products/collections use URLs + Back/deep-link restoration; unknown paths
+- Client pages/products/category listings use URLs + Back/deep-link restoration; unknown paths
   return HTTP 404. Relative media paths were made root-relative for deep links.
   Canonical/OG and password-reset defaults now point to the documented production host.
 - Returns messaging now matches the 7-day policy. Checkout payment listeners and gallery

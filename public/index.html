@@ -638,8 +638,7 @@
        NEW HOMEPAGE SECTIONS — PADDING & SPACING
        ================================================================ */
     .section-categories,
-    .section-products,
-    .section-collections {
+    .section-products {
       padding: var(--spacing-2xl) 0;
     }
     .section-categories { padding: 0; }
@@ -851,78 +850,6 @@
       background: var(--accent);
       color: #FFF;
     }
-
-    /* ================================================================
-       FEATURED COLLECTIONS — ENHANCED
-       ================================================================ */
-    .collections-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: var(--spacing-md);
-      margin-top: var(--spacing-lg);
-    }
-    .collection-tile {
-      position: relative;
-      background: var(--bg-secondary);
-      border-radius: var(--radius-md);
-      padding: var(--spacing-xl) var(--spacing-lg);
-      text-align: center;
-      cursor: pointer;
-      overflow: hidden;
-      transition: transform var(--transition-med), box-shadow var(--transition-med);
-    }
-    .collection-tile:hover {
-      transform: translateY(-4px);
-      box-shadow: var(--shadow-hover);
-    }
-    .collection-tile::before {
-      content: '影';
-      position: absolute;
-      top: -20px;
-      right: -10px;
-      font-family: var(--font-kanji);
-      font-size: 6rem;
-      font-weight: 900;
-      color: var(--accent);
-      opacity: 0.06;
-      pointer-events: none;
-      transition: opacity var(--transition-med);
-    }
-    .collection-tile:hover::before { opacity: 0.12; }
-    .collection-tile h3 {
-      font-family: var(--font-display);
-      font-size: clamp(1rem, 2.5vw, 1.5rem);
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      margin-bottom: var(--spacing-sm);
-      position: relative;
-      z-index: 1;
-    }
-    .collection-tile p {
-      color: var(--text-muted);
-      font-size: 0.8rem;
-      line-height: 1.6;
-      margin-bottom: var(--spacing-md);
-      position: relative;
-      z-index: 1;
-    }
-    .collection-tile .tag {
-      display: inline-block;
-      font-size: 0.55rem;
-      font-weight: 700;
-      letter-spacing: 0.15em;
-      text-transform: uppercase;
-      color: var(--accent);
-      border: 1px solid var(--accent);
-      padding: 0.2rem 0.6rem;
-      border-radius: var(--radius-sm);
-      position: relative;
-      z-index: 1;
-    }
-    @media (max-width: 768px) {
-      .collections-grid { grid-template-columns: 1fr; }
-    }
-
     /* ================================================================
        FLASH DEAL BANNER
        ================================================================ */
@@ -1056,10 +983,6 @@
       min-height: 1.2em;
     }
 
-    /* ================================================================
-       COLLECTIONS — LIGHT (kept for backward compat)
-       ================================================================ */
-    .home-collections { padding: var(--spacing-lg) 0 var(--spacing-xl); }
 
     /* ================================================================
        COLLECTION / CATEGORY PAGE — LIGHT
@@ -2321,19 +2244,6 @@
 
 
     /* ================================================================
-       COLLECTION TILE ENHANCED
-       ================================================================ */
-    .collection-tile {
-      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
-      transition: transform 0.3s ease, box-shadow 0.3s ease;
-    }
-    .collection-tile:hover {
-      transform: translateY(-4px);
-      box-shadow: 0 16px 40px rgba(0,0,0,0.12);
-      opacity: 1;
-    }
-
-    /* ================================================================
        NAV LINK UNDERLINE ANIMATION
        ================================================================ */
     .nav-links a {
@@ -2525,7 +2435,6 @@
       .footer-main { grid-template-columns: 1fr; }
       .footer-newsletter { text-align: left; }
       .footer-newsletter .newsletter-form { justify-content: flex-start; }
-      .collections-grid { grid-template-columns: repeat(2, 1fr); }
       .explore-links { grid-template-columns: repeat(2, 1fr); }
     }
 
@@ -2554,7 +2463,6 @@
       .mobile-search { display: block; }
       .mobile-icons-row { display: flex; align-items: center; gap: var(--spacing-md); padding-top: var(--spacing-md); margin-top: var(--spacing-sm); border-top: 1px solid var(--border-color); justify-content: center; }
 
-      .collections-grid { grid-template-columns: 1fr; }
       .footer-main { grid-template-columns: 1fr; }
       .footer-bottom { flex-direction: column; text-align: center; }
       .cart-drawer { width: 100%; max-width: 100vw; }
@@ -2768,75 +2676,6 @@
       text-transform: uppercase;
       letter-spacing: 0.1em;
       margin-top: var(--spacing-md);
-    }
-    /* Product collection cards */
-    .collection-cards {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-      gap: 1.5rem;
-    }
-    .collection-card {
-      border: 1px solid var(--border-color);
-      border-radius: var(--radius-md);
-      overflow: hidden;
-      background: var(--bg-card);
-      transition: transform var(--transition-fast), box-shadow var(--transition-fast);
-    }
-    .collection-card:hover {
-      transform: translateY(-4px);
-      box-shadow: var(--shadow-hover);
-    }
-    .collection-card-img {
-      width: 100%;
-      aspect-ratio: 1/1.15;
-      background: #1A1815;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 3rem;
-      position: relative;
-      overflow: hidden;
-    }
-    .collection-card-img::after {
-      content: '';
-      position: absolute;
-      inset: 0;
-      background: linear-gradient(180deg, transparent 50%, rgba(26,24,21,0.6) 80%, rgba(26,24,21,0.95) 100%), radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.3) 100%);
-      pointer-events: none;
-    }
-    .collection-card-img .coming-soon-tag {
-      position: absolute;
-      top: 1rem;
-      right: 1rem;
-      padding: 0.3rem 0.7rem;
-      background: var(--accent);
-      color: #FFF;
-      font-size: 0.6rem;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      border-radius: 4px;
-    }
-    .collection-card-body {
-      padding: 1.2rem;
-    }
-    .collection-card-body h3 {
-      font-size: 1rem;
-      font-weight: 800;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-      margin-bottom: 0.3rem;
-    }
-    .collection-card-body p {
-      font-size: 0.82rem;
-      color: var(--text-muted);
-      line-height: 1.55;
-    }
-    .collection-card-body .card-price {
-      margin-top: 0.8rem;
-      font-size: 0.75rem;
-      color: var(--accent);
-      font-weight: 700;
     }
     /* Notify Me inline form */
     .notify-form {
@@ -4517,7 +4356,7 @@
           <ul style="list-style: none; padding: 0;">
             <li style="padding: 0.3rem 0;">• Order details, including your name, email address, phone number, delivery address, and city</li>
             <li style="padding: 0.3rem 0;">• Customer account details, including your name and email address, a password stored as a hash, and any phone number, address, and city added to your profile</li>
-            <li style="padding: 0.3rem 0;">• Email addresses submitted through newsletter or product-notification forms; product-notification requests also record the selected collection</li>
+            <li style="padding: 0.3rem 0;">• Email addresses submitted through newsletter or product-notification forms; product-notification requests also record the selected category</li>
           </ul>
 
           <h3>How We Use Your Information</h3>
@@ -4670,53 +4509,53 @@
   <!-- JAVASCRIPT -->
   <script>
     let allProducts = [
-      { id:1, name:'Shadow Fit', price:1499, fit:'Compression', collection:'compression', collections:['the-vault'], style:'Japanese Art', rating:4.6,
+      { id:1, name:'Shadow Fit', price:1499, fit:'Compression', collection:'compression', style:'Japanese Art', rating:4.6,
         desc:'4-way stretch muscle-fit compression shirt. Second-skin feel with maximum mobility.',
         sizes:['S','M','L','XL','XXL'],
         images:['data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 300 400%22%3E%3Crect fill=%22%23C4BEB0%22 width=%22300%22 height=%22400%22/%3E%3Ctext x=%22150%22 y=%22200%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2224%22%3E%E2%86%91%3C/text%3E%3Ctext x=%22150%22 y=%22220%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2210%22%3EShadow Fit%3C/text%3E%3C/svg%3E',
         'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 300 400%22%3E%3Crect fill=%22%23C4BEB0%22 width=%22300%22 height=%22400%22/%3E%3Ctext x=%22150%22 y=%22200%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2224%22%3E%E2%86%93%3C/text%3E%3Ctext x=%22150%22 y=%22220%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2210%22%3EShadow Back%3C/text%3E%3C/svg%3E'] },
-      { id:2, name:'Oni Muscle Tee', price:1599, fit:'Compression', collection:'compression', collections:['iron-code'], style:'Anime-Inspired', rating:4.8, variants:[{label:'Black',price:1599},{label:'White',price:1699}],
+      { id:2, name:'Oni Muscle Tee', price:1599, fit:'Compression', collection:'compression', style:'Anime-Inspired', rating:4.8, variants:[{label:'Black',price:1599},{label:'White',price:1699}],
         desc:'Sleeveless compression with bold contrast panels. For those who train until the mask drops.',
         sizes:['S','M','L','XL','XXL'],
         images:['data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 300 400%22%3E%3Crect fill=%22%23C4BEB0%22 width=%22300%22 height=%22400%22/%3E%3Ctext x=%22150%22 y=%22200%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2224%22%3E%E2%86%91%3C/text%3E%3Ctext x=%22150%22 y=%22220%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2210%22%3EOni Front%3C/text%3E%3C/svg%3E',
         'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 300 400%22%3E%3Crect fill=%22%23C4BEB0%22 width=%22300%22 height=%22400%22/%3E%3Ctext x=%22150%22 y=%22200%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2224%22%3E%E2%86%93%3C/text%3E%3Ctext x=%22150%22 y=%22220%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2210%22%3EOni Back%3C/text%3E%3C/svg%3E',
         'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 300 400%22%3E%3Crect fill=%22%23C4BEB0%22 width=%22300%22 height=%22400%22/%3E%3Ctext x=%22150%22 y=%22200%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2224%22%3E%E2%96%B2%3C/text%3E%3Ctext x=%22150%22 y=%22220%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2210%22%3ESide%3C/text%3E%3C/svg%3E'] },
-      { id:3, name:'Kage Core Compression', price:1399, fit:'Compression', collection:'compression', collections:['after-hours'], style:'Typography', rating:4.4,
+      { id:3, name:'Kage Core Compression', price:1399, fit:'Compression', collection:'compression', style:'Typography', rating:4.4,
         desc:'Core compression layer — seamless, breathable, built for combat-level intensity.',
         sizes:['S','M','L','XL','XXL'],
         images:['data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 300 400%22%3E%3Crect fill=%22%23C4BEB0%22 width=%22300%22 height=%22400%22/%3E%3Ctext x=%22150%22 y=%22200%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2224%22%3E%E2%86%91%3C/text%3E%3Ctext x=%22150%22 y=%22220%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2210%22%3ECore%3C/text%3E%3C/svg%3E',
         'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 300 400%22%3E%3Crect fill=%22%23C4BEB0%22 width=%22300%22 height=%22400%22/%3E%3Ctext x=%22150%22 y=%22200%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2224%22%3E%E2%86%93%3C/text%3E%3Ctext x=%22150%22 y=%22220%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2210%22%3ECore Back%3C/text%3E%3C/svg%3E'] },
-      { id:4, name:'Rising Vermillion', price:999, fit:'Regular', collection:'graphic-tees', collections:['the-vault'], style:'Japanese Art', rating:4.7, on_sale:true, sale_price:799,
+      { id:4, name:'Rising Vermillion', price:999, fit:'Regular', collection:'graphic-tees', style:'Japanese Art', rating:4.7, on_sale:true, sale_price:799,
         desc:'Heavyweight 220GSM cotton tee. A gradient sky turned crimson.',
         sizes:['S','M','L','XL','XXL'],
         images:['data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 300 400%22%3E%3Crect fill=%22%23C4BEB0%22 width=%22300%22 height=%22400%22/%3E%3Ctext x=%22150%22 y=%22200%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2224%22%3E%E2%86%91%3C/text%3E%3Ctext x=%22150%22 y=%22220%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2210%22%3EVermillion%3C/text%3E%3C/svg%3E',
         'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 300 400%22%3E%3Crect fill=%22%23C4BEB0%22 width=%22300%22 height=%22400%22/%3E%3Ctext x=%22150%22 y=%22200%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2224%22%3E%E2%86%93%3C/text%3E%3Ctext x=%22150%22 y=%22220%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2210%22%3EBack%3C/text%3E%3C/svg%3E'] },
-      { id:5, name:'Blade Wolf', price:1149, fit:'Regular', collection:'graphic-tees', collections:['iron-code'], style:'Anime-Inspired', rating:4.9, variants:[{label:'Black',price:1149},{label:'Crimson',price:1199}],
+      { id:5, name:'Blade Wolf', price:1149, fit:'Regular', collection:'graphic-tees', style:'Anime-Inspired', rating:4.9, variants:[{label:'Black',price:1149},{label:'Crimson',price:1199}],
         desc:'Silver ink on black — a lone wolf under a crescent moon.',
         sizes:['S','M','L','XL','XXL'],
         images:['data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 300 400%22%3E%3Crect fill=%22%23C4BEB0%22 width=%22300%22 height=%22400%22/%3E%3Ctext x=%22150%22 y=%22200%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2224%22%3E%E2%86%91%3C/text%3E%3Ctext x=%22150%22 y=%22220%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2210%22%3EBlade Wolf%3C/text%3E%3C/svg%3E',
         'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 300 400%22%3E%3Crect fill=%22%23C4BEB0%22 width=%22300%22 height=%22400%22/%3E%3Ctext x=%22150%22 y=%22200%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2224%22%3E%E2%86%93%3C/text%3E%3Ctext x=%22150%22 y=%22220%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2210%22%3EWolf Back%3C/text%3E%3C/svg%3E'] },
-      { id:6, name:'Neon Fangs', price:1049, fit:'Regular', collection:'graphic-tees', collections:['after-hours'], style:'Anime-Inspired', rating:4.3,
+      { id:6, name:'Neon Fangs', price:1049, fit:'Regular', collection:'graphic-tees', style:'Anime-Inspired', rating:4.3,
         desc:'Electric strike — neon clash across heavyweight cotton.',
         sizes:['S','M','L','XL','XXL'],
         images:['data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 300 400%22%3E%3Crect fill=%22%23C4BEB0%22 width=%22300%22 height=%22400%22/%3E%3Ctext x=%22150%22 y=%22200%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2224%22%3E%E2%86%91%3C/text%3E%3Ctext x=%22150%22 y=%22220%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2210%22%3ENeon%3C/text%3E%3C/svg%3E',
         'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 300 400%22%3E%3Crect fill=%22%23C4BEB0%22 width=%22300%22 height=%22400%22/%3E%3Ctext x=%22150%22 y=%22200%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2224%22%3E%E2%86%93%3C/text%3E%3Ctext x=%22150%22 y=%22220%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2210%22%3EFangs Back%3C/text%3E%3C/svg%3E'] },
-      { id:7, name:'Shinobi Mark', price:999, fit:'Regular', collection:'graphic-tees', collections:[], style:'Japanese Art', rating:4.5,
+      { id:7, name:'Shinobi Mark', price:999, fit:'Regular', collection:'graphic-tees', style:'Japanese Art', rating:4.5,
         desc:'Minimalist shinobi crest. High-contrast placement on premium 220GSM cotton.',
         sizes:['S','M','L','XL','XXL'],
         images:['data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 300 400%22%3E%3Crect fill=%22%23C4BEB0%22 width=%22300%22 height=%22400%22/%3E%3Ctext x=%22150%22 y=%22200%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2224%22%3E%E2%86%91%3C/text%3E%3Ctext x=%22150%22 y=%22220%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2210%22%3EShinobi%3C/text%3E%3C/svg%3E',
         'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 300 400%22%3E%3Crect fill=%22%23C4BEB0%22 width=%22300%22 height=%22400%22/%3E%3Ctext x=%22150%22 y=%22200%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2224%22%3E%E2%86%93%3C/text%3E%3Ctext x=%22150%22 y=%22220%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2210%22%3EShinobi Back%3C/text%3E%3C/svg%3E'] },
-      { id:8, name:'Drift Oversized', price:1199, fit:'Oversized', collection:'oversized', collections:['the-vault'], style:'Typography', rating:4.2, variants:[{label:'Black',price:1199},{label:'Ash',price:1249}],
+      { id:8, name:'Drift Oversized', price:1199, fit:'Oversized', collection:'oversized', style:'Typography', rating:4.2, variants:[{label:'Black',price:1199},{label:'Ash',price:1249}],
         desc:'Drop-shoulder, relaxed fit — heavyweight cotton.',
         sizes:['S','M','L','XL','XXL'],
         images:['data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 300 400%22%3E%3Crect fill=%22%23C4BEB0%22 width=%22300%22 height=%22400%22/%3E%3Ctext x=%22150%22 y=%22200%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2224%22%3E%E2%86%91%3C/text%3E%3Ctext x=%22150%22 y=%22220%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2210%22%3EDrift%3C/text%3E%3C/svg%3E',
         'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 300 400%22%3E%3Crect fill=%22%23C4BEB0%22 width=%22300%22 height=%22400%22/%3E%3Ctext x=%22150%22 y=%22200%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2224%22%3E%E2%86%93%3C/text%3E%3Ctext x=%22150%22 y=%22220%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2210%22%3EDrift Back%3C/text%3E%3C/svg%3E'] },
-      { id:9, name:'Wrath Silhouette', price:1249, fit:'Oversized', collection:'oversized', collections:['iron-code'], style:'Anime-Inspired', rating:4.7, on_sale:true, sale_price:1099,
+      { id:9, name:'Wrath Silhouette', price:1249, fit:'Oversized', collection:'oversized', style:'Anime-Inspired', rating:4.7, on_sale:true, sale_price:1099,
         desc:'Boxy, cropped oversized fit. Built for those who take up space.',
         sizes:['S','M','L','XL','XXL'],
         images:['data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 300 400%22%3E%3Crect fill=%22%23C4BEB0%22 width=%22300%22 height=%22400%22/%3E%3Ctext x=%22150%22 y=%22200%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2224%22%3E%E2%86%91%3C/text%3E%3Ctext x=%22150%22 y=%22220%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2210%22%3EWrath%3C/text%3E%3C/svg%3E',
         'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 300 400%22%3E%3Crect fill=%22%23C4BEB0%22 width=%22300%22 height=%22400%22/%3E%3Ctext x=%22150%22 y=%22200%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2224%22%3E%E2%86%93%3C/text%3E%3Ctext x=%22150%22 y=%22220%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2210%22%3EWrath Back%3C/text%3E%3C/svg%3E'] },
-      { id:10, name:'Hollow Gaze', price:1149, fit:'Oversized', collection:'oversized', collections:['after-hours'], style:'Japanese Art', rating:4.6,
+      { id:10, name:'Hollow Gaze', price:1149, fit:'Oversized', collection:'oversized', style:'Japanese Art', rating:4.6,
         desc:'Extended drop-shoulder with raw hem. Unsettling and calm.',
         sizes:['S','M','L','XL','XXL'],
         images:['data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 300 400%22%3E%3Crect fill=%22%23C4BEB0%22 width=%22300%22 height=%22400%22/%3E%3Ctext x=%22150%22 y=%22200%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2224%22%3E%E2%86%91%3C/text%3E%3Ctext x=%22150%22 y=%22220%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2210%22%3EHollow%3C/text%3E%3C/svg%3E',
@@ -4788,8 +4627,7 @@
       cats: new Set(['Anime-Inspired', 'Japanese Art', 'Typography']),
       priceMin: 0,
       priceMax: 10000,
-      size: '',
-      collection: ''
+      size: ''
     };
 
     function fmt(n) { return Number(n).toLocaleString('en-IN'); }
@@ -4924,6 +4762,10 @@
     // if nothing is in stock). 'pants' is handled via the homepage tile.
     const COMING_SOON_CATS = ['compression', 'oversized', 'sale'];
     const CATEGORY_NAMES = { 'anime': 'Anime Shirts', 'graphic-tees': 'Graphic Tees', 'pants': 'Pants', 'compression': 'Compression', 'oversized': 'Oversized', 'sale': 'Sale' };
+    // The only slugs /collection/xxx accepts. Anything else — including the
+    // removed themed pages — is treated like any unknown slug and lands on
+    // the full catalog at /collection/all.
+    const COLLECTION_FILTERS = ['all', 'new', 'sale', 'anime', 'graphic-tees', 'pants', 'compression', 'oversized'];
     // Mirrors config.js / admin CATEGORY_OPTIONS for test inspection.
     const CATEGORY_OPTIONS = [
       { value: 'graphic-tees', label: 'Graphic Tees' },
@@ -5017,7 +4859,7 @@
     let restoringHistory = false;
     function routeFor(page, filter) {
       if (page === 'home') return '/';
-      if (page === 'collection' || page === 'collections') return '/collection/' + encodeURIComponent(filter || 'all');
+      if (page === 'collection') return '/collection/' + encodeURIComponent(filter || 'all');
       if (page === 'product' && currentProduct) return '/product/' + currentProduct.id;
       if (page === 'reset') return location.pathname === '/reset-password' ? location.pathname + location.search : '/reset-password';
       if (page === 'verify') return location.pathname === '/verify-email' ? location.pathname + location.search : '/verify-email';
@@ -5033,7 +4875,14 @@
           if (Number.isInteger(id) && allProducts.some(p => p.id === id)) openProductDetail(id);
           else navigateTo('not-found');
         } else if (path.startsWith('/collection/')) {
-          navigateTo('collection', path.slice('/collection/'.length));
+          const slug = path.slice('/collection/'.length);
+          if (COLLECTION_FILTERS.includes(slug)) navigateTo('collection', slug);
+          else {
+            // Unknown or removed collection slugs behave like any unknown
+            // collection URL: land on the full catalog at /collection/all.
+            history.replaceState(null, '', '/collection/all');
+            navigateTo('collection', 'all');
+          }
         } else if (path === '/confirmation') {
           if (lastOrder) navigateTo('confirmation');
           else {
@@ -5058,9 +4907,14 @@
 
     function navigateTo(page, filter, options = {}) {
       document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-      const isCollectionRoute = (page === 'collection' || page === 'collections');
+      if (page === 'collection') {
+        // Deleted/unknown collection slugs render the full catalog instead of
+        // a broken or half-filtered page (matches the deep-link handling above).
+        filter = (filter && COLLECTION_FILTERS.includes(filter)) ? filter : 'all';
+      }
+      const isCollectionRoute = (page === 'collection');
       let target = page;
-      if (page === 'collection' || page === 'collections') {
+      if (page === 'collection') {
         if (COMING_SOON_CATS.includes(filter) && !categoryHasLiveProducts(filter)) {
           target = 'coming-soon';
         } else {
@@ -5249,8 +5103,8 @@
       // plain homepage keeps it hidden.
       shopCollectionMode = opts.collection === true;
       applyShopVisibility();
-      const titles = { 'all':'FEATURED DROPS | NEW ARRIVALS','new':'NEW ARRIVALS','anime':'ANIME SHIRTS','graphic-tees':'GRAPHIC TEES','pants':'PANTS','sale':'ON SALE','the-vault':'THE VAULT COLLECTION','iron-code':'IRON CODE COLLECTION','after-hours':'AFTER HOURS COLLECTION' };
-const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.','anime':'Anime-inspired art on premium cotton. Each piece is unique — one size, one chance.','graphic-tees':'Original graphic designs on premium cotton.','pants':'Relaxed, everyday fits to match the drops.','sale':'Limited-time markdowns. When it\'s gone, it\'s gone.','the-vault':'Power without effort.','iron-code':'Relentless self-made strength.','after-hours':'Quiet, terrifying precision.' };
+      const titles = { 'all':'FEATURED DROPS | NEW ARRIVALS','new':'NEW ARRIVALS','anime':'ANIME SHIRTS','graphic-tees':'GRAPHIC TEES','pants':'PANTS','sale':'ON SALE' };
+const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.','anime':'Anime-inspired art on premium cotton. Each piece is unique — one size, one chance.','graphic-tees':'Original graphic designs on premium cotton.','pants':'Relaxed, everyday fits to match the drops.','sale':'Limited-time markdowns. When it\'s gone, it\'s gone.' };
       document.getElementById('collectionTitle').textContent = titles[filter] || titles.all;
       document.getElementById('collectionDesc').textContent = descs[filter] || '';
       const eb = document.getElementById('shopEyebrow');
@@ -5269,7 +5123,6 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
         if (filter === 'new') f = f.slice(0, 8);
         else if (filter === 'sale') f = f.filter(p => p.on_sale || (p.sale_price && p.sale_price < p.price));
         else if (['anime','graphic-tees','pants'].includes(filter)) f = f.filter(p => p.collection === filter);
-        else if (['the-vault','iron-code','after-hours'].includes(filter)) f = f.filter(p => p.collections && p.collections.includes(filter));
       }
       if (searchQuery.trim()) {
         const q = searchQuery.trim().toLowerCase();
@@ -5284,7 +5137,6 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
         return r.max >= filterState.priceMin && r.min <= filterState.priceMax;
       });
       if (filterState.size) f = f.filter(p => p.sizes && p.sizes.includes(filterState.size));
-      if (filterState.collection) f = f.filter(p => p.collections && p.collections.includes(filterState.collection));
       const sort = document.getElementById('sortSelect').value;
       if (sort === 'price-low') f.sort((a,b) => getPriceRange(a).min - getPriceRange(b).min);
       else if (sort === 'price-high') f.sort((a,b) => getPriceRange(b).min - getPriceRange(a).min);
@@ -5297,7 +5149,6 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       if (filterState.cats.size > 0 && filterState.cats.size < 3) c += 3 - filterState.cats.size;
       if (filterState.priceMin > 0 || filterState.priceMax < 10000) c += 1;
       if (filterState.size) c += 1;
-      if (filterState.collection) c += 1;
       return c;
     }
 
@@ -5322,7 +5173,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       // nothing in that category is in stock, show a 'No X available right now' message
       // instead of a wall of SOLD OUT cards. Other combinations (search, extra filters)
       // fall through to the generic "No products match your filters" notice.
-      const isBrowsingCategory = currentCollectionFilter && ['anime','graphic-tees','pants','sale'].includes(currentCollectionFilter) && !searchQuery.trim() && !wishlistOnly && filterState.cats.size === 3 && filterState.priceMin === 0 && filterState.priceMax === 10000 && !filterState.size && !filterState.collection;
+      const isBrowsingCategory = currentCollectionFilter && ['anime','graphic-tees','pants','sale'].includes(currentCollectionFilter) && !searchQuery.trim() && !wishlistOnly && filterState.cats.size === 3 && filterState.priceMin === 0 && filterState.priceMax === 10000 && !filterState.size;
       const availableInFilter = filtered.filter(isAvailable);
       if (isBrowsingCategory && availableInFilter.length === 0) {
         const name = CATEGORY_NAMES[currentCollectionFilter] || currentCollectionFilter;
@@ -5657,15 +5508,6 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
             <option value="XXL">XXL</option>
           </select>
         </div>
-        <div class="filter-section" data-group="collection">
-          <h4>Collection</h4>
-          <select class="sort-select fp-collection">
-            <option value="">All Collections</option>
-            <option value="the-vault">The Vault</option>
-            <option value="iron-code">Iron Code</option>
-            <option value="after-hours">After Hours</option>
-          </select>
-        </div>
         <button class="btn btn-outline btn-sm" onclick="resetFilters()" style="width:100%;margin-top:0.25rem;">Reset Filters</button>`;
     }
 
@@ -5675,8 +5517,6 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       if (mn && mx) { filterState.priceMin = parseInt(mn.value); filterState.priceMax = parseInt(mx.value); }
       const sz = panel.querySelector('.fp-size');
       if (sz) filterState.size = sz.value;
-      const col = panel.querySelector('.fp-collection');
-      if (col) filterState.collection = col.value;
     }
 
     function updateSliderVisuals(panel) {
@@ -5698,8 +5538,6 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
         if (mn && mx) { mn.value = filterState.priceMin; mx.value = filterState.priceMax; }
         const sz = panel.querySelector('.fp-size');
         if (sz) sz.value = filterState.size;
-        const col = panel.querySelector('.fp-collection');
-        if (col) col.value = filterState.collection;
         updateSliderVisuals(panel);
       });
     }
@@ -5719,7 +5557,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
         const panel = e.target.closest('.filter-panel');
         if (!panel) return;
         const t = e.target;
-        if (t.classList.contains('fp-cat') || t.classList.contains('fp-size') || t.classList.contains('fp-collection') || t.classList.contains('price-min') || t.classList.contains('price-max')) {
+        if (t.classList.contains('fp-cat') || t.classList.contains('fp-size') || t.classList.contains('price-min') || t.classList.contains('price-max')) {
           readFiltersFromPanel(panel);
           syncFiltersToPanels();
           renderCollectionGrid();
@@ -5750,7 +5588,6 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       filterState.priceMin = 0;
       filterState.priceMax = 10000;
       filterState.size = '';
-      filterState.collection = '';
       filterState.sort = 'featured';
       wishlistOnly = false;
       const wn = document.getElementById('wishlistNav');
@@ -6511,7 +6348,6 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
             fit: p.fit || 'Regular',
             collection: p.category,
             drop: p.drop || '',
-            collections: p.collections && p.collections.length ? p.collections : (art ? art.collections : []),
             style: p.style || (art ? art.style : ['Anime-Inspired','Japanese Art','Typography'][Math.abs(p.id) % 3]),
             rating: (p.avg_rating != null && p.review_count > 0) ? p.avg_rating : null, // real, from approved reviews only
             variants: art ? art.variants : null,

@@ -55,6 +55,9 @@ const DDL = [
     back_image TEXT,
     extra_images TEXT DEFAULT '[]',
     in_stock INTEGER DEFAULT 1,
+    -- Legacy themed-collections column: real 192c9dc databases have it, so the
+    -- fixture keeps it to prove upgrades of such databases stay safe. Current
+    -- code never reads or writes it (and never drops it).
     collections TEXT DEFAULT '[]',
     stock_qty INTEGER,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -212,7 +215,6 @@ const PRODUCTS = [
     on_sale: 0,
     description: 'Original art tee',
     sizes: '["S","M","L"]',
-    collections: '["graphic-tees"]',
     stock_qty: 5,
     in_stock: 1
   },
@@ -225,7 +227,6 @@ const PRODUCTS = [
     on_sale: 1,
     description: 'Anime art shirt',
     sizes: '["M","L","XL"]',
-    collections: '["anime"]',
     stock_qty: 2, // the sum of its product_size_stock rows below
     in_stock: 1
   }
@@ -248,9 +249,9 @@ async function buildLegacyDatabase(db, { bcrypt } = {}) {
 
   for (const p of PRODUCTS) {
     insert(
-      `INSERT INTO products (name, category, fit, price, sale_price, on_sale, description, sizes, extra_images, in_stock, collections, stock_qty, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, '[]', ?, ?, ?, '2026-07-01 09:00:00', '2026-07-01 09:00:00')`,
-      [p.name, p.category, p.fit, p.price, p.sale_price, p.on_sale, p.description, p.sizes, p.in_stock, p.collections, p.stock_qty]
+      `INSERT INTO products (name, category, fit, price, sale_price, on_sale, description, sizes, extra_images, in_stock, stock_qty, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, '[]', ?, ?, '2026-07-01 09:00:00', '2026-07-01 09:00:00')`,
+      [p.name, p.category, p.fit, p.price, p.sale_price, p.on_sale, p.description, p.sizes, p.in_stock, p.stock_qty]
     );
   }
 
