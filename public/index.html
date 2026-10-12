@@ -110,7 +110,6 @@
     }
 
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
-    html { scroll-behavior: smooth; }
 
     /* Skip-to-content link — hidden until focused via keyboard */
     .skip-link {
@@ -711,8 +710,9 @@
     .product-grid .product-card-image img {
       width: 100%;
       height: 100%;
-      object-fit: contain;
-      padding: 8%;
+      object-fit: cover;
+      object-position: center;
+      padding: 0;
       transition: transform var(--transition-slow);
     }
     .product-grid .product-card:hover .product-card-image img {
@@ -1101,8 +1101,9 @@
     .product-card-image .img-back {
       position: absolute; top: 0; left: 0;
       width: 100%; height: 100%;
-      object-fit: contain;
-      padding: 10%;
+      object-fit: cover;
+      object-position: center;
+      padding: 0;
       transition: opacity var(--transition-med);
     }
     .product-card-image .img-front { opacity: 1; z-index: 1; }
@@ -1482,8 +1483,9 @@
     }
     .detail-main-image .gallery-track img {
       width: 100%; height: 100%;
-      object-fit: contain;
-      padding: 5%;
+      object-fit: cover;
+      object-position: center;
+      padding: 0;
       flex-shrink: 0;
     }
 
@@ -1511,7 +1513,7 @@
       cursor: pointer; opacity: 0.5;
       transition: all var(--transition-fast);
     }
-    .detail-thumb img { width: 100%; height: 100%; object-fit: contain; padding: 10%; }
+    .detail-thumb img { width: 100%; height: 100%; object-fit: cover; object-position: center; padding: 0; }
     .detail-thumb.active { opacity: 1; border-color: var(--text-primary); }
 
     /* Main gallery image opens the zoom view on tap/click */
@@ -1683,7 +1685,7 @@
       border-bottom: 1px solid var(--border-color); align-items: center;
     }
     .cart-item-image { width: 55px; height: 55px; background: var(--bg-card-image); }
-    .cart-item-image img { width: 100%; height: 100%; object-fit: contain; padding: 8%; }
+    .cart-item-image img { width: 100%; height: 100%; object-fit: cover; object-position: center; padding: 0; }
     .cart-item-info h4 { font-size: 0.75rem; font-weight: 700; }
     .cart-item-meta { font-size: 0.65rem; color: var(--text-muted); }
     .cart-item-price { font-weight: 700; font-size: 0.8rem; }
@@ -2158,32 +2160,6 @@
       text-align: center;
     }
     .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
-
-    /* ================================================================
-       SCROLL-REVEAL ANIMATIONS
-       ================================================================ */
-    .reveal {
-      opacity: 0;
-      transform: translateY(30px);
-      transition: opacity 0.7s cubic-bezier(0.25, 0.46, 0.45, 0.94),
-                  transform 0.7s cubic-bezier(0.25, 0.46, 0.45, 0.94);
-    }
-    .reveal.visible {
-      opacity: 1;
-      transform: translateY(0);
-    }
-    .reveal-delay-1 { transition-delay: 0.1s; }
-    .reveal-delay-2 { transition-delay: 0.2s; }
-    .reveal-delay-3 { transition-delay: 0.3s; }
-    .reveal-scale {
-      opacity: 0;
-      transform: scale(0.95);
-      transition: opacity 0.6s ease, transform 0.6s ease;
-    }
-    .reveal-scale.visible {
-      opacity: 1;
-      transform: scale(1);
-    }
 
     /* ================================================================
        ENHANCED PRODUCT CARD HOVER
@@ -3810,7 +3786,7 @@
     <section class="section-why" id="sectionWhy">
       <div class="container">
         <div class="why-grid">
-          <div class="why-item reveal">
+          <div class="why-item">
             <div class="why-icon">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1 3h15v13H1zM16 8h4l3 3v5h-7M5.5 21a2.5 2.5 0 100-5 2.5 2.5 0 000 5zM18.5 21a2.5 2.5 0 100-5 2.5 2.5 0 000 5z"/></svg>
             </div>
@@ -3818,21 +3794,21 @@
             <p>Quick, safe delivery on every order.</p>
           </div>
 
-          <div class="why-item reveal">
+          <div class="why-item">
             <div class="why-icon">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2l9 5v10l-9 5-9-5V7l9-5zM2 7l10 5 10-5M12 12v10"/></svg>
             </div>
             <h4>Easy Returns</h4>
             <p>Request returns within 7 days; conditions apply.</p>
           </div>
-          <div class="why-item reveal">
+          <div class="why-item">
             <div class="why-icon">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
             </div>
             <h4>Quality Assured</h4>
             <p>Best fabrics, best finish, every drop.</p>
           </div>
-          <div class="why-item reveal">
+          <div class="why-item">
             <div class="why-icon">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
             </div>
@@ -3931,16 +3907,7 @@
     <!-- Shared site footer: this single footer stays visible on every SPA page. -->
     <footer class="site-footer watermark wm-bottom" style="position:relative;overflow:hidden;">
       <div class="container">
-        <div class="footer-main reveal">
-          <div class="footer-col footer-shop" id="footerShopCol">
-            <h4>Shop</h4>
-            <ul>
-              <li><a href="/collection/anime" data-nav="anime" onclick="navigateTo('collection','anime'); return false;">Anime Shirts</a></li>
-              <li><a href="/collection/graphic-tees" data-nav="graphic-tees" onclick="navigateTo('collection','graphic-tees'); return false;">Graphic Tees</a></li>
-              <li id="footerPantsItem" style="display:none;"><a href="/collection/pants" data-nav="pants" onclick="navigateTo('collection','pants'); return false;">Pants</a></li>
-              <li><a href="/collection/all" onclick="navigateTo('collection','all'); return false;">All Products</a></li>
-            </ul>
-          </div>
+        <div class="footer-main">
           <div class="footer-col footer-help">
             <h4>Help</h4>
             <ul>
@@ -4822,8 +4789,6 @@
       const live = categoryHasLiveProducts('pants');
       const navItem = document.getElementById('navPantsItem');
       if (navItem) navItem.style.display = live ? '' : 'none';
-      const footerItem = document.getElementById('footerPantsItem');
-      if (footerItem) footerItem.style.display = live ? '' : 'none';
     }
     window.syncPantsCategoryVisibility = syncPantsCategoryVisibility;
         let productsLoadedFromApi = false;
@@ -5187,7 +5152,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
     function nextPage() {
       const total = getFilteredProducts().length;
       const totalPages = Math.max(1, Math.ceil(total / perPage));
-      if (currentPage < totalPages) { currentPage++; renderCollectionGrid(); window.scrollTo({ top: document.getElementById('collectionGrid').offsetTop - 80, behavior: 'smooth' }); }
+      if (currentPage < totalPages) { currentPage++; renderCollectionGrid(); window.scrollTo({ top: document.getElementById('collectionGrid').offsetTop - 80, behavior: 'auto' }); }
     }
 
     // ---------- Search ----------
@@ -5420,7 +5385,6 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
         return db - da;
       }).slice(0, 8);
       grid.innerHTML = sorted.map(renderProductCard).join('');
-      initScrollReveal();
     }
 
     // Initialize all homepage sections after products load
@@ -6022,12 +5986,10 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
         if (!fresh.length) { section.style.display = 'none'; return; }
         section.style.display = '';
         grid.innerHTML = fresh.map(renderProductCard).join('');
-        initScrollReveal();
         return;
       }
       section.style.display = '';
       grid.innerHTML = items.map(renderProductCard).join('');
-      initScrollReveal();
     }
 
     // ---------- Stock urgency (real inventory only) ----------
@@ -6255,30 +6217,6 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
     // ================================================================
     // PARALLAX WATERMARK
     // ================================================================
-    function initWatermarkParallax() {
-      const wms = document.querySelectorAll('.watermark');
-      if (wms.length === 0) return;
-      let ticking = false;
-      window.addEventListener('scroll', () => {
-        if (!ticking) {
-          requestAnimationFrame(() => {
-            wms.forEach(el => {
-              const rect = el.getBoundingClientRect();
-              const viewportCenter = window.innerHeight / 2;
-              const elCenter = rect.top + rect.height / 2;
-              const distFromCenter = elCenter - viewportCenter;
-              // Subtle offset: moves ~15% of the distance from center
-              const offset = distFromCenter * 0.15;
-              el.style.setProperty('--wm-offset', offset + 'px');
-            });
-            ticking = false;
-          });
-          ticking = true;
-        }
-      });
-      // Trigger once on load
-      window.dispatchEvent(new Event('scroll'));
-    }
 
     // Init
     // Load products from API (overrides hardcoded defaults when server is running)
@@ -6700,7 +6638,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
     const requestedPath = location.pathname;
     if (requestedPath === '/confirmation' && !lastOrder) history.replaceState(null, '', '/tracking');
     const initialPath = location.pathname;
-    setupFilters(); updateCartUI(); initWatermarkParallax();
+    setupFilters(); updateCartUI();
     if (initialPath === '/tracking') navigateTo('tracking', null, { skipHistory: true });
     else if (initialPath === '/confirmation' && lastOrder) navigateTo('confirmation', null, { skipHistory: true });
     else navigateTo('home', null, { skipHistory: true });
@@ -6712,25 +6650,6 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
     document.addEventListener('visibilitychange', () => {
       if (!document.hidden) loadProductsFromAPI();
     });
-
-    // ================================================================
-    // SCROLL-REVEAL ANIMATIONS
-    // ================================================================
-    function initScrollReveal() {
-      const revealEls = document.querySelectorAll('.reveal, .reveal-scale');
-      if (!revealEls.length) return;
-
-      const observer = new IntersectionObserver((entries) => {
-        entries.forEach(entry => {
-          if (entry.isIntersecting) {
-            entry.target.classList.add('visible');
-            observer.unobserve(entry.target);
-          }
-        });
-      }, { threshold: 0.1, rootMargin: '0px 0px -50px 0px' });
-
-      revealEls.forEach(el => observer.observe(el));
-    }
 
     // ================================================================
     // LAZY IMAGE LOADING
@@ -6784,7 +6703,6 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
     // INITIALIZE ALL ENHANCEMENTS
     // ================================================================
     requestAnimationFrame(() => {
-      initScrollReveal();
       initLazyImages();
     });
   </script>
