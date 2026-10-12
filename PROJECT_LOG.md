@@ -2030,3 +2030,12 @@ E2E check ("favicon set resolves with the declared formats and sizes") enforces
 both pages, the manifest, the 16/32/48 .ico frames, and that no page points at
 per-page duplicates. It fails against the previous markup (the deleted
 `/images/favicon-32.png` now 404s). `npm test` → **128/128 API + 28/28 frontend**.
+
+**Cache-refresh follow-up — 2026-10-12.** The replacement artwork was deployed
+at the same conventional URLs as the old set, and browsers can retain favicons
+by URL longer than the page itself. Added `*-v2` copies for the favicon and
+apple-touch set and pointed both storefront/admin pages at those new URLs; the
+manifest, Windows tile metadata, and structured-data logo now point at the
+versioned 192/512px app icons as well. The original conventional paths remain
+available as compatibility fallbacks. Regression assertions require versioned
+URLs and check the assets still serve with the right formats and dimensions.
