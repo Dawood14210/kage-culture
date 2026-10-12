@@ -667,7 +667,7 @@ async function ready(win) {
     assert.match(storeHtml, /\.card-rating \{[^}]*min-height: 1\.15rem;[^}]*\}/, 'the rating row keeps its line when there are no reviews');
     console.log('✅ Product cards keep a reserved rating row and pin their button to the card bottom');
 
-    // ---- Four category tiles (Graphic Tees, Anime Shirts, Pants [disabled],
+    // ---- Four category tiles (Graphic Tees, Anime Shirts, Pants,
     // ---- Custom Stickers). Phones get a 2×2 grid of equal columns inside the
     // ---- page gutters; 600px and up get one centred row of four. Every card
     // ---- stretches to its cell so the circles / names / descriptions / bottom
@@ -682,12 +682,15 @@ async function ready(win) {
       'Your design, our print.'
     ], 'each card carries the same short two-line description');
     const linkTiles = catTiles.filter(t => t.tagName === 'A');
-    assert.deepEqual(linkTiles.map(t => t.getAttribute('href')), ['/collection/graphic-tees', '/collection/anime', '/custom-stickers'], 'enabled tiles link to real routes');
+    assert.deepEqual(linkTiles.map(t => t.getAttribute('href')), ['/collection/graphic-tees', '/collection/anime', '/collection/pants', '/custom-stickers'], 'all four tiles link to real routes even when empty');
     const pantsTile = catTiles.find(t => t.querySelector('.cat-name').textContent === 'Pants');
-    assert.equal(pantsTile.tagName, 'SPAN', 'Pants is a span (not an <a>) while out of stock');
-    assert.equal(pantsTile.getAttribute('aria-disabled'), 'true', 'Pants tile is aria-disabled');
-    assert.ok(pantsTile.querySelector('.cat-coming-soon'), 'Pants tile shows the Coming-soon pill while unavailable');
-    assert.ok(linkTiles.every(t => /Explore/.test(t.querySelector('.cat-shop').textContent)), 'every active card keeps its Explore link');
+    assert.equal(pantsTile.tagName, 'A', 'Pants always keeps its Explore link while out of stock');
+    assert.equal(pantsTile.getAttribute('aria-disabled'), null, 'Pants remains keyboard accessible when empty');
+    assert.equal(d.querySelector('#categoryStrip .cat-coming-soon'), null, 'category cards never show a Coming-soon pill');
+    assert.ok(catTiles.every(t => /Explore/.test(t.querySelector('.cat-shop').textContent)), 'every card keeps its Explore link');
+    assert.ok(catTiles.every(t => w.getComputedStyle(t.querySelector('.cat-shop')).display !== 'none'), 'every Explore label is displayed');
+    assert.ok(catTiles.every(t => !t.matches('.reveal, .reveal-scale')), 'category cards never wait for scroll-reveal');
+    assert.match(storeHtml, /\.cat-tile:hover \{ transform: translateY\(-6px\); \}/, 'category-card hover effects remain unchanged');
     assert.ok(catTiles.every(t => t.querySelector('.cat-desc').textContent.trim().length), 'every card keeps its description');
     // Layout contracts: phone-first 2×2 grid, four equal columns from 600px up.
     assert.match(storeHtml, /\.category-strip \{[^}]*?grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/, 'base layout is a phone-first 2×2 grid of equal columns');
@@ -704,12 +707,12 @@ async function ready(win) {
     assert.match(storeHtml, /\.cat-info \{[^}]*?flex: 1 1 auto;/, '.cat-info fills the card');
     assert.match(storeHtml, /\.cat-name \{[^}]*?min-height: 2lh;/, 'card names reserve two lines everywhere');
     assert.match(storeHtml, /\.cat-desc \{[^}]*?min-height: 2lh;/, 'card descriptions reserve two lines everywhere');
-    assert.match(storeHtml, /\.cat-shop,\s*\.cat-coming-soon \{[^}]*?min-height: 28px;/, 'Explore and Coming-soon labels share one row height');
-    assert.match(storeHtml, /\.cat-shop \{[^}]*?margin-top: auto;/, 'Explore / Coming-soon labels are pinned to the card bottom');
+    assert.match(storeHtml, /\.cat-shop \{[^}]*?min-height: 28px;/, 'all Explore labels share one row height');
+    assert.match(storeHtml, /\.cat-shop \{[^}]*?margin-top: auto;/, 'Explore labels are pinned to the card bottom');
     assert.match(storeHtml, /\.category-strip:focus-visible \{[^}]*?outline: 2px solid #FFF;/, 'the keyboard-focusable row has a visible focus ring');
     assert.equal(d.getElementById('categoryStrip').getAttribute('tabindex'), '0', 'the category row is keyboard focusable');
     assert.ok(d.getElementById('categoryStrip').getAttribute('aria-label'), 'the category row is labelled for assistive tech');
-    console.log('✅ Category strip shows four tiles (Pants disabled): 2×2 phone grid + 4-col tablet/desktop layouts with aligned, pinned labels');
+    console.log('✅ Category strip shows four Explore links: 2×2 phone grid + 4-col tablet/desktop layouts with aligned, pinned labels');
 
     // ---- Real Chromium: category strip geometry at phone/tablet/desktop widths ----
     const { launchChromium, waitForCatalog, settleLayout } = require('./fixtures/chromium');
@@ -724,10 +727,7 @@ async function ready(win) {
         const m = await bp.evaluate(() => {
           const strip = document.querySelector('#page-home .category-strip');
           const tiles = [...strip.querySelectorAll('.cat-tile')];
-          const labelOf = (t) => {
-            const shop = t.querySelector('.cat-shop');
-            return getComputedStyle(shop).display !== 'none' ? shop : t.querySelector('.cat-coming-soon');
-          };
+          const labelOf = (t) => t.querySelector('.cat-shop');
           // Count the wrapped text lines, not the reserved (min-height) box.
           const textLines = (el) => {
             const range = document.createRange();
@@ -799,7 +799,7 @@ async function ready(win) {
             assert.ok(spread <= 1, `${vw}px (${mode}): row ${i + 1} cards share the same ${key} within 1px (spread ${spread}px)`);
           }
         }
-        assert.ok(m.tiles.every((t) => Math.abs(t.labelH - 28) <= 1), `${vw}px: Explore and Coming-soon labels have equal height (${m.tiles.map((t) => t.labelH)})`);
+        assert.ok(m.tiles.every((t) => Math.abs(t.labelH - 28) <= 1), `${vw}px: Explore labels have equal height (${m.tiles.map((t) => t.labelH)})`);
         assert.ok(m.tiles.every((t) => Math.abs(t.thumbCentre - t.cardCentre) <= 1), `${vw}px: every circle is centred inside its card`);
         assert.ok(m.tiles.every((t) => Math.abs(t.thumbW - t.thumbH) <= 0.5), `${vw}px: circles stay square — never cropped (${m.tiles.map((t) => t.thumbW)})`);
         assert.equal(pageScrollX, 0, `${vw}px: the page itself never scrolls sideways`);
@@ -838,6 +838,87 @@ async function ready(win) {
         }
         console.log(`✅ ${vw}px (${mode}) in real Chromium — ${m.columnCount} cols, tops thumb/name/desc/label: ${m.tiles.map((t) => `${t.thumbTop}/${t.nameTop}/${t.descTop}/${t.labelTop}`).join(' | ')}`);
         await bp.close();
+      }
+
+      // Category cards must render immediately, without scrolling or forcing
+      // visibility classes, and remain stable through catalog refreshes.
+      const pantsProduct = {
+        id: 987655, name: 'Kage Cargo Pant', category: 'pants', price: 2499,
+        fit: 'Relaxed', sizes: ['M', 'L'], stock_qty: 3, in_stock: true,
+        front_image: '/images/pants.jpg'
+      };
+      for (const vw of [390, 1440]) {
+        const pp = await browser.newPage();
+        await pp.setViewport({ width: vw, height: 900 });
+        let pantsCatalog = [pantsProduct];
+        await pp.setRequestInterception(true);
+        pp.on('request', request => {
+          if (new URL(request.url()).pathname === '/api/products') {
+            return request.respond({ status: 200, contentType: 'application/json', body: JSON.stringify(pantsCatalog) });
+          }
+          return request.continue();
+        });
+        await pp.goto(origin + '/', { waitUntil: 'domcontentloaded' });
+        await waitForCatalog(pp);
+        await pp.evaluate(() => { window.originalPantsTile = document.getElementById('catTilePants'); });
+        for (const [state, catalog, stocked] of [
+          ['stocked', [pantsProduct], true],
+          ['sold out', [{ ...pantsProduct, stock_qty: 0, in_stock: false }], false],
+          ['restocked', [pantsProduct], true],
+          ['removed', [], false]
+        ]) {
+          pantsCatalog = catalog;
+          if (state !== 'stocked') await pp.evaluate(() => loadProductsFromAPI());
+          const beforeScroll = await pp.$$eval('#categoryStrip .cat-tile', tiles => tiles.map(tile => ({
+            reveal: tile.matches('.reveal, .reveal-scale'),
+            opacity: getComputedStyle(tile).opacity
+          })));
+          assert.equal(beforeScroll.length, 4);
+          assert.ok(beforeScroll.every(tile => !tile.reveal && tile.opacity === '1'), `${vw}px ${state}: all category cards are visible before scrolling`);
+          await pp.evaluate(() => document.getElementById('catTilePants').scrollIntoView({ block: 'center', behavior: 'instant' }));
+          const card = await pp.evaluate(() => {
+            const tile = document.getElementById('catTilePants');
+            const label = tile.querySelector('.cat-shop');
+            return {
+              sameNode: tile === window.originalPantsTile,
+              opacity: getComputedStyle(tile).opacity,
+              tag: tile.tagName,
+              href: tile.getAttribute('href'),
+              disabled: tile.hasAttribute('aria-disabled'),
+              pointerEvents: getComputedStyle(tile).pointerEvents,
+              label: label.textContent.trim(),
+              labelDisplay: getComputedStyle(label).display,
+              comingSoon: !!tile.querySelector('.cat-coming-soon'),
+              navVisible: getComputedStyle(document.getElementById('navPantsItem')).display !== 'none',
+              footerVisible: getComputedStyle(document.getElementById('footerPantsItem')).display !== 'none'
+            };
+          });
+          assert.equal(card.sameNode, true, `${vw}px ${state}: catalog refresh must preserve the existing tile`);
+          assert.equal(card.opacity, '1', `${vw}px ${state}: scrolling never fades the card`);
+          assert.equal(card.tag, 'A');
+          assert.equal(card.href, '/collection/pants');
+          assert.equal(card.disabled, false);
+          assert.notEqual(card.pointerEvents, 'none');
+          assert.equal(card.label, 'Explore');
+          assert.notEqual(card.labelDisplay, 'none');
+          assert.equal(card.comingSoon, false);
+          assert.equal(card.navVisible, stocked);
+          assert.equal(card.footerVisible, stocked);
+          if (state === 'sold out') {
+            await pp.focus('#catTilePants');
+            await pp.keyboard.press('Enter');
+          } else {
+            await pp.click('#catTilePants');
+          }
+          assert.equal(new URL(pp.url()).pathname, '/collection/pants', `${vw}px ${state}: Explore opens Pants`);
+          assert.equal(await pp.$eval('#shopSection', el => getComputedStyle(el).display), 'block');
+          assert.equal(await pp.$eval('#page-coming-soon', el => el.classList.contains('active')), false);
+          const gridText = await pp.$eval('#collectionGrid', el => el.textContent);
+          assert.match(gridText, stocked ? /Kage Cargo Pant/ : /No pants available right now/i);
+          await pp.evaluate(() => navigateTo('home'));
+        }
+        console.log(`✅ ${vw}px real Chromium — category cards render without scroll animation; Pants Explore survives all stock changes`);
+        await pp.close();
       }
 
       // Keyboard: the row is tabbable and shows a visible white focus ring.
@@ -1062,7 +1143,8 @@ async function ready(win) {
       assert.equal(visibleNavLinks.find(a => a.textContent.trim() === name).getAttribute('href'), cardRoutes[name], `${name} nav link matches its homepage card`);
     }
     const pantsTileNavCheck = d.getElementById('catTilePants');
-    assert.ok(pantsTileNavCheck && pantsTileNavCheck.tagName === 'SPAN' && pantsTileNavCheck.getAttribute('aria-disabled') === 'true', 'Pants tile is a disabled <span> (not a link) until live');
+    assert.ok(pantsTileNavCheck && pantsTileNavCheck.tagName === 'A' && !pantsTileNavCheck.hasAttribute('aria-disabled'), 'Pants tile remains an Explore link even before stock arrives');
+    assert.equal(pantsNavItem.getAttribute('href'), pantsTileNavCheck.getAttribute('href'), 'Pants nav and card share the same collection route');
     const footerPantsLinks = [...d.querySelectorAll('.site-footer a')].filter(a => a.textContent.trim() === 'Pants' && a.closest('li').style.display !== 'none');
     assert.equal(footerPantsLinks.length, 0, 'Pants footer link stays hidden until products are live');
     const menuActions = d.querySelector('#navLinks .mobile-icons-row');
@@ -1340,7 +1422,7 @@ async function ready(win) {
     console.log('✅ Filter drawer opens and its style/price/size filters still work');
 
     assert.deepEqual(errors, []);
-    console.log('\n25/25 frontend scenarios passed');
+    console.log('\n26/26 frontend scenarios passed');
   } finally {
     windows.forEach(win => win.window.close());
     await new Promise(resolve => server.close(resolve));
