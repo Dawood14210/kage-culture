@@ -390,7 +390,7 @@
     /* ================================================================
        PAGE SYSTEM
        ================================================================ */
-    .page { display: none; padding-top: 34px; min-height: 100vh; }
+    .page { display: none; padding-top: 34px; }
     .page.active { display: block; }
 
     /* ================================================================
@@ -2652,6 +2652,8 @@
     .brand-section {
       padding: var(--spacing-2xl) 0;
     }
+    /* Custom Stickers is a standalone page: stop the section's bottom padding from opening a gap above the footer. */
+    #page-custom-stickers > .brand-section { padding-bottom: var(--spacing-lg); }
     .brand-section-header {
       text-align: center;
       margin-bottom: var(--spacing-xl);
