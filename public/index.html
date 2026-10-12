@@ -522,6 +522,10 @@
       overflow-wrap: break-word;
       word-break: normal;
       hyphens: manual;
+      /* Reserve two lines at every width so the description below starts at
+         the same height on all four cards even when a name wraps. */
+      min-height: 3em;
+      min-height: 2lh;
     }
     .cat-desc {
       font-size: 0.78rem;
@@ -529,6 +533,10 @@
       max-width: 220px;
       line-height: 1.4;
       text-align: center;
+      /* Reserve three lines (top-aligned) so the bottom label row starts at
+         the same height on all four cards even when a description wraps. */
+      min-height: 4.2em;
+      min-height: 3lh;
     }
     .cat-shop {
       font-size: 0.65rem;
@@ -559,9 +567,22 @@
       border: 1px solid rgba(255,255,255,0.4);
       background: rgba(255,255,255,0.08);
     }
+    /* One shared label-row height: the Explore links and the "Coming soon"
+       pill sit on the same line across the four cards (equal tops) however
+       the name/description copy above them wraps. */
+    .cat-shop,
+    .cat-coming-soon {
+      min-height: 28px;
+    }
     .cat-shop i { font-style: normal; transition: transform var(--transition-fast); }
     .cat-tile:not([aria-disabled="true"]):hover .cat-shop i { transform: translateX(4px); }
     .cat-tile:not([aria-disabled="true"]):hover .cat-shop { border-color: #FFF; }
+    /* The category row is a keyboard-scrollable region (tabindex="0"); its
+       focus ring is white so it stays visible on the accent-coloured band. */
+    .category-strip:focus-visible {
+      outline: 2px solid #FFF;
+      outline-offset: -4px;
+    }
 
     /* ================================================================
        NEW VIBES — promo section
@@ -3249,7 +3270,6 @@
         font-size: 13px;
         max-width: 220px;
         line-height: 1.5;
-        min-height: 4.5em;
       }
 
       /* --- Trust badges: bigger, higher contrast --- */
@@ -3402,22 +3422,46 @@
       #page-home .cat-name {
         font-size: 0.82rem;
         letter-spacing: 0.1em;
-        min-height: 2.2em;
       }
       #page-home .cat-desc {
         font-size: 0.68rem;
         line-height: 1.35;
-        min-height: 4.2em;
       }
     }
 
-    /* Phone: 2×2 grid so four tiles fit without horizontal scroll. */
+    /* Phone: ONE horizontal swipeable row (scroll-snap) instead of a jumbled
+       2×2 grid. The row goes full-bleed and carries the page gutter (16px at
+       ≤768px, same as .container) as its own padding — snapped cards stop at
+       the gutter and the next card peeks at the screen edge; only this row
+       scrolls sideways. */
     @media (max-width: 599px) {
       #page-home .category-strip {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 20px 16px;
+        display: flex;
+        overflow-x: auto;
+        overflow-y: hidden;
+        scroll-snap-type: x mandatory;
+        scroll-padding-inline: 16px;
+        -webkit-overflow-scrolling: touch;
+        gap: 12px;
+        width: auto;
+        margin-inline: -16px;
+        padding-inline: 16px;
+        padding-top: 12px;
+        margin-top: -12px;
+        scrollbar-width: none;
+        -ms-overflow-style: none;
       }
-      #page-home .cat-tile { gap: var(--spacing-sm); }
+      #page-home .category-strip::-webkit-scrollbar {
+        display: none;
+        width: 0;
+        height: 0;
+      }
+      #page-home .cat-tile {
+        flex: 0 0 44vw;
+        width: 44vw;
+        min-width: 44vw;
+        scroll-snap-align: start;
+      }
       #page-home .cat-thumb {
         width: clamp(72px, 26vw, 108px);
         height: clamp(72px, 26vw, 108px);
@@ -3426,12 +3470,10 @@
       #page-home .cat-name {
         font-size: clamp(0.68rem, 3vw, 0.9rem);
         letter-spacing: 0.06em;
-        min-height: 2.4em;
       }
       #page-home .cat-desc {
         font-size: 0.68rem;
         line-height: 1.35;
-        min-height: 4.2em;
       }
     }
 
@@ -3704,7 +3746,7 @@
         <section class="section-categories" id="sectionCategories">
       <div class="category-band">
         <div class="container">
-          <div class="category-strip" id="categoryStrip">
+          <div class="category-strip" id="categoryStrip" tabindex="0" aria-label="Shop categories">
             <a class="cat-tile reveal" href="/collection/graphic-tees" data-cat="graphic-tees" onclick="navigateTo('collection', 'graphic-tees'); return false;">
               <span class="cat-thumb"><img src="/images/graphic-tees.jpg" alt="Graphic Tees" loading="lazy" /></span>
               <span class="cat-info">

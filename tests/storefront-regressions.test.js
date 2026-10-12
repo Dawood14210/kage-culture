@@ -83,13 +83,14 @@ async function waitForCatalog(window) {
       assert.ok(pantsTile.querySelector('.cat-coming-soon'), 'Pants tile shows "Coming soon" pill');
     });
 
-    await check('four category tiles in order Graphic Tees / Anime / Pants / Custom Stickers with responsive grids', () => {
+    await check('four category tiles in order Graphic Tees / Anime / Pants / Custom Stickers with responsive layouts', () => {
       assert.deepEqual([...d.querySelectorAll('#page-home .cat-tile .cat-name')].map(node => node.textContent.trim()), [
         'Graphic Tees', 'Anime Shirts', 'Pants', 'Custom Stickers'
       ]);
       assert.match(html, /#page-home \.category-strip \{[\s\S]*?grid-template-columns: repeat\(4, minmax\(0, 1fr\)\);[\s\S]*?max-width: 1200px;/);
       assert.match(html, /@media \(min-width: 600px\) and \(max-width: 1023px\) \{[\s\S]*?#page-home \.category-strip \{[\s\S]*?grid-template-columns: repeat\(4, minmax\(0, 1fr\)\);/);
-      assert.match(html, /@media \(max-width: 599px\) \{[\s\S]*?#page-home \.category-strip \{[\s\S]*?grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/);
+      assert.match(html, /@media \(max-width: 599px\) \{[\s\S]*?#page-home \.category-strip \{[\s\S]*?display: flex;[\s\S]*?overflow-x: auto;[\s\S]*?scroll-snap-type: x mandatory;/);
+      assert.match(html, /#page-home \.cat-tile \{[^}]*?flex: 0 0 44vw;[\s\S]*?scroll-snap-align: start;/);
     });
 
     await check('seeded Graphic Tees are categorized under the exact collection key used by the storefront', async () => {

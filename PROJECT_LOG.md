@@ -1592,3 +1592,77 @@ as it is.
 integration, **all storefront-regression checks**, **all upgrade-migration
 checks** (schema parity with the legacy column intact), and **22/22
 frontend scenarios**.
+
+## 2026-10-12 — Homepage category cards: phone snap row + pinned, aligned labels
+
+**Scope:** fix the category strip in `#sectionCategories` (Graphic Tees, Anime
+Shirts, Pants, Custom Stickers) on phones without touching the existing
+design, colours or fonts.
+
+**The problem.** Below 600px the four cards were a jumbled left-aligned 2×2
+grid — names and descriptions wrapped unevenly and the Explore / Coming-soon
+labels sat at different heights on every card.
+
+**Storefront (`public/index.html`).**
+- **Phones (≤599px): the 2×2 grid is now ONE horizontal swipeable row.**
+  CSS scroll-snap: `display:flex`, `overflow-x:auto`,
+  `scroll-snap-type: x mandatory`, `scroll-padding-inline: 16px`,
+  `-webkit-overflow-scrolling: touch`, hidden scrollbar
+  (`scrollbar-width:none` + `::-webkit-scrollbar{display:none}`).
+  Cards are `flex: 0 0 44vw` with `scroll-snap-align: start` and a 12px
+  gap. The row is full-bleed (`margin-inline:-16px`) and carries the real
+  page gutter (16px at ≤768px, same as `.container`) as its own
+  `padding-inline`, so snapped cards line up with page content and the next
+  card peeks at the screen edge (3.2px at 360px, 9.6px at 414px) so people
+  know they can swipe. `scroll-padding-inline` keeps snap positions at the
+  gutter instead of letting mandatory snap eat it. Only the row scrolls
+  sideways — the page never does (verified: `document.scrollWidth ==
+  innerWidth` and `window.scrollX` stays 0 at 360/414).
+- **Keyboard access:** the row is `tabindex="0"` with an
+  `aria-label="Shop categories"` and a visible white focus ring
+  (`.category-strip:focus-visible { outline: 2px solid #FFF; outline-offset:
+  -4px }` — white because the section band is the accent colour).
+- **Tablet (600–1023px) + desktop (≥1024px):** unchanged one-row four equal
+  columns (desktop still centred, capped at 1200px) with the existing circle
+  sizes (104px / 150px).
+- **Alignment in every layout** (design, colours, fonts untouched):
+  `.cat-name` reserves 2 lines (`min-height: 2lh`), `.cat-desc` reserves 3
+  lines top-aligned (`min-height: 3lh`), Explore and Coming-soon share
+  `min-height: 28px` (the pill's natural height) so both label types sit on
+  one line, and `.cat-shop` keeps `margin-top: auto` so labels pin to the
+  card bottom with `.cat-tile`/`.cat-info` stretching to equal heights —
+  even when "Custom Stickers" wraps to two lines.
+- Pants behaviour untouched: still a non-link `aria-disabled="true"` span
+  with the Coming-soon pill while out of stock (no hover lift), switching to
+  a normal Explore link when stock arrives (and the Pants nav/footer items
+  with it).
+
+**Tests (real Chromium).**
+- New dev dependency `@sparticuz/chromium` (Chromium ships as an npm
+  package — Google's browser download hosts are not reachable from every
+  environment) behind `tests/fixtures/chromium.js`, which resolves a system
+  Chrome first, falls back to the package, and extracts its bundled shared
+  libraries on bare Linux hosts so the browser starts anywhere.
+- `tests/frontend.test.js` (22 → **23/23**): the category-strip scenario's
+  layout contracts were updated to the new phone snap row, gutter padding,
+  hidden scrollbar, 44vw snap cards, the 2lh/3lh/28px alignment reserves and
+  the focus ring; a new real-Chromium scenario measures the strip at
+  **360 / 414 / 768 / 1440px**, scrolling each card into view before
+  measuring. Measured tops (thumb / name / desc / label — identical for all
+  four cards, 0.00px spread):
+  - 360px: 575.58 / 685.17 / 722.59 / 771.41
+  - 414px: 605.95 / 729.58 / 771.59 / 820.41
+  - 768px: 832.75 / 952.75 / 996.86 / 1045.67
+  - 1440px: 1207.55 / 1373.55 / 1432.34 / 1495.64
+  Phones additionally verified: `x mandatory` snap, `scrollWidth > clientWidth`
+  (702 > 360 and 797 > 414), cards 44vw wide, circle clamp sizes (93.6px /
+  107.6px), ≥1 card peeking at rest, and a 2px solid white `:focus-visible`
+  ring on the focused row. Tablet/desktop verified: four equal columns,
+  one non-scrolling row, circles 104px / 150px, equal 28px label heights.
+- `tests/storefront-regressions.test.js`: the "responsive grids" contract
+  updated from the old 2×2 phone grid to the snap-row + 44vw contracts.
+
+**Verification:** `npm test` → **125/125 E2E**, shared rate-limit
+integration, **all storefront-regression checks**, **all upgrade-migration
+checks**, and **23/23 frontend scenarios** (including real-Chromium
+geometry at 360/414/768/1440px) — exit 0.
