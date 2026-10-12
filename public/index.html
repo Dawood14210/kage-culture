@@ -2836,8 +2836,12 @@
     .tracking-form input { width: 100%; padding: 0.75rem 0.9rem; border: 1.5px solid var(--border-color); border-radius: 10px; font-family: var(--font-body); font-size: 0.9rem; background: var(--bg-panel); }
     .tracking-form input:focus { outline: none; border-color: var(--accent); }
     .tracking-form .btn { align-self: flex-start; }
+    /* The tracking page is only as tall as its content, so the footer follows the form
+       instead of sitting a full screen below it. */
+    #page-tracking { min-height: 0; }
     @media (max-width: 768px) {
       #page-tracking .tracking-form .btn { width: 100%; align-self: stretch; }
+      #page-tracking .tracking-page { padding-top: 3rem; }
     }
     .tracking-error { font-size: 0.85rem; color: var(--accent); margin-bottom: var(--spacing-md); }
     .track-result { border: 1px solid var(--border-color); border-radius: 14px; padding: var(--spacing-lg); background: var(--bg-panel); }
