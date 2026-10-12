@@ -3,10 +3,31 @@
 // All magic numbers and thresholds live here.
 // ================================================================
 
+// The canonical list of product categories shared by server validation,
+// admin dropdowns, and the storefront category strip. Only these values are
+// accepted when creating or updating products; anything else is rejected with
+// a 400. Order here matches the homepage category strip.
+const PRODUCT_CATEGORIES = [
+  { value: 'graphic-tees', label: 'Graphic Tees' },
+  { value: 'anime',        label: 'Anime Shirts' },
+  { value: 'pants',        label: 'Pants' }
+];
+const PRODUCT_CATEGORY_VALUES = new Set(PRODUCT_CATEGORIES.map(c => c.value));
+
+// Categories that route to the Coming Soon page while they have no live
+// (in-stock) products. 'graphic-tees' is intentionally NOT here — it always
+// shows the shop grid, which falls back to the normal empty state.
+const COMING_SOON_CATEGORIES = ['compression', 'oversized', 'sale'];
+
 module.exports = {
   // Inventory
   LOW_STOCK_THRESHOLD: 5,
   MAX_BATCH_PRODUCT_DELETE: 100,
+
+  // Categories
+  PRODUCT_CATEGORIES,
+  PRODUCT_CATEGORY_VALUES,
+  COMING_SOON_CATEGORIES,
 
   // Product images: front + back + up to this many extra gallery photos
   MAX_EXTRA_IMAGES: 4,

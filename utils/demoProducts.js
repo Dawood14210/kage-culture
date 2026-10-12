@@ -14,19 +14,9 @@ const DEMO_PRODUCTS = [
   { name: 'Blade Wolf', price: 1149, cost: 620, stock: 10, category: 'graphic-tees', fit: 'Regular', size: 'L', desc: 'Silver ink on black — a lone wolf under a crescent moon.' },
   { name: 'Neon Fangs', price: 1049, cost: 570, stock: 6, category: 'graphic-tees', fit: 'Regular', size: 'M', desc: 'Electric strike — neon clash across heavyweight cotton.' },
   { name: 'Shinobi Mark', price: 999, cost: 540, stock: 15, category: 'graphic-tees', fit: 'Regular', size: 'S', desc: 'Minimalist shinobi crest.' },
-  { name: 'Drift Oversized', price: 1199, cost: 650, stock: 5, category: 'streetwear', fit: 'Oversized', size: 'XL', desc: 'Drop-shoulder, relaxed fit.' },
-  { name: 'Wrath Silhouette', price: 1249, sale: 1099, cost: 680, stock: 7, category: 'streetwear', fit: 'Oversized', size: 'L', desc: 'Boxy, cropped oversized fit.' },
-  { name: 'Hollow Gaze', price: 1149, cost: 625, stock: 9, category: 'streetwear', fit: 'Oversized', size: 'XXL', desc: 'Extended drop-shoulder with raw hem.' },
-  { name: 'Skeleton Vibes', price: 250, cost: 80, stock: 20, category: 'goofy-wears', fit: 'Sticker', size: 'One Size', desc: 'Premium vinyl sticker.' },
-  { name: 'Frog Energy', price: 250, cost: 80, stock: 25, category: 'goofy-wears', fit: 'Sticker', size: 'One Size', desc: 'Just a frog vibing.' },
-  { name: 'Pizza Lover', price: 250, cost: 80, stock: 18, category: 'goofy-wears', fit: 'Sticker', size: 'One Size', desc: 'High-quality vinyl.' },
-  { name: 'Melting', price: 250, cost: 80, stock: 0, category: 'goofy-wears', fit: 'Sticker', size: 'One Size', desc: 'Not yet in stock.' },
-  { name: 'Alien Sightings', price: 250, cost: 80, stock: 15, category: 'goofy-wears', fit: 'Sticker', size: 'One Size', desc: 'Peel-proof vinyl.' },
-  { name: 'Robo Bro', price: 250, cost: 80, stock: 0, category: 'goofy-wears', fit: 'Sticker', size: 'One Size', desc: 'Coming soon.' },
-  { name: 'Banana Flex', price: 250, cost: 80, stock: 22, category: 'goofy-wears', fit: 'Sticker', size: 'One Size', desc: 'Premium vinyl.' },
-  { name: 'Duck Off', price: 250, cost: 80, stock: 12, category: 'goofy-wears', fit: 'Sticker', size: 'One Size', desc: 'High-quality vinyl sticker.' },
-  { name: 'All-Seeing Eye', price: 300, cost: 100, stock: 0, category: 'goofy-wears', fit: 'Sticker', size: 'One Size', desc: 'Coming soon.' },
-  { name: 'Cheese God', price: 250, cost: 80, stock: 10, category: 'goofy-wears', fit: 'Sticker', size: 'One Size', desc: 'Peel-proof, rain-proof.' }
+  { name: 'Drift Oversized', price: 1199, cost: 650, stock: 5, category: 'graphic-tees', fit: 'Oversized', size: 'XL', desc: 'Drop-shoulder, relaxed fit.' },
+  { name: 'Wrath Silhouette', price: 1249, sale: 1099, cost: 680, stock: 7, category: 'graphic-tees', fit: 'Oversized', size: 'L', desc: 'Boxy, cropped oversized fit.' },
+  { name: 'Hollow Gaze', price: 1149, cost: 625, stock: 0, category: 'graphic-tees', fit: 'Oversized', size: 'XXL', desc: 'Extended drop-shoulder with raw hem. Restock coming soon.' }
 ];
 
 // Previous seed versions grouped these four regular graphic tees under anime.
