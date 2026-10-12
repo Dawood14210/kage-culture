@@ -2,6 +2,8 @@
 // KAGE Culture — Email service
 // ================================================================
 
+const nodemailer = require('nodemailer');
+const config = require('../config');
 const { escapeHtml, stripHeaderChars } = require('./helpers');
 const { getConfiguredSiteUrl } = require('./siteUrl');
 
@@ -18,12 +20,99 @@ function buildLink(path, params) {
   return `${siteUrl}${emailPath}${query ? '?' + query : ''}`;
 }
 
+// A race protects the request even if a provider/transport does not honour
+// its own timeout. onTimeout aborts fetch or closes the SMTP socket where
+// possible; the provider promise is still observed by Promise.race if it later
+// rejects after the caller has already moved on.
+function withTimeout(operation, timeoutMs, onTimeout) {
+  let timeoutId;
+  const operationPromise = Promise.resolve().then(operation);
+  const timeoutPromise = new Promise((resolve, reject) => {
+    timeoutId = setTimeout(() => {
+      try { if (onTimeout) onTimeout(); } catch (_) { /* timeout still wins */ }
+      reject(new Error(`Email send timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+  });
+  return Promise.race([operationPromise, timeoutPromise])
+    .finally(() => clearTimeout(timeoutId));
+}
+
+function closeTransport(transport) {
+  if (transport && typeof transport.close === 'function') {
+    try { transport.close(); } catch (_) { /* best-effort cleanup */ }
+  }
+}
+
+function smtpPort() {
+  const rawPort = process.env.SMTP_PORT;
+  if (!rawPort) return 465;
+  const port = Number(rawPort);
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    throw new Error('SMTP_PORT must be a valid TCP port number.');
+  }
+  return port;
+}
+
+async function sendSmtpEmail(to, subject, html) {
+  const host = String(process.env.SMTP_HOST || '').trim();
+  const port = smtpPort();
+  const user = process.env.SMTP_USER || '';
+  const pass = process.env.SMTP_PASS || '';
+  const timeoutMs = config.EMAIL_SEND_TIMEOUT_MS;
+  const transportOptions = {
+    host,
+    port,
+    // Port 465 uses implicit TLS; other ports require STARTTLS (including Gmail's 587).
+    secure: port === 465,
+    requireTLS: port !== 465,
+    connectionTimeout: timeoutMs,
+    greetingTimeout: timeoutMs,
+    socketTimeout: timeoutMs,
+    auth: { user, pass }
+  };
+
+  const transport = nodemailer.createTransport(transportOptions);
+  try {
+    await withTimeout(
+      () => transport.sendMail({
+        from: process.env.EMAIL_FROM || user,
+        to,
+        subject,
+        html
+      }),
+      timeoutMs,
+      () => closeTransport(transport)
+    );
+    return true;
+  } finally {
+    closeTransport(transport);
+  }
+}
+
+async function sendResendEmail(to, subject, html) {
+  const controller = new AbortController();
+  const resp = await withTimeout(
+    () => fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${process.env.EMAIL_API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from: process.env.EMAIL_FROM || 'KAGE Culture <noreply@kage-culture.vercel.app>', to: [to], subject, html }),
+      signal: controller.signal
+    }),
+    config.EMAIL_SEND_TIMEOUT_MS,
+    () => controller.abort()
+  );
+  if (!resp.ok) throw new Error('Email API returned ' + resp.status);
+  return true;
+}
+
 async function sendEmail(to, subject, html) {
   // SECURITY: a subject or recipient containing CR/LF could inject extra
   // headers. Values are stripped here as well as at construction time.
   const safeTo = stripHeaderChars(to);
   const safeSubject = stripHeaderChars(subject);
-  if (!process.env.EMAIL_API_KEY) {
+  const smtpHost = String(process.env.SMTP_HOST || '').trim();
+
+  if (!smtpHost && !process.env.EMAIL_API_KEY) {
     // Dev mode: print the links as well as the text preview — the reset and
     // verification flows are unusable locally otherwise (the href is stripped
     // from the text preview). EMAIL_DEBUG_HTML dumps the raw body so the
@@ -32,17 +121,14 @@ async function sendEmail(to, subject, html) {
     console.log(`📧 Email (dev mode — not sent):\n  To: ${safeTo}\n  Subject: ${safeSubject}\n  Body preview: ${html.replace(/<[^>]*>/g, '').slice(0, 120)}...${links.length ? '\n  Links:\n' + links.map((l) => '    ' + l).join('\n') : ''}${process.env.EMAIL_DEBUG_HTML === 'true' ? '\n  HTML-BEGIN\n' + html + '\n  HTML-END' : ''}`);
     return true;
   }
+
   try {
-    const resendKey = process.env.EMAIL_API_KEY;
-    const resp = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ from: process.env.EMAIL_FROM || 'KAGE Culture <noreply@kage-culture.vercel.app>', to: [safeTo], subject: safeSubject, html })
-    });
-    if (!resp.ok) throw new Error('Email API returned ' + resp.status);
-    return true;
+    // SMTP takes precedence when configured; a failure is reported rather than
+    // silently falling back to a different provider with different credentials.
+    if (smtpHost) return await sendSmtpEmail(safeTo, safeSubject, html);
+    return await sendResendEmail(safeTo, safeSubject, html);
   } catch (err) {
-    console.error('Email send failed:', err.message);
+    console.warn('Email send failed:', err && err.message ? err.message : err);
     return false;
   }
 }
