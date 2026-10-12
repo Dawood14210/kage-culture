@@ -497,9 +497,7 @@ async function ready(win) {
     const instagramCard = contactCards[2];
     assert.equal(instagramCard.getAttribute('href'), instagramUrl, 'Instagram card links to the footer URL');
     assert.match(instagramCard.textContent, /@kage__culture/, 'contact handle matches the Instagram URL');
-    const footerHandle = d.querySelector('.footer-instagram-handle a');
-    assert.equal(footerHandle?.getAttribute('href'), instagramUrl, 'footer handle links to the same Instagram URL');
-    assert.equal(footerHandle?.textContent.trim(), '@kage__culture', 'footer visibly shows the matching handle');
+    assert.equal(d.querySelector('.footer-instagram-handle'), null, 'footer handle text below social icons is removed');
     assert.equal(d.querySelector('.footer-social .social-instagram').getAttribute('href'), instagramUrl);
     assert.match(storeHtml, /"sameAs":\s*\[\s*"https:\/\/instagram\.com\/kage__culture"/, 'structured data also uses the footer Instagram URL');
     assert.doesNotMatch(storeHtml, /instagram\.com\/kageculture/, 'the stale unseparated Instagram handle is removed');
@@ -593,8 +591,8 @@ async function ready(win) {
     assert.ok(whatsappStart >= 0 && whatsappEnd > whatsappStart, 'WhatsApp/footer spacing rules exist');
     assert.match(whatsappCss, /\.whatsapp-float \{\s*position: fixed;[\s\S]*?bottom: 24px;[\s\S]*?width: 60px;[\s\S]*?height: 60px;/, 'wide floating button dimensions and edge offset are known');
     assert.match(whatsappCss, /@media \(max-width: 768px\) \{[\s\S]*?\.whatsapp-float \{\s*bottom: calc\(20px \+ env\(safe-area-inset-bottom, 0px\)\);[\s\S]*?width: 56px;[\s\S]*?height: 56px;/, 'mobile floating button dimensions include the safe-area offset');
-    assert.match(whatsappCss, /@media \(max-width: 768px\) \{[\s\S]*?\.site-footer \{ padding-bottom: calc\(var\(--spacing-md\) \+ 76px \+ env\(safe-area-inset-bottom, 0px\)\); \}/, 'mobile footer reserves button height, bottom offset, gap and safe area');
-    assert.match(whatsappCss, /@media \(min-width: 769px\) \{\s*\.site-footer \{ padding-bottom: calc\(var\(--spacing-md\) \+ 84px\); \}\s*\}/, 'desktop footer also clears the floating button');
+    assert.match(whatsappCss, /@media \(max-width: 768px\) \{[\s\S]*?\.site-footer \{ padding-bottom: calc\(var\(--spacing-md\) \+ env\(safe-area-inset-bottom, 0px\)\); \}/, 'mobile footer uses normal bottom padding plus safe-area inset without a large gap below Privacy · Terms');
+    assert.doesNotMatch(whatsappCss, /\.site-footer \{ padding-bottom: calc\(var\(--spacing-md\) \+ (?:76|84)px/, 'no extra 76px/84px gap below Privacy · Terms');
     assert.match(storeHtml, /\.footer-bottom\s*\{[^}]*flex-wrap:\s*wrap;/, 'footer bottom rows wrap instead of forcing horizontal overflow');
     assert.match(storeHtml, /\.payment-icons\s*\{[^}]*flex-wrap:\s*wrap;/, 'payment badges can wrap on narrow screens');
     assert.match(storeHtml, /\.social-icon\s*\{[^}]*width:\s*44px;[^}]*height:\s*44px;[^}]*flex:\s*0 0 44px;/, 'social tap targets stay 44px without shrinking');
@@ -608,10 +606,6 @@ async function ready(win) {
       const footerContainerWidth = Math.min(width, 1280);
       const usableWidth = footerContainerWidth - gutter * 2;
       assert.ok(socialRowWidth <= usableWidth, `${width}px footer social row fits inside the container without horizontal overflow`);
-      const mobile = width <= 768;
-      const floatingTopInset = mobile ? 20 + 56 : 24 + 60;
-      const footerContentInset = 16 + (mobile ? 76 : 84);
-      assert.ok(footerContentInset >= floatingTopInset + 16, `${width}px footer padding leaves at least 16px below the floating WhatsApp button`);
     }
     assert.match(storeHtml, /@media \(min-width: 481px\) \{\s*\.footer-col ul \{ gap: 10px; \}/, 'footer Help links 10px gap above 480px');
     assert.match(storeHtml, /@media \(max-width: 480px\) \{\s*\.footer-col\.footer-help ul \{[\s\S]*?grid-template-columns: 1fr 1fr;/, 'mobile footer Help links in two columns');
@@ -1542,9 +1536,8 @@ async function ready(win) {
     const footerHeadings = [...d.querySelectorAll('.site-footer h4')].map(h => h.textContent.trim());
     assert.ok(!footerHeadings.includes('Shop'), 'footer has no Shop column');
     assert.equal(d.querySelectorAll('.site-footer a[href^="/collection/"]').length, 0, 'footer has no collection links');
-    const menuActions = d.querySelector('#navLinks .mobile-icons-row');
-    assert.deepEqual([...menuActions.querySelectorAll('.nav-icon')].map(button => button.title), ['Track Order'], 'mobile menu keeps only the action missing from the header');
-    assert.equal(menuActions.querySelectorAll('[title="Wishlist"], [title="Cart"], [title="Account"]').length, 0, 'mobile menu has no duplicate account/cart/wishlist icons');
+    assert.equal(d.querySelector('#navLinks .mobile-icons-row'), null, 'mobile menu has no extra track-order icon row below search');
+    assert.equal(d.querySelectorAll('#navLinks .nav-icon').length, 0, 'mobile menu has no icon buttons below the search bar');
     assert.equal(d.querySelector('#navLinks .nav-admin'), null, 'Admin is removed from the public nav');
     assert.equal(d.getElementById('wishlistCountMobile'), null);
     assert.equal(d.getElementById('cartCountMobile'), null);
@@ -1573,7 +1566,7 @@ async function ready(win) {
     assert.match(storeHtml, /\.hamburger\.active svg line:nth-child\(2\) \{ transform: translateY\(6px\) rotate\(45deg\); \}/, 'the SVG hamburger animates into an X');
     assert.doesNotMatch(storeHtml, /\.hamburger\.active span:nth-child/, 'hamburger state does not target nonexistent spans');
     assert.match(storeHtml, /@media \(min-width: 1024px\) \{[\s\S]*?\.nav-links \{[\s\S]*?display: flex !important;[\s\S]*?position: static;[\s\S]*?flex-direction: row;[\s\S]*?\.hamburger \{ display: none; \}/, 'desktop nav stays horizontal and hides the hamburger');
-    assert.match(storeHtml, /@media \(min-width: 1024px\) \{[\s\S]*?\.nav-links li\.mobile-search,[\s\S]*?\.nav-links li\.mobile-icons-row \{ display: none !important; \}/, 'mobile-only rows stay hidden on desktop');
+    assert.match(storeHtml, /@media \(min-width: 1024px\) \{[\s\S]*?\.nav-links li\.mobile-search \{ display: none !important; \}/, 'mobile search row stays hidden on desktop');
     const hamburger = d.getElementById('hamburger');
     const navList = d.getElementById('navLinks');
     assert.equal(hamburger.getAttribute('aria-expanded'), 'false');
@@ -1599,6 +1592,20 @@ async function ready(win) {
       assert.equal(hamburger.getAttribute('aria-label'), 'Open menu');
       assert.equal(d.body.style.overflow, 'auto', `${width}px previous body scroll state is restored`);
     }
+    // Mobile search bar: submitting via Enter or the search button closes the menu,
+    // restores body scroll, and displays the matching search results.
+    w.resetFilters();
+    Object.defineProperty(w, 'innerWidth', { configurable: true, value: 390 });
+    d.body.style.overflow = 'auto';
+    hamburger.click();
+    const mobileSearchInput = d.getElementById('mobileSearch');
+    mobileSearchInput.value = 'wolf';
+    mobileSearchInput.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+    assert.equal(navList.classList.contains('open'), false, 'pressing Enter in mobile search closes the mobile menu');
+    assert.equal(d.body.style.overflow, 'auto', 'pressing Enter in mobile search unlocks body scroll');
+    assert.equal(shopVisible(), true, 'pressing Enter in mobile search reveals the shop grid');
+    assert.equal(d.querySelectorAll('#collectionGrid .product-card h3').length, 1, 'mobile search filters the product grid');
+    w.onSearchInput('');
     Object.defineProperty(w, 'innerWidth', { configurable: true, value: 1440 });
     assert.equal(navList.classList.contains('open'), false, 'desktop menu remains in its closed horizontal-nav state');
     d.body.style.overflow = '';
