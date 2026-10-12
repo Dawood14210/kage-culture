@@ -1918,3 +1918,74 @@ At 360 and 414px a collection card is the Best Sellers card pixel for pixel
 **all storefront-regression checks**, **all upgrade-migration checks**, and
 **28/28 frontend scenarios** (including the real-Chromium collection-grid
 scenario at 320–1440px) — exit 0.
+
+---
+
+# Admin product-table layout repair — 2026-10-12
+
+**Report.** "In admin panel the product UI is a bit jumbled."
+
+**What was actually wrong** (measured in real Chromium, not eyeballed): the
+Products, Orders and Dashboard "Recent orders" tables all shared one column
+template whose last track was `auto`:
+
+```css
+.product-row{display:grid;grid-template-columns:28px 54px minmax(120px,1fr) 90px 105px 130px auto;}
+```
+
+1. **The legend didn't name the columns below it.** A trailing `auto` resolved
+   to the legend's "Actions" (~56px) in the header row but to the Edit/Delete
+   pair (~108px) in every data row. Since the middle track is `1fr`, the two
+   rows resolved different name widths — measured drift **45px** at
+   1440/1160/1059px: "PRICE" sat over Category, "CATEGORY" over Stock, and so on.
+2. **Orders reused the seven-column products template** with six different
+   cells (no checkbox, no thumb) — Order/Customer/Items were crushed together
+   and `KAGE-WB3OS2Q8` wrapped onto two lines.
+3. **Dashboard recent orders** inherited the same template with five cells; the
+   Date cell landed in an unaligned second row.
+4. **Between 901–1024px the page scrolled sideways** (15px at 950px, 64px at
+   901px) because the products grid needed ~700px inside a list that couldn't
+   scroll; the top bar also overflowed 9px just above the phone breakpoint.
+5. **The products table's stock cell** showed its quantity centred under the
+   toggle, reading as a stray floating number; the bulk toolbar's "0 selected"
+   floated in the middle of the bar.
+6. **Order rows lost their meaning on phones**: the legend row hides once rows
+   wrap, so a card showed a bare "Rs. 1,099" with no "TOTAL" and a status badge
+   with no "STATUS"; and the 768px block applied a card layout that the later
+   responsive pass immediately overrode (two competing mobile layouts).
+7. The product form's "Back Image" sat alone in the left column with a dead
+   half-row beside it.
+
+**Fix (`public/admin.html`).**
+
+- One template per table: products `28px 54px minmax(160px,1fr) 112px 132px
+  148px 108px`, orders `minmax(0,max-content) minmax(130px,1fr) 80px 120px
+  140px 160px` (order numbers size to content so they never wrap), recent
+  orders `minmax(110px,1fr) minmax(110px,1fr) 110px 132px 150px`. Fixed-width
+  action track + `minmax(0,max-content)` order column + right-aligned numeric
+  price column.
+- Tablet tier: `#tab-products .product-list{overflow-x:auto}` so columns may not
+  collide; products become wrap cards ≤900px. Orders/recent orders become
+  labelled wrap cards ≤1060px (`position:absolute` status menus must never sit
+  inside an `overflow` container, which is why they wrap and the products list
+  scrolls).
+- Cards: name left / price right, category as subtitle, stock line with the
+  quantity right-aligned, actions right-aligned; each order cell prints its own
+  label from `data-label` so cards read "TOTAL Rs. 1,099", "STATUS PENDING".
+- Removed the duplicate/overridden 768px card block (the responsive block at the
+  end of the stylesheet stays authoritative and now defines the cards), let the
+  top bar wrap ≤1060px, and paired "Back Image / More Photos" on one row.
+
+**Verification.** Real Chromium, 1440/1160/1100/1060/1024/950/901/900/768/414px:
+
+| metric | before | after |
+|---|---|---|
+| legend↔data left-edge drift | 0/0/0/**45/45/45/45**px | **0px at every width** |
+| page overflow (950px / 901px) | +15px / +64px | **0px** |
+| orders order-number height | 180–195px (wrapped, mid widths) | **15px (one line)** |
+| products row height (mobile) | 132px, stock cell 52px | 132px, stock line 22px |
+
+`npm test` → **127/127 API + 28/28 frontend** scenarios, exit 0. The new E2E
+check "admin tables keep one column template per table and collapse safely"
+fails against the previous markup (verified by running its assertions over
+`git show HEAD:public/admin.html`).

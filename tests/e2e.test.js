@@ -921,6 +921,43 @@ async function main() {
       'admin must not disable pinch-zoom (accessibility)');
   });
 
+  // The admin tables used to be visually jumbled at every width: products,
+  // orders and recent-orders all shared one `auto`-terminated grid template,
+  // so the legend/columns resolved to different widths (labels sat ~45px off
+  // the data they name), orders crushed six columns into the products
+  // template, and the products table overflowed the page between 901-1024px.
+  await check('admin tables keep one column template per table and collapse safely', async () => {
+    const r = await request(PORT, 'GET', '/admin');
+    assert.strictEqual(r.status, 200);
+    // Every track must be fixed or minmax-bounded: a trailing `auto` track
+    // sized the legend's "Actions" (≈56px) and the row buttons (≈108px)
+    // differently, which made the shared 1fr name track differ between them.
+    const products = /#tab-products \.product-row \{ grid-template-columns:[^}]+\}/.exec(r.text);
+    assert.ok(products, 'the products table must own its column template');
+    assert.match(products[0], / 108px; \}$/,
+      'products legend/actions track must be a fixed width, never auto');
+    // Orders (six columns) and recent orders (five) must not inherit the
+    // seven-column products template.
+    assert.match(r.text, /#tab-orders \.product-row \{ grid-template-columns:minmax\(0, max-content\)/,
+      'order rows must define their own six-column template');
+    assert.match(r.text, /\.recent-orders \.product-row \{ grid-template-columns:/,
+      'dashboard recent-order rows must define their own five-column template');
+    // Wrap-card tiers. Orders' status menus are position:absolute, so those
+    // rows wrap at 1060px rather than living inside an overflow container.
+    assert.ok(/@media\(max-width:1060px\)[\s\S]*?#tab-orders \.product-row[\s\S]*?display:flex;flex-wrap:wrap/.test(r.text),
+      'order rows must become wrap cards before their columns collide');
+    assert.ok(/#tab-orders \.product-row\.header-row[\s\S]*?display:none;/.test(r.text),
+      'the orders legend must hide at the wrap-card breakpoint (id-scoped, so it outranks the flex rule)');
+    assert.ok(/@media\(max-width:900px\)[\s\S]*?\.product-row\{display:flex;flex-wrap:wrap/.test(r.text),
+      'the products table must become wrap cards before its columns collide');
+    // Only the products list may scroll sideways — anything inside the orders
+    // rows would be clipped by such a container.
+    assert.ok(/#tab-products \.product-list \{ overflow-x:auto; \}/.test(r.text),
+      'the products table gets its own horizontal scroll at tablet widths');
+    assert.ok(!/#tab-orders[^{]*\.product-list[^{]*\{[^}]*overflow-x/.test(r.text),
+      'the orders list must never become a scroll container');
+  });
+
   // Frontend/API contract: stock and sale editing must agree with checkout.
   console.log('\nCatalog contract:');
   await check('SVG uploads are rejected by product and standalone upload filters', async () => {
