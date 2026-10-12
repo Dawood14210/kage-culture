@@ -1,5 +1,7 @@
 // DOM-level interaction regressions for the static storefront and admin panel.
-// Run with `npm test` (jsdom is a dev dependency; no browser download required).
+// Run with `npm test`. Most scenarios are DOM-level (jsdom — no browser
+// download required); the category-strip geometry checks run in real Chromium
+// (see tests/fixtures/chromium.js).
 // The panel scenario logs in for real: the admin view now reads its catalog
 // from the authenticated /api/admin/products endpoint, because the public
 // one deliberately omits internal columns such as unit_cost.
@@ -367,7 +369,7 @@ async function ready(win) {
     }
     // A product with front + back shows both thumbnails; tapping one swaps
     // the main image (the admin back-image upload lands here).
-    w.eval('allProducts.push({ id: 999001, name: "Gallery Probe", price: 100, original_price: 100, fit: "Regular", collection: "anime", collections: [], style: [], rating: null, variants: null, desc: "", sizes: ["L"], images: ["/uploads/probe-front.webp", "/uploads/probe-back.webp"], in_stock: true, on_sale: false, sale_price: null, created_at: null, order_count: 0, stock_qty: 5, size_stock: null, sold_count: 0, avg_rating: null, review_count: 0 })');
+    w.eval('allProducts.push({ id: 999001, name: "Gallery Probe", price: 100, original_price: 100, fit: "Regular", collection: "anime", style: [], rating: null, variants: null, desc: "", sizes: ["L"], images: ["/uploads/probe-front.webp", "/uploads/probe-back.webp"], in_stock: true, on_sale: false, sale_price: null, created_at: null, order_count: 0, stock_qty: 5, size_stock: null, sold_count: 0, avg_rating: null, review_count: 0 })');
     w.openProductDetail(999001);
     assert.equal(d.querySelectorAll('#galleryTrack img').length, 2, 'front and back images both render');
     assert.equal(d.querySelectorAll('#detailThumbnails .detail-thumb').length, 2, 'front and back thumbnails both render');
@@ -680,8 +682,127 @@ async function ready(win) {
     assert.match(storeHtml, /#page-home \.category-strip \{[\s\S]*?grid-template-columns: repeat\(4, minmax\(0, 1fr\)\);/, 'base layout uses four equal columns');
     assert.match(storeHtml, /@media \(min-width: 1024px\) \{[\s\S]*?#page-home \.category-strip \{[\s\S]*?grid-template-columns: repeat\(4, minmax\(0, 1fr\)\);[\s\S]*?max-width: 1200px;/, 'desktop layout centers four columns and caps the strip at 1200px');
     assert.match(storeHtml, /@media \(min-width: 600px\) and \(max-width: 1023px\) \{[\s\S]*?#page-home \.category-strip \{[\s\S]*?grid-template-columns: repeat\(4, minmax\(0, 1fr\)\);/, 'tablet layout uses four balanced columns');
-    assert.match(storeHtml, /@media \(max-width: 599px\) \{[\s\S]*?#page-home \.category-strip \{[\s\S]*?grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/, 'phone layout uses a 2x2 grid for four tiles');
-    console.log('✅ Category strip shows four tiles (Pants disabled) with responsive 4/4/2 column layouts');
+    assert.match(storeHtml, /@media \(max-width: 599px\) \{[\s\S]*?#page-home \.category-strip \{[\s\S]*?display: flex;[\s\S]*?overflow-x: auto;[\s\S]*?scroll-snap-type: x mandatory;[\s\S]*?scroll-padding-inline: 16px;/, 'phone layout is one horizontal snap-scrolled row');
+    assert.match(storeHtml, /#page-home \.category-strip \{[^}]*?margin-inline: -16px;[^}]*?padding-inline: 16px;/, 'the phone row is full-bleed with side padding matching the page gutter');
+    assert.match(storeHtml, /#page-home \.category-strip::-webkit-scrollbar \{[\s\S]*?display: none;/, 'the phone row hides its scrollbar');
+    assert.match(storeHtml, /#page-home \.cat-tile \{[^}]*?flex: 0 0 44vw;[\s\S]*?scroll-snap-align: start;/, 'phone cards are ~44vw and snap to the row start');
+    assert.match(storeHtml, /\.cat-name \{[^}]*?min-height: 2lh;/, 'card names reserve two lines everywhere');
+    assert.match(storeHtml, /\.cat-desc \{[^}]*?min-height: 3lh;/, 'card descriptions reserve three lines everywhere');
+    assert.match(storeHtml, /\.cat-shop,\s*\.cat-coming-soon \{[^}]*?min-height: 28px;/, 'Explore and Coming-soon labels share one row height');
+    assert.match(storeHtml, /\.cat-shop \{[^}]*?margin-top: auto;/, 'Explore / Coming-soon labels are pinned to the card bottom');
+    assert.match(storeHtml, /\.category-strip:focus-visible \{[^}]*?outline: 2px solid #FFF;/, 'the keyboard-focusable row has a visible focus ring');
+    assert.equal(d.getElementById('categoryStrip').getAttribute('tabindex'), '0', 'the category row is keyboard focusable');
+    assert.ok(d.getElementById('categoryStrip').getAttribute('aria-label'), 'the category row is labelled for assistive tech');
+    console.log('✅ Category strip shows four tiles (Pants disabled): phone snap row with 4-col tablet/desktop layouts and aligned, pinned labels');
+
+    // ---- Real Chromium: category strip geometry at phone/tablet/desktop widths ----
+    const { launchChromium, waitForCatalog, settleLayout } = require('./fixtures/chromium');
+    const browser = await launchChromium();
+    try {
+      for (const [vw, vh, mode] of [[360, 780, 'phone'], [414, 860, 'phone'], [768, 900, 'tablet'], [1440, 900, 'desktop']]) {
+        const bp = await browser.newPage();
+        await bp.setViewport({ width: vw, height: vh });
+        await bp.goto(origin + '/', { waitUntil: 'domcontentloaded' });
+        await waitForCatalog(bp);
+        await settleLayout(bp);
+        const m = await bp.evaluate(() => {
+          const strip = document.querySelector('#page-home .category-strip');
+          const tiles = [...strip.querySelectorAll('.cat-tile')];
+          const labelOf = (t) => {
+            const shop = t.querySelector('.cat-shop');
+            return getComputedStyle(shop).display !== 'none' ? shop : t.querySelector('.cat-coming-soon');
+          };
+          const cs = getComputedStyle(strip);
+          const stripRect = strip.getBoundingClientRect();
+          const tileRects = tiles.map((t) => t.getBoundingClientRect());
+          const out = {
+            snap: cs.scrollSnapType,
+            overflowX: cs.overflowX,
+            scrollW: strip.scrollWidth,
+            clientW: strip.clientWidth,
+            scrollLeft: strip.scrollLeft,
+            docW: document.documentElement.scrollWidth,
+            innerW: window.innerWidth,
+            peekAtStart: tileRects.filter((r) => r.left < stripRect.right && r.right > stripRect.right + 1).length,
+            tiles: []
+          };
+          // Spec: scroll each card into view before measuring its parts.
+          for (const t of tiles) {
+            t.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+            out.tiles.push({
+              width: +t.getBoundingClientRect().width.toFixed(2),
+              thumbTop: +t.querySelector('.cat-thumb').getBoundingClientRect().top.toFixed(2),
+              thumbW: +t.querySelector('.cat-thumb').getBoundingClientRect().width.toFixed(2),
+              nameTop: +t.querySelector('.cat-name').getBoundingClientRect().top.toFixed(2),
+              descTop: +t.querySelector('.cat-desc').getBoundingClientRect().top.toFixed(2),
+              labelTop: +labelOf(t).getBoundingClientRect().top.toFixed(2),
+              labelH: +labelOf(t).getBoundingClientRect().height.toFixed(2)
+            });
+          }
+          strip.scrollLeft = 0;
+          out.scrolled = (() => { strip.scrollTo({ left: 99999, behavior: 'instant' }); return strip.scrollLeft; })();
+          strip.scrollLeft = 0;
+          return out;
+        });
+        await bp.evaluate(() => window.scrollTo(500, 0));
+        const pageScrollX = await bp.evaluate(() => window.scrollX);
+
+        const maxSpread = (key) => {
+          const xs = m.tiles.map((t) => t[key]);
+          return +(Math.max(...xs) - Math.min(...xs)).toFixed(2);
+        };
+        for (const key of ['thumbTop', 'nameTop', 'descTop', 'labelTop']) {
+          assert.ok(maxSpread(key) <= 1, `${vw}px (${mode}): all four cards share the same ${key} within 1px (spread ${maxSpread(key)}px)`);
+        }
+        assert.ok(m.tiles.every((t) => Math.abs(t.labelH - 28) <= 1), `${vw}px: Explore and Coming-soon labels have equal height`);
+        assert.equal(pageScrollX, 0, `${vw}px: the page itself never scrolls sideways`);
+        assert.ok(m.docW <= m.innerW, `${vw}px: no document-level horizontal overflow (${m.docW} <= ${m.innerW})`);
+
+        if (mode === 'phone') {
+          assert.equal(m.snap, 'x mandatory', `${vw}px: the row snaps horizontally`);
+          assert.equal(m.overflowX, 'auto', `${vw}px: the row is the only horizontal scroller`);
+          assert.ok(m.scrollW > m.clientW, `${vw}px: the row scrolls horizontally (${m.scrollW} > ${m.clientW})`);
+          assert.ok(m.scrolled > 0, `${vw}px: the row can actually be scrolled`);
+          assert.ok(m.peekAtStart >= 1, `${vw}px: the next card peeks into view at rest`);
+          assert.ok(m.tiles.every((t) => Math.abs(t.width - 0.44 * vw) <= 1), `${vw}px: cards are ~44vw wide`);
+          assert.ok(m.tiles.every((t) => Math.abs(t.thumbW - Math.min(108, Math.max(72, 0.26 * vw))) <= 1), `${vw}px: circles use the phone clamp sizes`);
+        } else {
+          assert.ok(m.scrollW <= m.clientW, `${mode} ${vw}px: the four cards fit in one non-scrolling row`);
+          assert.ok(maxSpread('width') <= 1, `${mode} ${vw}px: four equal columns (spread ${maxSpread('width')}px)`);
+          const thumb = mode === 'tablet' ? 104 : 150;
+          assert.ok(m.tiles.every((t) => Math.abs(t.thumbW - thumb) <= 1), `${mode} ${vw}px: circles are ${thumb}px on all four cards`);
+        }
+        console.log(`✅ ${vw}px (${mode}) in real Chromium — tops thumb/name/desc/label: ${m.tiles.map((t) => `${t.thumbTop}/${t.nameTop}/${t.descTop}/${t.labelTop}`).join(' | ')}`);
+        await bp.close();
+      }
+
+      // Keyboard: the row is tabbable and shows a visible white focus ring.
+      const kp = await browser.newPage();
+      await kp.setViewport({ width: 360, height: 780 });
+      await kp.goto(origin + '/', { waitUntil: 'domcontentloaded' });
+      await waitForCatalog(kp);
+      const focus = await kp.evaluate(() => {
+        const strip = document.querySelector('#page-home .category-strip');
+        strip.focus();
+        const cs = getComputedStyle(strip);
+        return {
+          tabbable: strip.tabIndex,
+          focusVisible: strip.matches(':focus-visible'),
+          outlineWidth: cs.outlineWidth,
+          outlineColor: cs.outlineColor,
+          outlineStyle: cs.outlineStyle
+        };
+      });
+      assert.equal(focus.tabbable, 0, 'the phone row is keyboard focusable (tabindex 0)');
+      assert.equal(focus.focusVisible, true, 'the phone row matches :focus-visible when focused');
+      assert.equal(focus.outlineWidth, '2px', 'the focus ring is 2px');
+      assert.equal(focus.outlineColor, 'rgb(255, 255, 255)', 'the focus ring is white (visible on the accent band)');
+      assert.equal(focus.outlineStyle, 'solid', 'the focus ring is solid');
+      console.log('✅ Real Chromium keyboard check — row focus ring is 2px solid white');
+      await kp.close();
+    } finally {
+      await browser.close();
+    }
 
 
     const admin = page(adminHtml, '/admin'); windows.push(admin);
@@ -1068,8 +1189,94 @@ async function ready(win) {
     assert.equal(fresh.requests.filter(r => r.url === '/api/csrf').length, csrfRequestsBefore, 'no extra token request while the cookie exists');
     console.log('✅ Fresh browser checkout: no Set-Cookie on cached reads, token from /api/csrf, order placed and tracked');
 
+    // ---- The themed collections (The Vault / Iron Code / After Hours) were
+    // ---- removed: no pages, no titles, no Collection filter, no data field.
+    for (const slug of ['the-vault', 'iron-code', 'after-hours']) {
+      const removed = page(storeHtml, '/collection/' + slug); windows.push(removed);
+      await ready(removed.window);
+      await wait(100);
+      const rw = removed.window, rd = rw.document;
+      assert.equal(rw.location.pathname, '/collection/all',
+        `/collection/${slug} must land on /collection/all like any unknown collection URL`);
+      assert.equal(rd.getElementById('page-home').classList.contains('active'), true,
+        `/collection/${slug} renders the normal catalog view, not a broken page`);
+      assert.equal(rd.getElementById('page-not-found').classList.contains('active'), false);
+      assert.equal(rd.getElementById('page-coming-soon').classList.contains('active'), false);
+      assert.equal(rd.getElementById('collectionTitle').textContent, 'FEATURED DROPS | NEW ARRIVALS',
+        'no themed collection title is shown');
+      assert.ok(rd.querySelectorAll('#collectionGrid .product-card').length > 0, 'the full catalog is shown');
+    }
+    // The three pages, their titles/descriptions and the dropdown options are
+    // gone from the storefront source entirely.
+    for (const needle of ['the-vault', 'iron-code', 'after-hours', 'the vault', 'iron code', 'after hours']) {
+      assert.equal(storeHtml.toLowerCase().includes(needle), false,
+        `storefront markup must not mention "${needle}"`);
+    }
+    assert.equal(d.querySelector('.filter-section[data-group="collection"]'), null,
+      'the Collection filter section is gone from the filter panel');
+    assert.equal(d.querySelector('.fp-collection'), null, 'no Collection dropdown remains');
+    assert.equal(d.getElementById('filterDrawerBody').querySelector('.fp-collection'), null,
+      'the mobile Filter drawer has no Collection dropdown either');
+    assert.equal(w.eval('typeof filterState.collection'), 'undefined',
+      'filterState no longer carries a collection filter');
+    assert.ok(w.eval('allProducts.every(p => !("collections" in p))'),
+      'fallback catalog products carry no collections field');
+    const publicCatalog = await (await fetch(origin + '/api/products')).json();
+    assert.ok(publicCatalog.length > 0);
+    assert.ok(publicCatalog.every(p => !('collections' in p)),
+      'the public products API no longer returns collections');
+    // Direct navigation with a deleted slug is normalized the same way.
+    w.navigateTo('collection', 'the-vault');
+    assert.equal(w.location.pathname, '/collection/all');
+    assert.equal(d.getElementById('collectionTitle').textContent, 'FEATURED DROPS | NEW ARRIVALS');
+    w.resetFilters();
+    console.log('✅ Removed collection pages and the Collection filter are gone; deleted URLs land on /collection/all');
+
+    // ---- The Filter drawer still opens and its remaining filters still work.
+    w.navigateTo('collection', 'all');
+    const drawer = d.getElementById('filterDrawer');
+    assert.ok(drawer, 'the Filter drawer exists');
+    w.openFilterDrawer();
+    assert.ok(drawer.classList.contains('open'), 'the Filter drawer opens');
+    assert.ok(d.getElementById('filterOverlay').classList.contains('open'), 'the drawer overlay opens with it');
+    const drawerBody = d.getElementById('filterDrawerBody');
+    assert.ok(drawerBody.querySelector('.fp-cat'), 'style filters are in the drawer');
+    assert.ok(drawerBody.querySelector('.price-min') && drawerBody.querySelector('.price-max'), 'price filter is in the drawer');
+    assert.ok(drawerBody.querySelector('.fp-size'), 'size filter is in the drawer');
+    // Style filter: keep only Anime-Inspired and the grid narrows to that style.
+    for (const cb of drawerBody.querySelectorAll('.fp-cat')) {
+      cb.checked = cb.value === 'Anime-Inspired';
+      cb.dispatchEvent(new w.Event('change', { bubbles: true }));
+    }
+    assert.ok(w.eval('getFilteredProducts().length > 0 && getFilteredProducts().every(p => p.style === "Anime-Inspired")'),
+      'the drawer style filter narrows the grid to the checked style');
+    assert.equal(d.querySelector('#filterSidebar .fp-cat[value="Anime-Inspired"]').checked, true,
+      'drawer changes sync to the desktop filter panel');
+    // Size filter through the drawer.
+    const drawerSize = drawerBody.querySelector('.fp-size');
+    drawerSize.value = 'XXL';
+    drawerSize.dispatchEvent(new w.Event('change', { bubbles: true }));
+    assert.ok(w.eval('getFilteredProducts().every(p => p.sizes.includes("XXL"))'),
+      'the drawer size filter keeps only matching sizes');
+    assert.equal(d.querySelector('#filterSidebar .fp-size').value, 'XXL', 'the size change syncs to the sidebar');
+    // Price filter through the drawer: clamping to 0 must empty the grid.
+    const drawerMax = drawerBody.querySelector('.price-max');
+    drawerMax.value = '0';
+    drawerMax.dispatchEvent(new w.Event('change', { bubbles: true }));
+    assert.equal(d.getElementById('resultCount').textContent, '0 results', 'the price filter still filters');
+    assert.ok(d.getElementById('collectionGrid').textContent.includes('No products match your filters'));
+    assert.equal(d.getElementById('filterBadge').textContent, '4',
+      'two unchecked styles + size + price count as four active filters — the collection filter no longer counts');
+    // Apply closes the drawer; Reset restores everything.
+    [...drawer.querySelectorAll('button')].find(b => b.textContent.trim() === 'Apply').click();
+    assert.equal(drawer.classList.contains('open'), false, 'Apply closes the Filter drawer');
+    w.resetFilters();
+    assert.equal(d.getElementById('filterBadge').textContent, '0', 'Reset Filters clears every remaining filter');
+    assert.ok(w.eval('getFilteredProducts().length > 0'), 'the full catalog returns after reset');
+    console.log('✅ Filter drawer opens and its style/price/size filters still work');
+
     assert.deepEqual(errors, []);
-    console.log('\n20/20 frontend scenarios passed');
+    console.log('\n23/23 frontend scenarios passed');
   } finally {
     windows.forEach(win => win.window.close());
     await new Promise(resolve => server.close(resolve));

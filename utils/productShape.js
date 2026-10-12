@@ -17,7 +17,6 @@
 //   fit, description, sizes                → card label, detail copy, size picker
 //   front_image, back_image, extra_images  → gallery
 //   in_stock, stock_qty, size_stock        → stock badges + add-to-cart guards
-//   collections                            → collection memberships
 //   created_at                             → newest-first ordering
 //   sold_count, order_count                → "N sold" urgency, best-seller order
 //   avg_rating, review_count               → star row
@@ -28,10 +27,12 @@ const config = require('../config');
 const sizeStock = require('./sizes');
 
 // Every products-table column a public response is allowed to carry.
+// (The legacy `collections` column is deliberately NOT listed: the themed
+// collections are gone, and nothing reads or writes that column any more.)
 const PUBLIC_PRODUCT_COLUMNS = [
   'id', 'name', 'category', 'fit', 'price', 'sale_price', 'description',
   'sizes', 'front_image', 'back_image', 'extra_images', 'in_stock',
-  'collections', 'stock_qty', 'created_at'
+  'stock_qty', 'created_at'
 ];
 // Admin responses add the internal columns the panel needs (edit form +
 // P&L unit cost, sale flag, audit timestamp).
@@ -84,7 +85,6 @@ function shapePublicProduct(row, extras) {
     extra_images: jsonArray(row.extra_images),
     in_stock: Boolean(row.in_stock) && (stock == null || stock > 0),
     stock_qty: stock,
-    collections: jsonArray(row.collections),
     created_at: row.created_at,
     ...aggregateFields(extras)
   };

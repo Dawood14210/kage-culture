@@ -526,6 +526,9 @@ async function createSchema(exec) {
       back_image TEXT,
       extra_images TEXT DEFAULT '[]',
       in_stock INTEGER DEFAULT 1,
+      -- Legacy column from the removed themed collections. It is left in
+      -- place (never dropped) so databases created by older versions keep
+      -- upgrading cleanly; nothing reads or writes it any more.
       collections TEXT DEFAULT '[]',
       unit_cost REAL,
       stock_qty INTEGER,

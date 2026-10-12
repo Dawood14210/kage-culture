@@ -28,15 +28,16 @@ Legend: **✅** works as labelled · **⚠️** works but with a caveat · **�
    without `data-nav`, so "Home" stays highlighted while you're "in Pants".
 4. **⚠️ Graphic Tees always shows Coming Soon**, regardless of stock (hard-coded in
    `navigateTo()`: `if (filter === 'graphic-tees') target = 'coming-soon'`).
-5. **⚠️ Two homepage loaders are dead code.** `loadNewArrivals()` and `loadCollections()` target
+5. **✅ Two homepage loaders were dead code.** `loadNewArrivals()` and the collections loader targeted
    `#newArrivalsGrid` / `#collectionsGrid`, which no longer exist in the markup — they silently
-   no-op. Only Best Sellers and Recently Viewed render on Home.
+   no-op'd. Both loaders (and the themed collections themselves) have since been deleted;
+   only Best Sellers and Recently Viewed render on Home.
 6. **⚠️ Some content is unfinished**, visible to customers: Contact page shows
    *"Working hours: TODO — [hours not provided]"* (index.html:4648) and Shipping shows
    *"Free-shipping threshold: TODO"* (index.html:4426). Neither is clickable, but both are on
    customer-facing pages.
 7. **⚠️ Deep link `/confirmation` lands on "Page not found"** unless an order was placed in this
-   same tab (the view needs `lastOrder` in memory). Deep links to products/collections/content
+   same tab (the view needs `lastOrder` in memory). Deep links to products/category pages/content
    pages do work (`/product/11` → Skeleton Vibes, `/collection/anime` → grid rendered-but-hidden).
 8. **ℹ️ The storefront's POST forms all work** end-to-end (verified in jsdom with real cookies):
    placing a COD order → `/confirmation` with order number + confirmation email, newsletter,
@@ -291,7 +292,7 @@ Enter submits, focus trapped, Escape closes).
 |---|---|---|---|
 | 1 | `#shopSection` inline `display:none`, never shown | index.html:3999 | All collection browsing / search / filters / sort / pagination invisible; ~15 pressables affected |
 | 2 | ~~Admin login modal never opened~~ | — | **Resolved 2026-10-11:** modal, CSS and handlers deleted; `/admin` is the only admin entry |
-| 3 | `loadNewArrivals()`, `loadCollections()` write to non-existent `#newArrivalsGrid` / `#collectionsGrid` | index.html:5465, 5494 | Dead code, no New Arrivals / Collections sections |
+| 3 | ~~`loadNewArrivals()`, `loadCollections()` write to non-existent `#newArrivalsGrid` / `#collectionsGrid`~~ | — | **Resolved 2026-10-12:** loaders deleted along with the themed collections; only the section CSS remained and was removed too |
 | 4 | Old `notifyMe(btn, category)` variant unused after Custom Stickers trim | index.html:5089 | Harmless dead code |
 | 5 | `Pants` → `/collection/all`, no `data-nav` | index.html:3804 | Wrong page + wrong highlight |
 | 6 | Graphic Tees hard-forced to Coming Soon | `navigateTo()` | Category unreachable even with stock |
