@@ -665,7 +665,7 @@ async function ready(win) {
     assert.match(storeHtml, /\.card-rating \{[^}]*min-height: 1\.15rem;[^}]*\}/, 'the rating row keeps its line when there are no reviews');
     console.log('✅ Product cards keep a reserved rating row and pin their button to the card bottom');
 
-        // Four category tiles (Graphic Tees, Anime, Pants [disabled], Custom Stickers) in a balanced row.
+            // Four category tiles (Graphic Tees, Anime, Pants [disabled], Custom Stickers) in a balanced row.
     const catTiles = [...d.querySelectorAll('#page-home .category-strip .cat-tile')];
     assert.deepEqual(catTiles.map(t => t.querySelector('.cat-name').textContent), ['Graphic Tees', 'Anime Shirts', 'Pants', 'Custom Stickers'], 'the category strip lists the four cards in order');
     assert.deepEqual(catTiles.map(t => t.querySelector('img').getAttribute('src')), ['/images/graphic-tees.jpg', '/images/anime-shirts.jpg', '/images/pants.jpg', '/images/custom-stickers.jpg'], 'each card keeps its own image (Pants uses pants.jpg)');
@@ -682,6 +682,8 @@ async function ready(win) {
     assert.match(storeHtml, /@media \(min-width: 600px\) and \(max-width: 1023px\) \{[\s\S]*?#page-home \.category-strip \{[\s\S]*?grid-template-columns: repeat\(4, minmax\(0, 1fr\)\);/, 'tablet layout uses four balanced columns');
     assert.match(storeHtml, /@media \(max-width: 599px\) \{[\s\S]*?#page-home \.category-strip \{[\s\S]*?grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/, 'phone layout uses a 2x2 grid for four tiles');
     console.log('✅ Category strip shows four tiles (Pants disabled) with responsive 4/4/2 column layouts');
+
+
     const admin = page(adminHtml, '/admin'); windows.push(admin);
     await wait(100);
     const aw = admin.window, ad = aw.document;
@@ -727,9 +729,11 @@ async function ready(win) {
     console.log('✅ Admin review rows render filled gold stars for the rating');
 
     const originalAdminFetch = aw.fetch;
+    aw.populateCategorySelects();
     let quickUploadBody = null;
     try {
       aw.eval('quickImageBlob = new Blob(["mock image"], { type: "image/webp" }); quickImageName = "quantity-test.webp"');
+      ad.getElementById('quickCategory').value = 'graphic-tees';
       ad.getElementById('quickPrice').value = '500';
       ad.getElementById('quickStockQty').value = '1.5';
       aw.fetch = () => { throw new Error('invalid quantity must stop before upload'); };
@@ -787,6 +791,7 @@ async function ready(win) {
       // image-only upload filter rejects — that used to break every save
       // that included a back image.
       ad.getElementById('prodName').value = 'Back Image Regression';
+      ad.getElementById('prodCategory').value = 'graphic-tees';
       ad.getElementById('prodPrice').value = '250';
       aw.eval('formImageBlob = new Blob(["mock-front"], { type: "image/webp" })');
       aw.eval('currentImageFiles.back = new Blob(["mock-back"], { type: "image/webp" })');
@@ -871,8 +876,8 @@ async function ready(win) {
     for (const name of ['Anime Shirts', 'Graphic Tees', 'Custom Stickers']) {
       assert.equal(visibleNavLinks.find(a => a.textContent.trim() === name).getAttribute('href'), cardRoutes[name], `${name} nav link matches its homepage card`);
     }
-    const pantsTile = d.getElementById('catTilePants');
-    assert.ok(pantsTile && pantsTile.tagName === 'SPAN' && pantsTile.getAttribute('aria-disabled') === 'true', 'Pants tile is a disabled <span> (not a link) until live');
+    const pantsTileNavCheck = d.getElementById('catTilePants');
+    assert.ok(pantsTileNavCheck && pantsTileNavCheck.tagName === 'SPAN' && pantsTileNavCheck.getAttribute('aria-disabled') === 'true', 'Pants tile is a disabled <span> (not a link) until live');
     const footerPantsLinks = [...d.querySelectorAll('.site-footer a')].filter(a => a.textContent.trim() === 'Pants' && a.closest('li').style.display !== 'none');
     assert.equal(footerPantsLinks.length, 0, 'Pants footer link stays hidden until products are live');
     const menuActions = d.querySelector('#navLinks .mobile-icons-row');
