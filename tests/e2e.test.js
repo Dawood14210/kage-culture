@@ -94,7 +94,11 @@ async function captureEmails(fn) {
   const sent = [];
   const realFetch = global.fetch;
   const previousKey = process.env.EMAIL_API_KEY;
+  const previousSmtpHost = process.env.SMTP_HOST;
+  const previousEmailFrom = process.env.EMAIL_FROM;
   process.env.EMAIL_API_KEY = 'test-capture-key';
+  delete process.env.SMTP_HOST; // explicitly exercise the Resend fallback path
+  delete process.env.EMAIL_FROM;
   global.fetch = async (url, opts) => {
     if (String(url).includes('api.resend.com')) {
       sent.push(JSON.parse((opts && opts.body) || '{}'));
@@ -106,9 +110,79 @@ async function captureEmails(fn) {
   finally {
     global.fetch = realFetch;
     if (previousKey === undefined) delete process.env.EMAIL_API_KEY; else process.env.EMAIL_API_KEY = previousKey;
+    if (previousSmtpHost === undefined) delete process.env.SMTP_HOST; else process.env.SMTP_HOST = previousSmtpHost;
+    if (previousEmailFrom === undefined) delete process.env.EMAIL_FROM; else process.env.EMAIL_FROM = previousEmailFrom;
+  }
+}
+
+// Exercise the production SMTP code with Nodemailer's real JSON transport. The
+// adapter never opens a socket, but returns the fully-normalized message that
+// Nodemailer would send over SMTP. Optional failures emulate unavailable SMTP.
+async function captureSmtpEmails(fn, settings = {}) {
+  const nodemailer = require('nodemailer');
+  const originalCreateTransport = nodemailer.createTransport;
+  const realFetch = global.fetch;
+  const envKeys = ['SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS', 'EMAIL_API_KEY', 'EMAIL_FROM'];
+  const previousEnv = Object.fromEntries(envKeys.map((key) => [key, process.env[key]]));
+  const sent = [];
+  const transportOptions = [];
+  const resendRequests = [];
+  process.env.SMTP_HOST = 'smtp.gmail.test';
+  if (settings.port == null) delete process.env.SMTP_PORT;
+  else process.env.SMTP_PORT = String(settings.port);
+  process.env.SMTP_USER = 'shop@gmail.test';
+  process.env.SMTP_PASS = 'capture-only-app-password';
+  delete process.env.EMAIL_FROM;
+  if (settings.resendKey) process.env.EMAIL_API_KEY = settings.resendKey;
+  else delete process.env.EMAIL_API_KEY;
+
+  // A fetch fallback is captured too, so even a regression that wrongly falls
+  // through after SMTP failure cannot open a network connection in this test.
+  global.fetch = async (url, opts) => {
+    if (String(url).includes('api.resend.com')) {
+      resendRequests.push({ url: String(url), options: opts });
+      return { ok: true, status: 200, json: async () => ({ id: 'unexpected-resend-fallback' }) };
+    }
+    return realFetch(url, opts);
+  };
+  nodemailer.createTransport = (options) => {
+    transportOptions.push(options);
+    if (settings.fail) {
+      return { sendMail: async () => { throw new Error('SMTP test transport rejected'); }, close() {} };
+    }
+    if (settings.stall) {
+      return { sendMail: () => new Promise(() => {}), close() {} };
+    }
+    const jsonTransport = originalCreateTransport({ jsonTransport: true });
+    const sendMail = jsonTransport.sendMail.bind(jsonTransport);
+    jsonTransport.sendMail = async (message) => {
+      const info = await sendMail(message);
+      sent.push(JSON.parse(info.message));
+      return info;
+    };
+    return jsonTransport;
+  };
+
+  try {
+    const result = await fn();
+    return { result, sent, transportOptions, resendRequests };
+  } finally {
+    nodemailer.createTransport = originalCreateTransport;
+    global.fetch = realFetch;
+    for (const key of envKeys) {
+      if (previousEnv[key] === undefined) delete process.env[key];
+      else process.env[key] = previousEnv[key];
+    }
   }
 }
 const hrefOf = (html) => (String(html).match(/href="([^"]+)"/) || [])[1] || '';
+function assertSmtpHeaders(mail, to, subject) {
+  assert.deepStrictEqual(mail.from, { address: 'shop@gmail.test', name: '' }, 'SMTP_USER is the default sender');
+  assert.deepStrictEqual(mail.to, [{ address: to, name: '' }], 'the intended recipient is preserved');
+  assert.strictEqual(mail.subject, subject);
+  assert.deepStrictEqual(mail.headers, {}, 'customer data must not add arbitrary message headers');
+  assert.ok(!/[\r\n]/.test(mail.subject), 'the SMTP subject must contain no header line breaks');
+}
 
 // Minimal RFC 4180 parser: quoted fields may contain commas, doubled quotes
 // and newlines, so the export must never be validated by splitting on commas.
@@ -1725,6 +1799,162 @@ async function main() {
     assert.strictEqual(ok, true);
     assert.ok(!/[\r\n]/.test(sent[0].to[0]), 'the recipient must be stripped');
     assert.ok(!/[\r\n]/.test(sent[0].subject), 'the subject must be stripped');
+  });
+
+  await check('Resend remains the fallback when SMTP_HOST is unset', async () => {
+    const emailModule = require('../utils/email');
+    const { result, sent } = await captureEmails(() => emailModule.sendEmail('resend@kage.test', 'Resend fallback', '<p>Resend body</p>'));
+    assert.strictEqual(result, true);
+    assert.strictEqual(sent.length, 1);
+    assert.strictEqual(sent[0].from, 'KAGE Culture <noreply@kage-culture.vercel.app>');
+    assert.deepStrictEqual(sent[0].to, ['resend@kage.test']);
+    assert.strictEqual(sent[0].subject, 'Resend fallback');
+    assert.strictEqual(sent[0].html, '<p>Resend body</p>');
+  });
+
+  await check('SMTP JSON transport sends an escaped order confirmation with secure Gmail defaults', async () => {
+    const { result: order, sent, transportOptions } = await captureSmtpEmails(() => placeGuestOrder({
+      name: '<a href="http://evil.test">SMTP Buyer</a>',
+      email: 'Smtp.Order@Kage.Test', phone: '03009998891',
+      address: '<b>SMTP Street</b>', city: 'Lahore'
+    }));
+    assert.strictEqual(order.status, 201, JSON.stringify(order.json));
+    assert.strictEqual(sent.length, 1, 'one SMTP confirmation is produced');
+    const mail = sent[0];
+    assertSmtpHeaders(mail, 'smtp.order@kage.test', `Order ${order.json.order_number} — KAGE Culture`);
+    assert.ok(mail.html.includes('&lt;a href=&quot;http://evil.test&quot;&gt;SMTP Buyer&lt;/a&gt;'));
+    assert.ok(mail.html.includes('&lt;b&gt;SMTP Street&lt;/b&gt;'));
+    assert.ok(!/<a href="http:\/\/evil\.test"/.test(mail.html));
+    assert.strictEqual(transportOptions.length, 1);
+    assert.strictEqual(transportOptions[0].host, 'smtp.gmail.test');
+    assert.strictEqual(transportOptions[0].port, 465, 'SMTP_PORT defaults to 465');
+    assert.strictEqual(transportOptions[0].secure, true, 'port 465 must use implicit TLS');
+    assert.strictEqual(transportOptions[0].requireTLS, false);
+    assert.deepStrictEqual(transportOptions[0].auth, { user: 'shop@gmail.test', pass: 'capture-only-app-password' });
+    assert.strictEqual(transportOptions[0].connectionTimeout, 8000);
+    assert.strictEqual(transportOptions[0].greetingTimeout, 8000);
+    assert.strictEqual(transportOptions[0].socketTimeout, 8000);
+  });
+
+  await check('SMTP port 587 requires STARTTLS', async () => {
+    const emailModule = require('../utils/email');
+    const { result, sent, transportOptions } = await captureSmtpEmails(
+      () => emailModule.sendEmail('starttls@kage.test', 'STARTTLS check', '<p>hi</p>'),
+      { port: 587 }
+    );
+    assert.strictEqual(result, true);
+    assert.strictEqual(sent.length, 1);
+    assert.strictEqual(transportOptions[0].port, 587);
+    assert.strictEqual(transportOptions[0].secure, false);
+    assert.strictEqual(transportOptions[0].requireTLS, true);
+  });
+
+  await check('SMTP JSON transport sends an escaped order status update', async () => {
+    const { result: order } = await captureEmails(() => placeGuestOrder({
+      name: '<a href="http://evil.test">Status Buyer</a>',
+      email: 'smtp.status@kage.test', phone: '03009998892', address: 'Status St', city: 'Karachi'
+    }));
+    assert.strictEqual(order.status, 201, JSON.stringify(order.json));
+    const row = await dbModule.prepare('SELECT id FROM orders WHERE order_number = ?').get(order.json.order_number);
+    const { result: patched, sent } = await captureSmtpEmails(async () => {
+      const csrf = await getCsrf();
+      return request(PORT, 'PATCH', `/api/orders/${row.id}/status`, {
+        body: { status: 'shipped' },
+        headers: { Cookie: `${adminCookie}; ${csrf.cookie}`, 'X-CSRF-Token': csrf.token }
+      });
+    });
+    assert.strictEqual(patched.status, 200, JSON.stringify(patched.json));
+    assert.strictEqual(sent.length, 1);
+    assertSmtpHeaders(sent[0], 'smtp.status@kage.test', `Order ${order.json.order_number} — Shipped — KAGE Culture`);
+    assert.ok(sent[0].html.includes('&lt;a href=&quot;http://evil.test&quot;&gt;Status Buyer&lt;/a&gt;'));
+    assert.ok(!/<a href="http:\/\/evil\.test"/.test(sent[0].html));
+  });
+
+  await check('SMTP JSON transport sends an escaped password reset with the configured site link', async () => {
+    const { result: reset, sent } = await captureSmtpEmails(async () => {
+      const csrf = await getCsrf();
+      return request(PORT, 'POST', '/api/auth/forgot-password', {
+        body: { email: 'cust@kage.test', user_type: 'customer' },
+        headers: { 'X-CSRF-Token': csrf.token, Cookie: csrf.cookie }
+      });
+    });
+    assert.strictEqual(reset.status, 200, JSON.stringify(reset.json));
+    assert.strictEqual(sent.length, 1);
+    assertSmtpHeaders(sent[0], 'cust@kage.test', 'Reset your KAGE Culture password');
+    const href = hrefOf(sent[0].html);
+    assert.match(href, /^https:\/\/shop\.kage\.test\/reset-password\?token=[a-f0-9]{64}&amp;type=customer$/, href);
+    assert.ok(!/<script/i.test(sent[0].html));
+  });
+
+  await check('SMTP JSON transport sends an escaped verification email with a server token', async () => {
+    const { result: signup, sent } = await captureSmtpEmails(() => signupCustomer(
+      'smtp.verify@kage.test', 'smtpverify1', '<img src=x onerror=alert(1)>'
+    ));
+    assert.strictEqual(signup.res.status, 200, JSON.stringify(signup.res.json));
+    assert.strictEqual(sent.length, 1);
+    assertSmtpHeaders(sent[0], 'smtp.verify@kage.test', 'Verify your KAGE Culture email');
+    assert.ok(sent[0].html.includes('&lt;img src=x onerror=alert(1)&gt;'));
+    assert.ok(!/<img\s/i.test(sent[0].html));
+    const href = hrefOf(sent[0].html);
+    assert.match(href, /^https:\/\/shop\.kage\.test\/verify-email\?token=[a-f0-9]{64}$/, href);
+  });
+
+  await check('an SMTP failure warns but does not fail or roll back order placement', async () => {
+    const warnings = [];
+    const originalWarn = console.warn;
+    console.warn = (...args) => warnings.push(args.map(String).join(' '));
+    try {
+      const { result: order, sent, resendRequests } = await captureSmtpEmails(() => placeGuestOrder({
+        name: 'SMTP Failure Buyer', email: 'smtp.failure@kage.test', phone: '03009998893',
+        address: 'Failure St', city: 'Lahore'
+      }), { fail: true, resendKey: 'must-not-fall-through-to-resend' });
+      assert.strictEqual(order.status, 201, JSON.stringify(order.json));
+      assert.strictEqual(sent.length, 0);
+      assert.strictEqual(resendRequests.length, 0, 'SMTP has precedence; failure must not trigger Resend');
+      assert.ok(warnings.some((line) => /Email send failed: SMTP test transport rejected/.test(line)), warnings.join('\n'));
+      const stored = await dbModule.prepare('SELECT id FROM orders WHERE order_number = ?').get(order.json.order_number);
+      assert.ok(stored, 'the successfully placed order must remain stored');
+    } finally {
+      console.warn = originalWarn;
+    }
+  });
+
+  await check('a stalled SMTP transport is cut off at the configured timeout', async () => {
+    const config = require('../config');
+    const emailModule = require('../utils/email');
+    const previousTimeout = config.EMAIL_SEND_TIMEOUT_MS;
+    const originalWarn = console.warn;
+    const warnings = [];
+    config.EMAIL_SEND_TIMEOUT_MS = 30; // shorten only for this deterministic timeout regression test
+    console.warn = (...args) => warnings.push(args.map(String).join(' '));
+    const started = Date.now();
+    try {
+      const { result, transportOptions } = await captureSmtpEmails(
+        () => emailModule.sendEmail('slow@kage.test', 'Slow transport', '<p>hi</p>'),
+        { stall: true }
+      );
+      assert.strictEqual(result, false);
+      assert.ok(Date.now() - started < 1000, 'a stalled send must be bounded by the configured deadline');
+      assert.strictEqual(transportOptions[0].connectionTimeout, 30);
+      assert.ok(warnings.some((line) => /timed out after 30ms/.test(line)), warnings.join('\n'));
+    } finally {
+      console.warn = originalWarn;
+      config.EMAIL_SEND_TIMEOUT_MS = previousTimeout;
+    }
+  });
+
+  await check('SMTP still strips CR/LF from recipient and subject headers', async () => {
+    const emailModule = require('../utils/email');
+    const { result, sent } = await captureSmtpEmails(() => emailModule.sendEmail(
+      'victim@kage.test\r\nBcc: x@kage.test',
+      'Hello\r\nX-Evil: 1',
+      '<p>safe body</p>'
+    ));
+    assert.strictEqual(result, true);
+    assert.strictEqual(sent.length, 1);
+    assert.strictEqual(sent[0].subject, 'Hello X-Evil: 1');
+    assert.ok(!/[\r\n]/.test(JSON.stringify(sent[0])));
+    assert.ok(!Object.keys(sent[0].headers).some((name) => name.toLowerCase() === 'bcc'));
   });
 
   // ---------------------------------------------------------------

@@ -1371,3 +1371,37 @@ token that protects state-changing requests.
 storefront regressions, 15 upgrade-migration checks, **20/20 frontend scenarios**.
 Docs updated: `AUDIT.md` (the 2026-10-12 “first uncookied public API GET sets the
 cookie” caveat is now resolved) and `ADMIN_DASHBOARD_FAULTS.md` (CSRF notes).
+
+## 33. Gmail SMTP email transport alongside Resend (2026-10-12)
+
+**Change.** `utils/email.js` now prefers SMTP whenever `SMTP_HOST` is configured,
+using `SMTP_USER`/`SMTP_PASS`, `SMTP_PORT` (default `465`; implicit TLS on 465
+and STARTTLS on other ports), and `EMAIL_FROM` (defaulting to `SMTP_USER`). When
+SMTP is unset, the existing Resend API path remains; with neither configured,
+the existing dev-mode email log remains. SMTP failures do not fall back to
+Resend, avoiding unexpected delivery through a second provider.
+
+Every provider send has an 8-second wall-clock deadline. SMTP connect, greeting
+and socket timeouts are also set, the SMTP transport is closed on timeout, and
+Resend fetch is aborted at the same deadline. Port 465 uses implicit TLS; other
+ports require STARTTLS. A failure/timeout logs a warning
+and returns `false`; the existing order/status handlers still await sends before
+responding, while a mail outage does not fail or roll back an order. Existing
+recipient/subject CRLF stripping and escaped HTML templates are unchanged.
+
+Added `nodemailer` 10.1.0 (the current patched release) and raised the declared
+runtime minimum to Node 20 to match its engine requirement. `.env.example` and
+`DEPLOY.md` now list all SMTP/Resend variables and include Gmail App Password,
+TLS/port, sender, precedence, and redeploy setup steps.
+
+**Tests.** `tests/e2e.test.js` uses Nodemailer's real JSON transport as a
+no-network SMTP capture to inspect the order confirmation, status update,
+password reset, and verification messages: expected sender/recipient/subject,
+empty custom headers, escaped hostile content, and generated email links. It
+also verifies SMTP implicit-TLS/STARTTLS modes, auth/8-second options and header
+stripping, Resend when SMTP is unset, SMTP precedence, a bounded stalled send,
+and that a failed SMTP send logs a warning while order placement still succeeds.
+
+**Verification:** `npm test` → **125/125 E2E**, shared rate-limit integration,
+storefront regressions, **15/15 upgrade-migration checks**, and **20/20
+frontend scenarios**. `npm audit --omit=dev` → **0 vulnerabilities**.

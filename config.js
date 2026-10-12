@@ -30,6 +30,10 @@ module.exports = {
   RATE_LIMIT_ORDERS: 8,   // order placement
   RATE_LIMIT_RESET: 5,    // password reset requests per minute
 
+  // Email sends are awaited by routes; bound every provider attempt so mail
+  // outages can delay, but never indefinitely block, an order response.
+  EMAIL_SEND_TIMEOUT_MS: 8 * 1000,
+
   // Boot retry: after a failed database boot, requests get an immediate 503
   // for this long instead of hammering a database that is already down. The
   // failed attempt itself is never cached (see server.js#getReady).

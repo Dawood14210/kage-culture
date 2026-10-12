@@ -5,6 +5,7 @@ The app is **serverless-ready** when configured with persistent production stora
 - **Shared rate limits:** Turso is also the cross-instance store for IP rate-limit windows and per-account login lockouts. The `rate_limits` table is created/migrated automatically with the rest of the schema; no separate service is needed. With Turso configured, the shared store is enabled automatically. For a non-Turso deployment, set `RATE_LIMIT_STORE=db` when the app uses a database shared by its instances (for local multi-process sql.js, also point all instances at the same `KAGE_DB_FILE`).
 - **Images:** a **Public** Vercel Blob store, configured with `BLOB_READ_WRITE_TOKEN` (**required to add or edit products with images on Vercel**). Product images are served directly to storefront visitors.
 - **Sessions:** signed cookies (`cookie-session`), configured with `SESSION_SECRET`.
+- **Runtime:** Node.js 20 or newer (required by the current patched Nodemailer release).
 
 > ⚠️ Vercel's function filesystem is ephemeral/read-only. Do not rely on local
 > `./uploads` for deployed product images. If Blob storage is missing, product
@@ -57,6 +58,12 @@ In the Vercel project: **Settings → Environment Variables**, add for **Product
 | `BLOB_READ_WRITE_TOKEN` | **Required for product image uploads:** create/connect a **Public** Vercel Blob store, then use its read-write token |
 | `SESSION_SECRET` | **Required, >= 32 characters.** Generate one: `node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"` |
 | `SITE_URL` | The canonical public HTTPS origin for this shop. Set it to your assigned production URL or your configured custom domain; do not copy another shop's domain. |
+| `SMTP_HOST` | Optional: set to `smtp.gmail.com` to send via Gmail SMTP. SMTP takes precedence over Resend when set. |
+| `SMTP_PORT` | Optional: defaults to `465` (implicit TLS). Gmail port `587` uses STARTTLS. |
+| `SMTP_USER` | Gmail SMTP account's full email address; also the default `EMAIL_FROM` when SMTP is used. |
+| `SMTP_PASS` | Gmail **App Password** (not the Google account password). Store it as a Vercel secret/environment variable. |
+| `EMAIL_FROM` | Optional sender address/name. Defaults to `SMTP_USER` for SMTP, or the existing KAGE Culture sender for Resend. |
+| `EMAIL_API_KEY` | Optional Resend API key; used only when `SMTP_HOST` is unset. With neither provider configured, emails are logged in dev mode and not delivered. |
 | `RATE_LIMIT_STORE` | Optional: set to `db` for a non-Turso deployment using a database shared by its instances. Turso enables the DB store automatically. |
 
 `SITE_URL` is the single source for page canonical/Open Graph URLs, structured data,
@@ -64,6 +71,13 @@ In the Vercel project: **Settings → Environment Variables**, add for **Product
 unset in production, page metadata and crawler files fall back to the current request
 origin and a warning is logged; password-reset and verification emails are suppressed
 rather than sent with a guessed domain.
+
+### Gmail SMTP setup (optional)
+
+1. Sign in to the Google account that will send shop mail, enable **2-Step Verification**, then create an **App Password** in the Google Account security settings (at [myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords)). Google may hide this option for managed Workspace accounts or accounts using certain security policies; an administrator may need to allow it.
+2. In Vercel's **Settings → Environment Variables**, add `SMTP_HOST=smtp.gmail.com`, `SMTP_PORT=465`, `SMTP_USER` as the full Gmail address, and `SMTP_PASS` as the generated App Password (remove any display spaces). Do **not** use the account's regular password or commit the App Password to the repository.
+3. `EMAIL_FROM` is optional; if omitted, messages use `SMTP_USER` as the sender. Set `EMAIL_FROM` only to an address/name Gmail is authorized to send as. Port `465` uses implicit TLS (the default); set `SMTP_PORT=587` to use STARTTLS instead.
+4. Redeploy after saving the variables. When `SMTP_HOST` is set it takes precedence over `EMAIL_API_KEY`; remove `SMTP_HOST` to switch back to Resend. SMTP and Resend sends are bounded by an 8-second timeout, and a delivery failure is logged as a warning without rejecting an order.
 
 Vercel's Storage quickstart may show a store-prefixed variable such as `kage_READ_WRITE_TOKEN`; this app accepts that variable as well as `BLOB_READ_WRITE_TOKEN`.
 
