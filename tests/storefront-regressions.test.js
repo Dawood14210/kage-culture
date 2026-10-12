@@ -87,10 +87,20 @@ async function waitForCatalog(window) {
       assert.deepEqual([...d.querySelectorAll('#page-home .cat-tile .cat-name')].map(node => node.textContent.trim()), [
         'Graphic Tees', 'Anime Shirts', 'Pants', 'Custom Stickers'
       ]);
+      // Phones: a 2×2 grid of equal columns (no horizontal scroll row).
+      // 600px and up: one centred row of four equal columns.
+      assert.match(html, /\.category-strip \{[^}]*?grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/);
+      assert.match(html, /@media \(max-width: 599px\) \{[\s\S]*?#page-home \.category-strip \{[^}]*?grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/);
       assert.match(html, /#page-home \.category-strip \{[\s\S]*?grid-template-columns: repeat\(4, minmax\(0, 1fr\)\);[\s\S]*?max-width: 1200px;/);
       assert.match(html, /@media \(min-width: 600px\) and \(max-width: 1023px\) \{[\s\S]*?#page-home \.category-strip \{[\s\S]*?grid-template-columns: repeat\(4, minmax\(0, 1fr\)\);/);
-      assert.match(html, /@media \(max-width: 599px\) \{[\s\S]*?#page-home \.category-strip \{[\s\S]*?display: flex;[\s\S]*?overflow-x: auto;[\s\S]*?scroll-snap-type: x mandatory;/);
-      assert.match(html, /#page-home \.cat-tile \{[^}]*?flex: 0 0 44vw;[\s\S]*?scroll-snap-align: start;/);
+      assert.doesNotMatch(html, /#page-home \.category-strip[^{]*\{[^}]*overflow-x: auto;/);
+      assert.doesNotMatch(html, /#page-home \.category-strip[^{]*\{[^}]*scroll-snap/);
+      assert.doesNotMatch(html, /#page-home \.cat-tile \{[^}]*scroll-snap-align/);
+      // Every card stretches to its cell so the four parts stay aligned.
+      assert.match(html, /\.cat-tile \{[^}]*?height: 100%;/);
+      assert.match(html, /\.cat-info \{[^}]*?flex: 1 1 auto;/);
+      assert.match(html, /\.cat-name \{[^}]*?min-height: 2lh;/);
+      assert.match(html, /\.cat-desc \{[^}]*?min-height: 2lh;/);
     });
 
     await check('seeded Graphic Tees are categorized under the exact collection key used by the storefront', async () => {

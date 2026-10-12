@@ -1666,3 +1666,102 @@ labels sat at different heights on every card.
 integration, **all storefront-regression checks**, **all upgrade-migration
 checks**, and **23/23 frontend scenarios** (including real-Chromium
 geometry at 360/414/768/1440px) — exit 0.
+
+## 2026-10-12 — Homepage category cards: 2×2 phone grid (no scroll row) + every part aligned
+
+**Scope:** replace the phone snap-row on the homepage category strip
+(`#sectionCategories` — `.category-strip`, `.cat-tile`, `.cat-thumb`,
+`.cat-info`, `.cat-name`, `.cat-desc`, `.cat-shop`) with a real 2×2 grid, and
+make the four parts of every card line up in every layout. Card order is
+Graphic Tees → Anime Shirts → Pants → Custom Stickers. Design, colours and
+fonts are untouched.
+
+**The problem.** The previous session's fix made the phone strip a horizontal
+scroll-snap row, which is not what the page wants: the page could be dragged
+sideways inside the band, cards were 44vw (so they never formed a tidy grid),
+and the circles sat left-aligned in their cell instead of centred.
+
+**Storefront (`public/index.html`).**
+
+*Layout*
+- `.category-strip` is now **mobile-first `display: grid` with
+  `grid-template-columns: repeat(2, minmax(0, 1fr))` and a 16px gap**, and
+  lives inside the page's own side gutters (`.container` — 16px at ≤768px).
+  No negative margins, no full-bleed, no `overflow-x`, no `scroll-snap-type`,
+  no `scroll-padding-inline`, no `::-webkit-scrollbar` hiding, and no
+  `44vw` / `scroll-snap-align` card sizing — all removed.
+- **600–1023px:** `repeat(4, minmax(0, 1fr))`, 16px gap, circles 104px.
+- **≥1024px:** `repeat(4, minmax(0, 1fr))`, 40px gap, circles 150px, strip
+  still capped at `max-width: 1200px` and centred with `margin-inline: auto`.
+
+*Alignment (the main goal)*
+- `.cat-tile` keeps `display:flex; flex-direction:column; height:100%` but is
+  now `align-items: center` (was `stretch`), so the circle, copy and label are
+  centred inside each card. `.cat-info` keeps `flex: 1 1 auto; width: 100%`.
+- `.cat-name` and `.cat-desc` each reserve **two lines** (`min-height: 2lh`,
+  with `2.5em` / `2.8em` fallbacks for engines without `lh`) with the text
+  top-aligned, so a longer name or description can never push a neighbour's
+  copy down. `.cat-desc` went from a 3-line to a 2-line reservation.
+- `.cat-shop` / `.cat-coming-soon` keep `margin-top: auto` **and** the shared
+  `min-height: 28px`, so the Explore label and the Coming-soon pill always
+  have the same height and the same top.
+- Descriptions shortened to the same short shape (≤2 lines on a 320px phone
+  column): "Bold prints on oversized fits." / "Original art on premium
+  cotton." / "Relaxed fits for every drop." / "Your design, our print."
+- Phone names are sized to stay on **ONE** line in a 320px column —
+  `font-size: clamp(0.66rem, 2.9vw, 0.82rem)` with `letter-spacing: 0.03em`
+  (CUSTOM STICKERS renders 117px wide inside a 136px column, ~14% headroom
+  even with the wide fallback font the test browser uses). The 2-line
+  reservation is the safety net if a name ever does wrap.
+- Tablet names now scale with the column —
+  `clamp(0.68rem, 1.7vw, 0.8rem)` / `letter-spacing: 0.04em` — so
+  "Custom Stickers" also stays on one line from 600px up (122px in a 130px
+  column at 600px).
+
+*Pants* behaves exactly as before: a non-link `aria-disabled="true"` span with
+the Coming-soon pill and no hover lift while nothing is in stock, switching to
+a normal `<a>` with "Explore" once a pants product is stocked
+(`syncPantsCategoryVisibility()` untouched).
+
+**Tests.**
+- `tests/frontend.test.js` (23 → **25/25**): the category-strip scenario now
+  asserts the 2×2 phone / 4-column tablet / centred 1200px desktop grid
+  contracts, the shortened descriptions, the `height:100%` + `flex:1 1 auto` +
+  `2lh` + `28px` + `margin-top:auto` alignment reserves, and — via
+  `assert.doesNotMatch` — that no `overflow-x: auto`, `scroll-snap*`,
+  `scroll-snap-align` or negative full-bleed margin survives anywhere on the
+  strip. The real-Chromium scenario now measures **320 / 360 / 414 / 599 /
+  768 / 1440px** and checks: exactly 2 columns and 2 rows on phones with equal
+  column/row gaps, the page's side gutters on both edges, four equal columns
+  and one row at 768/1440, `overflow-x: visible` + `scroll-snap-type: none`
+  + `scrollWidth <= clientWidth` on the strip, `window.scrollX === 0` and
+  `scrollWidth <= innerWidth` for the document, every name on one line,
+  every description ≤2 lines, all four circles centred / square / 88–104px on
+  phones and 104px / 150px on tablet / desktop, and — the main goal — the
+  per-row spread of `thumbTop` / `nameTop` / `descTop` / `labelTop` within
+  1px plus equal 28px label heights.
+- `tests/storefront-regressions.test.js`: the "four category tiles …" check
+  updated from the old snap-row / 44vw contracts to the 2×2 phone grid and
+  the alignment reserves; the old scroll-row expectations are gone.
+
+**Measured in real Chromium (tops thumb / name / desc / label, spread 0.00px
+inside every row; labels all 28px):**
+
+| width | layout | columns | circle | row 1 tops | row 2 tops |
+|---|---|---|---|---|---|
+| 320px | 2×2 | 2 × 136px, gap 16/16, gutters 16/16 | 88px | 553.08 / 657.08 / 688.22 / 723.23 | 767.23 / 871.23 / 902.38 / 937.39 |
+| 360px | 2×2 | 2 × 156px, gap 16/16, gutters 16/16 | 93.59px | 575.58 / 685.17 / 716.31 / 751.33 | 795.33 / 904.92 / 936.06 / 971.05 |
+| 414px | 2×2 | 2 × 183px, gap 16/16, gutters 16/16 | 104px | 605.95 / 725.95 / 760.75 / 795.73 | 839.73 / 959.73 / 994.53 / 1029.52 |
+| 599px | 2×2 | 2 × 275.5px, gap 16/16, gutters 16/16 | 104px | 716.59 / 836.59 / 874.14 / 909.13 | 953.13 / 1073.13 / 1110.67 / 1145.66 |
+| 768px | 1×4 | 4 × 172px, strip 16..752 | 104px | 832.75 / 952.75 / 989.52 / 1023.66 (all four) | — |
+| 1440px | 1×4 | 4 × 270px, strip 120..1320 (centred, 1200px) | 150px | 1207.55 / 1373.55 / 1423.34 / 1467.14 (all four) | — |
+
+Names render on one line at every width measured; descriptions are ≤2 lines
+on phones (2/2/2/1 at 320px). Re-measured with the Pants tile forced live
+(four "Explore" labels instead of three + the pill): identical tops and
+identical 28px label heights.
+
+**Verification:** `npm test` → **125/125 E2E**, shared rate-limit
+integration, **all storefront-regression checks**, **all upgrade-migration
+checks**, and **25/25 frontend scenarios** (including real-Chromium geometry
+at 320/360/414/599/768/1440px) — exit 0.

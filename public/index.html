@@ -455,15 +455,19 @@
       background: var(--accent);
       padding: var(--spacing-2xl) 0;
     }
+    /* Mobile-first: on phones this is a 2×2 grid of two equal columns that
+       sits inside the page gutters (no horizontal scrolling). The 600–1023px
+       and ≥1024px queries below switch it to one centred row of four. */
     .category-strip {
       display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 20px;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+      width: 100%;
     }
     .cat-tile {
       display: flex;
       flex-direction: column;
-      align-items: stretch;
+      align-items: center;
       text-align: center;
       color: #FFF;
       cursor: pointer;
@@ -522,9 +526,11 @@
       overflow-wrap: break-word;
       word-break: normal;
       hyphens: manual;
-      /* Reserve two lines at every width so the description below starts at
-         the same height on all four cards even when a name wraps. */
-      min-height: 3em;
+      line-height: 1.25;
+      /* Reserve two lines at every width (text stays top-aligned) so the
+         description below starts at the same height on all four cards even
+         when a name wraps. */
+      min-height: 2.5em;
       min-height: 2lh;
     }
     .cat-desc {
@@ -533,10 +539,10 @@
       max-width: 220px;
       line-height: 1.4;
       text-align: center;
-      /* Reserve three lines (top-aligned) so the bottom label row starts at
+      /* Reserve two lines (top-aligned) so the bottom label row starts at
          the same height on all four cards even when a description wraps. */
-      min-height: 4.2em;
-      min-height: 3lh;
+      min-height: 2.8em;
+      min-height: 2lh;
     }
     .cat-shop {
       font-size: 0.65rem;
@@ -577,7 +583,7 @@
     .cat-shop i { font-style: normal; transition: transform var(--transition-fast); }
     .cat-tile:not([aria-disabled="true"]):hover .cat-shop i { transform: translateX(4px); }
     .cat-tile:not([aria-disabled="true"]):hover .cat-shop { border-color: #FFF; }
-    /* The category row is a keyboard-scrollable region (tabindex="0"); its
+    /* The category row is a keyboard-focusable region (tabindex="0"); its
        focus ring is white so it stays visible on the accent-coloured band. */
     .category-strip:focus-visible {
       outline: 2px solid #FFF;
@@ -3352,7 +3358,7 @@
       #page-home .vibes-image img {
         border-radius: var(--radius-md);
       }
-      /* Category cards keep the mobile-first 2x2 grid (20px gaps) from the
+      /* Category cards keep the mobile-first 2x2 grid (16px gaps) from the
          base rules. */
       /* Trust badges: 2x2 grid, 13px description, line-height 1.4 */
       #page-home .why-grid {
@@ -3415,13 +3421,21 @@
         grid-template-columns: repeat(4, minmax(0, 1fr));
         gap: 16px;
       }
+      #page-home .cat-tile {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        height: 100%;
+      }
       #page-home .cat-thumb {
         width: 104px;
         height: 104px;
       }
       #page-home .cat-name {
-        font-size: 0.82rem;
-        letter-spacing: 0.1em;
+        /* Scales with the column so the longest name ("Custom Stickers")
+           stays on one line from 600px up. */
+        font-size: clamp(0.68rem, 1.7vw, 0.8rem);
+        letter-spacing: 0.04em;
       }
       #page-home .cat-desc {
         font-size: 0.68rem;
@@ -3429,50 +3443,45 @@
       }
     }
 
-    /* Phone: ONE horizontal swipeable row (scroll-snap) instead of a jumbled
-       2×2 grid. The row goes full-bleed and carries the page gutter (16px at
-       ≤768px, same as .container) as its own padding — snapped cards stop at
-       the gutter and the next card peeks at the screen edge; only this row
-       scrolls sideways. */
+    /* ================================================================
+       CATEGORY BAND (≤599px) — phone: a 2×2 grid of two equal columns with
+       equal gaps, inside the page's own side gutters. There is deliberately
+       no horizontal scroll / scroll-snap here: the strip never scrolls
+       sideways and the page cannot be dragged sideways at 320/360/414px.
+       ================================================================ */
     @media (max-width: 599px) {
       #page-home .category-strip {
-        display: flex;
-        overflow-x: auto;
-        overflow-y: hidden;
-        scroll-snap-type: x mandatory;
-        scroll-padding-inline: 16px;
-        -webkit-overflow-scrolling: touch;
-        gap: 12px;
-        width: auto;
-        margin-inline: -16px;
-        padding-inline: 16px;
-        padding-top: 12px;
-        margin-top: -12px;
-        scrollbar-width: none;
-        -ms-overflow-style: none;
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 16px;
+        width: 100%;
+        max-width: none;
+        margin-inline: 0;
+        padding-inline: 0;
+        overflow: visible;
       }
-      #page-home .category-strip::-webkit-scrollbar {
-        display: none;
-        width: 0;
-        height: 0;
-      }
+      /* Every card fills its grid cell so the four parts (circle, name,
+         description, label) line up across the row. */
       #page-home .cat-tile {
-        flex: 0 0 44vw;
-        width: 44vw;
-        min-width: 44vw;
-        scroll-snap-align: start;
+        width: 100%;
+        min-width: 0;
+        flex: initial;
+        height: 100%;
       }
       #page-home .cat-thumb {
-        width: clamp(72px, 26vw, 108px);
-        height: clamp(72px, 26vw, 108px);
+        width: clamp(88px, 26vw, 104px);
+        height: clamp(88px, 26vw, 104px);
         flex-shrink: 0;
       }
+      /* Sized so every name — CUSTOM STICKERS included — stays on ONE line
+         in a 320px phone column; the shared two-line reservation below still
+         keeps all names on the same baseline if anything does wrap. */
       #page-home .cat-name {
-        font-size: clamp(0.68rem, 3vw, 0.9rem);
-        letter-spacing: 0.06em;
+        font-size: clamp(0.66rem, 2.9vw, 0.82rem);
+        letter-spacing: 0.03em;
       }
       #page-home .cat-desc {
-        font-size: 0.68rem;
+        font-size: 0.7rem;
         line-height: 1.35;
       }
     }
@@ -3751,7 +3760,7 @@
               <span class="cat-thumb"><img src="/images/graphic-tees.jpg" alt="Graphic Tees" loading="lazy" /></span>
               <span class="cat-info">
                 <span class="cat-name">Graphic Tees</span>
-                <span class="cat-desc">Bold statement prints on heavyweight oversized fits.</span>
+                <span class="cat-desc">Bold prints on oversized fits.</span>
                 <span class="cat-shop">Explore <i><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg></i></span>
               </span>
             </a>
@@ -3759,7 +3768,7 @@
               <span class="cat-thumb"><img src="/images/anime-shirts.jpg" alt="Anime Shirts" loading="lazy" /></span>
               <span class="cat-info">
                 <span class="cat-name">Anime Shirts</span>
-                <span class="cat-desc">Original art on premium cotton. Each piece is wearable fandom.</span>
+                <span class="cat-desc">Original art on premium cotton.</span>
                 <span class="cat-shop">Explore <i><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg></i></span>
               </span>
             </a>
@@ -3768,7 +3777,7 @@
               <span class="cat-thumb"><img src="/images/pants.jpg" alt="Pants" loading="lazy" /></span>
               <span class="cat-info">
                 <span class="cat-name">Pants</span>
-                <span class="cat-desc">Relaxed fits to match the drops.</span>
+                <span class="cat-desc">Relaxed fits for every drop.</span>
                 <span class="cat-coming-soon">Coming soon</span>
                 <span class="cat-shop" style="display:none;">Explore <i><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg></i></span>
               </span>
@@ -3777,7 +3786,7 @@
               <span class="cat-thumb"><img src="/images/custom-stickers.jpg" alt="Custom Stickers" loading="lazy" /></span>
               <span class="cat-info">
                 <span class="cat-name">Custom Stickers</span>
-                <span class="cat-desc">Your design, our print. Peel-proof vinyl, any size.</span>
+                <span class="cat-desc">Your design, our print.</span>
                 <span class="cat-shop">Explore <i><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg></i></span>
               </span>
             </a>

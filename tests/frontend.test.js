@@ -667,10 +667,20 @@ async function ready(win) {
     assert.match(storeHtml, /\.card-rating \{[^}]*min-height: 1\.15rem;[^}]*\}/, 'the rating row keeps its line when there are no reviews');
     console.log('✅ Product cards keep a reserved rating row and pin their button to the card bottom');
 
-            // Four category tiles (Graphic Tees, Anime, Pants [disabled], Custom Stickers) in a balanced row.
+    // ---- Four category tiles (Graphic Tees, Anime Shirts, Pants [disabled],
+    // ---- Custom Stickers). Phones get a 2×2 grid of equal columns inside the
+    // ---- page gutters; 600px and up get one centred row of four. Every card
+    // ---- stretches to its cell so the circles / names / descriptions / bottom
+    // ---- labels line up no matter how the copy wraps.
     const catTiles = [...d.querySelectorAll('#page-home .category-strip .cat-tile')];
     assert.deepEqual(catTiles.map(t => t.querySelector('.cat-name').textContent), ['Graphic Tees', 'Anime Shirts', 'Pants', 'Custom Stickers'], 'the category strip lists the four cards in order');
     assert.deepEqual(catTiles.map(t => t.querySelector('img').getAttribute('src')), ['/images/graphic-tees.jpg', '/images/anime-shirts.jpg', '/images/pants.jpg', '/images/custom-stickers.jpg'], 'each card keeps its own image (Pants uses pants.jpg)');
+    assert.deepEqual(catTiles.map(t => t.querySelector('.cat-desc').textContent), [
+      'Bold prints on oversized fits.',
+      'Original art on premium cotton.',
+      'Relaxed fits for every drop.',
+      'Your design, our print.'
+    ], 'each card carries the same short two-line description');
     const linkTiles = catTiles.filter(t => t.tagName === 'A');
     assert.deepEqual(linkTiles.map(t => t.getAttribute('href')), ['/collection/graphic-tees', '/collection/anime', '/custom-stickers'], 'enabled tiles link to real routes');
     const pantsTile = catTiles.find(t => t.querySelector('.cat-name').textContent === 'Pants');
@@ -679,27 +689,33 @@ async function ready(win) {
     assert.ok(pantsTile.querySelector('.cat-coming-soon'), 'Pants tile shows the Coming-soon pill while unavailable');
     assert.ok(linkTiles.every(t => /Explore/.test(t.querySelector('.cat-shop').textContent)), 'every active card keeps its Explore link');
     assert.ok(catTiles.every(t => t.querySelector('.cat-desc').textContent.trim().length), 'every card keeps its description');
-    assert.match(storeHtml, /#page-home \.category-strip \{[\s\S]*?grid-template-columns: repeat\(4, minmax\(0, 1fr\)\);/, 'base layout uses four equal columns');
-    assert.match(storeHtml, /@media \(min-width: 1024px\) \{[\s\S]*?#page-home \.category-strip \{[\s\S]*?grid-template-columns: repeat\(4, minmax\(0, 1fr\)\);[\s\S]*?max-width: 1200px;/, 'desktop layout centers four columns and caps the strip at 1200px');
-    assert.match(storeHtml, /@media \(min-width: 600px\) and \(max-width: 1023px\) \{[\s\S]*?#page-home \.category-strip \{[\s\S]*?grid-template-columns: repeat\(4, minmax\(0, 1fr\)\);/, 'tablet layout uses four balanced columns');
-    assert.match(storeHtml, /@media \(max-width: 599px\) \{[\s\S]*?#page-home \.category-strip \{[\s\S]*?display: flex;[\s\S]*?overflow-x: auto;[\s\S]*?scroll-snap-type: x mandatory;[\s\S]*?scroll-padding-inline: 16px;/, 'phone layout is one horizontal snap-scrolled row');
-    assert.match(storeHtml, /#page-home \.category-strip \{[^}]*?margin-inline: -16px;[^}]*?padding-inline: 16px;/, 'the phone row is full-bleed with side padding matching the page gutter');
-    assert.match(storeHtml, /#page-home \.category-strip::-webkit-scrollbar \{[\s\S]*?display: none;/, 'the phone row hides its scrollbar');
-    assert.match(storeHtml, /#page-home \.cat-tile \{[^}]*?flex: 0 0 44vw;[\s\S]*?scroll-snap-align: start;/, 'phone cards are ~44vw and snap to the row start');
+    // Layout contracts: phone-first 2×2 grid, four equal columns from 600px up.
+    assert.match(storeHtml, /\.category-strip \{[^}]*?grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/, 'base layout is a phone-first 2×2 grid of equal columns');
+    assert.match(storeHtml, /@media \(max-width: 599px\) \{[\s\S]*?#page-home \.category-strip \{[^}]*?grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/, 'phone layout keeps the 2×2 grid');
+    assert.match(storeHtml, /@media \(min-width: 600px\) and \(max-width: 1023px\) \{[\s\S]*?#page-home \.category-strip \{[^}]*?grid-template-columns: repeat\(4, minmax\(0, 1fr\)\);/, 'tablet layout uses four balanced columns');
+    assert.match(storeHtml, /@media \(min-width: 1024px\) \{[\s\S]*?#page-home \.category-strip \{[^}]*?grid-template-columns: repeat\(4, minmax\(0, 1fr\)\);[\s\S]*?max-width: 1200px;/, 'desktop layout centers four columns and caps the strip at 1200px');
+    // No horizontal scroll row is left behind anywhere on this strip.
+    assert.doesNotMatch(storeHtml, /#page-home \.category-strip[^{]*\{[^}]*overflow-x: auto;/, 'the phone strip is never a horizontal scroller');
+    assert.doesNotMatch(storeHtml, /#page-home \.category-strip[^{]*\{[^}]*scroll-snap/, 'no scroll-snap is left on the category strip');
+    assert.doesNotMatch(storeHtml, /#page-home \.cat-tile \{[^}]*scroll-snap-align/, 'the cards no longer snap into a scroll row');
+    assert.doesNotMatch(storeHtml, /#page-home \.category-strip[^{]*\{[^}]*margin-inline: -1?6px;/, 'the phone strip does not bleed past the page gutters');
+    // Height contracts that keep the four parts aligned whatever the copy is.
+    assert.match(storeHtml, /\.cat-tile \{[^}]*?height: 100%;/, 'every card stretches to its grid cell height');
+    assert.match(storeHtml, /\.cat-info \{[^}]*?flex: 1 1 auto;/, '.cat-info fills the card');
     assert.match(storeHtml, /\.cat-name \{[^}]*?min-height: 2lh;/, 'card names reserve two lines everywhere');
-    assert.match(storeHtml, /\.cat-desc \{[^}]*?min-height: 3lh;/, 'card descriptions reserve three lines everywhere');
+    assert.match(storeHtml, /\.cat-desc \{[^}]*?min-height: 2lh;/, 'card descriptions reserve two lines everywhere');
     assert.match(storeHtml, /\.cat-shop,\s*\.cat-coming-soon \{[^}]*?min-height: 28px;/, 'Explore and Coming-soon labels share one row height');
     assert.match(storeHtml, /\.cat-shop \{[^}]*?margin-top: auto;/, 'Explore / Coming-soon labels are pinned to the card bottom');
     assert.match(storeHtml, /\.category-strip:focus-visible \{[^}]*?outline: 2px solid #FFF;/, 'the keyboard-focusable row has a visible focus ring');
     assert.equal(d.getElementById('categoryStrip').getAttribute('tabindex'), '0', 'the category row is keyboard focusable');
     assert.ok(d.getElementById('categoryStrip').getAttribute('aria-label'), 'the category row is labelled for assistive tech');
-    console.log('✅ Category strip shows four tiles (Pants disabled): phone snap row with 4-col tablet/desktop layouts and aligned, pinned labels');
+    console.log('✅ Category strip shows four tiles (Pants disabled): 2×2 phone grid + 4-col tablet/desktop layouts with aligned, pinned labels');
 
     // ---- Real Chromium: category strip geometry at phone/tablet/desktop widths ----
     const { launchChromium, waitForCatalog, settleLayout } = require('./fixtures/chromium');
     const browser = await launchChromium();
     try {
-      for (const [vw, vh, mode] of [[360, 780, 'phone'], [414, 860, 'phone'], [768, 900, 'tablet'], [1440, 900, 'desktop']]) {
+      for (const [vw, vh, mode] of [[320, 780, 'phone'], [360, 780, 'phone'], [414, 860, 'phone'], [599, 900, 'phone'], [768, 900, 'tablet'], [1440, 900, 'desktop']]) {
         const bp = await browser.newPage();
         await bp.setViewport({ width: vw, height: vh });
         await bp.goto(origin + '/', { waitUntil: 'domcontentloaded' });
@@ -712,67 +728,115 @@ async function ready(win) {
             const shop = t.querySelector('.cat-shop');
             return getComputedStyle(shop).display !== 'none' ? shop : t.querySelector('.cat-coming-soon');
           };
+          // Count the wrapped text lines, not the reserved (min-height) box.
+          const textLines = (el) => {
+            const range = document.createRange();
+            range.selectNodeContents(el);
+            const tops = new Set([...range.getClientRects()]
+              .filter((r) => r.width > 0.5 && r.height > 0.5)
+              .map((r) => Math.round(r.top)));
+            return tops.size;
+          };
           const cs = getComputedStyle(strip);
-          const stripRect = strip.getBoundingClientRect();
-          const tileRects = tiles.map((t) => t.getBoundingClientRect());
           const out = {
-            snap: cs.scrollSnapType,
+            columns: cs.gridTemplateColumns,
+            columnCount: cs.gridTemplateColumns.trim().split(/\s+/).length,
             overflowX: cs.overflowX,
-            scrollW: strip.scrollWidth,
-            clientW: strip.clientWidth,
-            scrollLeft: strip.scrollLeft,
+            snap: cs.scrollSnapType,
             docW: document.documentElement.scrollWidth,
             innerW: window.innerWidth,
-            peekAtStart: tileRects.filter((r) => r.left < stripRect.right && r.right > stripRect.right + 1).length,
+            stripScrollW: strip.scrollWidth,
+            stripClientW: strip.clientWidth,
             tiles: []
           };
-          // Spec: scroll each card into view before measuring its parts.
           for (const t of tiles) {
-            t.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+            const rect = t.getBoundingClientRect();
+            const thumb = t.querySelector('.cat-thumb').getBoundingClientRect();
+            const name = t.querySelector('.cat-name');
+            const desc = t.querySelector('.cat-desc');
+            const label = labelOf(t);
             out.tiles.push({
-              width: +t.getBoundingClientRect().width.toFixed(2),
-              thumbTop: +t.querySelector('.cat-thumb').getBoundingClientRect().top.toFixed(2),
-              thumbW: +t.querySelector('.cat-thumb').getBoundingClientRect().width.toFixed(2),
-              nameTop: +t.querySelector('.cat-name').getBoundingClientRect().top.toFixed(2),
-              descTop: +t.querySelector('.cat-desc').getBoundingClientRect().top.toFixed(2),
-              labelTop: +labelOf(t).getBoundingClientRect().top.toFixed(2),
-              labelH: +labelOf(t).getBoundingClientRect().height.toFixed(2)
+              left: +rect.left.toFixed(2),
+              right: +rect.right.toFixed(2),
+              top: +rect.top.toFixed(2),
+              width: +rect.width.toFixed(2),
+              height: +rect.height.toFixed(2),
+              thumbTop: +thumb.top.toFixed(2),
+              thumbW: +thumb.width.toFixed(2),
+              thumbH: +thumb.height.toFixed(2),
+              thumbCentre: +(thumb.left + thumb.width / 2).toFixed(2),
+              cardCentre: +(rect.left + rect.width / 2).toFixed(2),
+              nameTop: +name.getBoundingClientRect().top.toFixed(2),
+              nameLines: textLines(name),
+              descTop: +desc.getBoundingClientRect().top.toFixed(2),
+              descLines: textLines(desc),
+              labelTop: +label.getBoundingClientRect().top.toFixed(2),
+              labelH: +label.getBoundingClientRect().height.toFixed(2)
             });
           }
-          strip.scrollLeft = 0;
-          out.scrolled = (() => { strip.scrollTo({ left: 99999, behavior: 'instant' }); return strip.scrollLeft; })();
-          strip.scrollLeft = 0;
           return out;
         });
         await bp.evaluate(() => window.scrollTo(500, 0));
         const pageScrollX = await bp.evaluate(() => window.scrollX);
 
-        const maxSpread = (key) => {
-          const xs = m.tiles.map((t) => t[key]);
-          return +(Math.max(...xs) - Math.min(...xs)).toFixed(2);
-        };
-        for (const key of ['thumbTop', 'nameTop', 'descTop', 'labelTop']) {
-          assert.ok(maxSpread(key) <= 1, `${vw}px (${mode}): all four cards share the same ${key} within 1px (spread ${maxSpread(key)}px)`);
+        // Group the cards into visual rows: in the 2×2 phone grid rows 1|2
+        // must line up with each other; at 768/1440 all four share one row.
+        const rows = [];
+        for (const tile of m.tiles) {
+          let row = rows.find((r) => Math.abs(r.top - tile.top) <= 1);
+          if (!row) { row = { top: tile.top, tiles: [] }; rows.push(row); }
+          row.tiles.push(tile);
         }
-        assert.ok(m.tiles.every((t) => Math.abs(t.labelH - 28) <= 1), `${vw}px: Explore and Coming-soon labels have equal height`);
+        rows.sort((a, b) => a.top - b.top);
+        const rowSpread = (key) => rows.map((r) => {
+          const xs = r.tiles.map((t) => t[key]);
+          return +(Math.max(...xs) - Math.min(...xs)).toFixed(2);
+        });
+
+        // The main goal: circles / names / descriptions / bottom labels line up.
+        for (const key of ['thumbTop', 'nameTop', 'descTop', 'labelTop']) {
+          for (const [i, spread] of rowSpread(key).entries()) {
+            assert.ok(spread <= 1, `${vw}px (${mode}): row ${i + 1} cards share the same ${key} within 1px (spread ${spread}px)`);
+          }
+        }
+        assert.ok(m.tiles.every((t) => Math.abs(t.labelH - 28) <= 1), `${vw}px: Explore and Coming-soon labels have equal height (${m.tiles.map((t) => t.labelH)})`);
+        assert.ok(m.tiles.every((t) => Math.abs(t.thumbCentre - t.cardCentre) <= 1), `${vw}px: every circle is centred inside its card`);
+        assert.ok(m.tiles.every((t) => Math.abs(t.thumbW - t.thumbH) <= 0.5), `${vw}px: circles stay square — never cropped (${m.tiles.map((t) => t.thumbW)})`);
         assert.equal(pageScrollX, 0, `${vw}px: the page itself never scrolls sideways`);
         assert.ok(m.docW <= m.innerW, `${vw}px: no document-level horizontal overflow (${m.docW} <= ${m.innerW})`);
+        assert.ok(m.stripScrollW <= m.stripClientW, `${vw}px: the strip itself has nothing to scroll (${m.stripScrollW} <= ${m.stripClientW})`);
 
         if (mode === 'phone') {
-          assert.equal(m.snap, 'x mandatory', `${vw}px: the row snaps horizontally`);
-          assert.equal(m.overflowX, 'auto', `${vw}px: the row is the only horizontal scroller`);
-          assert.ok(m.scrollW > m.clientW, `${vw}px: the row scrolls horizontally (${m.scrollW} > ${m.clientW})`);
-          assert.ok(m.scrolled > 0, `${vw}px: the row can actually be scrolled`);
-          assert.ok(m.peekAtStart >= 1, `${vw}px: the next card peeks into view at rest`);
-          assert.ok(m.tiles.every((t) => Math.abs(t.width - 0.44 * vw) <= 1), `${vw}px: cards are ~44vw wide`);
-          assert.ok(m.tiles.every((t) => Math.abs(t.thumbW - Math.min(108, Math.max(72, 0.26 * vw))) <= 1), `${vw}px: circles use the phone clamp sizes`);
+          assert.equal(m.columnCount, 2, `${vw}px: the phone grid is exactly 2 columns (${m.columns})`);
+          assert.equal(rows.length, 2, `${vw}px: the four cards sit in two rows of two`);
+          assert.ok(rows.every((r) => r.tiles.length === 2), `${vw}px: each phone row holds two cards`);
+          assert.ok(rowSpread('width').every((s) => s <= 1), `${vw}px: the two phone columns are equal (${rowSpread('width')})`);
+          // Equal gaps in both directions + the page's own side gutters.
+          const colGap = +(m.tiles[1].left - m.tiles[0].right).toFixed(2);
+          const rowGap = +(rows[1].top - rows[0].tiles[0].top - rows[0].tiles[0].height).toFixed(2);
+          assert.ok(Math.abs(colGap - rowGap) <= 1, `${vw}px: the phone grid uses equal gaps (column ${colGap}px / row ${rowGap}px)`);
+          const gutter = +(m.innerW - m.tiles[1].right).toFixed(2);
+          assert.ok(Math.abs(m.tiles[0].left - gutter) <= 1, `${vw}px: the grid keeps the page's side gutters (${m.tiles[0].left}px / ${gutter}px)`);
+          assert.ok(m.tiles[0].left >= 8, `${vw}px: the cards are inset by the page gutter (${m.tiles[0].left}px)`);
+          // No scroll row at all, so nothing can be dragged sideways.
+          assert.equal(m.overflowX, 'visible', `${vw}px: the phone strip is not a horizontal scroller`);
+          assert.equal(m.snap, 'none', `${vw}px: no scroll-snap remains on the phone strip`);
+          assert.ok(m.tiles.every((t) => t.nameLines === 1), `${vw}px: every name fits on ONE line (${m.tiles.map((t) => t.nameLines)})`);
+          assert.ok(m.tiles.every((t) => t.descLines <= 2), `${vw}px: every description fits in two lines (${m.tiles.map((t) => t.descLines)})`);
+          assert.ok(m.tiles.every((t) => t.thumbW >= 87 && t.thumbW <= 105), `${vw}px: all four circles are 88–104px (${m.tiles.map((t) => t.thumbW)})`);
         } else {
-          assert.ok(m.scrollW <= m.clientW, `${mode} ${vw}px: the four cards fit in one non-scrolling row`);
-          assert.ok(maxSpread('width') <= 1, `${mode} ${vw}px: four equal columns (spread ${maxSpread('width')}px)`);
+          assert.equal(m.columnCount, 4, `${mode} ${vw}px: one row of four columns (${m.columns})`);
+          assert.equal(rows.length, 1, `${mode} ${vw}px: all four cards share one row`);
+          const widthSpread = +(Math.max(...m.tiles.map((t) => t.width)) - Math.min(...m.tiles.map((t) => t.width))).toFixed(2);
+          assert.ok(widthSpread <= 1, `${mode} ${vw}px: four equal columns (spread ${widthSpread}px)`);
+          const gutter = +(m.innerW - m.tiles[3].right).toFixed(2);
+          assert.ok(Math.abs(m.tiles[0].left - gutter) <= 1, `${mode} ${vw}px: the row is centred (${m.tiles[0].left}px / ${gutter}px)`);
           const thumb = mode === 'tablet' ? 104 : 150;
           assert.ok(m.tiles.every((t) => Math.abs(t.thumbW - thumb) <= 1), `${mode} ${vw}px: circles are ${thumb}px on all four cards`);
+          assert.ok(m.tiles.every((t) => t.nameLines <= 2), `${mode} ${vw}px: names stay inside their two-line reservation (${m.tiles.map((t) => t.nameLines)})`);
+          assert.ok(m.tiles.every((t) => t.descLines <= 2), `${mode} ${vw}px: descriptions stay inside their two-line reservation (${m.tiles.map((t) => t.descLines)})`);
         }
-        console.log(`✅ ${vw}px (${mode}) in real Chromium — tops thumb/name/desc/label: ${m.tiles.map((t) => `${t.thumbTop}/${t.nameTop}/${t.descTop}/${t.labelTop}`).join(' | ')}`);
+        console.log(`✅ ${vw}px (${mode}) in real Chromium — ${m.columnCount} cols, tops thumb/name/desc/label: ${m.tiles.map((t) => `${t.thumbTop}/${t.nameTop}/${t.descTop}/${t.labelTop}`).join(' | ')}`);
         await bp.close();
       }
 
@@ -793,12 +857,12 @@ async function ready(win) {
           outlineStyle: cs.outlineStyle
         };
       });
-      assert.equal(focus.tabbable, 0, 'the phone row is keyboard focusable (tabindex 0)');
-      assert.equal(focus.focusVisible, true, 'the phone row matches :focus-visible when focused');
+      assert.equal(focus.tabbable, 0, 'the category grid is keyboard focusable (tabindex 0)');
+      assert.equal(focus.focusVisible, true, 'the category grid matches :focus-visible when focused');
       assert.equal(focus.outlineWidth, '2px', 'the focus ring is 2px');
       assert.equal(focus.outlineColor, 'rgb(255, 255, 255)', 'the focus ring is white (visible on the accent band)');
       assert.equal(focus.outlineStyle, 'solid', 'the focus ring is solid');
-      console.log('✅ Real Chromium keyboard check — row focus ring is 2px solid white');
+      console.log('✅ Real Chromium keyboard check — category grid focus ring is 2px solid white');
       await kp.close();
     } finally {
       await browser.close();
@@ -1276,7 +1340,7 @@ async function ready(win) {
     console.log('✅ Filter drawer opens and its style/price/size filters still work');
 
     assert.deepEqual(errors, []);
-    console.log('\n23/23 frontend scenarios passed');
+    console.log('\n25/25 frontend scenarios passed');
   } finally {
     windows.forEach(win => win.window.close());
     await new Promise(resolve => server.close(resolve));
