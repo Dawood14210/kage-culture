@@ -724,7 +724,10 @@ and downscaled for smooth strokes, and maskable app icons keep the mark inside t
 safe zone. Deleted the duplicate `/images/favicon*` + `/images/apple-touch-icon`
 files and pointed `admin.html` at the shared root set. New E2E check verifies
 every declared icon (status, MIME, PNG/ICO dimensions, no duplicate paths) —
-`npm test` → 128/128 API + 28/28 frontend.
+`npm test` → 128/128 API + 28/28 frontend. A cache-refresh follow-up serves
+this set through `*-v2` URLs from both pages and versions the manifest, Windows
+tile, and structured-data app-icon URLs too, so a browser holding the old
+`/favicon.ico` or `/images/icon-192.png` can no longer mask the deployed artwork.
 
 ## Remaining work (priority order)
 

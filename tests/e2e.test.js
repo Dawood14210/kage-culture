@@ -260,7 +260,7 @@ async function main() {
     assert.ok(page.text.includes(`<link rel="canonical" href="${rootUrl}" />`));
     assert.ok(page.text.includes(`<meta property="og:url" content="${rootUrl}" />`));
     assert.ok(page.text.includes(`"url": "${rootUrl}"`));
-    assert.ok(page.text.includes(`"logo": "${process.env.SITE_URL}/images/icon-512.png"`));
+    assert.ok(page.text.includes(`"logo": "${process.env.SITE_URL}/images/icon-512-v2.png"`));
     assert.ok(sitemap.text.includes(`<loc>${rootUrl}</loc>`));
     assert.ok(robots.text.includes(`Sitemap: ${process.env.SITE_URL}/sitemap.xml`));
   });
@@ -980,6 +980,12 @@ async function main() {
 
     for (const path of ['/', '/admin']) {
       const html = (await request(PORT, 'GET', path)).text;
+      if (path === '/') {
+        assert.match(html, /name="msapplication-TileImage" content="\/images\/icon-192-v\d+\.png"/,
+          'the Windows tile icon must use the versioned artwork URL');
+        assert.match(html, /"logo": "https?:\/\/[^\"]+\/images\/icon-512-v\d+\.png"/,
+          'the structured-data logo must use the versioned artwork URL');
+      }
       const tags = [...html.matchAll(/<link[^>]+rel="(?:icon|apple-touch-icon)"[^>]*>/g)].map((m) => m[0]);
       assert.ok(tags.length >= 3, `${path} must declare its favicon set (found ${tags.length})`);
       for (const tag of tags) {
@@ -988,6 +994,8 @@ async function main() {
         // point at its own copies under /images, which then drifted).
         assert.ok(!/^\/images\/(favicon|apple-touch)/.test(href),
           `${path} must not point at per-page icon duplicates (${href})`);
+        assert.match(new URL(href, base).pathname, /-v\d+\.(?:ico|png)$/,
+          `${path} must use the versioned icon URL so browsers do not keep the old artwork (${href})`);
         const res = await fetch(base + href);
         assert.equal(res.status, 200, `${path} declares ${href}, which must be served`);
         const buf = Buffer.from(await res.arrayBuffer());
@@ -1009,6 +1017,8 @@ async function main() {
     const manifest = JSON.parse((await request(PORT, 'GET', '/manifest.json')).text);
     assert.ok(manifest.icons.length >= 2, 'the manifest must advertise app icons');
     for (const icon of manifest.icons) {
+      assert.match(new URL(icon.src, base).pathname, /-v\d+\.png$/,
+        `manifest icon ${icon.src} must use a versioned URL so installed apps refresh their artwork`);
       const res = await fetch(base + icon.src);
       assert.equal(res.status, 200, `manifest icon ${icon.src} must be served`);
       const buf = Buffer.from(await res.arrayBuffer());
