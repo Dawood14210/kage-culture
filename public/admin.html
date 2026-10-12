@@ -1164,10 +1164,8 @@
             <div class="quick-fields">
               <div>
                 <label class="field-label" for="quickCategory">Category</label>
-                <select id="quickCategory">
-                  <option value="anime">Anime Shirts</option>
-                  <option value="streetwear">Streetwear</option>
-                  <option value="goofy-wears">Goofy Wears</option>
+                <select id="quickCategory" required>
+                  <option value="" selected>Select a category</option>
                 </select>
               </div>
               <div>
@@ -1208,9 +1206,6 @@
           <input type="text" id="productSearch" placeholder="Search products by name..." oninput="filterProducts()" />
           <select id="productCategoryFilter" onchange="filterProducts()">
             <option value="">All Categories</option>
-            <option value="anime">Anime Shirts</option>
-            <option value="streetwear">Streetwear</option>
-            <option value="goofy-wears">Goofy Wears</option>
           </select>
           <button class="filter-clear-btn" onclick="clearProductFilters()">Clear</button>
         </div>
@@ -1282,9 +1277,7 @@
             <div>
               <label>Category *</label>
               <select id="prodCategory" required>
-                <option value="anime">Anime Shirts</option>
-                <option value="streetwear">Streetwear</option>
-                <option value="goofy-wears">Goofy Wears</option>
+                <option value="" selected>Select a category</option>
               </select>
             </div>
             <div>
@@ -1456,6 +1449,31 @@
   <script src="/vendor/chart.umd.min.js"></script>
   <script>
     // ================================================================
+    // CONSTANTS
+    // ================================================================
+    // Single source of truth for product categories (matches config.js on server).
+    const CATEGORY_OPTIONS = [
+      { value: 'graphic-tees', label: 'Graphic Tees' },
+      { value: 'anime', label: 'Anime Shirts' },
+      { value: 'pants', label: 'Pants' }
+    ];
+    function populateCategorySelects() {
+      const targets = ['prodCategory', 'quickCategory', 'productCategoryFilter'];
+      targets.forEach(function(id) {
+        const sel = document.getElementById(id);
+        if (!sel) return;
+        const placeholder = sel.querySelector('option[value=""]');
+        Array.from(sel.options).forEach(function(o){ if(o.value) sel.removeChild(o); });
+        CATEGORY_OPTIONS.forEach(function(c){
+          const opt = document.createElement('option');
+          opt.value = c.value; opt.textContent = c.label;
+          sel.appendChild(opt);
+        });
+        if (placeholder) sel.insertBefore(placeholder, sel.firstChild);
+      });
+    }
+
+    // ================================================================
     // STATE
     // ================================================================
     let isLoggedIn = false;
@@ -1609,7 +1627,8 @@
           const topEmail = document.getElementById('adminEmailTop');
           if (topEmail) topEmail.textContent = data.admin.email;
           switchSection('dashboard');
-          loadProducts();
+          populateCategorySelects();
+    loadProducts();
           loadOrders();
           loadDashboardStats();
         } else {
@@ -1895,7 +1914,7 @@
 
       arr.forEach(p => {
         const thumbSrc = p.front_image || '';
-        const catLabel = { 'anime':'Anime Shirts', 'streetwear':'Streetwear', 'goofy-wears':'Goofy Wears' }[p.category] || p.category;
+        const catLabel = (CATEGORY_OPTIONS.find(c => c.value === p.category) || {}).label || p.category;
         const stockLabel = p.in_stock ? 'In Stock' : 'Sold Out';
         const stockClass = p.in_stock ? 'active' : '';
         const qtyText = p.size_stock
@@ -2085,7 +2104,7 @@
       document.getElementById('editId').value = '';
       document.getElementById('productForm').reset();
       document.getElementById('extraFields').classList.remove('show');
-      document.getElementById('prodCategory').value = 'anime';
+      document.getElementById('prodCategory').value = '';
       document.getElementById('prodFit').value = 'Regular';
       document.getElementById('prodUnitCost').value = '';
       document.getElementById('backPreview').innerHTML = '          <span class="hint" style="color:var(--text-muted)">Tap to upload back view</span>';
@@ -2404,7 +2423,9 @@
 
       const formData = new FormData();
       formData.append('name', name);
-      formData.append('category', document.getElementById('prodCategory').value || 'anime');
+      const _catVal = (document.getElementById('prodCategory').value || '').trim();
+      if (!_catVal) { errorEl.textContent = 'Please select a category.'; errorEl.style.display = 'block'; return; }
+      formData.append('category', _catVal);
       formData.append('fit', document.getElementById('prodFit').value.trim() || 'Regular');
       formData.append('price', price);
 
@@ -2670,7 +2691,9 @@
       formData.append('name', productNameFromFile(quickImageName));
       const quickCat = document.getElementById('quickCategory');
       const quickSz = document.getElementById('quickSize');
-      formData.append('category', (quickCat && quickCat.value) || 'anime');
+      const _qCat = (quickCat && quickCat.value || '').trim();
+      if (!_qCat) { errorEl.textContent = 'Please select a category.'; errorEl.style.display = 'block'; return; }
+      formData.append('category', _qCat);
       formData.append('fit', 'Regular');
       formData.append('price', String(price));
       formData.append('sizes', JSON.stringify([(quickSz && quickSz.value) || 'L']));

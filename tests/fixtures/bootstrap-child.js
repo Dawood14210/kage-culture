@@ -102,7 +102,10 @@ const emit = (payload) => console.log('RESULT: ' + JSON.stringify(payload));
       await server.getReady();
       await db.prepare('DELETE FROM app_settings').run();
       await db.prepare("UPDATE products SET category = 'anime' WHERE name IN ('Rising Vermillion', 'Blade Wolf', 'Neon Fangs', 'Shinobi Mark')").run();
-      await db.prepare("UPDATE products SET category = 'streetwear' WHERE name = 'Blade Wolf'").run(); // preserve an admin-edited category
+      // Admin edits Blade Wolf to 'pants' (a real, allowed category) - should survive migration.
+      await db.prepare("UPDATE products SET category = 'pants' WHERE name = 'Blade Wolf'").run();
+      // Leave one stray 'streetwear' row so the remove-old-categories migration has work to do.
+      await db.prepare("INSERT INTO products (name, category, fit, price, sale_price, on_sale, description, sizes, unit_cost, stock_qty, in_stock) VALUES ('Old Streetwear Tee','streetwear','Regular',500,NULL,0,'legacy','[\"M\"]',100,1,1)").run();
       await db.prepare("UPDATE products SET sale_price = NULL, on_sale = 0 WHERE name = 'Rising Vermillion'").run();
       await db.prepare("UPDATE products SET unit_cost = 0 WHERE name = 'Blade Wolf'").run();
       await db.prepare("INSERT INTO products (name, category, fit, price, sale_price, on_sale, description, sizes, unit_cost, stock_qty, in_stock) VALUES ('Admin Custom Tee','anime','Regular',1111,NULL,0,'hand made','[\"L\"]',NULL,5,1)").run();

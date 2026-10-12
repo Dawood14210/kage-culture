@@ -35,6 +35,7 @@ const upload = multer({
 
 module.exports = function createProductRoutes(db) {
   const router = express.Router();
+  const { PRODUCT_CATEGORY_VALUES } = config;
 
   // GET all products (public)
   // Payload is built from the public allow-list in utils/productShape.js —
@@ -76,7 +77,9 @@ module.exports = function createProductRoutes(db) {
     try {
       const { name, category, fit, price, sale_price, description, sizes, in_stock, stock_qty, unit_cost, size_stock } = req.body;
       const cleanName = String(name || '').trim().slice(0, 120);
-      if (!cleanName || !category || price === undefined || price === '' || price === null) return res.status(400).json({ error: 'Name, category, and price are required.' });
+      const cleanCategory = String(category || '').trim();
+      if (!cleanName || !cleanCategory || price === undefined || price === '' || price === null) return res.status(400).json({ error: 'Name, category, and price are required.' });
+      if (!PRODUCT_CATEGORY_VALUES.has(cleanCategory)) return res.status(400).json({ error: `Invalid category "${cleanCategory}". Choose one of: Graphic Tees, Anime Shirts, Pants.` });
       const priceVal = Number(price);
       if (!Number.isFinite(priceVal) || priceVal <= 0) return res.status(400).json({ error: 'Price must be a positive number.' });
       const salePriceVal = sale_price ? Number(sale_price) : null;
@@ -113,7 +116,7 @@ module.exports = function createProductRoutes(db) {
       // discarded on create and replaced with a 55% estimate); estimate only
       // when none was provided.
       const estCost = unitCostVal != null ? unitCostVal : Math.max(50, Math.round(priceVal * 0.55));
-      const result = await db.prepare('INSERT INTO products (name, category, fit, price, sale_price, on_sale, description, sizes, front_image, back_image, extra_images, in_stock, unit_cost, stock_qty) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(cleanName, category, String(fit || '').trim().slice(0, 60), priceVal, salePriceVal, onSale, String(description || '').slice(0, 2000), JSON.stringify(sizesParsed), frontImage, backImage, JSON.stringify(extraImages), inStock, estCost, stockQty);
+      const result = await db.prepare('INSERT INTO products (name, category, fit, price, sale_price, on_sale, description, sizes, front_image, back_image, extra_images, in_stock, unit_cost, stock_qty) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(cleanName, cleanCategory, String(fit || '').trim().slice(0, 60), priceVal, salePriceVal, onSale, String(description || '').slice(0, 2000), JSON.stringify(sizesParsed), frontImage, backImage, JSON.stringify(extraImages), inStock, estCost, stockQty);
       productShape.invalidateProductAggregates();
       if (sizeStockInput.value) await sizeStock.replaceSizeStock(db, result.lastInsertRowid, sizeStockInput.value);
       const product = await db.prepare(`SELECT ${productShape.ADMIN_PRODUCT_SELECT} FROM products WHERE id = ?`).get(result.lastInsertRowid);
@@ -139,7 +142,12 @@ module.exports = function createProductRoutes(db) {
       // Validate the body BEFORE touching files: a rejected request must not
       // delete the existing images or orphan freshly uploaded ones.
       const finalName = name !== undefined && String(name).trim() ? String(name).trim().slice(0, 120) : existing.name;
-      const finalCategory = category || existing.category;
+      let finalCategory = existing.category;
+      if (category !== undefined && category !== null && String(category).trim() !== '') {
+        const proposed = String(category).trim();
+        if (!PRODUCT_CATEGORY_VALUES.has(proposed)) return res.status(400).json({ error: `Invalid category "${proposed}". Choose one of: Graphic Tees, Anime Shirts, Pants.` });
+        finalCategory = proposed;
+      }
       const finalFit = fit !== undefined && fit !== null ? String(fit).trim().slice(0, 60) : existing.fit;
       const finalDesc = description !== undefined && description !== null ? String(description).slice(0, 2000) : existing.description;
       let finalPrice = existing.price;

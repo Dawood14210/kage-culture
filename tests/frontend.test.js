@@ -127,16 +127,12 @@ async function ready(win) {
     const store = page(storeHtml); windows.push(store);
     const w = store.window, d = w.document;
     await ready(w);
-    w.navigateTo('collection', 'goofy-wears');
-    assert.equal(d.querySelector('#collectionTitle').textContent, 'GOOFY WEARS');
-    assert.equal(d.querySelector('#resultCount').textContent, '10 results');
+    w.navigateTo('collection', 'anime');
+    assert.equal(d.querySelector('#collectionTitle').textContent, 'ANIME SHIRTS');
     assert.ok([...d.querySelectorAll('#collectionGrid .product-card h3')].every(x =>
-      ['Melting', 'Robo Bro', 'All-Seeing Eye', 'Cheese God', 'Duck Off', 'Banana Flex', 'Alien Sightings', 'Pizza Lover', 'Frog Energy', 'Skeleton Vibes'].includes(x.textContent)));
-    assert.equal(d.querySelector('#collectionGrid .quick-add:disabled') !== null, true);
-    w.quickAdd(14); // Melting has zero stock.
-    assert.equal(w.eval('cart.length'), 0);
-    console.log('✅ Goofy Wears filters correctly; sold-out items cannot be added');
-
+      ['Shadow Fit', 'Oni Muscle Tee', 'Kage Core Compression'].includes(x.textContent)),
+      'anime filter must not leak graphic-tees products');
+    console.log('✅ Anime Shirts filter returns only anime products');
     // The shop grid (#shopSection) is hidden on the plain homepage and shown for
     // collection routes / search results — it used to be `display:none` inline
     // forever, so everything rendered into an invisible section.
@@ -172,8 +168,8 @@ async function ready(win) {
     assert.ok(w.eval('renderHomeProductCard(allProducts.find(p => p.name === "Wrath Silhouette"))').includes('class="product-discount-badge"'));
     console.log('✅ Filters clamp pagination; homepage sale badge is displayed');
 
-    w.quickAdd(20);
-    w.toggleWishlist(20);
+    w.quickAdd(9);
+    w.toggleWishlist(9);
     assert.equal(d.querySelector('#cartCount').textContent, '1');
     assert.equal(d.querySelector('#wishlistCount').textContent, '1');
     const storage = {
@@ -186,17 +182,17 @@ async function ready(win) {
     assert.equal(reload.window.document.querySelector('#wishlistCount').textContent, '1');
     console.log('✅ Cart and wishlist survive reload and hydrate from the API');
 
-    w.openProductDetail(20);
-    assert.equal(w.location.pathname, '/product/20');
+    w.openProductDetail(9);
+    assert.equal(w.location.pathname, '/product/9');
     w.navigateTo('tracking');
     assert.equal(w.location.pathname, '/tracking');
     w.history.back();
     await wait(100);
     assert.equal(d.querySelector('#page-product').classList.contains('active'), true);
-    const deepLink = page(storeHtml, '/product/20'); windows.push(deepLink);
+    const deepLink = page(storeHtml, '/product/9'); windows.push(deepLink);
     await ready(deepLink.window);
     await wait(100);
-    assert.equal(deepLink.window.document.querySelector('#detailName').textContent, 'Cheese God');
+    assert.equal(deepLink.window.document.querySelector('#detailName').textContent, 'Wrath Silhouette');
     assert.equal(deepLink.window.document.querySelector('.hero-media img').getAttribute('src'), '/images/hero.jpg');
     // Hero copy and CTA: headline is shown, the button goes to the full collection, and the header height is published for the hero offset.
     assert.equal(deepLink.window.document.querySelector('.hero-title').textContent, 'Engineered Fit. Original Art.');
@@ -669,19 +665,23 @@ async function ready(win) {
     assert.match(storeHtml, /\.card-rating \{[^}]*min-height: 1\.15rem;[^}]*\}/, 'the rating row keeps its line when there are no reviews');
     console.log('✅ Product cards keep a reserved rating row and pin their button to the card bottom');
 
-    // Three live category cards stay in a balanced, centered row across devices.
+        // Four category tiles (Graphic Tees, Anime, Pants [disabled], Custom Stickers) in a balanced row.
     const catTiles = [...d.querySelectorAll('#page-home .category-strip .cat-tile')];
-    assert.deepEqual(catTiles.map(t => t.querySelector('.cat-name').textContent), ['Graphic Tees', 'Anime Shirts', 'Custom Stickers'], 'the category strip contains only the three available categories');
-    assert.deepEqual(catTiles.map(t => t.querySelector('img').getAttribute('src')), ['/images/graphic-tees.jpg', '/images/anime-shirts.jpg', '/images/custom-stickers.jpg'], 'each remaining card keeps its own image');
-    assert.deepEqual(catTiles.map(t => t.getAttribute('href')), ['/collection/graphic-tees', '/collection/anime', '/custom-stickers'], 'each Explore link points at a real route');
-    assert.ok(catTiles.every(t => /Explore/.test(t.querySelector('.cat-shop').textContent)), 'every card keeps its Explore link');
+    assert.deepEqual(catTiles.map(t => t.querySelector('.cat-name').textContent), ['Graphic Tees', 'Anime Shirts', 'Pants', 'Custom Stickers'], 'the category strip lists the four cards in order');
+    assert.deepEqual(catTiles.map(t => t.querySelector('img').getAttribute('src')), ['/images/graphic-tees.jpg', '/images/anime-shirts.jpg', '/images/pants.jpg', '/images/custom-stickers.jpg'], 'each card keeps its own image (Pants uses pants.jpg)');
+    const linkTiles = catTiles.filter(t => t.tagName === 'A');
+    assert.deepEqual(linkTiles.map(t => t.getAttribute('href')), ['/collection/graphic-tees', '/collection/anime', '/custom-stickers'], 'enabled tiles link to real routes');
+    const pantsTile = catTiles.find(t => t.querySelector('.cat-name').textContent === 'Pants');
+    assert.equal(pantsTile.tagName, 'SPAN', 'Pants is a span (not an <a>) while out of stock');
+    assert.equal(pantsTile.getAttribute('aria-disabled'), 'true', 'Pants tile is aria-disabled');
+    assert.ok(pantsTile.querySelector('.cat-coming-soon'), 'Pants tile shows the Coming-soon pill while unavailable');
+    assert.ok(linkTiles.every(t => /Explore/.test(t.querySelector('.cat-shop').textContent)), 'every active card keeps its Explore link');
     assert.ok(catTiles.every(t => t.querySelector('.cat-desc').textContent.trim().length), 'every card keeps its description');
-    assert.match(storeHtml, /\.category-strip \{[\s\S]*?grid-template-columns: repeat\(3, minmax\(0, 1fr\)\);[\s\S]*?gap: 20px;/, 'base layout uses three equal columns');
-    assert.match(storeHtml, /@media \(min-width: 600px\) and \(max-width: 1023px\) \{\s*#page-home \.category-strip \{\s*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\);/, 'tablet layout keeps three equal columns');
-    assert.match(storeHtml, /@media \(min-width: 1024px\) \{[\s\S]*?#page-home \.category-strip \{\s*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\);[\s\S]*?max-width: 1200px;/, 'desktop layout centers three columns and caps the strip at 1200px');
-    assert.match(storeHtml, /@media \(max-width: 599px\) \{[\s\S]*?#page-home \.category-strip \{\s*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\);\s*gap: 12px;[\s\S]*?\.cat-thumb \{\s*width: clamp\(64px, 22vw, 104px\);/, 'phone layout keeps three tiles on one row and scales the circles to fit');
-    console.log('✅ Category strip keeps three balanced cards in one row at phone, tablet and desktop widths');
-
+    assert.match(storeHtml, /#page-home \.category-strip \{[\s\S]*?grid-template-columns: repeat\(4, minmax\(0, 1fr\)\);/, 'base layout uses four equal columns');
+    assert.match(storeHtml, /@media \(min-width: 1024px\) \{[\s\S]*?#page-home \.category-strip \{[\s\S]*?grid-template-columns: repeat\(4, minmax\(0, 1fr\)\);[\s\S]*?max-width: 1200px;/, 'desktop layout centers four columns and caps the strip at 1200px');
+    assert.match(storeHtml, /@media \(min-width: 600px\) and \(max-width: 1023px\) \{[\s\S]*?#page-home \.category-strip \{[\s\S]*?grid-template-columns: repeat\(4, minmax\(0, 1fr\)\);/, 'tablet layout uses four balanced columns');
+    assert.match(storeHtml, /@media \(max-width: 599px\) \{[\s\S]*?#page-home \.category-strip \{[\s\S]*?grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/, 'phone layout uses a 2x2 grid for four tiles');
+    console.log('✅ Category strip shows four tiles (Pants disabled) with responsive 4/4/2 column layouts');
     const admin = page(adminHtml, '/admin'); windows.push(admin);
     await wait(100);
     const aw = admin.window, ad = aw.document;
@@ -852,21 +852,29 @@ async function ready(win) {
 
     // Shared nav order/routes, mobile panel contract, and admin entry points.
     const navLinks = [...d.querySelectorAll('#navLinks > li > a')];
-    assert.deepEqual(navLinks.map(a => a.textContent.trim()), [
+    assert.deepEqual(navLinks.map(a => a.textContent.trim()).filter(t => t !== 'Pants'), [
       'Home', 'Anime Shirts', 'Graphic Tees', 'Custom Stickers', 'About', 'Contact', 'Track Order'
-    ]);
-    assert.deepEqual(navLinks.map(a => a.getAttribute('href')), [
+    ], 'Pants link stays hidden until pants are live');
+    const visibleNavLinks = navLinks.filter(a => a.closest('li').style.display !== 'none');
+    assert.deepEqual(visibleNavLinks.map(a => a.getAttribute('href')), [
       '/', '/collection/anime', '/collection/graphic-tees',
       '/custom-stickers', '/about', '/contact', '/tracking'
     ]);
-    assert.equal(navLinks.some(a => a.textContent.trim() === 'Pants'), false, 'Pants is absent from desktop and mobile nav markup');
-    const cardRoutes = Object.fromEntries([...d.querySelectorAll('#page-home .cat-tile')].map(tile => [
+    const pantsNavItem = navLinks.find(a => a.textContent.trim() === 'Pants');
+    assert.ok(pantsNavItem, 'Pants nav link is in markup (hidden until live)');
+    assert.equal(pantsNavItem.closest('li').style.display, 'none', 'Pants nav hidden while no pants are stocked');
+    const cardTiles = [...d.querySelectorAll('#page-home .cat-tile')];
+    assert.deepEqual(cardTiles.map(t => t.querySelector('.cat-name').textContent.trim()), ['Graphic Tees', 'Anime Shirts', 'Pants', 'Custom Stickers']);
+    const cardRoutes = Object.fromEntries(cardTiles.filter(t => t.tagName === 'A').map(tile => [
       tile.querySelector('.cat-name').textContent.trim(), tile.getAttribute('href')
     ]));
     for (const name of ['Anime Shirts', 'Graphic Tees', 'Custom Stickers']) {
-      assert.equal(navLinks.find(a => a.textContent.trim() === name).getAttribute('href'), cardRoutes[name], `${name} nav link matches its homepage card`);
+      assert.equal(visibleNavLinks.find(a => a.textContent.trim() === name).getAttribute('href'), cardRoutes[name], `${name} nav link matches its homepage card`);
     }
-    assert.equal([...d.querySelectorAll('.site-footer a')].some(a => a.textContent.trim() === 'Pants'), false, 'the footer has no unavailable Pants category');
+    const pantsTile = d.getElementById('catTilePants');
+    assert.ok(pantsTile && pantsTile.tagName === 'SPAN' && pantsTile.getAttribute('aria-disabled') === 'true', 'Pants tile is a disabled <span> (not a link) until live');
+    const footerPantsLinks = [...d.querySelectorAll('.site-footer a')].filter(a => a.textContent.trim() === 'Pants' && a.closest('li').style.display !== 'none');
+    assert.equal(footerPantsLinks.length, 0, 'Pants footer link stays hidden until products are live');
     const menuActions = d.querySelector('#navLinks .mobile-icons-row');
     assert.deepEqual([...menuActions.querySelectorAll('.nav-icon')].map(button => button.title), ['Track Order'], 'mobile menu keeps only the action missing from the header');
     assert.equal(menuActions.querySelectorAll('[title="Wishlist"], [title="Cart"], [title="Account"]').length, 0, 'mobile menu has no duplicate account/cart/wishlist icons');

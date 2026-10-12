@@ -240,7 +240,8 @@ const BOOTSTRAP_KEYS = {
   categories: 'normalize_demo_categories_v1',
   salePrices: 'sync_seed_sale_prices_v1',
   unitCosts: 'backfill_unit_costs_v1',
-  emails: 'normalize_emails_v1'
+  emails: 'normalize_emails_v1',
+  removeOldCategories: 'remove_old_categories_v1'
 };
 let _bootstrapDone = false;
 
@@ -322,12 +323,33 @@ async function normalizeEmailsOnce() {
   return JSON.stringify(stats);
 }
 
+// v2026-10: the only allowed product categories are graphic-tees, anime, pants.
+// Move any product not in one of those (including 'streetwear', 'goofy-wears'
+// and any other unknown value) into 'graphic-tees' so nothing disappears from
+// the catalog. Products already in an allowed category are left untouched.
+// Idempotent: after running once every row carries an allowed category, so
+// re-running changes zero rows.
+async function removeOldCategoriesOnce() {
+  const allowedList = Array.from(config.PRODUCT_CATEGORY_VALUES)
+    .map(v => `'${String(v).replace(/'/g, "''")}'`).join(',');
+  const result = await db.prepare(
+    `UPDATE products SET category = 'graphic-tees' WHERE category NOT IN (${allowedList})`
+  ).run();
+  const moved = Number(result && result.changes) || 0;
+  if (moved) {
+    await db.save();
+    console.log(`👖 Migrated ${moved} product(s) from removed categories into Graphic Tees`);
+  }
+  return 'migrated:' + moved;
+}
+
 // Returns true when every step is known-done (nothing left to retry).
 async function bootstrapData() {
   let complete = true;
   for (const [key, step] of [
     [BOOTSTRAP_KEYS.products, seedProductsOnce],
     [BOOTSTRAP_KEYS.categories, normalizeDemoCategoriesOnce],
+    [BOOTSTRAP_KEYS.removeOldCategories, removeOldCategoriesOnce],
     [BOOTSTRAP_KEYS.salePrices, syncSeedSalePricesOnce],
     [BOOTSTRAP_KEYS.unitCosts, backfillUnitCostsOnce],
     [BOOTSTRAP_KEYS.emails, normalizeEmailsOnce]

@@ -963,8 +963,8 @@ async function main() {
       const csrf = await getCsrf();
       const form = new FormData();
       form.append('name', 'Regression Product');
-      form.append('category', 'goofy-wears');
-      form.append('fit', 'Sticker');
+      form.append('category', 'pants');
+      form.append('fit', 'Relaxed');
       form.append('price', '299');
       form.append('description', 'Create-product regression test');
       form.append('sizes', JSON.stringify(['One Size']));
@@ -980,7 +980,7 @@ async function main() {
       assert.strictEqual(response.status, 201, JSON.stringify(product));
       productId = product.id;
       assert.strictEqual(product.name, 'Regression Product');
-      assert.strictEqual(product.category, 'goofy-wears');
+      assert.strictEqual(product.category, 'pants');
       assert.strictEqual(Number(product.unit_cost), 80);
       assert.strictEqual(Number(product.stock_qty), 2);
       assert.ok(product.front_image && product.front_image.startsWith('/uploads/'), 'image must be persisted');
@@ -1310,18 +1310,23 @@ async function main() {
   await check('zero-stock products are unavailable in the catalog', async () => {
     const r = await request(PORT, 'GET', '/api/products');
     assert.strictEqual(r.status, 200);
-    for (const name of ['Melting', 'Robo Bro', 'All-Seeing Eye']) {
+    const zeroStockNames = ['Hollow Gaze']; // demo seed includes one out-of-stock item
+    for (const name of zeroStockNames) {
       const p = r.json.find(x => x.name === name);
-      assert.equal(p.stock_qty, 0);
-      assert.equal(p.in_stock, false);
+      assert.ok(p, `expected demo product ${name} to exist`);
+      assert.equal(Number(p.stock_qty), 0, `${name} must be seeded at stock 0`);
+      assert.equal(p.in_stock, false, `${name} must be marked out of stock`);
     }
   });
   await check('zero-stock product cannot be marked available without restocking', async () => {
     const csrf = await getCsrf();
-    const r = await request(PORT, 'PATCH', '/api/products/14/stock', {
+    const list = await request(PORT, 'GET', '/api/products');
+    const zero = list.json.find(p => p.name === 'Hollow Gaze');
+    assert.ok(zero, 'expected Hollow Gaze to exist for stock-toggle test');
+    const r = await request(PORT, 'PATCH', `/api/products/${zero.id}/stock`, {
       headers: { Cookie: adminCookie + '; ' + csrf.cookie, 'X-CSRF-Token': csrf.token }
     });
-    assert.strictEqual(r.status, 400);
+    assert.strictEqual(r.status, 400, JSON.stringify(r.json));
     assert.match(r.json.error, /Restock/);
   });
   await check('clearing a sale price removes the discount on the API', async () => {
@@ -2223,7 +2228,7 @@ async function main() {
     const file = tempDb('fresh');
     const out = runBootstrap('seed-fresh', file);
     assert.strictEqual(out.products, demoProducts.DEMO_PRODUCTS.length, JSON.stringify(out));
-    assert.deepStrictEqual(Object.keys(out.keys).sort(), ['backfill_unit_costs_v1', 'normalize_demo_categories_v1', 'normalize_emails_v1', 'seed_products_v1', 'sync_seed_sale_prices_v1']);
+    assert.deepStrictEqual(Object.keys(out.keys).sort(), ['backfill_unit_costs_v1', 'normalize_demo_categories_v1', 'normalize_emails_v1', 'remove_old_categories_v1', 'seed_products_v1', 'sync_seed_sale_prices_v1']);
     assert.strictEqual(out.keys.seed_products_v1, 'seeded');
     assert.strictEqual(out.keys.normalize_demo_categories_v1, 'normalized:0', 'fresh products already use their route collection keys');
     const seededGraphics = demoProducts.DEMO_PRODUCTS.filter(product => product.category === 'graphic-tees').map(product => product.name);
@@ -2272,7 +2277,9 @@ async function main() {
     for (const name of ['Rising Vermillion', 'Neon Fangs', 'Shinobi Mark']) {
       assert.equal(after.categories[name], 'graphic-tees', `${name} uses the category key filtered by the storefront`);
     }
-    assert.equal(after.categories['Blade Wolf'], 'streetwear', 'a non-legacy category chosen by an admin is preserved');
+    assert.equal(after.categories['Blade Wolf'], 'pants', 'an admin edit to an allowed category is preserved across the remove-old-categories step');
+    assert.equal(after.categories['Old Streetwear Tee'], 'graphic-tees', 'legacy streetwear products are rehomed to graphic-tees');
+    assert.strictEqual(after.keys.remove_old_categories_v1, 'migrated:1', 'one legacy category row migrated');
     // Costs: NULL may be filled once, 0 and real numbers must be untouched.
     for (const [name, costBefore] of Object.entries(before.costs)) {
       const costAfter = after.costs[name];
@@ -2339,7 +2346,7 @@ async function main() {
     assert.ok(products.some(product => product.category === 'graphic-tees'), 'restored Graphic Tees retain the storefront category key');
     // The bootstrap markers are untouched by a deliberate re-seed.
     const markers = await dbModule.prepare('SELECT key FROM app_settings').all();
-    assert.strictEqual(markers.length, 5, JSON.stringify(markers));
+    assert.strictEqual(markers.length, 6, JSON.stringify(markers));
   });
 
   // ---------------------------------------------------------------

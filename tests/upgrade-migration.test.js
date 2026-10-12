@@ -286,7 +286,7 @@ const CASES = [
       assert.equal(state.second.command, 'snapshot');
       assert.equal(state.second.flow, null);
       assert.deepEqual(state.second.before.settings.map((s) => s.key).sort(),
-        ['backfill_unit_costs_v1', 'normalize_demo_categories_v1', 'normalize_emails_v1', 'seed_products_v1', 'sync_seed_sale_prices_v1'],
+        ['backfill_unit_costs_v1', 'normalize_demo_categories_v1', 'normalize_emails_v1', 'remove_old_categories_v1', 'seed_products_v1', 'sync_seed_sale_prices_v1'],
         'the one-time bootstrap markers must be recorded exactly once');
     });
   }

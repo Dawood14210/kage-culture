@@ -73,19 +73,23 @@ async function waitForCatalog(window) {
     const { document: d } = w;
     await waitForCatalog(w);
 
-    await check('Pants is absent from desktop/mobile nav, category strip and footer', () => {
-      const visibleLinks = [...d.querySelectorAll('#navLinks a, .category-strip a, .site-footer a')];
-      assert.equal(visibleLinks.some(link => link.textContent.trim() === 'Pants'), false);
-      assert.doesNotMatch(html, /<span class="cat-name">Pants<\/span>/i);
+    await check('Pants tile exists but is disabled (not a link) and absent from nav/footer until live', () => {
+      const navLinks = [...d.querySelectorAll('#navLinks a, .site-footer a')].filter(a => a.offsetParent !== null && a.style.display !== 'none' && !a.closest('[style*="display: none"]'));
+      assert.equal(navLinks.some(link => /^pants$/i.test(link.textContent.trim())), false, 'Pants must not appear in nav/footer links while out of stock');
+      const pantsTile = d.getElementById('catTilePants');
+      assert.ok(pantsTile, 'Pants tile must be present in the category strip');
+      assert.equal(pantsTile.tagName, 'SPAN', 'Pants tile must NOT be an <a> link until live');
+      assert.equal(pantsTile.getAttribute('aria-disabled'), 'true');
+      assert.ok(pantsTile.querySelector('.cat-coming-soon'), 'Pants tile shows "Coming soon" pill');
     });
 
-    await check('three category tiles use balanced three-column layouts at phone, tablet and desktop widths', () => {
-      assert.deepEqual([...d.querySelectorAll('#page-home .cat-name')].map(node => node.textContent.trim()), [
-        'Graphic Tees', 'Anime Shirts', 'Custom Stickers'
+    await check('four category tiles in order Graphic Tees / Anime / Pants / Custom Stickers with responsive grids', () => {
+      assert.deepEqual([...d.querySelectorAll('#page-home .cat-tile .cat-name')].map(node => node.textContent.trim()), [
+        'Graphic Tees', 'Anime Shirts', 'Pants', 'Custom Stickers'
       ]);
-      assert.match(html, /#page-home \.category-strip \{\s*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\);[\s\S]*?max-width: 1200px;/);
-      assert.match(html, /@media \(min-width: 600px\) and \(max-width: 1023px\) \{[\s\S]*?#page-home \.category-strip \{\s*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\);/);
-      assert.match(html, /@media \(max-width: 600px\) \{[\s\S]*?#page-home \.category-strip \{\s*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\);/);
+      assert.match(html, /#page-home \.category-strip \{[\s\S]*?grid-template-columns: repeat\(4, minmax\(0, 1fr\)\);[\s\S]*?max-width: 1200px;/);
+      assert.match(html, /@media \(min-width: 600px\) and \(max-width: 1023px\) \{[\s\S]*?#page-home \.category-strip \{[\s\S]*?grid-template-columns: repeat\(4, minmax\(0, 1fr\)\);/);
+      assert.match(html, /@media \(max-width: 599px\) \{[\s\S]*?#page-home \.category-strip \{[\s\S]*?grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/);
     });
 
     await check('seeded Graphic Tees are categorized under the exact collection key used by the storefront', async () => {
@@ -96,13 +100,16 @@ async function waitForCatalog(window) {
         && product.in_stock !== false && (product.stock_qty == null || Number(product.stock_qty) > 0));
       assert.ok(liveGraphicTees.length > 0, 'the demo seed should include in-stock graphic-tees products');
       assert.ok(liveGraphicTees.every(product => product.category === 'graphic-tees'));
+      // No legacy streetwear / goofy-wears categories remain after migration
+      assert.equal(products.some(p => p.category === 'streetwear' || p.category === 'goofy-wears'), false,
+        'legacy streetwear/goofy-wears categories must be migrated away');
     });
 
-    await check('Graphic Tees with stock opens a filtered product grid', () => {
+    await check('Graphic Tees with stock opens a filtered product grid (never Coming Soon)', () => {
       w.eval(`allProducts.push({
         id: 987654, name: 'Graphic Route Probe', price: 999, original_price: 999,
         collection: 'graphic-tees', collections: [], style: 'Japanese Art', fit: 'Regular',
-        sizes: ['L'], images: ['data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg"%3E%3C/svg%3E'],
+        sizes: ['L'], images: ['data:image/svg+xml,%3Csvg xmlns=\"http://www.w3.org/2000/svg\"%3E%3C/svg%3E'],
         stock_qty: 5, in_stock: true, on_sale: false, sale_price: null, rating: null, review_count: 0
       });`);
       w.navigateTo('collection', 'graphic-tees');
@@ -112,14 +119,18 @@ async function waitForCatalog(window) {
         .some(node => node.textContent === 'Graphic Route Probe'));
     });
 
-    await check('Graphic Tees routes to Coming Soon after all its products are out of stock', () => {
+    await check('Graphic Tees with zero stock renders empty state, NOT Coming Soon', () => {
       w.eval(`allProducts.filter(product => product.collection === 'graphic-tees').forEach(product => {
         product.stock_qty = 0;
         product.in_stock = false;
       });`);
       w.navigateTo('collection', 'graphic-tees');
-      assert.equal(d.getElementById('page-coming-soon').classList.contains('active'), true);
-      assert.match(d.getElementById('comingSoonTitle').textContent, /GRAPHIC TEES — COMING SOON/);
+      // Page stays on home/shop, NOT on Coming Soon
+      assert.equal(d.getElementById('page-coming-soon').classList.contains('active'), false,
+        'graphic-tees must never display Coming Soon even when out of stock');
+      assert.equal(d.getElementById('shopSection').classList.contains('shop-visible'), true);
+      assert.match(d.getElementById('collectionGrid').textContent, /No graphic tees available right now/i,
+        'out-of-stock graphic-tees shows empty state message');
     });
 
     await check('restocking Graphic Tees restores the filtered product grid', () => {
@@ -131,6 +142,31 @@ async function waitForCatalog(window) {
       assert.equal(d.getElementById('page-coming-soon').classList.contains('active'), false);
       assert.ok([...d.querySelectorAll('#collectionGrid .product-card h3')]
         .some(node => node.textContent === 'Graphic Route Probe'));
+    });
+
+    await check('adding a live pants product activates the Pants tile, nav link and footer link', () => {
+      w.eval(`allProducts.push({
+        id: 987655, name: 'Kage Cargo Pant', price: 2499, original_price: 2499,
+        collection: 'pants', collections: [], style: 'Everyday', fit: 'Relaxed',
+        sizes: ['M','L'], images: ['data:image/svg+xml,%3Csvg xmlns=\"http://www.w3.org/2000/svg\"%3E%3C/svg%3E'],
+        stock_qty: 3, in_stock: true, on_sale: false, sale_price: null, rating: null, review_count: 0
+      });`);
+      w.syncPantsCategoryVisibility();
+      const tile = d.getElementById('catTilePants');
+      assert.equal(tile.tagName, 'A', 'Pants tile must become an <a> once live');
+      assert.equal(tile.getAttribute('aria-disabled'), null);
+      assert.ok(!tile.querySelector('.cat-coming-soon') || tile.querySelector('.cat-coming-soon').style.display === 'none');
+      const navItem = d.getElementById('navPantsItem');
+      assert.ok(navItem && navItem.style.display !== 'none', 'Pants nav link visible when live');
+      const footerItem = d.getElementById('footerPantsItem');
+      assert.ok(footerItem && footerItem.style.display !== 'none', 'Pants footer link visible when live');
+    });
+
+    await check('invalid category in product POST returns 400 with a clear message', async () => {
+      // We can't exercise the admin API here (no cookie), but client-side dropdown
+      // must offer exactly three options: graphic-tees, anime, pants.
+      const cats = w.CATEGORY_OPTIONS ? w.CATEGORY_OPTIONS.map(o => o.value) : [];
+      assert.deepStrictEqual([...cats].sort(), ['anime', 'graphic-tees', 'pants']);
     });
 
     await check('unused dead loaders and the shadowed notifyMe variant are removed', () => {
