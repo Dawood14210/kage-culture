@@ -448,7 +448,7 @@ The dark olive category band now carries four cards in the order Anime Shirts,
 Graphic Tees, Custom Stickers, Pants, each keeping the existing `.cat-tile`
 structure (circle thumb + name + description + Explore link). Images moved to
 `anime-shirts.jpg`, `graphic-tees.jpg`, `custom-stickers.jpg` and `pants.jpg`
-(the old `cat-*.jpg` files stay on disk, unused). Layout: a single column below
+(the old `cat-*.jpg` files were removed in the 2026-10-12 unused-asset cleanup). Layout: a single column below
 800px (stacked row cards, 96px circles) and a 2x2 grid from 800px up — the
 `max-width: 768px` and `min-width: 769px` breakpoints moved to 799px/800px, and
 the base strip is `1fr` so four cards can never fall into a 3+1 orphan row.
@@ -717,7 +717,7 @@ safely") that fails against the previous markup.
 All icons were downscales of the full brand seal, so the brush frame filled in at
 tab size (16px) and the mark read as a grey blob; `admin.html` also loaded its own
 copies from `/images/` while the storefront used the root files, so the two had
-drifted. Rebuilt the set from `public/images/logo/kage-icon-light.svg`: the 影
+drifted. Rebuilt the set from `public/images/logo/kage-icon-light.svg` (moved to `source/kage-icon-light.svg` on 2026-10-12): the 影
 glyph is isolated from the frame by component analysis and scaled up inside a
 brand tile, the red seal dot is kept from 32px up, small frames are supersampled
 and downscaled for smooth strokes, and maskable app icons keep the mark inside the
@@ -728,6 +728,27 @@ every declared icon (status, MIME, PNG/ICO dimensions, no duplicate paths) —
 this set through `*-v2` URLs from both pages and versions the manifest, Windows
 tile, and structured-data app-icon URLs too, so a browser holding the old
 `/favicon.ico` or `/images/icon-192.png` can no longer mask the deployed artwork.
+
+### ✅ Open Graph / Twitter image — absolute, sized, lightweight — 2026-10-12
+
+Finding (no earlier entry; recorded here when fixed): `og:image` and `twitter:image`
+pointed at the relative path `/images/animal-white-tiger.jpg`. Social crawlers need
+an absolute URL, and the file was 3.4 MB (and PNG-encoded despite the `.jpg` name),
+which is too heavy for most link-preview fetchers. Also missing: image dimensions
+and alt text.
+
+Fixed: new `public/images/og-image.jpg` (1200×630 progressive JPEG, 119,069 bytes),
+cropped from `hero.jpg` (hero unchanged). `index.html` now uses
+`__SITE_URL__/images/og-image.jpg` for both tags (the server substitutes the origin),
+and adds `og:image:width`, `og:image:height` and `og:image:alt`.
+
+Verified: the homepage and `/product/1` render absolute og/twitter image URLs;
+the image returns 200 `image/jpeg`; `npm test` passes (128/128 API, storefront,
+rate-limit, migration, 28/28 frontend).
+
+The old `animal-white-tiger.jpg` (3.38 MB) was deleted after the owner confirmed
+that no live product row or Vercel Blob object uses it. `kage-icon-light.svg`, the
+favicon source artwork, moved out of the served tree to `source/kage-icon-light.svg`.
 
 ## Remaining work (priority order)
 
