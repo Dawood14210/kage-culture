@@ -478,16 +478,6 @@
       height: 100%;
     }
     .cat-tile:hover { transform: translateY(-6px); }
-    /* Disabled "Coming soon" tile — no link, no hover lift, default cursor */
-    .cat-tile[aria-disabled="true"] {
-      cursor: default;
-      pointer-events: none;
-    }
-    .cat-tile[aria-disabled="true"]:hover { transform: none; }
-    .cat-tile[aria-disabled="true"] .cat-thumb { border-color: rgba(255,255,255,0.2); box-shadow: none; }
-    .cat-tile[aria-disabled="true"] .cat-coming-soon {
-      display: inline-flex;
-    }
     .cat-thumb {
       width: 116px;
       height: 116px;
@@ -551,6 +541,7 @@
       text-transform: uppercase;
       color: #FFF;
       margin-top: auto;
+      min-height: 28px;
       display: inline-flex;
       align-items: center;
       justify-content: center;
@@ -558,31 +549,9 @@
       border-bottom: 1px solid transparent;
       transition: border-color var(--transition-fast);
     }
-    .cat-coming-soon {
-      font-size: 0.6rem;
-      font-weight: 700;
-      letter-spacing: 0.15em;
-      text-transform: uppercase;
-      color: #FFF;
-      margin-top: auto;
-      display: none;
-      align-items: center;
-      justify-content: center;
-      padding: 0.3rem 0.7rem;
-      border-radius: 999px;
-      border: 1px solid rgba(255,255,255,0.4);
-      background: rgba(255,255,255,0.08);
-    }
-    /* One shared label-row height: the Explore links and the "Coming soon"
-       pill sit on the same line across the four cards (equal tops) however
-       the name/description copy above them wraps. */
-    .cat-shop,
-    .cat-coming-soon {
-      min-height: 28px;
-    }
     .cat-shop i { font-style: normal; transition: transform var(--transition-fast); }
-    .cat-tile:not([aria-disabled="true"]):hover .cat-shop i { transform: translateX(4px); }
-    .cat-tile:not([aria-disabled="true"]):hover .cat-shop { border-color: #FFF; }
+    .cat-tile:hover .cat-shop i { transform: translateX(4px); }
+    .cat-tile:hover .cat-shop { border-color: #FFF; }
     /* The category row is a keyboard-focusable region (tabindex="0"); its
        focus ring is white so it stays visible on the accent-coloured band. */
     .category-strip:focus-visible {
@@ -3751,12 +3720,12 @@
       </div>
     </section>
 
-    <!-- KAGE CATEGORIES — graphic tees, anime shirts, custom stickers -->
+    <!-- KAGE CATEGORIES — graphic tees, anime shirts, pants, custom stickers -->
         <section class="section-categories" id="sectionCategories">
       <div class="category-band">
         <div class="container">
           <div class="category-strip" id="categoryStrip" tabindex="0" aria-label="Shop categories">
-            <a class="cat-tile reveal" href="/collection/graphic-tees" data-cat="graphic-tees" onclick="navigateTo('collection', 'graphic-tees'); return false;">
+            <a class="cat-tile" href="/collection/graphic-tees" data-cat="graphic-tees" onclick="navigateTo('collection', 'graphic-tees'); return false;">
               <span class="cat-thumb"><img src="/images/graphic-tees.jpg" alt="Graphic Tees" loading="lazy" /></span>
               <span class="cat-info">
                 <span class="cat-name">Graphic Tees</span>
@@ -3764,7 +3733,7 @@
                 <span class="cat-shop">Explore <i><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg></i></span>
               </span>
             </a>
-            <a class="cat-tile reveal" href="/collection/anime" data-cat="anime" onclick="navigateTo('collection', 'anime'); return false;">
+            <a class="cat-tile" href="/collection/anime" data-cat="anime" onclick="navigateTo('collection', 'anime'); return false;">
               <span class="cat-thumb"><img src="/images/anime-shirts.jpg" alt="Anime Shirts" loading="lazy" /></span>
               <span class="cat-info">
                 <span class="cat-name">Anime Shirts</span>
@@ -3772,17 +3741,15 @@
                 <span class="cat-shop">Explore <i><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg></i></span>
               </span>
             </a>
-            <!-- Pants tile: becomes a live link once a pants product is in stock. -->
-            <span class="cat-tile reveal" id="catTilePants" data-cat="pants" aria-disabled="true">
+            <a class="cat-tile" id="catTilePants" href="/collection/pants" data-cat="pants" onclick="navigateTo('collection', 'pants'); return false;">
               <span class="cat-thumb"><img src="/images/pants.jpg" alt="Pants" loading="lazy" /></span>
               <span class="cat-info">
                 <span class="cat-name">Pants</span>
                 <span class="cat-desc">Relaxed fits for every drop.</span>
-                <span class="cat-coming-soon">Coming soon</span>
-                <span class="cat-shop" style="display:none;">Explore <i><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg></i></span>
+                <span class="cat-shop">Explore <i><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg></i></span>
               </span>
-            </span>
-            <a class="cat-tile reveal" href="/custom-stickers" data-cat="custom-stickers" onclick="navigateTo('custom-stickers'); return false;">
+            </a>
+            <a class="cat-tile" href="/custom-stickers" data-cat="custom-stickers" onclick="navigateTo('custom-stickers'); return false;">
               <span class="cat-thumb"><img src="/images/custom-stickers.jpg" alt="Custom Stickers" loading="lazy" /></span>
               <span class="cat-info">
                 <span class="cat-name">Custom Stickers</span>
@@ -4806,11 +4773,9 @@
     }
 
     // ---------- Navigation ----------
-    // Category status: a category is "live" when it has at least one in-stock
-    // product. Empty / not-yet-stocked categories route to the Coming Soon page.
-    // Categories still showing the Coming Soon page when out of stock.
-    // 'graphic-tees' is NOT here - it always shows the shop grid (empty state
-    // if nothing is in stock). 'pants' is handled via the homepage tile.
+    // A category is "live" when it has at least one in-stock product.
+    // Graphic Tees, Anime Shirts and Pants always show the shop grid, with
+    // an empty state when unavailable. Only these categories use Coming Soon.
     const COMING_SOON_CATS = ['compression', 'oversized', 'sale'];
     const CATEGORY_NAMES = { 'anime': 'Anime Shirts', 'graphic-tees': 'Graphic Tees', 'pants': 'Pants', 'compression': 'Compression', 'oversized': 'Oversized', 'sale': 'Sale' };
     // The only slugs /collection/xxx accepts. Anything else — including the
@@ -4826,59 +4791,10 @@
     window.CATEGORY_OPTIONS = CATEGORY_OPTIONS;
     window.CATEGORY_NAMES = CATEGORY_NAMES;
     window.COMING_SOON_CATS = COMING_SOON_CATS;
-    // Toggle the Pants homepage tile / nav / footer based on live stock.
+    // Only the Pants nav/footer links depend on live stock. Keep the homepage
+    // Explore link stable and available regardless of inventory.
     function syncPantsCategoryVisibility() {
       const live = categoryHasLiveProducts('pants');
-      const tile = document.getElementById('catTilePants');
-      if (tile) {
-        if (live) {
-          if (tile.tagName === 'SPAN') {
-            const a = document.createElement('a');
-            a.className = tile.className;
-            a.id = 'catTilePants';
-            a.href = '/collection/pants';
-            a.setAttribute('data-cat', 'pants');
-            a.onclick = function() { navigateTo('collection', 'pants'); return false; };
-            a.innerHTML = tile.innerHTML;
-            tile.replaceWith(a);
-          } else {
-            tile.removeAttribute('aria-disabled');
-            tile.style.pointerEvents = '';
-            tile.href = '/collection/pants';
-          }
-          const t = document.getElementById('catTilePants');
-          if (t) {
-            t.removeAttribute('aria-disabled');
-            t.style.pointerEvents = '';
-            const s = t.querySelector('.cat-shop');
-            const p = t.querySelector('.cat-coming-soon');
-            if (s) s.style.display = '';
-            if (p) p.style.display = 'none';
-          }
-        } else {
-          if (tile.tagName === 'A') {
-            const span = document.createElement('span');
-            span.className = tile.className;
-            span.id = 'catTilePants';
-            span.setAttribute('data-cat', 'pants');
-            span.setAttribute('aria-disabled', 'true');
-            span.innerHTML = tile.innerHTML;
-            tile.replaceWith(span);
-          } else {
-            tile.setAttribute('aria-disabled', 'true');
-            tile.style.pointerEvents = 'none';
-          }
-          const t = document.getElementById('catTilePants');
-          if (t) {
-            t.setAttribute('aria-disabled', 'true');
-            t.style.pointerEvents = 'none';
-            const s = t.querySelector('.cat-shop');
-            const p = t.querySelector('.cat-coming-soon');
-            if (s) s.style.display = 'none';
-            if (p) p.style.display = '';
-          }
-        }
-      }
       const navItem = document.getElementById('navPantsItem');
       if (navItem) navItem.style.display = live ? '' : 'none';
       const footerItem = document.getElementById('footerPantsItem');

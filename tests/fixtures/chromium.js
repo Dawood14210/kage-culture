@@ -70,11 +70,10 @@ async function waitForCatalog(page, timeout = 20000) {
   );
 }
 
-// Make the `.reveal` entrance animations settle instantly so geometry
-// measurements see final positions.
+// Finish in-flight page animations so geometry measurements see final
+// positions, without changing category-card visibility classes.
 async function settleLayout(page) {
   await page.evaluate(() => {
-    document.querySelectorAll('.cat-tile').forEach((t) => t.classList.add('visible'));
     document.getAnimations().forEach((a) => { try { a.finish(); } catch (e) { /* infinite */ } });
     return new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
   });

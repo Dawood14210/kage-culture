@@ -631,6 +631,44 @@ HTML page responses that still hand a fresh visitor its cookie, an API-level
 cookie-less checkout, and a DOM-level fresh-browser checkout that fetches
 `/api/csrf` before the order POST.
 
+### ✅ Pants homepage card visibility and Explore label — 2026-10-12
+
+Reproduced the reported issue in real Chromium: with an empty Pants category the
+original tile revealed normally, but a stocked catalog replaced its `<span>` with
+an `<a>`. The scroll-reveal observer still watched the removed node, leaving the
+new clickable card at `opacity: 0`.
+
+The Pants card is now a permanent `<a href="/collection/pants">`, with the same
+visible Explore label as the other cards regardless of stock. Removed the unused
+Coming-soon pill and disabled-card styles. Catalog refreshes no longer replace the
+card, preserving its observer target, reveal state and keyboard focus. Empty Pants
+opens the regular category grid and its existing empty state. The stock-aware
+Pants navigation/footer links and the responsive category layout are unchanged.
+This supersedes the older disabled-Pants-card behavior recorded in the category
+strip work.
+
+**Verification:** `npm test` passes all suites (125/125 E2E, shared rate-limit
+integration, storefront regressions, upgrade migrations, 26/26 frontend scenarios).
+New browser regressions at 390px and 1440px check natural scroll reveal without
+forcing `.visible`, catalog refreshes through stocked/sold-out/restocked/removed
+states, Explore labels, mouse/keyboard routing and empty grids. Existing real-browser
+category alignment checks pass at 320/360/414/599/768/1440px. `git diff --check` is clean.
+
+### ✅ Category cards without scroll-reveal — 2026-10-12
+
+Removed the `reveal` class from all four homepage category cards (Graphic Tees,
+Anime Shirts, Pants and Custom Stickers). They now render immediately without
+waiting for a scroll observer or fading/sliding into place. Hover effects,
+Explore links, stock-aware Pants navigation and responsive layouts are unchanged;
+other sections retain their existing scroll animations.
+
+Updated the DOM/browser regressions to assert that category cards never use
+scroll-reveal classes and are fully opaque before scrolling at 390px and 1440px,
+including catalog stock changes. The geometry helper no longer forces a `visible`
+class onto category cards. `node tests/storefront-regressions.test.js` and
+`node tests/frontend.test.js` pass (26/26 frontend scenarios, including real-browser
+alignment checks at 320/360/414/599/768/1440px). `git diff --check` is clean.
+
 ## Remaining work (priority order)
 
 *API-side queue (C1, H1–H4, M1–M7, L1/L3–L7) completed 2026-09-23. FE-criticals
