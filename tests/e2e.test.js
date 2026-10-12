@@ -921,6 +921,101 @@ async function main() {
       'admin must not disable pinch-zoom (accessibility)');
   });
 
+  // The admin tables used to be visually jumbled at every width: products,
+  // orders and recent-orders all shared one `auto`-terminated grid template,
+  // so the legend/columns resolved to different widths (labels sat ~45px off
+  // the data they name), orders crushed six columns into the products
+  // template, and the products table overflowed the page between 901-1024px.
+  await check('admin tables keep one column template per table and collapse safely', async () => {
+    const r = await request(PORT, 'GET', '/admin');
+    assert.strictEqual(r.status, 200);
+    // Every track must be fixed or minmax-bounded: a trailing `auto` track
+    // sized the legend's "Actions" (≈56px) and the row buttons (≈108px)
+    // differently, which made the shared 1fr name track differ between them.
+    const products = /#tab-products \.product-row \{ grid-template-columns:[^}]+\}/.exec(r.text);
+    assert.ok(products, 'the products table must own its column template');
+    assert.match(products[0], / 108px; \}$/,
+      'products legend/actions track must be a fixed width, never auto');
+    // Orders (six columns) and recent orders (five) must not inherit the
+    // seven-column products template.
+    assert.match(r.text, /#tab-orders \.product-row \{ grid-template-columns:minmax\(0, max-content\)/,
+      'order rows must define their own six-column template');
+    assert.match(r.text, /\.recent-orders \.product-row \{ grid-template-columns:/,
+      'dashboard recent-order rows must define their own five-column template');
+    // Wrap-card tiers. Orders' status menus are position:absolute, so those
+    // rows wrap at 1060px rather than living inside an overflow container.
+    assert.ok(/@media\(max-width:1060px\)[\s\S]*?#tab-orders \.product-row[\s\S]*?display:flex;flex-wrap:wrap/.test(r.text),
+      'order rows must become wrap cards before their columns collide');
+    assert.ok(/#tab-orders \.product-row\.header-row[\s\S]*?display:none;/.test(r.text),
+      'the orders legend must hide at the wrap-card breakpoint (id-scoped, so it outranks the flex rule)');
+    assert.ok(/@media\(max-width:900px\)[\s\S]*?\.product-row\{display:flex;flex-wrap:wrap/.test(r.text),
+      'the products table must become wrap cards before its columns collide');
+    // Only the products list may scroll sideways — anything inside the orders
+    // rows would be clipped by such a container.
+    assert.ok(/#tab-products \.product-list \{ overflow-x:auto; \}/.test(r.text),
+      'the products table gets its own horizontal scroll at tablet widths');
+    assert.ok(!/#tab-orders[^{]*\.product-list[^{]*\{[^}]*overflow-x/.test(r.text),
+      'the orders list must never become a scroll container');
+  });
+
+  // The favicon set is easy to break silently: a wrong href is a 404 the page
+  // never surfaces, and a mismatch between the declared `sizes` and the actual
+  // image makes browsers pick the wrong frame. Check both pages + the manifest.
+  await check('favicon set resolves with the declared formats and sizes', async () => {
+    const base = `http://127.0.0.1:${PORT}`;
+    const pngDims = (buf) => {
+      assert.equal(buf.subarray(0, 8).toString('hex'), '89504e470d0a1a0a', 'icon must be a real PNG');
+      return `${buf.readUInt32BE(16)}x${buf.readUInt32BE(20)}`;
+    };
+    const icoSizes = (buf) => {
+      assert.equal(buf.readUInt16LE(0), 0, 'ICO reserved field');
+      assert.equal(buf.readUInt16LE(2), 1, 'ICO type must be 1 (icon)');
+      const count = buf.readUInt16LE(4);
+      return Array.from({ length: count }, (_, i) => {
+        const w = buf.readUInt8(6 + i * 16) || 256;
+        const h = buf.readUInt8(7 + i * 16) || 256;
+        return `${w}x${h}`;
+      });
+    };
+
+    for (const path of ['/', '/admin']) {
+      const html = (await request(PORT, 'GET', path)).text;
+      const tags = [...html.matchAll(/<link[^>]+rel="(?:icon|apple-touch-icon)"[^>]*>/g)].map((m) => m[0]);
+      assert.ok(tags.length >= 3, `${path} must declare its favicon set (found ${tags.length})`);
+      for (const tag of tags) {
+        const href = /href="([^"]+)"/.exec(tag)[1];
+        // Both pages share one icon set at the web root (the admin page used to
+        // point at its own copies under /images, which then drifted).
+        assert.ok(!/^\/images\/(favicon|apple-touch)/.test(href),
+          `${path} must not point at per-page icon duplicates (${href})`);
+        const res = await fetch(base + href);
+        assert.equal(res.status, 200, `${path} declares ${href}, which must be served`);
+        const buf = Buffer.from(await res.arrayBuffer());
+        const declared = /sizes="(\d+)x(\d+)"/.exec(tag);
+        if (href.endsWith('.ico')) {
+          assert.deepEqual(icoSizes(buf), ['16x16', '32x32', '48x48'],
+            'the .ico must carry 16, 32 and 48 pixel frames — browsers pick per DPI');
+          assert.equal(res.headers.get('content-type'), 'image/x-icon');
+        } else if (declared) {
+          assert.equal(pngDims(buf), `${declared[1]}x${declared[2]}`, `${href} must match its declared sizes`);
+          assert.match(res.headers.get('content-type') || '', /^image\/png/);
+        } else {  // apple-touch-icon (180x180 by convention)
+          assert.equal(pngDims(buf), '180x180', `${href} must be a 180x180 touch icon`);
+        }
+      }
+    }
+
+    // Same set for the installable app icons the manifest advertises.
+    const manifest = JSON.parse((await request(PORT, 'GET', '/manifest.json')).text);
+    assert.ok(manifest.icons.length >= 2, 'the manifest must advertise app icons');
+    for (const icon of manifest.icons) {
+      const res = await fetch(base + icon.src);
+      assert.equal(res.status, 200, `manifest icon ${icon.src} must be served`);
+      const buf = Buffer.from(await res.arrayBuffer());
+      assert.equal(pngDims(buf), icon.sizes, `manifest icon ${icon.src} must actually be ${icon.sizes}`);
+    }
+  });
+
   // Frontend/API contract: stock and sale editing must agree with checkout.
   console.log('\nCatalog contract:');
   await check('SVG uploads are rejected by product and standalone upload filters', async () => {

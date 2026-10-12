@@ -669,6 +669,63 @@ class onto category cards. `node tests/storefront-regressions.test.js` and
 `node tests/frontend.test.js` pass (26/26 frontend scenarios, including real-browser
 alignment checks at 320/360/414/599/768/1440px). `git diff --check` is clean.
 
+### ✅ Admin product/order tables de-jumbled — 2026-10-12
+
+The admin panel's tables shared one `auto`-terminated grid template
+(`28px 54px minmax(120px,1fr) 90px 105px 130px auto`) across products, orders
+and recent orders, which produced the jumbled layout:
+
+- **Legend didn't line up with the data.** The trailing `auto` track resolved to
+  the legend's "Actions" (~56px) in the header row and to the Edit/Delete pair
+  (~108px) in every data row, so the shared `1fr` name track ended up ~45px
+  narrower in the header — Price/Category/Stock labels sat 45px to the right of
+  the columns they name (measured in Chromium at 1440/1160/1059px).
+- **Orders shared the seven-column products template** (no checkbox/thumb, six
+  cells), crushing Order/Customer/Items into each other and wrapping the order
+  number onto two lines.
+- **Dashboard recent orders** inherited the same template (five cells) and the
+  Date cell was pushed into an unaligned second row.
+- **Products overflowed the page** between 901–1024px (measured 15px at 950px,
+  64px at 901px) and the top bar overflowed just above the phone breakpoint
+  (9px at 901px).
+- On phones the 768px block applied one card layout that was immediately
+  overridden by the later responsive pass (two competing mobile layouts), and
+  the order rows lost their column labels entirely when the legend hid.
+- The stock cell's quantity line was centre-aligned under the toggle, reading
+  as a stray floating number ("0", "7"), and the bulk toolbar's "0 selected"
+  floated mid-bar.
+
+Fixes in `public/admin.html`: one column template per table (fixed-width action
+track, `minmax(0,max-content)` for order numbers), numeric right-aligned price
+column, products list scrolls inside its own container at tablet widths and
+becomes wrap cards ≤900px while orders/recent-orders become labelled cards
+≤1060px (their `position:absolute` status menus must never sit inside an
+`overflow` container), stock quantity left-aligned with the toggle and
+right-aligned on cards, labelled order cards (`data-label`), the duplicate
+mobile block removed, top bar wraps ≤1060px, and the "Back Image / More Photos"
+fields share one row instead of leaving a dead half-row.
+
+Verified in real Chromium at 1440/1160/1100/1060/1024/950/901/900/768/414px:
+legend-vs-cell drift `0px` at every width (was up to 45px), no page overflow at
+any width (was 15px at 950px / 64px at 901px), no wrapped order numbers.
+`npm test` → **127/127 API + 28/28 frontend** scenarios, including a new
+regression check ("admin tables keep one column template per table and collapse
+safely") that fails against the previous markup.
+
+### ✅ Favicon + app icons replaced — 2026-10-12
+
+All icons were downscales of the full brand seal, so the brush frame filled in at
+tab size (16px) and the mark read as a grey blob; `admin.html` also loaded its own
+copies from `/images/` while the storefront used the root files, so the two had
+drifted. Rebuilt the set from `public/images/logo/kage-icon-light.svg`: the 影
+glyph is isolated from the frame by component analysis and scaled up inside a
+brand tile, the red seal dot is kept from 32px up, small frames are supersampled
+and downscaled for smooth strokes, and maskable app icons keep the mark inside the
+safe zone. Deleted the duplicate `/images/favicon*` + `/images/apple-touch-icon`
+files and pointed `admin.html` at the shared root set. New E2E check verifies
+every declared icon (status, MIME, PNG/ICO dimensions, no duplicate paths) —
+`npm test` → 128/128 API + 28/28 frontend.
+
 ## Remaining work (priority order)
 
 *API-side queue (C1, H1–H4, M1–M7, L1/L3–L7) completed 2026-09-23. FE-criticals
