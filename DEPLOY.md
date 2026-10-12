@@ -170,3 +170,52 @@ To preview the cloud behavior locally, export the Turso/Blob variables too.
   `app_settings` and skipped forever after. If you *want* the demo products
   again, use `POST /api/admin/seed-demo` (or `npm run seed` locally).
 - **Data resets** — `TURSO_DATABASE_URL`/`TURSO_AUTH_TOKEN` are missing or a redeploy hasn't happened since adding them.
+
+## 2026-10-12 — Category consolidation (Pants / Graphic Tees / removed Streetwear + Goofy Wears)
+
+**What changes for shoppers.** The homepage now has four category tiles
+(Graphic Tees, Anime Shirts, Pants, Custom Stickers). Pants shows as
+"Coming soon" and links to nothing until you list at least one in-stock
+Pants product; at that moment it automatically becomes a live link and
+also appears in the header nav, mobile menu and the new Shop footer
+column. Graphic Tees always opens the shop grid — when nothing is in stock
+shoppers see an empty-state message instead of the Coming Soon page.
+
+**One-time data migration.** The first request that hits the server after
+deploy runs `remove_old_categories_v1`: any product whose `category` is
+not one of `graphic-tees`, `anime`, `pants` — including any legacy
+`streetwear`, `goofy-wears` or typos — is moved into `graphic-tees` so it
+stays visible in the catalog. The migration is idempotent (re-running
+finds zero rows and records its key with `migrated:0`) and logs how many
+rows it moved (e.g. `👖 Migrated 3 product(s) from removed categories into
+Graphic Tees`). Products already in an allowed category are left
+untouched, including any admin edits.
+
+**Before deploying, back up your database.** If you use Turso:
+
+```bash
+turso db list                 # find your DB name
+turso db shell <DB> ".dump" > kage-backup-$(date +%Y%m%d-%H%M).sql
+```
+
+For local file databases copy the `.db` file out of `.data/` (or wherever
+it is mounted). The migration is a single `UPDATE … WHERE category NOT IN
+(...)` statement, but a backup is cheap insurance.
+
+**Admin panel.** Product category dropdowns now list exactly three
+options: Graphic Tees, Anime Shirts, Pants. Creating or saving a product
+with any other category (including old Streetwear/Goofy Wears values that
+may come through stale browser tabs or direct API calls) is rejected with
+HTTP 400. Custom Stickers is still a standalone page, **not** a product
+category — upload sticker designs as products in another category or keep
+using the Custom Stickers form that already exists.
+
+**Rolling back.** If you need to roll the deploy back, note that:
+- The `remove_old_categories_v1` row in `app_settings` keeps the migration
+  from re-running; a rolled-back server will simply ignore it.
+- Products migrated from `streetwear`/`goofy-wears`/unknown into
+  `graphic-tees` will stay there; re-categorize them manually in the
+  admin panel if needed.
+- Newly created `pants` products will appear under Graphic Tees in older
+  code paths (older builds only recognized `anime`/`graphic-tees`/
+  `streetwear`/`goofy-wears`), so prefer a forward roll to listing pants.

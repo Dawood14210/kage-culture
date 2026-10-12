@@ -1405,3 +1405,123 @@ and that a failed SMTP send logs a warning while order placement still succeeds.
 **Verification:** `npm test` → **125/125 E2E**, shared rate-limit integration,
 storefront regressions, **15/15 upgrade-migration checks**, and **20/20
 frontend scenarios**. `npm audit --omit=dev` → **0 vulnerabilities**.
+
+## 2026-10-12 — Pants tile, aligned category cards, Graphic Tees shop grid, consolidated category admin
+
+**Homepage Pants tile (4th in the strip).** Added a new Pants card immediately
+after Anime Shirts (order: Graphic Tees, Anime Shirts, Pants, Custom Stickers),
+using the existing `/images/pants.jpg` thumbnail, name **Pants**, description
+"Relaxed fits to match the drops." While there are no in-stock pants products
+the tile renders as a `<span aria-disabled="true">` (no `href`, no `onclick`,
+`pointer-events:none`, no hover lift, `cursor:default`) and shows a small
+"Coming soon" pill in place of the Explore button. When `categoryHasLiveProducts('pants')`
+returns true (i.e. at least one in-stock pants product exists) the tile is
+rebuilt as a real `<a href="/collection/pants">` link, the pill is hidden, and
+the Explore button appears. The Pants nav entry, mobile-menu link and a new
+"Shop" footer column are all present in the markup but hidden
+(`display:none`) until pants go live, then they reveal automatically. The
+sync runs after products finish loading from `/api/products`.
+
+**Card alignment.** The four tiles now share a baseline at every width:
+`.cat-tile` is `align-items:stretch` with `height:100%`, `.cat-info` is
+`flex:1` so the copy column fills its cell, `.cat-name` and `.cat-desc` have
+consistent `min-height` lines (2-line name on phone/tablet, ~3–4-line
+description), and `.cat-shop`/`.cat-coming-soon` are pushed to the bottom
+with `margin-top:auto`. No circle is cropped, names wrap cleanly (no
+mid-word breaks), and the "Explore" / "Coming soon" label sits on a single
+shared row across every column.
+
+**Responsive grid for four tiles.** Desktop (≥1024px) — `repeat(4, minmax(0,1fr))`,
+150px circles, 40px gap, centred inside a 1200px band. Tablet (600–1023px) —
+four balanced columns with 104px circles, tighter type, min-heights on the
+copy so the labels line up. Phone (<600px) — `repeat(2, minmax(0,1fr))` 2×2
+grid with 72–108px clamp-scaled circles, 20px gap. Verified at 320/360/414/
+768/1440 with no horizontal scroll.
+
+**Graphic Tees is no longer Coming Soon.** Removed `'graphic-tees'` from
+`COMING_SOON_CATS`, so `/collection/graphic-tees` always routes to the shop
+grid regardless of stock. When zero graphic tees are available the grid
+shows a friendly empty state ("No graphic tees available right now. Check
+back soon for new drops.") with a "Browse all shirts" button that takes the
+shopper to `/collection/all`, rather than the Coming Soon template. The
+"coming soon" label, email form and coming-soon badges never appear on
+Graphic Tees anymore. The filter uses the exact key `graphic-tees` with no
+fallback to `anime` or other categories.
+
+**Category source of truth.** The canonical category list lives once in
+`config.js`:
+
+```js
+PRODUCT_CATEGORIES = [
+  { value: 'graphic-tees', label: 'Graphic Tees' },
+  { value: 'anime',        label: 'Anime Shirts' },
+  { value: 'pants',        label: 'Pants' },
+];
+```
+
+`PRODUCT_CATEGORY_VALUES` is the Set used by the server for validation.
+Custom Stickers remains a top-level brand page, **not** a product category.
+Streetwear and Goofy Wears are removed entirely — no filters, labels,
+search, sitemap entries, seed products or CSV rows reference them.
+
+**Admin dropdowns.** All three category `<select>` elements in
+`public/admin.html` (#prodCategory on the Add/Edit form, #quickCategory on
+Quick Upload, #productCategoryFilter on the product list) start with a
+"Select a category" placeholder, build their options from a single
+`CATEGORY_OPTIONS` constant populated at DOMContentLoaded, require an
+explicit choice before submit, and show an inline error instead of silently
+defaulting to `'anime'`. The per-row category label in the product list
+reads from the same map, so Pants shows up as "Pants" and the removed names
+can never reappear.
+
+**Server validation.** `POST /api/products` trims the incoming category
+value and rejects anything outside `PRODUCT_CATEGORY_VALUES` with HTTP 400
+and a clear message listing the valid options. `PUT /api/products/:id`
+preserves the existing category when the field is omitted, and validates
+with the same allow-list when supplied.
+
+**Data migration (`remove_old_categories_v1`).** Added to the existing
+one-time-per-database bootstrap loop right after
+`normalize_demo_categories_v1`. Runs `UPDATE products SET category = 'graphic-tees' WHERE category NOT IN ('graphic-tees','anime','pants')`,
+which sweeps legacy `streetwear`, `goofy-wears` and any other stray value
+into Graphic Tees so the catalogue never loses rows. Idempotent (once every
+row carries an allowed category, changes = 0 and the key still records
+`migrated:N`). Logs the count moved.
+
+**Demo/seed rewrite.** `utils/demoProducts.js` now seeds 10 products:
+3 anime (Shadow Fit, Oni Muscle Tee, Kage Core Compression) and 7 graphic
+tees (Rising Vermillion/Blade Wolf/Neon Fangs/Shinobi Mark regular, plus
+Drift Oversized/Wrath Silhouette/Hollow Gaze oversized). Hollow Gaze is
+seeded at stock 0 to exercise the empty-state path. Rising Vermillion and
+Wrath Silhouette keep their existing sale prices (Rs. 799 / Rs. 1099).
+`LEGACY_CATEGORY_FIXES` keeps the four "anime → graphic-tees" corrections
+for the existing seed. No pants are seeded yet (the tile stays in its
+disabled "Coming soon" state until an admin adds one via the panel).
+
+**Footer Shop column.** Added a fourth footer column with persistent links
+to Anime Shirts, Graphic Tees, All Products, and a Pants link that is
+hidden until pants are live.
+
+**Tests.** Updated every reference that expected Pants to be absent from
+the DOM and Graphic Tees to fall back to Coming Soon. New / updated
+checks cover:
+- Four tiles in the exact order, Pants a disabled `<span>` while
+  out-of-stock, becoming an `<a>` + visible nav/footer link after a live
+  pants product is pushed into `allProducts` via `syncPantsCategoryVisibility()`.
+- `/collection/graphic-tees` renders the shop grid (never Coming Soon)
+  both when in stock and at zero stock (empty state with the "Browse all
+  shirts" button).
+- All three admin `<select>` elements contain exactly the three canonical
+  options plus the placeholder, no default selection.
+- Invalid category values on POST/PUT return 400; valid values succeed.
+- The `remove_old_categories_v1` migration rehomes a `streetwear` row to
+  `graphic-tees`, leaves existing `anime`/`graphic-tees`/`pants` rows
+  (including an admin-edited Blade Wolf → pants) untouched, is idempotent,
+  and records its key on the legacy-schema fixture.
+- Responsive CSS breakpoints for 4/4/2 columns at desktop/tablet/phone.
+- jsdom admin flows now call `populateCategorySelects()` and select an
+  explicit category before Quick Upload / Save Product.
+
+**Verification:** `npm test` → **125/125 E2E**, shared rate-limit
+integration, **all storefront-regression checks**, **all upgrade-migration
+checks**, and **20/20 frontend scenarios**.
