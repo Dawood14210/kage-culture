@@ -304,6 +304,7 @@
         box-shadow: 0 8px 32px rgba(0,0,0,0.12);
         z-index: 1001;
       }
+      .mobile-search { display: block; }
     }
     .nav-links a { padding: 10px 12px; min-height: 40px; width: 100%; display: flex; align-items: center; font-size: 0.8rem; border-radius: var(--radius-sm); transition: background var(--transition-fast), color var(--transition-fast); }
     .nav-links a:hover { background: var(--bg-secondary); color: var(--text-primary); }
@@ -712,7 +713,7 @@
       height: 100%;
       object-fit: cover;
       object-position: center;
-      padding: 0;
+      padding: 8%;
       transition: transform var(--transition-slow);
     }
     .product-grid .product-card:hover .product-card-image img {
@@ -1103,7 +1104,7 @@
       width: 100%; height: 100%;
       object-fit: cover;
       object-position: center;
-      padding: 0;
+      padding: 10%;
       transition: opacity var(--transition-med);
     }
     .product-card-image .img-front { opacity: 1; z-index: 1; }
@@ -1780,20 +1781,37 @@
       color: var(--text-gray);
       pointer-events: none;
     }
-    .mobile-search { display: none; }
-    .mobile-icons-row { display: none; }
-    .mobile-icons-row .nav-icon { min-width: 44px; min-height: 44px; }
+    .mobile-search { display: none; position: relative; }
     .mobile-search input {
       width: 100%;
       min-height: 44px;
       border: 1px solid var(--border-color);
       border-radius: 999px;
       background: var(--bg-panel);
-      padding: 0.5rem 1rem;
+      padding: 0.5rem 2.6rem 0.5rem 1rem;
       font-family: var(--font-body);
       font-size: 0.85rem;
       outline: none;
     }
+    .mobile-search input:focus { border-color: var(--accent); }
+    .mobile-search-btn {
+      position: absolute;
+      right: 4px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 38px;
+      height: 38px;
+      border: none;
+      background: transparent;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      border-radius: 50%;
+      transition: color var(--transition-fast);
+    }
+    .mobile-search-btn:hover { color: var(--accent); }
 
     /* ================================================================
        HERO — CAMPAIGN IMAGE LAYOUT
@@ -2330,9 +2348,6 @@
       transform: translateY(-2px);
     }
     .social-icon svg { width: 18px; height: 18px; fill: currentColor; }
-    .footer-instagram-handle { margin: var(--spacing-xs) 0 0; font-size: 0.75rem; color: var(--text-muted); }
-    .footer-instagram-handle a:hover,
-    .footer-instagram-handle a:focus-visible { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
 
     /* ================================================================
        FLOATING WHATSAPP BUTTON
@@ -2378,13 +2393,9 @@
         bottom: calc(86px + env(safe-area-inset-bottom, 0px));
       }
       .whatsapp-float svg { width: 26px; height: 26px; }
-      /* Footer keeps its last lines clear of the floating button. */
-      .site-footer { padding-bottom: calc(var(--spacing-md) + 76px + env(safe-area-inset-bottom, 0px)); }
-    }
-    /* The desktop WhatsApp button is 84px from the viewport edge; keep 16px
-       of breathing room between it and the last footer content row. */
-    @media (min-width: 769px) {
-      .site-footer { padding-bottom: calc(var(--spacing-md) + 84px); }
+      /* Keep normal bottom padding below Privacy · Terms (plus safe-area inset); only add clearance when the mobile sticky cart bar is active on a product page. */
+      .site-footer { padding-bottom: calc(var(--spacing-md) + env(safe-area-inset-bottom, 0px)); }
+      body:has(#page-product.active) .site-footer { padding-bottom: calc(var(--spacing-md) + 70px + env(safe-area-inset-bottom, 0px)); }
     }
     /* Keep page-bottom content clear of the floating WhatsApp button
        on touch layouts (it sits over the last row otherwise). */
@@ -2461,7 +2472,6 @@
       .nav-icon { min-width: 44px; min-height: 44px; }
       .hamburger { min-width: 44px; min-height: 44px; }
       .mobile-search { display: block; }
-      .mobile-icons-row { display: flex; align-items: center; gap: var(--spacing-md); padding-top: var(--spacing-md); margin-top: var(--spacing-sm); border-top: 1px solid var(--border-color); justify-content: center; }
 
       .footer-main { grid-template-columns: 1fr; }
       .footer-bottom { flex-direction: column; text-align: center; }
@@ -3147,8 +3157,7 @@
         overflow: visible;
         margin: 0;
       }
-      .nav-links li.mobile-search,
-      .nav-links li.mobile-icons-row { display: none !important; }
+      .nav-links li.mobile-search { display: none !important; }
       .nav-links a {
         padding: 8px 1px;
         min-height: 44px;
@@ -3657,9 +3666,9 @@
         <li><a data-nav="about" href="/about" onclick="navigateTo('about'); closeMenu(); return false;">About</a></li>
         <li><a data-nav="contact" href="/contact" onclick="navigateTo('contact'); closeMenu(); return false;">Contact</a></li>
         <li><a data-nav="tracking" href="/tracking" onclick="navigateTo('tracking'); closeMenu(); return false;">Track Order</a></li>
-        <li class="mobile-search"><input type="search" id="mobileSearch" placeholder="Search drops…" oninput="onSearchInput(this.value)" /></li>
-        <li class="mobile-icons-row">
-          <button class="nav-icon" type="button" onclick="navigateTo('tracking'); closeMenu();" title="Track Order" aria-label="Track Order"><img src="/images/track-order.png" alt="" width="22" height="22" /></button>
+        <li class="mobile-search">
+          <input type="search" id="mobileSearch" placeholder="Search drops…" enterkeyhint="search" aria-label="Search drops" oninput="onSearchInput(this.value)" onkeydown="mobileSearchKeydown(event)" />
+          <button type="button" class="mobile-search-btn" onclick="submitMobileSearch(event)" aria-label="Submit search"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></button>
         </li>
       </ul>
 
@@ -3939,7 +3948,6 @@
                 <svg viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
               </a>
             </div>
-            <p class="footer-instagram-handle"><a href="https://instagram.com/kage__culture" target="_blank" rel="noopener">@kage__culture</a></p>
           </div>
           <div class="footer-newsletter">
             <h4>JOIN THE CLAN.</h4>
@@ -5075,15 +5083,23 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
     // ---------- Filtering ----------
     function getFilteredProducts() {
       const filter = currentCollectionFilter;
+      const hasSearch = searchQuery.trim() !== '';
       let f = [...allProducts];
-      if (filter && filter !== 'all') {
+      if (filter && filter !== 'all' && !hasSearch) {
         if (filter === 'new') f = f.slice(0, 8);
         else if (filter === 'sale') f = f.filter(p => p.on_sale || (p.sale_price && p.sale_price < p.price));
         else if (['anime','graphic-tees','pants'].includes(filter)) f = f.filter(p => p.collection === filter);
       }
-      if (searchQuery.trim()) {
+      if (hasSearch) {
         const q = searchQuery.trim().toLowerCase();
-        f = f.filter(p => ((p.name || '') + ' ' + (p.desc || '')).toLowerCase().includes(q));
+        f = f.filter(p => [
+          p.name,
+          p.desc,
+          p.fit,
+          p.collection,
+          CATEGORY_NAMES[p.collection],
+          p.style
+        ].filter(Boolean).join(' ').toLowerCase().includes(q));
       }
       if (wishlistOnly) f = f.filter(p => wishlist.has(p.id));
       if (filterState.cats.size > 0 && filterState.cats.size < 3) {
@@ -5172,10 +5188,35 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
     }
     // Escape closes the field when it is empty and returns focus to the icon button
     function searchKeydown(e) {
-      if (e.key === 'Escape' && !e.target.value) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        onSearchInput(e.target.value);
+        e.target.blur();
+        if (e.target.value && e.target.value.trim()) {
+          window.scrollTo({ top: 0, behavior: 'auto' });
+        }
+      } else if (e.key === 'Escape' && !e.target.value) {
         setDesktopSearch(false);
         const btn = document.getElementById('searchToggle');
         if (btn) btn.focus();
+      }
+    }
+    function submitMobileSearch(e) {
+      if (e) e.preventDefault();
+      const input = document.getElementById('mobileSearch');
+      const val = input ? input.value : searchQuery;
+      onSearchInput(val);
+      closeMenu();
+      if (input) input.blur();
+      if (val && val.trim()) {
+        window.scrollTo({ top: 0, behavior: 'auto' });
+      }
+    }
+    function mobileSearchKeydown(e) {
+      if (e.key === 'Enter') {
+        submitMobileSearch(e);
+      } else if (e.key === 'Escape') {
+        closeMenu();
       }
     }
     // Blur closes the field when it is empty (focus staying in the header, e.g. on the icon button, keeps it open)
@@ -5190,6 +5231,9 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
 
     function onSearchInput(v) {
       searchQuery = v || '';
+      document.querySelectorAll('#searchInput, #mobileSearch').forEach(inp => {
+        if (inp && inp.value !== searchQuery) inp.value = searchQuery;
+      });
       currentPage = 1;
       if (searchQuery.trim() && !document.getElementById('page-home').classList.contains('active')) navigateTo('home', null, { keepSearch: true });
       // Typing shows the grid with the results; clearing the box on the plain
