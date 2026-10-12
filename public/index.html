@@ -5259,11 +5259,16 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       document.getElementById('wishlistCount').textContent = wishlist.size;
       persistShopState();
       if (wishlistOnly) renderCollectionGrid();
+      // Saving a product shows the favourites list so the user sees it was added.
+      if (saved) toggleWishlistFilter(true);
     }
-    function toggleWishlistFilter() {
+    function toggleWishlistFilter(force) {
       var overlay = document.getElementById('wishlistOverlay');
       var drawer = document.getElementById('wishlistDrawer');
       var isOpen = drawer.classList.contains('open');
+      var wantOpen = typeof force === 'boolean' ? force : !isOpen;
+      if (wantOpen === isOpen) return;
+      if (wantOpen && document.getElementById('cartDrawer').classList.contains('open')) toggleCart(false);
       if (isOpen) {
         overlay.classList.remove('open');
         drawer.classList.remove('open');
@@ -6187,6 +6192,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       const badge = document.getElementById('cartCount');
       badge.classList.add('bump');
       setTimeout(() => badge.classList.remove('bump'), 300);
+      toggleCart(true);  // show the cart list so the user sees what was added
       return true;
     }
     function updateCartUI() {
@@ -6209,9 +6215,12 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       if (cart[i].qty + d > maxQtyFor(cart[i], cart[i].size)) { showToast('Not enough stock available.'); return; }
       cart[i].qty += d; updateCartUI();
     }
-    function toggleCart() {
+    function toggleCart(force) {
       const o = document.getElementById('cartOverlay'), d = document.getElementById('cartDrawer');
-      const open = !d.classList.contains('open');
+      const open = typeof force === 'boolean' ? force : !d.classList.contains('open');
+      if (open === d.classList.contains('open')) return;
+      // Only one drawer at a time: opening the cart closes the favourites list.
+      if (open && document.getElementById('wishlistDrawer').classList.contains('open')) toggleWishlistFilter(false);
       o.classList.toggle('open', open); d.classList.toggle('open', open);
       document.body.style.overflow = open ? 'hidden' : '';
       if (open) {

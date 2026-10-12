@@ -175,9 +175,16 @@ async function ready(win) {
     console.log('✅ Filters clamp pagination; homepage sale badge is displayed');
 
     w.quickAdd(9);
+    assert.equal(d.getElementById('cartDrawer').classList.contains('open'), true, 'add to cart opens the cart list');
     w.toggleWishlist(9);
     assert.equal(d.querySelector('#cartCount').textContent, '1');
     assert.equal(d.querySelector('#wishlistCount').textContent, '1');
+    // Favouriting opens the favourites list; only one drawer is open at a time.
+    assert.equal(d.getElementById('cartDrawer').classList.contains('open'), false, 'the favourites list replaces the cart list');
+    assert.equal(d.getElementById('wishlistDrawer').classList.contains('open'), true, 'favouriting opens the favourites list');
+    w.toggleCart(true);
+    assert.equal(d.getElementById('wishlistDrawer').classList.contains('open'), false, 'opening the cart closes the favourites list');
+    w.toggleCart(false);
     const storage = {
       kageCart: w.localStorage.getItem('kageCart'),
       kageWishlist: w.localStorage.getItem('kageWishlist')
@@ -1303,6 +1310,11 @@ async function ready(win) {
         assert.equal(await ip.$eval(heart, (el) => el.classList.contains('active')), true, 'a real tap on the heart saves the product');
         assert.equal(await ip.$eval('#wishlistCount', (el) => el.textContent), '1');
         assert.equal(new URL(ip.url()).pathname, '/collection/all', 'the heart does not open the product');
+        assert.equal(await ip.$eval('#wishlistDrawer', (el) => el.classList.contains('open')), true, 'saving a favourite opens the favourites list');
+        // The list slides in over the grid; wait for it to land before closing it and tapping again.
+        await ip.waitForFunction(() => document.getElementById('wishlistDrawer').getBoundingClientRect().left <= 1);
+        await ip.click('#wishlistDrawer .cart-close');
+        await ip.waitForFunction(() => document.getElementById('wishlistDrawer').getBoundingClientRect().left >= window.innerWidth - 1);
         await ip.click(heart);
         assert.equal(await ip.$eval(heart, (el) => el.classList.contains('active')), false, 'a second tap removes it');
         assert.equal(await ip.$eval('#wishlistCount', (el) => el.textContent), '0');
