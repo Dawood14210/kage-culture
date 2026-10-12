@@ -665,6 +665,7 @@ async function ready(win) {
     assert.match(w.renderProductCard({ id: 1, name: 'No reviews yet', price: 10, fit: 'Regular', stock_qty: 10 }), /<div class="card-rating"><\/div>/, 'a product with no reviews still reserves the rating row');
     assert.match(w.renderProductCard({ id: 1, name: 'Reviewed', price: 10, fit: 'Regular', stock_qty: 10, rating: 5, review_count: 2 }), /<div class="card-rating"><span class="star-rating"/, 'a reviewed product fills that row with stars');
     assert.match(storeHtml, /\.product-grid \.product-card \{[^}]*display: flex;[^}]*flex-direction: column;/, 'cards are flex columns so a grid row stretches them to equal height');
+    assert.match(storeHtml, /\.product-grid \.product-card-image img \{[^}]*object-fit: cover;[^}]*padding: 8%;/, 'product card images stay uniform (object-fit: cover) while keeping their 8% card boundary');
     assert.match(storeHtml, /\.product-grid \.product-card-body \{[^}]*flex: 1 1 auto;[^}]*\}/, 'the card body fills the remaining card height');
     assert.match(storeHtml, /\.product-grid \.quick-view-btn \{[^}]*margin-top: auto;/, 'Quick View is pinned to the bottom of the card');
     assert.match(storeHtml, /#page-home \.product-grid \.quick-view-btn \{[^}]*margin-top: auto;/, 'the storefront override keeps Quick View pinned too');
