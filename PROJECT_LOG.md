@@ -2039,3 +2039,41 @@ manifest, Windows tile metadata, and structured-data logo now point at the
 versioned 192/512px app icons as well. The original conventional paths remain
 available as compatibility fallbacks. Regression assertions require versioned
 URLs and check the assets still serve with the right formats and dimensions.
+
+---
+
+## 31. Unused asset cleanup (2026-10-12)
+
+**Request:** remove the unused assets.
+
+**Method.** Every file under `public/` was searched by basename across the repo
+(HTML, CSS, JS, JSON manifest, tests, server/routes, utils, docs), and the code
+was checked for dynamically built `/images/` paths and CSS `url()` references.
+Files that are only mentioned in docs as deliberate compatibility fallbacks or
+as design source were kept.
+
+**Deleted (10 files, ~9.7 MB):**
+
+- `public/images/animal-bear.jpg`, `animal-black-panther.jpg`, `animal-white-fox.jpg`
+  — KAGE Clothes series photos, unused since section 17. `animal-white-tiger.jpg`
+  stays because og:image and twitter:image use it.
+- `public/images/cat-anime-shirts.jpg`, `cat-custom-stickers.jpg` — superseded by
+  the `anime-shirts.jpg` / `custom-stickers.jpg` category cards.
+- `public/images/logo/kage-horizontal-dark.svg`, `kage-icon-dark.svg`,
+  `kage-stacked-dark.svg`, `kage-stacked-light.svg` — logo variants with no
+  references. `kage-horizontal-light.svg` (in use) and `kage-icon-light.svg`
+  (source artwork for the favicon set) stay.
+- `public/favicon-48x48-v2.png` — the only v2 icon that nothing declares.
+
+**Kept on purpose:** `favicon.ico`, `favicon-16x16.png`, `favicon-32x32.png`,
+`favicon-48x48.png`, `apple-touch-icon.png`, `images/icon-192.png`,
+`images/icon-512.png` are the conventional fallback URLs that the favicon-set
+entry (2026-10-12) keeps on purpose; `images/.gitkeep` is a placeholder.
+
+**Verification.** `npm test` → 128/128 API, shared rate-limit, storefront
+regressions, upgrade migration, and 28/28 frontend scenarios all pass after the
+deletion.
+
+**Note.** Product images are stored in the database as uploads, not as
+`/images/*` paths. The seed data uses no image paths. If a live product row still
+points at one of the deleted files, it would 404 and would need re-uploading.

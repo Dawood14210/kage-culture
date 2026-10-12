@@ -448,7 +448,7 @@ The dark olive category band now carries four cards in the order Anime Shirts,
 Graphic Tees, Custom Stickers, Pants, each keeping the existing `.cat-tile`
 structure (circle thumb + name + description + Explore link). Images moved to
 `anime-shirts.jpg`, `graphic-tees.jpg`, `custom-stickers.jpg` and `pants.jpg`
-(the old `cat-*.jpg` files stay on disk, unused). Layout: a single column below
+(the old `cat-*.jpg` files were removed in the 2026-10-12 unused-asset cleanup). Layout: a single column below
 800px (stacked row cards, 96px circles) and a 2x2 grid from 800px up — the
 `max-width: 768px` and `min-width: 769px` breakpoints moved to 799px/800px, and
 the base strip is `1fr` so four cards can never fall into a 3+1 orphan row.
