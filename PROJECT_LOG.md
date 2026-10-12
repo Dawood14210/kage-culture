@@ -1989,3 +1989,44 @@ template whose last track was `auto`:
 check "admin tables keep one column template per table and collapse safely"
 fails against the previous markup (verified by running its assertions over
 `git show HEAD:public/admin.html`).
+
+---
+
+# Favicon / app icon replaced — 2026-10-12
+
+**Report.** "Change the favicon icon."
+
+**What was there.** Every icon was a downscale of the full brand seal (the
+58k-path `public/images/logo/kage-icon-*.svg` including its brush frame). At tab
+size the frame's strokes fill in and merge with the 影 glyph, so the 16px icon
+was a grey blob on a beige halo — verified by rendering the shipped PNGs at 8×.
+Worse, `public/admin.html` pointed at its **own** copies under `/images`
+(`/images/favicon.ico`, `/images/favicon-16/32.png`, `/images/apple-touch-icon.png`)
+while the storefront used the root files, so the two pages had already drifted.
+
+**What was built.** From `public/images/logo/kage-icon-light.svg` (the mark the
+user asked for):
+
+- component-analysis of the SVG's ink path isolates the 影 glyph from the brush
+  frame (6 glyph components kept, 3 specks dropped) — see the builder helper;
+- the glyph is scaled up inside a brand-tile (bone `#D8D4C8` background, ink
+  `#4A4332` glyph) so it stays legible at 16–32px, with the seal's red dot
+  (`#8B1E2D`) restored from 32px up (at 16px it is a 2px speck that reads as dirt);
+- small frames are rendered 8×/4× and downscaled with a Catmull-Rom filter, which
+  keeps the brush strokes smooth instead of pixel-art;
+- Home-screen/manifest icons keep the mark inside the maskable safe zone, since
+  Android masks maskable icons to a circle;
+- the obsolete per-page duplicates under `public/images/` were deleted and
+  `admin.html` now loads the same root icon set as the storefront.
+
+**Assets.** `public/favicon.ico` (16/32/48 frames), `public/favicon-16x16.png`,
+`public/favicon-32x32.png`, `public/favicon-48x48.png`,
+`public/apple-touch-icon.png` (180), `public/images/icon-192.png`,
+`public/images/icon-512.png`.
+
+**Verification.** Live server on :3999 — every declared icon returns 200 with the
+right MIME and real dimensions (PNG IHDR parsed, ICO directory parsed); a new
+E2E check ("favicon set resolves with the declared formats and sizes") enforces
+both pages, the manifest, the 16/32/48 .ico frames, and that no page points at
+per-page duplicates. It fails against the previous markup (the deleted
+`/images/favicon-32.png` now 404s). `npm test` → **128/128 API + 28/28 frontend**.

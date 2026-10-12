@@ -712,6 +712,20 @@ any width (was 15px at 950px / 64px at 901px), no wrapped order numbers.
 regression check ("admin tables keep one column template per table and collapse
 safely") that fails against the previous markup.
 
+### ✅ Favicon + app icons replaced — 2026-10-12
+
+All icons were downscales of the full brand seal, so the brush frame filled in at
+tab size (16px) and the mark read as a grey blob; `admin.html` also loaded its own
+copies from `/images/` while the storefront used the root files, so the two had
+drifted. Rebuilt the set from `public/images/logo/kage-icon-light.svg`: the 影
+glyph is isolated from the frame by component analysis and scaled up inside a
+brand tile, the red seal dot is kept from 32px up, small frames are supersampled
+and downscaled for smooth strokes, and maskable app icons keep the mark inside the
+safe zone. Deleted the duplicate `/images/favicon*` + `/images/apple-touch-icon`
+files and pointed `admin.html` at the shared root set. New E2E check verifies
+every declared icon (status, MIME, PNG/ICO dimensions, no duplicate paths) —
+`npm test` → 128/128 API + 28/28 frontend.
+
 ## Remaining work (priority order)
 
 *API-side queue (C1, H1–H4, M1–M7, L1/L3–L7) completed 2026-09-23. FE-criticals
