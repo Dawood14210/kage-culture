@@ -76,7 +76,6 @@ async function waitForCatalog(window) {
     const originalPantsTile = d.getElementById('catTilePants');
     await check('empty Pants category keeps its Explore link while nav/footer stay stock-aware', () => {
       assert.equal(d.getElementById('navPantsItem').style.display, 'none');
-      assert.equal(d.getElementById('footerPantsItem').style.display, 'none');
       assert.ok(originalPantsTile, 'Pants tile must be present in the category strip');
       assert.equal(originalPantsTile.tagName, 'A', 'Pants is always a real link like the other cards');
       assert.equal(originalPantsTile.getAttribute('href'), '/collection/pants');
@@ -191,7 +190,6 @@ async function waitForCatalog(window) {
       assert.equal(tile.querySelector('.cat-coming-soon'), null);
       assert.equal(tile.querySelector('.cat-shop').textContent.trim(), 'Explore');
       assert.notEqual(d.getElementById('navPantsItem').style.display, 'none');
-      assert.notEqual(d.getElementById('footerPantsItem').style.display, 'none');
       tile.click();
       assert.equal(w.location.pathname, '/collection/pants');
       assert.equal(d.getElementById('collectionTitle').textContent, 'PANTS');
@@ -210,7 +208,6 @@ async function waitForCatalog(window) {
       assert.equal(originalPantsTile.getAttribute('aria-disabled'), null);
       assert.notEqual(w.getComputedStyle(originalPantsTile.querySelector('.cat-shop')).display, 'none');
       assert.equal(d.getElementById('navPantsItem').style.display, 'none');
-      assert.equal(d.getElementById('footerPantsItem').style.display, 'none');
       originalPantsTile.click();
       assert.equal(w.location.pathname, '/collection/pants');
       assert.match(d.getElementById('collectionGrid').textContent, /No pants available right now/i);

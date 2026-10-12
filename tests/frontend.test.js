@@ -988,8 +988,7 @@ async function ready(win) {
               label: label.textContent.trim(),
               labelDisplay: getComputedStyle(label).display,
               comingSoon: !!tile.querySelector('.cat-coming-soon'),
-              navVisible: getComputedStyle(document.getElementById('navPantsItem')).display !== 'none',
-              footerVisible: getComputedStyle(document.getElementById('footerPantsItem')).display !== 'none'
+              navVisible: getComputedStyle(document.getElementById('navPantsItem')).display !== 'none'
             };
           });
           assert.equal(card.sameNode, true, `${vw}px ${state}: catalog refresh must preserve the existing tile`);
@@ -1002,7 +1001,6 @@ async function ready(win) {
           assert.notEqual(card.labelDisplay, 'none');
           assert.equal(card.comingSoon, false);
           assert.equal(card.navVisible, stocked);
-          assert.equal(card.footerVisible, stocked);
           if (state === 'sold out') {
             await pp.focus('#catTilePants');
             await pp.keyboard.press('Enter');
@@ -1293,6 +1291,7 @@ async function ready(win) {
         await fp.waitForFunction(() => document.getElementById('pageInfo').textContent === 'Page 2 of 2');
         assert.equal(await fp.$$eval('#collectionGrid .product-card', (cards) => cards.length), 2, 'page 2 holds the remaining two products');
         assert.equal(await fp.$eval('#nextBtn', (el) => getComputedStyle(el).display), 'none', 'there is no Next on the last page');
+        await fp.mouse.move(0, 0);   // park the pointer: a card under it would show its hover lift
         await settleLayout(fp);
         const last = await measureGrid(fp, '#collectionGrid');
         assert.equal(groupRows(last.cards).length, 1, 'the two cards of the last page share one row');
@@ -1539,8 +1538,9 @@ async function ready(win) {
     const pantsTileNavCheck = d.getElementById('catTilePants');
     assert.ok(pantsTileNavCheck && pantsTileNavCheck.tagName === 'A' && !pantsTileNavCheck.hasAttribute('aria-disabled'), 'Pants tile remains an Explore link even before stock arrives');
     assert.equal(pantsNavItem.getAttribute('href'), pantsTileNavCheck.getAttribute('href'), 'Pants nav and card share the same collection route');
-    const footerPantsLinks = [...d.querySelectorAll('.site-footer a')].filter(a => a.textContent.trim() === 'Pants' && a.closest('li').style.display !== 'none');
-    assert.equal(footerPantsLinks.length, 0, 'Pants footer link stays hidden until products are live');
+    const footerHeadings = [...d.querySelectorAll('.site-footer h4')].map(h => h.textContent.trim());
+    assert.ok(!footerHeadings.includes('Shop'), 'footer has no Shop column');
+    assert.equal(d.querySelectorAll('.site-footer a[href^="/collection/"]').length, 0, 'footer has no collection links');
     const menuActions = d.querySelector('#navLinks .mobile-icons-row');
     assert.deepEqual([...menuActions.querySelectorAll('.nav-icon')].map(button => button.title), ['Track Order'], 'mobile menu keeps only the action missing from the header');
     assert.equal(menuActions.querySelectorAll('[title="Wishlist"], [title="Cart"], [title="Account"]').length, 0, 'mobile menu has no duplicate account/cart/wishlist icons');
