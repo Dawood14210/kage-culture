@@ -2004,7 +2004,7 @@ Worse, `public/admin.html` pointed at its **own** copies under `/images`
 (`/images/favicon.ico`, `/images/favicon-16/32.png`, `/images/apple-touch-icon.png`)
 while the storefront used the root files, so the two pages had already drifted.
 
-**What was built.** From `public/images/logo/kage-icon-light.svg` (the mark the
+**What was built.** From `public/images/logo/kage-icon-light.svg` (moved to `source/` in §32; the mark the
 user asked for):
 
 - component-analysis of the SVG's ink path isolates the 影 glyph from the brush
@@ -2037,7 +2037,7 @@ by URL longer than the page itself. Added `*-v2` copies for the favicon and
 apple-touch set and pointed both storefront/admin pages at those new URLs; the
 manifest, Windows tile metadata, and structured-data logo now point at the
 versioned 192/512px app icons as well. The original conventional paths remain
-available as compatibility fallbacks. Regression assertions require versioned
+available as compatibility fallbacks (superseded 2026-10-12, see the unused-asset cleanup below: five byte-identical copies were removed). Regression assertions require versioned
 URLs and check the assets still serve with the right formats and dimensions.
 
 ---
@@ -2062,13 +2062,12 @@ as design source were kept.
 - `public/images/logo/kage-horizontal-dark.svg`, `kage-icon-dark.svg`,
   `kage-stacked-dark.svg`, `kage-stacked-light.svg` — logo variants with no
   references. `kage-horizontal-light.svg` (in use) and `kage-icon-light.svg`
-  (source artwork for the favicon set) stay.
+  (source artwork for the favicon set) stayed at the time; §32 moved it to `source/`.
 - `public/favicon-48x48-v2.png` — the only v2 icon that nothing declares.
 
-**Kept on purpose:** `favicon.ico`, `favicon-16x16.png`, `favicon-32x32.png`,
-`favicon-48x48.png`, `apple-touch-icon.png`, `images/icon-192.png`,
-`images/icon-512.png` are the conventional fallback URLs that the favicon-set
-entry (2026-10-12) keeps on purpose; `images/.gitkeep` is a placeholder.
+**Kept on purpose (superseded by §32):** the conventional fallback URLs were
+kept here, but §32 removed the five byte-identical copies. `favicon.ico` and
+`favicon-48x48.png` remain; `images/.gitkeep` is a placeholder.
 
 **Verification.** `npm test` → 128/128 API, shared rate-limit, storefront
 regressions, upgrade migration, and 28/28 frontend scenarios all pass after the
@@ -2077,3 +2076,45 @@ deletion.
 **Note.** Product images are stored in the database as uploads, not as
 `/images/*` paths. The seed data uses no image paths. If a live product row still
 points at one of the deleted files, it would 404 and would need re-uploading.
+
+---
+
+## 32. Duplicate icons, OG image and remaining asset decisions (2026-10-12)
+
+**Re-verification.** Every candidate was searched by filename across the repo, plus
+dynamic `/images/` and `animal-`/`cat-` patterns. `database.js`,
+`utils/demoProducts.js`, `utils/productShape.js` and `scripts/seed-demo.js` hold
+no image paths. The only code references to `animal-white-tiger.jpg` were the
+og:image and twitter:image tags.
+
+**Deleted (`git rm`, sha256 checked against the `-v2` twin):**
+
+- `public/images/icon-192.png`, `public/images/icon-512.png`
+- `public/apple-touch-icon.png`, `public/favicon-16x16.png`, `public/favicon-32x32.png`
+- Kept `public/favicon-48x48.png`: its `-v2` twin had already been removed in §31.
+- Kept `public/favicon.ico` and `public/favicon-v2.ico`, which browsers request
+  automatically. The old root copies `/apple-touch-icon.png` and
+  `/favicon-16x16.png` now return 404; the declared `-v2` URLs serve the same
+  artwork.
+
+**OG image.** New `public/images/og-image.jpg`: 1200×630, 119,069 bytes, cropped
+from `hero.jpg` (unchanged). `index.html` now points `og:image` and
+`twitter:image` at `__SITE_URL__/images/og-image.jpg`, and adds
+`og:image:width`, `og:image:height` and `og:image:alt`. The line endings of the
+file were preserved. Details in AUDIT.md.
+
+**Verification.** `npm test` → 128/128 API, shared rate-limit, storefront
+regressions, upgrade migration, and 28/28 frontend scenarios pass. Live server on
+port 3999 (both with `SITE_URL` unset and set): all 24 icon/image URLs referenced
+from index.html and manifest.json return 200; `/` and `/manifest.json` return 200;
+og/twitter image URLs are absolute and fetch as `image/jpeg`, 119,069 bytes;
+`/product/1` renders the same tags.
+
+**Owner decisions (resolved the same day):**
+
+- `public/images/animal-white-tiger.jpg` (3.38 MB) deleted with `git rm`. The owner
+  confirmed that no live product row or Vercel Blob object uses it. Code had
+  already stopped referencing it when og-image.jpg replaced it.
+- `public/images/logo/kage-icon-light.svg` moved with `git mv` to
+  `source/kage-icon-light.svg`, outside the served `public/` tree. Its only use is
+  as the favicon source artwork, so it is still tracked.
