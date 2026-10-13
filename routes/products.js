@@ -183,7 +183,7 @@ module.exports = function createProductRoutes(db) {
         if (!Number.isSafeInteger(q) || q < 0) return res.status(400).json({ error: 'Stock quantity must be a non-negative whole number.' });
         finalStockQty = q;
       }
-      const finalInStock = in_stock !== undefined ? (in_stock === 'true' || in_stock === true ? 1 : 0) : existing.in_stock;
+      let finalInStock = in_stock !== undefined ? (in_stock === 'true' || in_stock === true ? 1 : 0) : existing.in_stock;
       let sizesParsed;
       if (sizes !== undefined) {
         sizesParsed = sizeStock.parseSizesInput(sizes);
@@ -204,6 +204,11 @@ module.exports = function createProductRoutes(db) {
         nextSizeStock = sizeStock.reconcileSizeStock(existingSizeStock, sizesParsed);
       }
       if (nextSizeStock) finalStockQty = sizeStock.totalOf(nextSizeStock);
+      // Restocking a depleted product through the edit form must clear the
+      // automatic sold-out flag. Preserve a manual pause when existing stock
+      // was positive, and always honor an explicit in_stock choice.
+      if (in_stock === undefined && existing.stock_qty != null && Number(existing.stock_qty) <= 0
+          && finalStockQty > 0) finalInStock = 1;
       let frontImage = existing.front_image ?? null; let backImage = existing.back_image ?? null;
       if (req.files?.front_image?.[0]) { const newUrl = await persistImage(req.files.front_image[0].buffer, req.files.front_image[0].originalname); if (existing.front_image) await removeImage(existing.front_image); frontImage = newUrl; } else if (remove_front === 'true') { if (existing.front_image) await removeImage(existing.front_image); frontImage = null; }
       if (req.files?.back_image?.[0]) { const newUrl = await persistImage(req.files.back_image[0].buffer, req.files.back_image[0].originalname); if (existing.back_image) await removeImage(existing.back_image); backImage = newUrl; } else if (remove_back === 'true') { if (existing.back_image) await removeImage(existing.back_image); backImage = null; }

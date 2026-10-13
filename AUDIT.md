@@ -821,6 +821,35 @@ route always works, including when all Pants are sold out. Normal category,
 search, size/price filters, pagination and sort semantics still apply. Deleted
 products may still be removed from saved cart/wishlist state.
 
+### ✅ Partial per-size Sold Out labels and restocking — 2026-10-13
+
+**Follow-up bug.** The edit route summed per-size stock correctly, but retained
+`in_stock=false` when a previously depleted product was restocked through the
+admin form (which does not send an availability field). Thus Small could stay
+at zero and Medium/Large have stock while the product remained globally Sold
+Out. Zero-count size buttons were disabled but lacked visible per-size labels.
+
+**Fix.** Product PUT now clears the automatic sold-out flag when editing moves
+inventory from zero to a positive total, unless `in_stock` is explicitly supplied.
+A manually paused product with existing positive inventory remains paused during
+edits. Cards/detail/wishlist continue to test whether any offered size is
+buyable, not Small or the currently selected size alone. Disabled size buttons
+now have a visible Sold Out label directly underneath, linked with
+`aria-describedby`; available sizes have no Sold Out label. No authorization,
+public allow-list, stock decrement, category or layout breakpoints changed.
+
+**Verification.** API regression creates all-zero S/M/L inventory, restocks to
+S=0/M=2/L=3 via authenticated/CSRF-protected PUT and verifies public availability;
+Small orders reject, Medium orders succeed, depletion marks the product Sold
+Out, and explicit/manual pauses remain respected. DOM coverage verifies
+S=0/L>0 keeps cards and Add-to-Cart available, selects a stocked size, labels
+only unavailable sizes, and switches to product-wide Sold Out only after all
+sizes empty. Real Chromium at 360px and 1440px checks that Small's label is
+below its disabled button, Large stays enabled and unlabelled, Add-to-Cart stays
+enabled, and there is no page overflow. Server on PORT=3999 and `PORT=3999 npm
+test` run in one shell with cleanup: all five files pass (133/133 API and
+31/31 frontend scenarios, plus rate-limit/storefront/migration suites).
+
 ## Remaining work (priority order)
 
 *API-side queue (C1, H1–H4, M1–M7, L1/L3–L7) completed 2026-09-23. FE-criticals

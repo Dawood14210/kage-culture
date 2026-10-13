@@ -1593,6 +1593,8 @@
     .size-btn:hover { border-color: var(--text-primary); color: var(--text-primary); }
     .size-btn.selected { border-color: var(--text-primary); color: var(--text-primary); }
     .size-picker { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+    .size-option { display: flex; flex-direction: column; align-items: center; }
+    .size-stock-status { min-height: 1em; margin-top: 0.25rem; font-size: 0.6rem; color: var(--text-gray); }
     .size-btn:disabled { opacity: 0.4; cursor: not-allowed; text-decoration: line-through; }
     .size-btn:disabled:hover { border-color: var(--border-color); color: var(--text-muted); }
     .size-single { font-size: 0.95rem; font-weight: 700; padding: 0.5rem 0.8rem; background: rgba(0,0,0,0.03); border: 1px solid var(--border-color); display: inline-block; border-radius: 8px; }
@@ -5764,10 +5766,10 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
         note.textContent = sizeAvailable(p, sizes[0]) ? 'This is the only size available for this piece.' : 'Sold Out';
         return;
       }
-      picker.innerHTML = sizes.map(s => {
+      picker.innerHTML = sizes.map((s, i) => {
         const avail = sizeAvailable(p, s);
         const selected = s === detailSize;
-        return `<button type="button" class="size-btn${selected ? ' selected' : ''}" data-size="${esc(s)}" aria-pressed="${selected}"${avail ? '' : ' disabled'} title="${avail ? esc(s) : 'Sold out in ' + esc(s)}">${esc(s)}</button>`;
+        return `<div class="size-option"><button type="button" class="size-btn${selected ? ' selected' : ''}" data-size="${esc(s)}" aria-pressed="${selected}"${avail ? '' : ' disabled aria-describedby="detailSizeStatus' + i + '"'} title="${avail ? esc(s) : 'Sold out in ' + esc(s)}">${esc(s)}</button><span class="size-stock-status" id="detailSizeStatus${i}">${avail ? '' : 'Sold Out'}</span></div>`;
       }).join('');
       const left = sizeQty(p, detailSize);
       note.textContent = !anySizeAvailable(p) ? 'Sold Out' : (left != null && left > 0 && left <= 5) ? `Only ${left} left in size ${detailSize}` : '';

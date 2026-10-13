@@ -1565,6 +1565,41 @@ async function main() {
     assert.deepStrictEqual(listed.size_stock, { S: 2, M: 0, L: 5 });
   });
 
+  await check('per-size restocking with S=0 keeps the product available until every size is empty', async () => {
+    const headers = await adminHeaders();
+    const created = await request(PORT, 'POST', '/api/products', { headers, body: {
+      name: 'Partial Size Stock Regression', category: 'pants', price: 1000,
+      sizes: '["S","M","L"]', size_stock: '{"S":0,"M":0,"L":0}'
+    } });
+    assert.strictEqual(created.status, 201);
+    const id = created.json.id;
+    const save = body => request(PORT, 'PUT', `/api/products/${id}`, { headers, body });
+    try {
+      assert.strictEqual(created.json.in_stock, false);
+      const restocked = await save({ size_stock: '{"S":0,"M":2,"L":3}' });
+      assert.strictEqual(restocked.status, 200);
+      assert.strictEqual(restocked.json.in_stock, true, 'Small=0 must not keep the entire restocked product Sold Out');
+      assert.strictEqual(restocked.json.stock_qty, 5);
+      const publicProduct = await getProduct(id);
+      assert.strictEqual(publicProduct.in_stock, true);
+      assert.deepStrictEqual(publicProduct.size_stock, { S: 0, M: 2, L: 3 });
+      const smallOrder = await placeOrder([{ id, size: 'S', qty: 1 }], 'small-zero@kage.test');
+      assert.strictEqual(smallOrder.status, 400);
+      assert.match(smallOrder.json.error, /sold out in size S/);
+      const mediumOrder = await placeOrder([{ id, size: 'M', qty: 1 }], 'medium-live@kage.test');
+      assert.strictEqual(mediumOrder.status, 201, JSON.stringify(mediumOrder.json));
+      assert.strictEqual((await getProduct(id)).in_stock, true);
+      const depleted = await save({ size_stock: '{"S":0,"M":0,"L":0}' });
+      assert.strictEqual(depleted.json.in_stock, false);
+      const explicitPause = await save({ size_stock: '{"S":0,"M":2,"L":3}', in_stock: false });
+      assert.strictEqual(explicitPause.json.in_stock, false, 'explicit admin Sold Out still wins');
+      const pausedEdit = await save({ size_stock: '{"S":0,"M":3,"L":3}' });
+      assert.strictEqual(pausedEdit.json.in_stock, false, 'editing a manually paused stocked product must not resume sales');
+    } finally {
+      await request(PORT, 'DELETE', `/api/products/${id}`, { headers });
+    }
+  });
+
   await check('per-size stock must cover every size and no unknown size', async () => {
     const headers = await adminHeaders();
     const missing = await request(PORT, 'POST', '/api/products', {
