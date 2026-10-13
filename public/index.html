@@ -83,9 +83,15 @@
       --heart-red: #DC2626;
       --text-primary: #1A1815;
       --text-secondary: #3D3931;
-      --text-muted: #5C564C;
+      --text-muted: #4F493F;
       --text-dim: #504C47;
-      --text-gray: #8A8578;
+      --text-gray: #514C43;
+      --text-success: #1B5520;
+      --text-warning: #5C3D00;
+      --text-info: #123C78;
+      --text-purple: #50257F;
+      --text-danger: #951919;
+      --text-accent-hover: #423C2D;
       --font-display: 'Archivo', sans-serif;
       --font-body: 'Archivo', sans-serif;
       --font-kanji: 'Noto Serif JP', serif;
@@ -2000,7 +2006,7 @@
     }
     .account-card .acct-btn:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
     .account-card .acct-msg { font-size: 0.75rem; margin-top: 0.5rem; min-height: 1.1em; }
-    .acct-msg.success { color: #4ade80; }
+    .acct-msg.success { color: var(--text-success); }
     .acct-verify { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; margin: 0.6rem 0 0; padding: 0.7rem 0.9rem; border: 1px solid #BDB6A6; background: #EFE9DA; border-radius: 8px; font-size: 0.8rem; color: #4A4433; }
     .acct-verify[hidden] { display: none; }
     .acct-verify a { color: var(--accent); font-weight: 700; text-decoration: underline; cursor: pointer; }
@@ -2018,10 +2024,10 @@
       font-size: 0.6rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
       padding: 0.15rem 0.5rem; border-radius: 4px;
     }
-    .order-status.pending { background: rgba(251,191,36,0.15); color: #fbbf24; }
-    .order-status.confirmed { background: rgba(59,130,246,0.15); color: #60a5fa; }
-    .order-status.shipped { background: rgba(168,85,247,0.15); color: #c084fc; }
-    .order-status.delivered { background: rgba(34,197,94,0.15); color: #4ade80; }
+    .order-status.pending { background: rgba(251,191,36,0.15); color: var(--text-warning); }
+    .order-status.confirmed { background: rgba(59,130,246,0.15); color: var(--text-info); }
+    .order-status.shipped { background: rgba(168,85,247,0.15); color: var(--text-purple); }
+    .order-status.delivered { background: rgba(34,197,94,0.15); color: var(--text-success); }
     .order-status.cancelled { background: rgba(74,68,51,0.15); color: #4A4433; }
     .order-date { font-size: 0.72rem; color: var(--text-muted); margin-left: auto; }
     .order-total { font-weight: 700; font-size: 0.82rem; color: var(--text-primary); }
@@ -2358,7 +2364,7 @@
     }
     .social-icon:hover,
     .social-icon:focus-visible {
-      color: var(--accent-hover);
+      color: var(--text-accent-hover);
       background: var(--accent-glow);
       border-color: var(--accent);
       box-shadow: 0 2px 8px rgba(74,68,51,0.12);
@@ -2637,7 +2643,7 @@
       border-bottom: 1px solid var(--border-color); font-size: 0.8rem;
     }
     .confirm-detail span:first-child { color: var(--text-gray); }
-    .conf-status { color: #2E7D32; font-weight: 600; }
+    .conf-status { color: var(--text-success); font-weight: 600; }
     .confirm-items {
       margin-top: var(--spacing-md); text-align: left;
       display: flex; flex-direction: column; gap: 0.35rem;
@@ -2748,7 +2754,7 @@
       margin-top: 0.6rem;
       font-size: 0.72rem;
       font-weight: 600;
-      color: #2E7D32;
+      color: var(--text-success);
     }
     .notify-error {
       margin-top: 0.6rem;
@@ -2807,7 +2813,7 @@
     .review-date { margin-left: auto; font-size: 0.72rem; color: var(--text-gray); }
     .review-comment { font-size: 0.85rem; color: var(--text-muted); line-height: 1.55; margin: 0; }
     .review-item.pending-own { border-style: dashed; }
-    .review-pending-tag { font-size: 0.62rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #7A6320; background: rgba(160, 130, 40, 0.12); border: 1px solid rgba(160, 130, 40, 0.4); border-radius: 999px; padding: 0.12rem 0.5rem; }
+    .review-pending-tag { font-size: 0.62rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-warning); background: rgba(160, 130, 40, 0.12); border: 1px solid rgba(160, 130, 40, 0.4); border-radius: 999px; padding: 0.12rem 0.5rem; }
     .review-form-wrap { border: 1px dashed var(--border-color); border-radius: 12px; padding: 1.1rem; }
     .review-form-wrap h4 { font-size: 0.85rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 0.3rem; }
     .review-form-note { font-size: 0.75rem; color: var(--text-gray); margin-bottom: 0.9rem; }
@@ -2863,7 +2869,7 @@
     .track-result { border: 1px solid var(--border-color); border-radius: 14px; padding: var(--spacing-lg); background: var(--bg-panel); }
     .track-top { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem; margin-bottom: var(--spacing-md); }
     .track-status { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--accent); }
-    .track-status-cancelled { color: #DC2626; }
+    .track-status-cancelled { color: var(--text-danger); }
     .track-timeline { display: flex; align-items: flex-start; justify-content: space-between; margin: var(--spacing-md) 0 var(--spacing-lg); }
     .track-step { display: flex; flex-direction: column; align-items: center; gap: 0.35rem; flex: 1; position: relative; }
     .track-step::before { content: ''; position: absolute; top: 11px; left: -50%; width: 100%; height: 2px; background: var(--border-color); z-index: 0; }
@@ -3030,7 +3036,7 @@
       font-family: var(--font-kanji);
       font-weight: 900;
       font-size: clamp(1.8rem, 4vw, 3.2rem);
-      color: rgba(74,68,51,0.5);
+      color: var(--text-muted);
       z-index: 2;
     }
 
@@ -3632,7 +3638,7 @@
     .contact-card-primary:hover { color: var(--accent); }
     .contact-card-secondary { margin-top: var(--spacing-sm) !important; font-size: 0.8rem !important; }
     .contact-card-secondary a { color: var(--accent); font-weight: 600; text-decoration: underline; text-underline-offset: 2px; }
-    .contact-card-secondary a:hover { color: var(--accent-hover); }
+    .contact-card-secondary a:hover { color: var(--text-accent-hover); }
     @media (max-width: 600px) {
       .content-page-contact { grid-template-columns: 1fr; }
     }
@@ -3652,8 +3658,37 @@
       }
     }
 
+
+    /* Do not let UA placeholder opacity undo the accessible text token. */
+    input::placeholder, textarea::placeholder { color: var(--text-dim); opacity: 1; }
+
+    /* Keyboard focus: exact counterparts also beat later, specific :focus resets. */
+    .newsletter-content .newsletter-form input:focus-visible,
+    .sort-select:focus-visible,
+    .nav-search input:focus-visible,
+    .mobile-search input:focus-visible,
+    .cust-card input[type="email"]:focus-visible,
+    .cust-card input[type="password"]:focus-visible,
+    .cust-card input[type="text"]:focus-visible,
+    .account-card .acct-field input:focus-visible,
+    .newsletter-form input:focus-visible,
+    .co-field input:focus-visible,
+    .co-field textarea:focus-visible,
+    .notify-form input[type=email]:focus-visible,
+    .review-form input:focus-visible,
+    .review-form textarea:focus-visible,
+    .tracking-form input:focus-visible,
+    .coming-soon-form input:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+    .cat-tile:focus-visible { outline: 2px solid #FFF; outline-offset: 2px; }
+    /* Text inputs may match :focus-visible on pointer clicks; retain keyboard-only rings. */
+    :root[data-focus-modality="pointer"] :focus,
+    :root[data-focus-modality="pointer"] :focus-within { outline: none !important; }
   </style>
 
+  <script src="/focus-modality.js" defer></script>
 </head>
 <body>
 

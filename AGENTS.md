@@ -107,5 +107,18 @@
   files (133/133 API, 31/31 frontend plus rate-limit/storefront/migration suites),
   including Chromium skip keyboard focus and category stock/deep-link checks.
   Details, verified non-findings and assumptions are recorded in `AUDIT.md`.
+- ✅ **A11Y-1 / A11Y-2 (2026-10-13):** owner confirmed preserving the warm/light
+  storefront and both admin modes, not converting to dark. Muted/dim/gray and
+  semantic/status/inverse foregrounds now pass 4.5:1 on base/tinted/control
+  surfaces; decorative accent/background colors stay intact except theme-aware
+  admin chart/modal surfaces needed for readable inherited text. Full before/after
+  ratios are in `AUDIT.md`. New CSS-token suite checks 498 pairs and text hierarchy.
+  Exact 2px/2px `:focus-visible` counterparts cover all 16 storefront / 12 admin
+  reset selectors; same-origin `focus-modality.js` keeps rings keyboard-only even
+  on pointer-clicked inputs. Chromium tests 40 selector/theme contexts, actual
+  text/placeholder contrast, click suppression and Tab rings. `PORT=3999 npm test`
+  with server/tests in one shell and cleanup passes all six suites (133/133 API,
+  31/31 frontend plus rate-limit/storefront/migration and contrast/focus). This
+  does not close remaining dynamic-control/image-backed/physical-device a11y QA.
 - ⬜ Remaining: FE-H2 CSP migration (do not drop unsafe-inline without replacing
   handlers), browser/device visual QA, dynamic-control a11y, FE-M6 typography, L2 media.
