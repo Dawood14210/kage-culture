@@ -819,6 +819,126 @@ async function ready(win) {
     const { launchChromium, waitForCatalog, settleLayout } = require('./fixtures/chromium');
     const browser = await launchChromium();
     try {
+      // ---- Desktop header: alignment, one-line navigation, and spacing at
+      // ---- the requested widths, with the inventory-controlled Pants link
+      // ---- both hidden and visible (eight links total).
+      for (const vw of [1024, 1025, 1100, 1148, 1279, 1280, 1366, 1536, 1920]) {
+        const hp = await browser.newPage();
+        await hp.setViewport({ width: vw, height: 900 });
+        await hp.goto(origin + '/', { waitUntil: 'domcontentloaded' });
+        await waitForCatalog(hp);
+        await settleLayout(hp);
+        for (const pantsVisible of [false, true]) {
+          await hp.evaluate((visible) => {
+            document.getElementById('navPantsItem').style.display = visible ? 'list-item' : 'none';
+            document.querySelectorAll('#navLinks a').forEach((link) => {
+              link.classList.toggle('active', link.dataset.nav === 'all');
+            });
+            document.querySelectorAll('#wishlistCount, #cartCount').forEach((badge) => {
+              badge.textContent = '99';
+              badge.classList.add('bump');
+            });
+          }, pantsVisible);
+          await settleLayout(hp);
+          const m = await hp.evaluate(() => {
+            const rect = (el) => {
+              const r = el.getBoundingClientRect();
+              return { left: r.left, right: r.right, top: r.top, bottom: r.bottom, width: r.width, height: r.height };
+            };
+            const nav = document.getElementById('navLinks');
+            const links = [...nav.querySelectorAll(':scope > li:not(.mobile-search)')]
+              .filter((item) => item.getClientRects().length)
+              .map((item) => item.querySelector('a'));
+            const content = document.querySelector('#page-home .section-vibes > .container');
+            const contentRect = rect(content);
+            const contentStyle = getComputedStyle(content);
+            const buttons = [...document.querySelectorAll('.nav-icons > .nav-icon')]
+              .filter((button) => getComputedStyle(button).display !== 'none');
+            const badges = [...document.querySelectorAll('#wishlistCount, #cartCount')];
+            return {
+              links: links.map((link) => ({
+                text: link.textContent.trim(),
+                rect: rect(link),
+                fontSize: getComputedStyle(link).fontSize,
+                fontWeight: getComputedStyle(link).fontWeight,
+                whiteSpace: getComputedStyle(link).whiteSpace
+              })),
+              gap: parseFloat(getComputedStyle(nav).gap),
+              iconGap: parseFloat(getComputedStyle(document.querySelector('.nav-icons')).gap),
+              logo: rect(document.querySelector('.kage-logo img')),
+              icons: rect(document.querySelector('.nav-icons')),
+              buttons: buttons.map(rect),
+              glyphs: buttons.map((button) => rect(button.querySelector('svg, img'))),
+              badges: badges.map((badge) => ({ rect: rect(badge), parent: rect(badge.parentElement) })),
+              content: {
+                left: contentRect.left + parseFloat(contentStyle.paddingLeft),
+                right: contentRect.right - parseFloat(contentStyle.paddingRight)
+              },
+              header: {
+                height: rect(document.querySelector('.site-header')).height,
+                position: getComputedStyle(document.querySelector('.site-header')).position
+              },
+              iconOverflow: getComputedStyle(document.querySelector('.nav-icons')).overflow
+            };
+          });
+          const label = `${vw}px Pants ${pantsVisible ? 'visible' : 'hidden'}`;
+          const expectedLinkCount = pantsVisible ? 8 : 7;
+          assert.equal(m.links.length, expectedLinkCount, `${label}: visible navigation link count`);
+          assert.ok(m.links.every((link) => link.whiteSpace === 'nowrap'), `${label}: each nav label stays on one line`);
+          assert.ok(m.links.every((link) => Math.abs(link.rect.top - m.links[0].rect.top) < 0.5), `${label}: links share one top coordinate`);
+          const minGap = vw === 1024 ? 16 : vw < 1280 ? 18 : 24;
+          const expectedGap = vw === 1024 ? 16 : vw < 1280 ? 18 : 28;
+          const gaps = m.links.slice(1).map((link, i) => link.rect.left - m.links[i].rect.right);
+          assert.equal(m.gap, expectedGap, `${label}: desktop nav uses its responsive gap`);
+          assert.ok(gaps.every((gap) => gap >= minGap - 0.1), `${label}: neighboring link gaps are at least ${minGap}px (${gaps.join(', ')})`);
+          assert.ok(m.links[0].rect.left >= m.logo.right - 0.1, `${label}: first nav link does not overlap the logo`);
+          assert.ok(m.links.at(-1).rect.right <= m.icons.left + 0.1, `${label}: last nav link does not overlap the icons`);
+          assert.ok(m.links.every((link) => link.fontSize === (vw >= 1280 ? '13px' : '12px')), `${label}: desktop font size is correct`);
+          assert.equal(m.links.find((link) => link.text === 'Home').fontWeight, '600', `${label}: active link uses weight 600`);
+          assert.ok(m.links.filter((link) => link.text !== 'Home').every((link) => link.fontWeight === '500'), `${label}: inactive links use weight 500`);
+          assert.ok(Math.abs(m.logo.left - m.content.left) < 0.5, `${label}: logo aligns to the page content left edge (${m.logo.left}/${m.content.left})`);
+          assert.ok(Math.abs(m.icons.right - m.content.right) < 0.5, `${label}: icons align to the page content right edge (${m.icons.right}/${m.content.right})`);
+          assert.ok(Math.abs(m.logo.height - 52.8) < 1, `${label}: logo is enlarged by about 20%`);
+          assert.equal(m.iconGap, 12, `${label}: desktop icons have 12px of additional spacing`);
+          assert.ok(m.buttons.every((button) => button.width === 44 && button.height === 44), `${label}: icon hit-target sizes stay unchanged`);
+          assert.ok(m.glyphs.every((glyph) => glyph.width === 20 && glyph.height === 20), `${label}: icon glyph sizes stay unchanged`);
+          const center = (r) => r.top + r.height / 2;
+          assert.ok(Math.abs(center(m.logo) - center(m.links[0].rect)) < 0.5, `${label}: logo and links are vertically centred`);
+          assert.ok(Math.abs(center(m.logo) - center(m.buttons[0])) < 0.5, `${label}: logo and icons are vertically centred`);
+          assert.ok(m.badges.every((badge) => badge.rect.left >= badge.parent.left - 0.1 && badge.rect.right <= badge.parent.right + 0.1), `${label}: count badges remain unclipped`);
+          assert.equal(m.iconOverflow, 'visible', `${label}: icon badges may extend without clipping`);
+          assert.equal(m.header.height, 95, `${label}: header height stays unchanged`);
+          assert.equal(m.header.position, 'fixed', `${label}: header remains sticky`);
+        }
+        if (vw === 1280) {
+          await hp.hover('#navLinks a[data-nav="anime"]');
+          await settleLayout(hp);
+          const underline = await hp.evaluate(() => {
+            const link = document.querySelector('#navLinks a[data-nav="anime"]');
+            const active = document.querySelector('#navLinks a.active');
+            const hoverStyle = getComputedStyle(link, '::after');
+            const activeStyle = getComputedStyle(active, '::after');
+            return {
+              hoverWidth: parseFloat(hoverStyle.width),
+              hoverLinkWidth: link.getBoundingClientRect().width,
+              hoverHeight: hoverStyle.height,
+              hoverBottom: hoverStyle.bottom,
+              transition: hoverStyle.transitionDuration,
+              activeWidth: parseFloat(activeStyle.width),
+              activeLinkWidth: active.getBoundingClientRect().width
+            };
+          });
+          assert.equal(underline.hoverHeight, '2px', 'hover underline is 2px');
+          assert.equal(underline.hoverBottom, '4px', 'hover underline sits 6px below the text within its 44px row');
+          assert.equal(underline.transition, '0.18s', 'hover underline has a short transition');
+          assert.ok(underline.hoverWidth >= underline.hoverLinkWidth - 1, 'hovered link shows its full underline');
+          assert.ok(underline.activeWidth >= underline.activeLinkWidth - 1, 'active link keeps its full underline');
+          console.log('✅ Real Chromium — desktop hover and active links show the 2px offset underline');
+        }
+        console.log(`✅ ${vw}px real Chromium — desktop header lines up; ${vw === 1024 ? 16 : vw < 1280 ? 18 : 28}px link gap; Pants hidden/visible both fit`);
+        await hp.close();
+      }
+
       for (const [vw, vh, mode] of [[320, 780, 'phone'], [360, 780, 'phone'], [414, 860, 'phone'], [599, 900, 'phone'], [768, 900, 'tablet'], [1440, 900, 'desktop']]) {
         const bp = await browser.newPage();
         await bp.setViewport({ width: vw, height: vh });
@@ -1836,7 +1956,7 @@ async function ready(win) {
     console.log('✅ Filter drawer opens and its style/price/size filters still work');
 
     assert.deepEqual(errors, []);
-    console.log('\n28/28 frontend scenarios passed');
+    console.log('\n29/29 frontend scenarios passed');
   } finally {
     windows.forEach(win => win.window.close());
     await new Promise(resolve => server.close(resolve));

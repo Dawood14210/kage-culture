@@ -2118,3 +2118,32 @@ og/twitter image URLs are absolute and fetch as `image/jpeg`, 119,069 bytes;
 - `public/images/logo/kage-icon-light.svg` moved with `git mv` to
   `source/kage-icon-light.svg`, outside the served `public/` tree. Its only use is
   as the favicon source artwork, so it is still tracked.
+
+---
+
+## 33. Desktop header refinement (2026-10-13)
+
+**Request.** Polish the storefront header at 1024px and up without changing the
+mobile header, colors, or font families.
+
+**Changes.** The desktop header now uses the same `--max-width` container and
+side gutters as page sections (the existing page cap is 1280px, with 24px
+padding at 1024px and the normal 32px container padding above that), aligning
+the logo and icon cluster to the content edges. The logo image is 52.8px high
+(20% larger than 44px) and remains centered in the unchanged 67px header row.
+Desktop links stay on one line at 12px / 13px, use 500 / 600 weights, and have
+16px at 1024px, 18px through the compact desktop range, and 28px from 1280px.
+Tracking tightens responsively only where needed to fit the eight-link row at
+compact widths. Hover and active links retain their existing colors and gain a
+2px underline with a 6px visual offset and 180ms transition. The 44px icon hit
+areas and 20px glyphs are unchanged; the group now has 12px gaps, and badges
+remain visible. Header height, fixed positioning, border and scrolled shadow
+are unchanged. All new rules are desktop-only.
+
+**Verification.** Added real-Chromium layout checks for the requested widths
+(1024, 1280, 1366, 1536, 1920), with Pants hidden and visible, plus 1025, 1100,
+1148 and 1279px to cover the compact-width transition. The checks confirm one
+line/no overlap, required link gaps, shared page-content edges, centered logo,
+link and icon row, unchanged header height, and unclipped badges; hover and
+active underline styles are checked as well. `npm test` passes all five test
+files; **29/29 frontend scenarios** pass.
