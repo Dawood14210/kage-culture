@@ -889,8 +889,8 @@ async function ready(win) {
     const linkTiles = catTiles.filter(t => t.tagName === 'A');
     assert.deepEqual(linkTiles.map(t => t.getAttribute('href')), ['/collection/graphic-tees', '/collection/anime', '/collection/pants', '/custom-stickers'], 'all four tiles link to real routes even when empty');
     const pantsTile = catTiles.find(t => t.querySelector('.cat-name').textContent === 'Pants');
-    assert.equal(pantsTile.tagName, 'A', 'Pants always keeps its Explore link while out of stock');
-    assert.equal(pantsTile.getAttribute('aria-disabled'), null, 'Pants remains keyboard accessible when empty');
+    assert.equal(pantsTile.tagName, 'A', 'Pants keeps its link node while hidden out of stock');
+    assert.equal(pantsTile.getAttribute('aria-disabled'), null, 'Pants uses visibility, not disabled-link semantics');
     assert.equal(d.querySelector('#categoryStrip .cat-coming-soon'), null, 'category cards never show a Coming-soon pill');
     assert.ok(catTiles.every(t => /Explore/.test(t.querySelector('.cat-shop').textContent)), 'every card keeps its Explore link');
     assert.ok(catTiles.every(t => w.getComputedStyle(t.querySelector('.cat-shop')).display !== 'none'), 'every Explore label is displayed');
@@ -1048,6 +1048,10 @@ async function ready(win) {
         await bp.setViewport({ width: vw, height: vh });
         await bp.goto(origin + '/', { waitUntil: 'domcontentloaded' });
         await waitForCatalog(bp);
+        await bp.evaluate(() => {
+          allProducts.push({ ...allProducts[0], id: 987655, collection: 'pants', sizes: ['M'], size_stock: null, stock_qty: 3, in_stock: true });
+          syncCollectionVisibility();
+        });
         await settleLayout(bp);
         const m = await bp.evaluate(() => {
           const strip = document.querySelector('#page-home .category-strip');
@@ -1196,10 +1200,11 @@ async function ready(win) {
           if (state !== 'stocked') await pp.evaluate(() => loadProductsFromAPI());
           const beforeScroll = await pp.$$eval('#categoryStrip .cat-tile', tiles => tiles.map(tile => ({
             reveal: tile.matches('.reveal, .reveal-scale'),
-            opacity: getComputedStyle(tile).opacity
+            opacity: getComputedStyle(tile).opacity,
+            visible: getComputedStyle(tile).display !== 'none'
           })));
           assert.equal(beforeScroll.length, 4);
-          assert.ok(beforeScroll.every(tile => !tile.reveal && tile.opacity === '1'), `${vw}px ${state}: all category cards are visible before scrolling`);
+          assert.ok(beforeScroll.every(tile => !tile.reveal && tile.opacity === '1'), `${vw}px ${state}: category cards never use scroll-reveal`);
           await pp.evaluate(() => document.getElementById('catTilePants').scrollIntoView({ block: 'center', behavior: 'instant' }));
           const card = await pp.evaluate(() => {
             const tile = document.getElementById('catTilePants');
@@ -1207,6 +1212,7 @@ async function ready(win) {
             return {
               sameNode: tile === window.originalPantsTile,
               opacity: getComputedStyle(tile).opacity,
+              visible: getComputedStyle(tile).display !== 'none',
               tag: tile.tagName,
               href: tile.getAttribute('href'),
               disabled: tile.hasAttribute('aria-disabled'),
@@ -1227,11 +1233,15 @@ async function ready(win) {
           assert.notEqual(card.labelDisplay, 'none');
           assert.equal(card.comingSoon, false);
           assert.equal(card.navVisible, stocked);
-          if (state === 'sold out') {
-            await pp.focus('#catTilePants');
-            await pp.keyboard.press('Enter');
-          } else {
+          assert.equal(card.visible, stocked, 'Pants tile follows the same loaded stock as navigation');
+          assert.equal(beforeScroll.filter(tile => tile.visible).length, stocked ? 3 : 2, 'empty Graphic Tees is hidden too');
+          if (stocked) {
             await pp.click('#catTilePants');
+          } else {
+            await pp.goto(origin + '/collection/pants', { waitUntil: 'domcontentloaded' });
+            await waitForCatalog(pp);
+            // A real deep-link reload replaces the document, not the stock-sync function.
+            await pp.evaluate(() => { window.originalPantsTile = document.getElementById('catTilePants'); });
           }
           assert.equal(new URL(pp.url()).pathname, '/collection/pants', `${vw}px ${state}: Explore opens Pants`);
           assert.equal(await pp.$eval('#shopSection', el => getComputedStyle(el).display), 'block');
@@ -1244,7 +1254,7 @@ async function ready(win) {
           }
           await pp.evaluate(() => navigateTo('home'));
         }
-        console.log(`✅ ${vw}px real Chromium — category cards render without scroll animation; Pants Explore survives all stock changes`);
+        console.log(`✅ ${vw}px real Chromium — category cards render without scroll animation; Pants promotions follow stock; direct routes survive all stock changes`);
         await pp.close();
       }
 
@@ -1253,6 +1263,11 @@ async function ready(win) {
       await kp.setViewport({ width: 360, height: 780 });
       await kp.goto(origin + '/', { waitUntil: 'domcontentloaded' });
       await waitForCatalog(kp);
+      await kp.keyboard.press('Tab');
+      assert.equal(await kp.evaluate(() => document.activeElement.classList.contains('skip-link')), true);
+      await kp.keyboard.press('Enter');
+      assert.equal(await kp.evaluate(() => document.activeElement.id), 'mainContent', 'keyboard skip focuses the main region');
+      assert.equal(await kp.evaluate(() => location.hash), '#mainContent');
       const focus = await kp.evaluate(() => {
         const strip = document.querySelector('#page-home .category-strip');
         strip.focus();
@@ -1858,7 +1873,7 @@ async function ready(win) {
       assert.equal(visibleNavLinks.find(a => a.textContent.trim() === name).getAttribute('href'), cardRoutes[name], `${name} nav link matches its homepage card`);
     }
     const pantsTileNavCheck = d.getElementById('catTilePants');
-    assert.ok(pantsTileNavCheck && pantsTileNavCheck.tagName === 'A' && !pantsTileNavCheck.hasAttribute('aria-disabled'), 'Pants tile remains an Explore link even before stock arrives');
+    assert.ok(pantsTileNavCheck && pantsTileNavCheck.tagName === 'A' && !pantsTileNavCheck.hasAttribute('aria-disabled'), 'Pants tile keeps its route while hidden before stock arrives');
     assert.equal(pantsNavItem.getAttribute('href'), pantsTileNavCheck.getAttribute('href'), 'Pants nav and card share the same collection route');
     const footerHeadings = [...d.querySelectorAll('.site-footer h4')].map(h => h.textContent.trim());
     assert.ok(!footerHeadings.includes('Shop'), 'footer has no Shop column');

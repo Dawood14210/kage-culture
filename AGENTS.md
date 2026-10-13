@@ -94,5 +94,18 @@
   coverage includes S=0/M>0/L>0, all-zero depletion, order rejection/acceptance,
   and Chromium label/mobile overflow checks at 360px/1440px. All five files pass
   with PORT=3999 server/test cleanup (133/133 API, 31/31 frontend scenarios).
+- ✅ **Targeted audit follow-up (2026-10-13):** REPO-1 legacy favicon files removed
+  after repo-wide reference/hash checks; `/favicon.ico` redirects to v2. PERF-2
+  unused Zen Brush request removed. PERF-5 was already satisfied on both pages;
+  tests enforce swap/preconnect hints. A11Y-5 skip href already matched main;
+  main is now programmatically focusable and skip activation focuses it.
+  CONTENT-1 Pants/Graphic Tees promotions now require loaded, per-size-aware
+  buyable stock (nav, home tiles, existing footer links); no new footer links.
+  Hidden nodes reappear on load/refetch/restock. This supersedes the earlier
+  always-visible Pants tile requirement; direct empty/sold-out routes still work.
+  `PORT=3999 npm test` with server/tests in one shell and cleanup passes all five
+  files (133/133 API, 31/31 frontend plus rate-limit/storefront/migration suites),
+  including Chromium skip keyboard focus and category stock/deep-link checks.
+  Details, verified non-findings and assumptions are recorded in `AUDIT.md`.
 - ⬜ Remaining: FE-H2 CSP migration (do not drop unsafe-inline without replacing
   handlers), browser/device visual QA, dynamic-control a11y, FE-M6 typography, L2 media.

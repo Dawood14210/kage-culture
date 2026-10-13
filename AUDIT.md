@@ -850,6 +850,81 @@ enabled, and there is no page overflow. Server on PORT=3999 and `PORT=3999 npm
 test` run in one shell with cleanup: all five files pass (133/133 API and
 31/31 frontend scenarios, plus rate-limit/storefront/migration suites).
 
+### ✅ Targeted AUDIT_REPORT.md follow-up — 2026-10-13
+
+**Verified before editing; scope limited to REPO-1, PERF-2, PERF-5, A11Y-5 and
+CONTENT-1.** No auth/session, CSRF, seeding, secret resolution, inventory mutation,
+public product allow-list or CSP changes. Existing colors, typography, category
+card markup/images, layouts and responsive breakpoints remain unchanged.
+
+- **REPO-1 — fixed.** Whole-repository recursive grep (excluding `.git`, installed
+  dependencies and caches) included `server.js`, manifest, both HTML files and
+  tests. Only historical docs named the legacy files; no active reference or
+  explicit route depended on them. SHA-256 of both ICOs was
+  `4724bf2ecfcefb9a7dc068f518dffe82ed2e4684af62eeabcf015d6f11cd7724`.
+  Deleted byte-identical `public/favicon.ico` and unreferenced
+  `public/favicon-48x48.png` (16,501 bytes combined). Added a pre-static
+  `/favicon.ico` → 301 → `/favicon-v2.ico` route for implicit browser requests.
+  E2E verifies redirect/location, final 200/MIME/identical bytes, removed files,
+  legacy PNG 404, and all HTML/manifest icon URLs and dimensions.
+- **PERF-2 — fixed.** Whole-repository grep confirmed Zen Brush existed only in
+  the storefront Google Fonts request and historical audit text, not any CSS
+  font-family declaration. Removed only `&family=Zen+Brush`; retained used
+  Archivo/Noto Serif JP families, weights and `display=swap`.
+- **PERF-5 — already satisfied; regression coverage added.** Both `index.html`
+  and `admin.html` already had `display=swap` on every Google Fonts stylesheet,
+  preconnects to both Google font hosts, and `crossorigin` on the gstatic hint.
+  No admin markup change was warranted. New tests inspect every font link on
+  both pages, enforce swap/preconnect/crossorigin, and reject Zen Brush requests.
+- **A11Y-5 — fixed focus behavior; href already correct.** The existing skip link
+  already targeted the unique `#mainContent` main region (not `#main-content`).
+  Kept that consistent ID/href, added `tabindex="-1"`, and wired click activation
+  to focus the main without suppressing the anchor's normal fragment scrolling.
+  DOM coverage checks target uniqueness/focus; real Chromium tabs to the skip
+  link and presses Enter, verifying main focus and the fragment.
+- **CONTENT-1 — fixed missing surfaces.** Pants nav/footer were already driven
+  by live stock, but its tile was always shown; Graphic Tees nav/tile were always
+  shown. There is no existing Graphic Tees footer link, so none was added.
+  Marked these five existing promotion nodes with `data-stock-category` and
+  generalized the catalog-success/failure visibility sync. Visibility requires
+  loaded API data and the existing per-size-aware `categoryHasLiveProducts` /
+  `anySizeAvailable` helpers; fallback data never promotes these collections.
+  Empty, sold-out or manually paused collections hide from these surfaces;
+  restocks reveal the same nodes automatically on catalog load/refetch.
+  Routes, collection grids and their existing empty states remain intact; sold-out
+  products are still browsable through deep links/search. This supersedes earlier
+  requirements in this log that the Pants home Explore card always stay visible.
+
+**Verification.** `npm ci --no-audit --no-fund` installed the lockfile dependencies
+without changing it. New DOM catalog-refresh coverage exercises both collections:
+empty/deleted, pooled/untracked stock, manual pause, zero stock, S=0/M>0,
+all-zero size stock, restock, API failure/retry and existing empty/sold-out routes.
+The real API visibility-refetch test now also checks the Pants tile. Updated
+Chromium coverage at 390px/1440px verifies promotion visibility and real direct
+reloads for empty/sold-out Pants; stocked four-card geometry still passes at
+320/360/414/599/768/1440px. The complete suite passed in one shell with the
+PORT=3999 smoke server and cleanup:
+
+```sh
+PORT=3999 NODE_ENV=test node server.js > /tmp/kage-server.log 2>&1 & server_pid=$!
+trap 'kill "$server_pid" 2>/dev/null || true; wait "$server_pid" 2>/dev/null || true' EXIT
+PORT=3999 npm test
+```
+
+All five files pass: **133/133 API**, shared rate-limit, storefront regressions,
+upgrade migrations and **31/31 frontend** scenarios. Tests retain their isolated
+API ports; server log confirms the standalone server booted on 3999 and shut down
+via SIGTERM. `git diff --check` passes.
+
+**Assumptions.** “Products exist” for promotion means at least one buyable product,
+not merely a stored/sold-out row. A manually paused product is not buyable even
+with positive quantity; an untracked product is buyable when the existing stock
+helper permits it. Automatic updates use the existing load/refetch lifecycle,
+not new realtime polling. No live production inventory was changed or inspected;
+fixtures cover the empty-category behavior. No Graphic Tees footer entry is
+invented, and unrelated collections/surfaces remain unchanged. Initial loading
+and catalog failures keep these promotions hidden until valid data arrives.
+
 ## Remaining work (priority order)
 
 *API-side queue (C1, H1–H4, M1–M7, L1/L3–L7) completed 2026-09-23. FE-criticals

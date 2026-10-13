@@ -73,9 +73,85 @@ async function waitForCatalog(window) {
     const { document: d } = w;
     await waitForCatalog(w);
 
+    await check('both pages keep swap/preconnect font hints and never request unused Zen Brush', () => {
+      for (const source of [html, readFileSync(require.resolve('../public/admin.html'), 'utf8')]) {
+        const dom = new JSDOM(source);
+        try {
+          const links = [...dom.window.document.querySelectorAll('link')];
+          const fonts = links.filter(link => link.rel === 'stylesheet' && new URL(link.href).hostname === 'fonts.googleapis.com');
+          assert.ok(fonts.length > 0);
+          fonts.forEach(link => {
+            const url = new URL(link.href);
+            assert.equal(url.searchParams.get('display'), 'swap');
+            assert.ok(url.searchParams.getAll('family').every(family => !family.includes('Zen Brush')));
+          });
+          for (const host of ['fonts.googleapis.com', 'fonts.gstatic.com']) {
+            const hint = links.find(link => link.rel === 'preconnect' && new URL(link.href).origin === `https://${host}`);
+            assert.ok(hint, `missing preconnect to ${host}`);
+            if (host === 'fonts.gstatic.com') assert.ok(hint.hasAttribute('crossorigin'));
+          }
+        } finally { dom.window.close(); }
+      }
+    });
+
+    await check('skip link targets the single main region and moves focus there', () => {
+      const skip = d.querySelector('.skip-link');
+      const target = d.querySelector(skip.getAttribute('href'));
+      assert.equal(target, d.querySelector('main'));
+      assert.equal(d.querySelectorAll(skip.getAttribute('href')).length, 1);
+      assert.equal(target.getAttribute('tabindex'), '-1');
+      skip.focus();
+      skip.click();
+      assert.equal(d.activeElement, target);
+    });
+
+    await check('loaded stock controls every Pants/Graphic Tees promotion across refresh, sellout, deletion and failure', async () => {
+      const dom = makePage();
+      windows.push(dom);
+      const cw = dom.window, cd = cw.document;
+      await waitForCatalog(cw);
+      const nodes = [...cd.querySelectorAll('[data-stock-category]')];
+      assert.equal(nodes.length, 5, 'two nav links, two tiles, and the existing Pants footer link');
+      for (const category of ['pants', 'graphic-tees']) {
+        assert.ok(nodes.some(node => node.dataset.stockCategory === category && node.closest('#navLinks')));
+        assert.ok(nodes.some(node => node.dataset.stockCategory === category && node.matches('.cat-tile')));
+        const product = { id: 990001, name: 'Collection Stock Probe', category, price: 1000, sizes: ['S', 'M'], in_stock: true };
+        for (const [stock, visible] of [
+          [{ stock_qty: 2 }, true],
+          [{ stock_qty: 2, in_stock: false }, false],
+          [{ stock_qty: 0 }, false],
+          [{ stock_qty: null }, true],
+          [{ stock_qty: 3, size_stock: { S: 0, M: 3 } }, true],
+          [{ stock_qty: 0, size_stock: { S: 0, M: 0 } }, false],
+          [{ stock_qty: 2 }, true],
+          [null, false]
+        ]) {
+          cw.fetch = async () => new Response(JSON.stringify(stock ? [{ ...product, ...stock }] : []), { status: 200 });
+          await cw.loadProductsFromAPI();
+          nodes.forEach(node => assert.equal(node.style.display !== 'none', visible && node.dataset.stockCategory === category));
+          // Even when hidden from promotions, both direct collection routes stay reachable.
+          cw.navigateTo('collection', category);
+          assert.equal(cd.getElementById('shopSection').classList.contains('shop-visible'), true);
+          assert.equal(cd.getElementById('page-coming-soon').classList.contains('active'), false);
+          assert.match(cd.getElementById('collectionGrid').textContent, stock ? /Collection Stock Probe/ : /No .* available right now/i);
+        }
+      }
+      cw.fetch = async () => { throw new Error('catalog unavailable'); };
+      await cw.loadProductsFromAPI();
+      assert.ok(nodes.every(node => node.style.display === 'none'), 'API failure must not promote fallback products');
+      assert.equal(cd.getElementById('productLoadError').hidden, false);
+      cw.fetch = (url, opts) => fetch(origin + url, opts);
+      await cw.loadProductsFromAPI();
+      assert.equal(cd.getElementById('productLoadError').hidden, true);
+      assert.ok(nodes.filter(node => node.dataset.stockCategory === 'graphic-tees').every(node => node.style.display !== 'none'));
+      assert.ok(nodes.every(node => cd.contains(node)), 'refreshes must preserve the existing nodes');
+    });
+
     const originalPantsTile = d.getElementById('catTilePants');
-    await check('empty Pants category keeps its Explore link while nav/footer stay stock-aware', () => {
+    await check('empty Pants category hides all promotional links without removing the route', () => {
       assert.equal(d.getElementById('navPantsItem').style.display, 'none');
+      assert.equal(d.getElementById('footerPantsItem').style.display, 'none');
+      assert.equal(originalPantsTile.style.display, 'none');
       assert.ok(originalPantsTile, 'Pants tile must be present in the category strip');
       assert.equal(originalPantsTile.tagName, 'A', 'Pants is always a real link like the other cards');
       assert.equal(originalPantsTile.getAttribute('href'), '/collection/pants');
@@ -86,8 +162,8 @@ async function waitForCatalog(window) {
       assert.equal(originalPantsTile.querySelector('.cat-coming-soon'), null);
     });
 
-    await check('empty Pants Explore opens the Pants grid and its empty state, not Coming Soon', () => {
-      originalPantsTile.click();
+    await check('empty Pants deep link opens its existing empty state, not Coming Soon', () => {
+      w.navigateTo('collection', 'pants');
       assert.equal(w.location.pathname, '/collection/pants');
       assert.equal(d.getElementById('page-home').classList.contains('active'), true);
       assert.equal(d.getElementById('shopSection').classList.contains('shop-visible'), true);
@@ -105,6 +181,7 @@ async function waitForCatalog(window) {
       await wait(50);
       assert.equal(rd.getElementById('navPantsItem').style.display, 'none');
       assert.equal(rd.getElementById('footerPantsItem').style.display, 'none');
+      assert.equal(rd.getElementById('catTilePants').style.display, 'none');
       const before = await fetch(origin + '/api/products');
       const oldTag = before.headers.get('etag');
       const requests = [];
@@ -136,6 +213,7 @@ async function waitForCatalog(window) {
         assert.equal(requests[0]?.cache || 'default', 'default', 'storefront must use normal HTTP revalidation');
         assert.notEqual(rd.getElementById('navPantsItem').style.display, 'none');
         assert.notEqual(rd.getElementById('footerPantsItem').style.display, 'none');
+        assert.notEqual(rd.getElementById('catTilePants').style.display, 'none');
         assert.match(rd.getElementById('collectionGrid').textContent, /Visibility Cargo Pants/);
         assert.match(rd.getElementById('bestSellersGrid').textContent, /Visibility Cargo Pants/);
         assert.equal(rd.getElementById('catTilePants').querySelector('.cat-shop').textContent.trim(), 'Explore');
@@ -158,6 +236,7 @@ async function waitForCatalog(window) {
         assert.equal(requests.length, 2);
         assert.equal(rd.getElementById('navPantsItem').style.display, 'none');
         assert.equal(rd.getElementById('footerPantsItem').style.display, 'none');
+      assert.equal(rd.getElementById('catTilePants').style.display, 'none');
         assert.doesNotMatch(rd.getElementById('bestSellersGrid').textContent, /Cargo Pants/);
         assert.match(rd.getElementById('collectionGrid').textContent, /No pants available right now/i);
       } finally {
@@ -251,10 +330,11 @@ async function waitForCatalog(window) {
         sizes: ['M','L'], images: ['data:image/svg+xml,%3Csvg xmlns=\"http://www.w3.org/2000/svg\"%3E%3C/svg%3E'],
         stock_qty: 3, in_stock: true, on_sale: false, sale_price: null, rating: null, review_count: 0
       });`);
-      w.syncPantsCategoryVisibility();
+      w.syncCollectionVisibility();
       const tile = d.getElementById('catTilePants');
       assert.equal(tile, originalPantsTile, 'stock updates must not replace the category card');
       assert.equal(tile.matches('.reveal, .reveal-scale'), false, 'stock updates never enable scroll-reveal');
+      assert.notEqual(tile.style.display, 'none');
       assert.equal(d.activeElement, tile, 'stock updates preserve keyboard focus');
       assert.equal(tile.tagName, 'A');
       assert.equal(tile.getAttribute('aria-disabled'), null);
@@ -268,18 +348,19 @@ async function waitForCatalog(window) {
       w.navigateTo('home');
     });
 
-    await check('selling out Pants preserves the visible Explore link and the sold-out grid', () => {
+    await check('selling out Pants hides promotions but preserves the deep-linked sold-out grid', () => {
       w.eval(`allProducts.filter(product => product.collection === 'pants').forEach(product => {
         product.stock_qty = 0;
         product.in_stock = false;
       });`);
-      w.syncPantsCategoryVisibility();
+      w.syncCollectionVisibility();
       assert.equal(d.getElementById('catTilePants'), originalPantsTile);
       assert.equal(originalPantsTile.matches('.reveal, .reveal-scale'), false);
       assert.equal(originalPantsTile.getAttribute('aria-disabled'), null);
       assert.notEqual(w.getComputedStyle(originalPantsTile.querySelector('.cat-shop')).display, 'none');
       assert.equal(d.getElementById('navPantsItem').style.display, 'none');
-      originalPantsTile.click();
+      assert.equal(originalPantsTile.style.display, 'none');
+      w.navigateTo('collection', 'pants');
       assert.equal(w.location.pathname, '/collection/pants');
       assert.match(d.getElementById('collectionGrid').textContent, /Kage Cargo Pant/);
       assert.equal(d.querySelector('#collectionGrid .sale-flag').textContent, 'SOLD OUT');
@@ -287,12 +368,13 @@ async function waitForCatalog(window) {
       w.navigateTo('home');
     });
 
-    await check('removing the final Pants product never removes or relabels its homepage card', () => {
+    await check('removing the final Pants product hides but never replaces or relabels its homepage card', () => {
       w.eval("allProducts = allProducts.filter(product => product.collection !== 'pants')");
-      w.syncPantsCategoryVisibility();
-      w.syncPantsCategoryVisibility();
+      w.syncCollectionVisibility();
+      w.syncCollectionVisibility();
       assert.equal(d.getElementById('catTilePants'), originalPantsTile);
       assert.equal(d.querySelectorAll('#catTilePants').length, 1);
+      assert.equal(originalPantsTile.style.display, 'none');
       assert.equal(originalPantsTile.tagName, 'A');
       assert.equal(originalPantsTile.querySelector('.cat-shop').textContent.trim(), 'Explore');
       assert.equal(originalPantsTile.querySelector('.cat-coming-soon'), null);
