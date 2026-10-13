@@ -3145,25 +3145,26 @@
     .coming-soon-back:hover { color: var(--accent); }
 
     /* ================================================================
-       DESKTOP HOMEPAGE REFINEMENTS — 1025px and up
+       DESKTOP HOMEPAGE REFINEMENTS — 1024px and up
        ================================================================ */
     @media (min-width: 1024px) {
       /* --- Header: ONE row — [logo] [nav links, centred] [search + wishlist + account + cart] --- */
       .site-header .container.nav-inner {
-        max-width: 1280px;
+        max-width: var(--max-width);
         padding: 0 32px;
-        gap: 10px;
+        gap: 0;
         flex-wrap: nowrap;
         height: 67px; /* 27px top bar + 67px row + 1px border = 95px */
         justify-content: space-between;
       }
-      /* Nav links fill the middle and centre themselves in the free space */
+      /* Keep the nav in the space between the page-aligned logo and icons. */
       .nav-links {
         display: flex !important;
         position: static;
         flex: 1 1 auto;
         min-width: 0;
         flex-direction: row;
+        flex-wrap: nowrap;
         justify-content: center;
         width: auto;
         padding: 0;
@@ -3171,35 +3172,45 @@
         box-shadow: none;
         border-radius: 0;
         background: transparent;
-        gap: 0.4rem;
+        gap: 28px;
         z-index: auto;
         max-height: none;
         overflow: visible;
         margin: 0;
       }
       .nav-links li.mobile-search { display: none !important; }
+      .nav-links li:not(.mobile-search) { flex: 0 0 auto; }
       .nav-links a {
-        padding: 8px 1px;
+        padding: 8px 0;
         min-height: 44px;
         width: auto;
-        font-size: 0.66rem;
-        font-weight: 700;
-        letter-spacing: 0.02em;
+        font-size: 13px;
+        font-weight: 500;
+        letter-spacing: 0.04em;
         text-transform: uppercase;
         background: transparent !important;
         border-radius: 0;
         white-space: nowrap;
       }
+      .nav-links a.active { font-weight: 600; }
+      .nav-links a::after {
+        bottom: 4px;
+        height: 2px;
+        margin-top: 0;
+        transition: width 0.18s ease;
+      }
       .hamburger { display: none; }
-      .nav-icons { flex: 0 0 auto; gap: 0; }
+      .nav-icons { flex: 0 0 auto; gap: 12px; overflow: visible; }
       .nav-icons > .nav-icon { display: flex !important; }
+      .nav-icons > .nav-icon { overflow: visible; }
       /* Track Order is already a nav link on desktop, so its duplicate icon is dropped here */
       .nav-icons > .nav-icon[title="Track Order"] { display: none !important; }
 
       .kage-logo {
         flex: 0 0 auto;
-        padding: 0 16px 0 0;
+        padding: 0;
       }
+      .kage-logo img { height: 52.8px; width: auto; }
 
       /* Search: the field is hidden until the icon button opens it. While open it
          covers the nav links (which are hidden), so it never overlaps them. */
@@ -3409,6 +3420,27 @@
       #page-home .btn,
       #page-home .bestsellers-viewall {
         min-height: 44px;
+      }
+    }
+
+    /* Compact desktop navigation: keep the requested 12px type at tablet-width
+       desktops and tighten tracking only as much as the available row requires. */
+    @media (min-width: 1025px) and (max-width: 1279px) {
+      .nav-links { gap: 18px; }
+      .nav-links a {
+        font-size: 12px;
+        letter-spacing: clamp(-1.4px, calc(1.53vw - 17.08px), 0.48px);
+      }
+    }
+    @media (min-width: 1024px) and (max-width: 1024px) {
+      .site-header .container.nav-inner {
+        padding: 0 24px;
+        gap: 0;
+      }
+      .nav-links { gap: 16px; }
+      .nav-links a {
+        font-size: 12px;
+        letter-spacing: -0.07em;
       }
     }
 
