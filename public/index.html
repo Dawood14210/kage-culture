@@ -808,6 +808,7 @@
     .product-grid .product-card-body .price .amt,
     .product-grid .product-card-body .price .original,
     .product-grid .product-card-body .price .sale { white-space: nowrap; }
+    .product-grid .product-card-image.sold-out img { opacity: 0.65; }
     .product-grid .quick-view-btn {
       width: 100%;
       margin-top: auto;
@@ -4648,8 +4649,10 @@
         const saved = JSON.parse(localStorage.getItem('kageCart') || '[]');
         cart = Array.isArray(saved) ? saved.slice(0, 50).map(i => {
           const p = allProducts.find(x => x.id === Number(i.id));
-          if (!p || !sizeAvailable(p, i.size) || !p.sizes.includes(i.size)) return null;
-          const qty = Math.min(maxQtyFor(p, i.size), Math.max(0, Math.floor(Number(i.qty) || 0)));
+          if (!p) return null;
+          // Keep unavailable lines visible so a stock change is not a silent removal.
+          const requested = Math.max(0, Math.floor(Number(i.qty) || 0));
+          const qty = sizeAvailable(p, i.size) ? Math.min(maxQtyFor(p, i.size), requested) : requested;
           return qty ? { ...p, size: i.size, qty } : null;
         }).filter(Boolean) : [];
         const ids = JSON.parse(localStorage.getItem('kageWishlist') || '[]');
@@ -4662,6 +4665,7 @@
       shopStateReady = true;
       document.getElementById('wishlistCount').textContent = wishlist.size;
       updateCartUI();
+      renderWishlistDrawer();
     }
     let currentProduct = null;
     let detailQty = 1;
@@ -4828,7 +4832,7 @@
     // ---------- Navigation ----------
     // A category is "live" when it has at least one in-stock product.
     // Graphic Tees, Anime Shirts and Pants always show the shop grid, with
-    // an empty state when unavailable. Only these categories use Coming Soon.
+    // an empty state only when no products match. Sold-out items stay listed.
     const COMING_SOON_CATS = ['compression', 'oversized', 'sale'];
     const CATEGORY_NAMES = { 'anime': 'Anime Shirts', 'graphic-tees': 'Graphic Tees', 'pants': 'Pants', 'compression': 'Compression', 'oversized': 'Oversized', 'sale': 'Sale' };
     // The only slugs /collection/xxx accepts. Anything else — including the
@@ -4855,6 +4859,12 @@
     }
     window.syncPantsCategoryVisibility = syncPantsCategoryVisibility;
         let productsLoadedFromApi = false;
+    function categoryHasProducts(filter) {
+      if (!productsLoadedFromApi) return true;
+      return allProducts.some(p => filter === 'sale'
+        ? p.on_sale || (p.sale_price && p.sale_price < p.original_price)
+        : p.collection === filter);
+    }
     function categoryHasLiveProducts(filter) {
       // Before real data arrives, allProducts is the hardcoded fallback catalog
       // (which has products in every category) — defer to the grid then.
@@ -4935,7 +4945,7 @@
       const isCollectionRoute = (page === 'collection');
       let target = page;
       if (page === 'collection') {
-        if (COMING_SOON_CATS.includes(filter) && !categoryHasLiveProducts(filter)) {
+        if (COMING_SOON_CATS.includes(filter) && !categoryHasProducts(filter)) {
           target = 'coming-soon';
         } else {
           target = 'home';
@@ -5008,11 +5018,19 @@
     // ---------- Checkout ----------
     let lastOrder = null;
 
+    function cartItemUnavailable(item) {
+      const p = allProducts.find(p => p.id === item.id);
+      return !productsLoadedFromApi || !p || !(p.sizes || []).includes(item.size)
+        || !sizeAvailable(p, item.size) || item.qty > maxQtyFor(p, item.size);
+    }
+    function cartHasUnavailableItems() { return cart.some(cartItemUnavailable); }
+
     function startCheckout() {
       const d = document.getElementById('cartDrawer');
       if (d.classList.contains('open')) toggleCart();
       if (!productsLoadedFromApi) { showToast('Shop temporarily unavailable. Please retry loading products.'); return; }
       if (!cart.length) { showToast('Your cart is empty.'); return; }
+      if (cartHasUnavailableItems()) { showToast('Some items are unavailable. Remove them before checkout.'); return; }
       navigateTo('checkout');
     }
 
@@ -5034,16 +5052,18 @@
       const wrap = document.getElementById('coItems');
       let sub = 0;
       wrap.innerHTML = cart.map((item) => {
+        const unavailable = cartItemUnavailable(item);
         const t = item.price * item.qty; sub += t;
         return `<div class="co-item">
           <div class="co-item-img"><img src="${esc(item.images && item.images[0] ? item.images[0] : '')}" alt="${esc(item.name)}" /></div>
-          <div class="co-item-info"><div class="co-item-name">${esc(item.name)}</div><div class="co-item-meta">Size ${esc(item.size)} · Qty ${item.qty}</div></div>
+          <div class="co-item-info"><div class="co-item-name">${esc(item.name)}</div><div class="co-item-meta">Size ${esc(item.size)} · Qty ${item.qty}${unavailable ? ' · Unavailable' : ''}</div></div>
           <div class="co-item-price">Rs. ${t}</div>
         </div>`;
       }).join('');
       document.getElementById('coSubtotal').textContent = 'Rs. ' + fmt(sub);
       document.getElementById('coShipping').textContent = 'To be confirmed';
       document.getElementById('coTotal').textContent = 'Rs. ' + fmt(sub);
+      document.getElementById('coPlaceBtn').disabled = !cart.length || cartHasUnavailableItems();
     }
 
 
@@ -5051,6 +5071,11 @@
       const errEl = document.getElementById('checkoutError');
       errEl.style.display = 'none';
       if (!productsLoadedFromApi) { errEl.textContent = 'Shop temporarily unavailable. Please retry loading products.'; errEl.style.display = 'block'; return; }
+      if (!cart.length || cartHasUnavailableItems()) {
+        errEl.textContent = 'Some items are unavailable. Remove them before checkout.';
+        errEl.style.display = 'block';
+        return;
+      }
       const f = {
         name: document.getElementById('coName').value.trim(),
         email: document.getElementById('coEmail').value.trim(),
@@ -5093,7 +5118,7 @@
         errEl.textContent = 'Connection error. Make sure the server is running.';
         errEl.style.display = 'block';
       }
-      btn.disabled = false;
+      btn.disabled = !cart.length || cartHasUnavailableItems();
       btn.textContent = 'Place Order';
     }
 
@@ -5197,13 +5222,10 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       document.getElementById('pageInfo').textContent = 'Page ' + currentPage + ' of ' + totalPages;
       document.getElementById('nextBtn').style.display = currentPage < totalPages ? 'flex' : 'none';
 
-      // Category empty state: when browsing a single category with default filters and
-      // nothing in that category is in stock, show a 'No X available right now' message
-      // instead of a wall of SOLD OUT cards. Other combinations (search, extra filters)
-      // fall through to the generic "No products match your filters" notice.
+      // A category is empty only when there are no matching products.
+      // Sold-out products remain browsable, including when every item is sold out.
       const isBrowsingCategory = currentCollectionFilter && ['anime','graphic-tees','pants','sale'].includes(currentCollectionFilter) && !searchQuery.trim() && !wishlistOnly && filterState.cats.size === 3 && filterState.priceMin === 0 && filterState.priceMax === 10000 && !filterState.size;
-      const availableInFilter = filtered.filter(isAvailable);
-      if (isBrowsingCategory && availableInFilter.length === 0) {
+      if (isBrowsingCategory && filtered.length === 0) {
         const name = CATEGORY_NAMES[currentCollectionFilter] || currentCollectionFilter;
         grid.innerHTML = '<div class="no-results"><p>No ' + esc(name.toLowerCase()) + ' available right now.</p><p style="font-size:0.8rem;margin-top:0.5rem;color:var(--text-gray);">Check back soon for new drops.</p><p style="margin-top:1rem;"><button class="btn btn-primary btn-sm" onclick="navigateTo(\'collection\',\'all\')">Browse all shirts</button></p></div>';
         document.getElementById('resultCount').textContent = '0 results';
@@ -5352,7 +5374,8 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
         var p = allProducts.find(function(x) { return x.id === id; });
         if (!p) return;
         var img = (p.images && p.images[0]) || p.image || '';
-        html += '<div class="cart-item"><div class="cart-item-image">' + (img ? '<img src="' + esc(img) + '" alt="' + esc(p.name) + '" />' : '') + '</div><div class="cart-item-info"><h4>' + esc(p.name) + '</h4><div class="cart-item-meta">' + esc(p.fit || '') + '</div><div class="cart-item-price">Rs. ' + (p.sale_price || p.price) + '</div></div><div style="display:flex;flex-direction:column;gap:0.3rem;"><button class="btn btn-sm btn-outline" onclick="event.stopPropagation();quickAdd(' + p.id + ')" style="font-size:0.6rem;">Add to Cart</button><button style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:0.7rem;min-height:36px;" onclick="toggleWishlist(' + p.id + '); renderWishlistDrawer();">Remove</button></div></div>';
+        var available = anySizeAvailable(p);
+        html += '<div class="cart-item"><div class="cart-item-image">' + (img ? '<img src="' + esc(img) + '" alt="' + esc(p.name) + '" />' : '') + '</div><div class="cart-item-info"><h4>' + esc(p.name) + '</h4><div class="cart-item-meta">' + esc(p.fit || '') + (available ? '' : ' · Sold Out — unavailable') + '</div><div class="cart-item-price">Rs. ' + (p.sale_price || p.price) + '</div></div><div style="display:flex;flex-direction:column;gap:0.3rem;"><button class="btn btn-sm btn-outline"' + (available ? '' : ' disabled') + ' onclick="event.stopPropagation();quickAdd(' + p.id + ')" style="font-size:0.6rem;">' + (available ? 'Add to Cart' : 'Sold Out') + '</button><button style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:0.7rem;min-height:36px;" onclick="toggleWishlist(' + p.id + '); renderWishlistDrawer();">Remove</button></div></div>';
       });
       container.innerHTML = html;
     }
@@ -5454,13 +5477,13 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       const isWishlisted = wishlist && wishlist.has(p.id);
       return `
         <div class="product-card" data-pid="${p.id}" role="link" tabindex="0" aria-label="View ${esc(p.name)}" onclick="openProductDetail(${p.id})" onkeydown="if(event.key==='Enter'&&event.target===this){event.preventDefault();openProductDetail(${p.id});}">
-          <div class="product-card-image">
+          <div class="product-card-image${anySizeAvailable(p) ? '' : ' sold-out'}">
             ${img ? `<img src="${esc(img)}" alt="${esc(p.name)}" loading="lazy" />` : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:var(--text-dim);font-size:0.8rem;">No Image</div>`}
             <button class="product-wishlist ${isWishlisted ? 'active' : ''}" onclick="event.stopPropagation();toggleWishlist(${p.id}, this)" aria-label="Wishlist">
               ${HEART_SVG}
             </button>
             ${discount > 0 ? `<span class="product-discount-badge">-${discount}%</span>` : ''}
-            ${isAvailable(p) ? lowStockBadge(p) : '<span class="sale-flag">SOLD OUT</span>'}
+            ${anySizeAvailable(p) ? lowStockBadge(p) : '<span class="sale-flag">SOLD OUT</span>'}
           </div>
           <div class="product-card-body">
             <h3>${esc(p.name)}</h3>
@@ -5687,6 +5710,10 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       th.innerHTML = p.images.map((img,i) => `<div class="detail-thumb ${i===0?'active':''}" role="button" tabindex="0" aria-label="View image ${i+1}" onclick="switchDetailAngle(${i})" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();switchDetailAngle(${i});}"><img src="${esc(img)}" alt="View ${i+1}" /></div>`).join('');
       renderSizePicker(p);
       setupGallerySwipe();
+      renderDetailAvailability(p);
+    }
+
+    function renderDetailAvailability(p) {
       // Reflect stock state on both Add-to-Cart buttons (main + sticky bar)
       const mainBtn = document.getElementById('addToCartBtn');
       const stickyBtn = document.querySelector('#stickyCartBar .btn');
@@ -5694,8 +5721,9 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       [mainBtn, stickyBtn].forEach(b => {
         if (!b) return;
         b.disabled = oos;
-        b.textContent = oos ? 'Out of Stock' : 'Add to Cart';
+        b.textContent = oos ? 'Sold Out' : 'Add to Cart';
       });
+      document.querySelectorAll('#page-product .qty-btn').forEach(b => { b.disabled = oos; });
     }
 
     function switchDetailAngle(index) {
@@ -5712,6 +5740,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
     });
 
     function detailChangeQty(d) {
+      if (!currentProduct || !anySizeAvailable(currentProduct)) return;
       const cap = currentProduct ? Math.max(1, maxQtyFor(currentProduct, detailSize)) : 99;
       detailQty = Math.max(1, Math.min(cap, detailQty + d));
       document.getElementById('detailQty').textContent = detailQty;
@@ -5732,7 +5761,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       if (oneSizeOnly) { picker.innerHTML = ''; note.textContent = ''; return; }
       if (sizes.length === 1) {
         picker.innerHTML = `<div class="size-single">${esc(sizes[0])}</div>`;
-        note.textContent = 'This is the only size available for this piece.';
+        note.textContent = sizeAvailable(p, sizes[0]) ? 'This is the only size available for this piece.' : 'Sold Out';
         return;
       }
       picker.innerHTML = sizes.map(s => {
@@ -5741,7 +5770,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
         return `<button type="button" class="size-btn${selected ? ' selected' : ''}" data-size="${esc(s)}" aria-pressed="${selected}"${avail ? '' : ' disabled'} title="${avail ? esc(s) : 'Sold out in ' + esc(s)}">${esc(s)}</button>`;
       }).join('');
       const left = sizeQty(p, detailSize);
-      note.textContent = (left != null && left > 0 && left <= 5) ? `Only ${left} left in size ${detailSize}` : '';
+      note.textContent = !anySizeAvailable(p) ? 'Sold Out' : (left != null && left > 0 && left <= 5) ? `Only ${left} left in size ${detailSize}` : '';
     }
     function selectDetailSize(size) {
       if (!currentProduct || !(currentProduct.sizes || []).includes(size) || !sizeAvailable(currentProduct, size)) return;
@@ -6102,7 +6131,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       if (!el) return;
       const bits = [];
       const s = p.stock_qty;
-      if (s != null && s !== '' && s > 0 && s <= 5) bits.push(`<span class="urgency-low">🔥 Only ${s} left in stock</span>`);
+      if (anySizeAvailable(p) && s != null && s !== '' && s > 0 && s <= 5) bits.push(`<span class="urgency-low">🔥 Only ${s} left in stock</span>`);
       if (p.sold_count > 0) bits.push(`<span class="urgency-sold">${p.sold_count} sold</span>`);
       el.innerHTML = bits.join(' ');
     }
@@ -6252,6 +6281,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
     }
     function updateCartUI() {
       const c = cart.reduce((s,i) => s + i.qty, 0);
+      document.querySelector('#cartFooter button').disabled = !cart.length || cartHasUnavailableItems();
       persistShopState();
       document.getElementById('cartCount').textContent = c;
       const items = document.getElementById('cartItems'), footer = document.getElementById('cartFooter');
@@ -6259,13 +6289,15 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       footer.style.display = 'flex';
       let sub = 0;
       items.innerHTML = cart.map((item,i) => {
+        const unavailable = cartItemUnavailable(item);
         const t = item.price * item.qty; sub += t;
-        return `<div class="cart-item"><div class="cart-item-image"><img src="${esc(item.images[0])}" alt="${esc(item.name)}" /></div><div class="cart-item-info"><h4>${esc(item.name)}</h4><div class="cart-item-meta">Size: ${esc(item.size)} · ${esc(item.fit)}</div><div class="cart-item-price">Rs. ${t}</div></div><div style="display:flex;flex-direction:column;align-items:flex-end;gap:0.3rem;"><div class="cart-item-qty"><button onclick="changeCartQty(${i},-1)">−</button><span>${item.qty}</span><button onclick="changeCartQty(${i},1)">+</button></div><button class="cart-item-remove" onclick="removeFromCart(${i})">Remove</button></div></div>`;
+        return `<div class="cart-item"><div class="cart-item-image"><img src="${esc(item.images[0])}" alt="${esc(item.name)}" /></div><div class="cart-item-info"><h4>${esc(item.name)}</h4><div class="cart-item-meta">Size: ${esc(item.size)} · ${esc(item.fit)}${unavailable ? ' · Sold Out — unavailable' : ''}</div><div class="cart-item-price">Rs. ${t}</div></div><div style="display:flex;flex-direction:column;align-items:flex-end;gap:0.3rem;"><div class="cart-item-qty"><button onclick="changeCartQty(${i},-1)"${unavailable ? ' disabled' : ''}>−</button><span>${item.qty}</span><button onclick="changeCartQty(${i},1)"${unavailable ? ' disabled' : ''}>+</button></div><button class="cart-item-remove" onclick="removeFromCart(${i})">Remove</button></div></div>`;
       }).join('');
       document.getElementById('cartSubtotal').textContent = 'Rs. ' + fmt(sub);
     }
     function removeFromCart(i) { cart.splice(i,1); updateCartUI(); }
     function changeCartQty(i,d) {
+      if (!cart[i] || cartItemUnavailable(cart[i])) { showToast('This item is unavailable. Remove it from your cart.'); return; }
       if (cart[i].qty + d <= 0) { removeFromCart(i); return; }
       if (cart[i].qty + d > maxQtyFor(cart[i], cart[i].size)) { showToast('Not enough stock available.'); return; }
       cart[i].qty += d; updateCartUI();
@@ -6378,6 +6410,19 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
         productsLoadedFromApi = true;
         document.getElementById('productLoadError').hidden = true;
         restoreShopState();
+        if (currentProduct && document.getElementById('page-product').classList.contains('active')) {
+          const fresh = allProducts.find(p => p.id === currentProduct.id);
+          if (fresh) {
+            currentProduct = fresh;
+            if (!sizeAvailable(fresh, detailSize)) detailSize = defaultSizeFor(fresh);
+            detailQty = Math.max(1, Math.min(detailQty, maxQtyFor(fresh, detailSize)));
+            document.getElementById('detailQty').textContent = detailQty;
+            renderSizePicker(fresh);
+            renderDetailAvailability(fresh);
+            renderUrgency(fresh);
+          }
+        }
+        if (document.getElementById('page-checkout').classList.contains('active')) renderCheckout();
         renderCollectionGrid();
         initHomePageSections();
         syncPantsCategoryVisibility();

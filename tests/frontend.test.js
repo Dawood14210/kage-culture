@@ -216,6 +216,79 @@ async function ready(win) {
 
     // Per-size stock: a product offering S/M/L with S=2, M=0 (sold out), L=5.
     const db = require('../database');
+    // A manual Sold Out flag preserves inventory but blocks buying, not browsing.
+    {
+      const inserted = await db.prepare(`INSERT INTO products
+        (name, category, fit, price, sale_price, on_sale, sizes, description, stock_qty, in_stock, front_image, extra_images)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+        .run('Sold Out Visibility Pants', 'pants', 'Relaxed', 2499, 1999, 1, '["S","M"]', 'The description remains visible.', 3, 1, '/images/pants.jpg', '[]');
+      const pid = Number(inserted.lastInsertRowid);
+      await db.prepare('INSERT INTO product_size_stock (product_id, size, stock_qty) VALUES (?, ?, ?)').run(pid, 'S', 3);
+      await db.prepare('INSERT INTO product_size_stock (product_id, size, stock_qty) VALUES (?, ?, ?)').run(pid, 'M', 0);
+      const soldPage = page(storeHtml, '/product/' + pid); windows.push(soldPage);
+      const pw = soldPage.window, pd = pw.document;
+      try {
+        await ready(pw); await wait(50);
+        pw.quickAdd(pid);
+        pw.toggleWishlist(pid);
+        pw.navigateTo('checkout');
+        await db.prepare('UPDATE products SET in_stock = 0 WHERE id = ?').run(pid);
+        await pw.loadProductsFromAPI();
+        assert.equal(pw.eval('cart.length'), 1, 'sold-out cart lines stay visible after refresh');
+        assert.match(pd.getElementById('cartItems').textContent, /Sold Out — unavailable/);
+        assert.match(pd.getElementById('wishlistItems').textContent, /Sold Out — unavailable/);
+        assert.equal(pd.querySelector('#wishlistItems .btn').disabled, true);
+        assert.equal(pd.querySelector('#cartFooter button').disabled, true);
+        assert.equal(pd.getElementById('coPlaceBtn').disabled, true, 'an already open checkout is disabled on refetch');
+        assert.match(pd.getElementById('coItems').textContent, /Unavailable/);
+        await pw.placeOrder();
+        assert.match(pd.getElementById('checkoutError').textContent, /unavailable/i);
+        pw.navigateTo('home'); pw.startCheckout();
+        assert.equal(pd.getElementById('page-checkout').classList.contains('active'), false);
+        assert.equal(pw.eval(`addToCart(allProducts.find(p => p.id === ${pid}), 'S', 1)`), false);
+        for (const route of ['all', 'pants', 'sale']) {
+          pw.navigateTo('collection', route);
+          assert.ok(pd.querySelector(`#collectionGrid .product-card[data-pid="${pid}"]`), route + ' must keep sold-out products');
+        }
+        pw.onSearchInput('Sold Out Visibility');
+        assert.ok(pd.querySelector(`#collectionGrid .product-card[data-pid="${pid}"]`));
+        pw.onSearchInput('');
+        pw.openProductDetail(pid);
+        assert.equal(pd.getElementById('addToCartBtn').textContent, 'Sold Out');
+        assert.equal(pd.getElementById('addToCartBtn').disabled, true);
+        assert.equal(pd.querySelector('#stickyCartBar .btn').textContent, 'Sold Out');
+        assert.ok([...pd.querySelectorAll('#page-product .qty-btn, #detailSizePicker button')].every(b => b.disabled));
+        assert.match(pd.getElementById('detailDesc').textContent, /description remains visible/);
+        assert.ok(pd.querySelector('#galleryTrack img'));
+        assert.doesNotMatch(pd.getElementById('detailUrgency').textContent, /left in stock/);
+        assert.equal(pw.eval('cart[0].qty'), 1);
+        pw.detailChangeQty(1);
+        assert.equal(pd.getElementById('detailQty').textContent, '1');
+        // Restocking a still-open detail page re-enables its controls.
+        await db.prepare('UPDATE products SET in_stock = 1 WHERE id = ?').run(pid);
+        await pw.loadProductsFromAPI();
+        assert.equal(pd.getElementById('addToCartBtn').disabled, false);
+        assert.equal(pd.getElementById('addToCartBtn').textContent, 'Add to Cart');
+        assert.equal(pd.querySelector('#cartFooter button').disabled, false);
+        // Depleted inventory follows the same UI contract, including direct links.
+        await db.prepare('UPDATE product_size_stock SET stock_qty = 0 WHERE product_id = ?').run(pid);
+        await db.prepare('UPDATE products SET stock_qty = 0, in_stock = 0 WHERE id = ?').run(pid);
+        await pw.loadProductsFromAPI();
+        assert.equal(pd.getElementById('addToCartBtn').disabled, true, 'stock loss refreshes an open detail page');
+        const soldLink = page(storeHtml, '/product/' + pid, { storage: {
+          kageCart: pw.localStorage.getItem('kageCart'), kageWishlist: pw.localStorage.getItem('kageWishlist')
+        } }); windows.push(soldLink);
+        await ready(soldLink.window); await wait(50);
+        assert.equal(soldLink.window.document.getElementById('detailName').textContent, 'Sold Out Visibility Pants');
+        assert.equal(soldLink.window.document.getElementById('addToCartBtn').textContent, 'Sold Out');
+        assert.equal(soldLink.window.eval('cart.length'), 1, 'unavailable lines remain visible across visits');
+      } finally {
+        await db.prepare('DELETE FROM product_size_stock WHERE product_id = ?').run(pid);
+        await db.prepare('DELETE FROM products WHERE id = ?').run(pid);
+      }
+      console.log('✅ Sold-out products remain browsable, refresh detail/cart/wishlist, and block checkout');
+    }
+
     const sizeTee = await db.prepare('INSERT INTO products (name, category, fit, price, sizes, stock_qty, in_stock, extra_images) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
       .run('Frontend Size Tee', 'anime', 'Regular', 1000, JSON.stringify(['S', 'M', 'L']), 7, 1, '[]');
     const sizeTeeId = Number(sizeTee.lastInsertRowid);
@@ -1133,7 +1206,11 @@ async function ready(win) {
           assert.equal(await pp.$eval('#shopSection', el => getComputedStyle(el).display), 'block');
           assert.equal(await pp.$eval('#page-coming-soon', el => el.classList.contains('active')), false);
           const gridText = await pp.$eval('#collectionGrid', el => el.textContent);
-          assert.match(gridText, stocked ? /Kage Cargo Pant/ : /No pants available right now/i);
+          assert.match(gridText, catalog.length ? /Kage Cargo Pant/ : /No pants available right now/i);
+          if (state === 'sold out') {
+            assert.equal(await pp.$eval('#collectionGrid .sale-flag', el => el.textContent), 'SOLD OUT');
+            assert.equal(await pp.$eval('#collectionGrid .product-card-image img', el => getComputedStyle(el).opacity), '0.65');
+          }
           await pp.evaluate(() => navigateTo('home'));
         }
         console.log(`✅ ${vw}px real Chromium — category cards render without scroll animation; Pants Explore survives all stock changes`);
@@ -1477,6 +1554,10 @@ async function ready(win) {
     aw.eval('products = ' + JSON.stringify(products) + '; filterProducts()');
     ad.getElementById('productSearch').value = '';
     aw.filterProducts();
+    const soldOutAdminRow = ad.querySelector('#productList .product-sold-out-badge').closest('.product-row');
+    assert.equal(soldOutAdminRow.querySelector('.stock-label').textContent, 'Sold Out');
+    assert.match(soldOutAdminRow.querySelector('.toggle-switch').getAttribute('aria-label'), /Mark In Stock/);
+    assert.equal(soldOutAdminRow.querySelector('.toggle-switch').getAttribute('aria-pressed'), 'false');
     const rowSelect = ad.querySelector('#productList .product-row:not(.header-row) .product-select');
     assert.ok(rowSelect, 'product rows should have selection checkboxes');
     rowSelect.checked = true;
@@ -2014,7 +2095,7 @@ async function ready(win) {
     console.log('✅ Filter drawer opens and its style/price/size filters still work');
 
     assert.deepEqual(errors, []);
-    console.log('\n30/30 frontend scenarios passed');
+    console.log('\n31/31 frontend scenarios passed');
   } finally {
     windows.forEach(win => win.window.close());
     await new Promise(resolve => server.close(resolve));

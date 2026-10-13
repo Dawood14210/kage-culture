@@ -1489,6 +1489,65 @@ async function main() {
       headers: { 'X-CSRF-Token': csrf.token, Cookie: csrf.cookie }
     });
   };
+  const readProductForStock = async id => (await request(PORT, 'GET', `/api/products/${id}`)).json;
+  for (const mode of ['legacy pool', 'untracked', 'per size']) {
+    await check(`sold-out ${mode} products stay public, reject orders and restock consistently`, async () => {
+      const headers = await adminHeaders();
+      const created = await request(PORT, 'POST', '/api/products', {
+        headers, body: { name: 'Sold Out Contract ' + mode, category: 'pants', price: 1000,
+          sizes: '["M"]', unit_cost: 321,
+          ...(mode === 'per size' ? { size_stock: '{"M":3}' } : mode === 'legacy pool' ? { stock_qty: 3 } : {}) }
+      });
+      assert.strictEqual(created.status, 201, JSON.stringify(created.json));
+      const id = created.json.id;
+      const read = async () => (await request(PORT, 'GET', `/api/products/${id}`)).json;
+      try {
+        const initial = await read();
+        const noCsrf = await request(PORT, 'PATCH', `/api/products/${id}/stock`, { headers: { Cookie: adminCookie } });
+        assert.strictEqual(noCsrf.status, 403);
+        const csrf = await getCsrf();
+        const noAuth = await request(PORT, 'PATCH', `/api/products/${id}/stock`, {
+          headers: { Cookie: csrf.cookie, 'X-CSRF-Token': csrf.token }
+        });
+        assert.strictEqual(noAuth.status, 401);
+        const toggle = await request(PORT, 'PATCH', `/api/products/${id}/stock`, { headers });
+        assert.strictEqual(toggle.status, 200);
+        assert.strictEqual(toggle.json.in_stock, false);
+        const detail = await read();
+        assert.strictEqual(detail.in_stock, false);
+        assert.strictEqual(detail.stock_qty, initial.stock_qty, 'manual Sold Out preserves inventory');
+        assert.deepStrictEqual(detail.size_stock, initial.size_stock);
+        const listed = (await request(PORT, 'GET', '/api/products')).json.find(p => p.id === id);
+        assert.ok(listed, 'Sold Out must not remove the product from the public list');
+        assert.strictEqual(listed.in_stock, false);
+        assert.ok(!('unit_cost' in listed) && !('unit_cost' in detail), 'public payload remains allow-listed');
+        const beforeOrders = (await dbModule.prepare('SELECT * FROM orders').all()).length;
+        const otherBefore = (await readProductForStock(1)).stock_qty;
+        for (const items of [[{ id, qty: 1, size: 'M' }], [{ id: 1, qty: 1, size: 'L' }, { id, qty: 1, size: 'M' }]]) {
+          const rejected = await placeOrder(items, 'soldout-contract@kage.test');
+          assert.strictEqual(rejected.status, 400, JSON.stringify(rejected.json));
+          assert.match(rejected.json.error, /unavailable|out of stock/i);
+        }
+        assert.strictEqual((await dbModule.prepare('SELECT * FROM orders').all()).length, beforeOrders, 'rejection creates no order');
+        assert.strictEqual((await readProductForStock(1)).stock_qty, otherBefore, 'mixed cart rejection must not decrement available items');
+        assert.strictEqual((await read()).stock_qty, initial.stock_qty);
+        assert.strictEqual((await request(PORT, 'PATCH', `/api/products/${id}/stock`, { headers })).json.in_stock, true);
+        const zero = await request(PORT, 'PATCH', `/api/products/${id}/stock-qty`, { headers, body: { stock_qty: 0 } });
+        assert.strictEqual(zero.status, 200);
+        assert.strictEqual(zero.json.in_stock, false);
+        const blocked = await request(PORT, 'PATCH', `/api/products/${id}/stock`, { headers });
+        assert.strictEqual(blocked.status, 400, 'zero stock must not become buyable via toggle');
+        const restock = await request(PORT, 'PATCH', `/api/products/${id}/stock-qty`, { headers, body: { stock_qty: 6 } });
+        assert.strictEqual(restock.status, 200);
+        assert.strictEqual(restock.json.in_stock, true);
+        assert.strictEqual(Number(restock.json.stock_qty), 6);
+        if (mode === 'per size') assert.deepStrictEqual((await read()).size_stock, { M: 6 });
+      } finally {
+        await request(PORT, 'DELETE', `/api/products/${id}`, { headers });
+      }
+    });
+  }
+
   const getProduct = async (id) => (await request(PORT, 'GET', `/api/products/${id}`)).json;
   const sizeProductId = { id: null };
 

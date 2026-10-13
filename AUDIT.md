@@ -750,6 +750,77 @@ The old `animal-white-tiger.jpg` (3.38 MB) was deleted after the owner confirmed
 that no live product row or Vercel Blob object uses it. `kage-icon-light.svg`, the
 favicon source artwork, moved out of the served tree to `source/kage-icon-light.svg`.
 
+### ✅ Sold-out inventory remains visible — 2026-10-13
+
+**Audit before changes.** Public product list/detail queries already returned
+all products through the public allow-list, including `in_stock=false` and
+zero-quantity products. `getFilteredProducts()` and its price/newest sorts did
+not remove items based on stock, but `renderCollectionGrid()` replaced an
+all-sold-out category with "No X available right now" and incorrectly reported
+zero results. Coming Soon routing also tested in-stock membership, hiding an
+all-sold-out sale. The shared card renderer already showed SOLD OUT and kept
+cards/Quick View clickable, but did not dim images. Detail Add-to-Cart buttons
+were disabled with "Out of Stock" text; quantity controls stayed enabled and
+single-size explanatory copy could claim availability. Wishlist quick-add
+buttons remained enabled, and cart hydration silently discarded unavailable
+lines. An already-open detail/checkout could keep stale stock state on refetch.
+Admin already had In Stock / Sold Out labels but no product badge or explanation
+that toggling stock preserves the storefront listing.
+
+**Fixes.** Category empty states now require an actually empty matching list;
+Coming Soon tests product membership rather than purchase availability. No
+stock-based filtering/sorting was added. Shared product cards use per-size-aware
+availability for SOLD OUT and image-only dimming (opacity 0.65), without changing
+geometry, colors, responsive breakpoints or click behavior. Detail main/sticky
+buttons now read Sold Out and disable alongside quantity and size controls;
+gallery/description remain intact and false low-stock urgency is suppressed.
+Catalog refetches resync open detail controls, wishlist, cart and checkout.
+Wishlist buttons disable/label Sold Out. Unavailable cart lines are retained,
+labelled and removable; checkout entry, submission and quantity changes reject
+them using the current catalog rather than stale snapshots. The admin list adds
+a Sold Out badge, explicit switch action/pressed-state attributes, and short
+instructions for marking sold out without deletion and restocking.
+
+**Server/security review.** No backend route or inventory-helper changes were
+needed. Product mutations keep `requireCsrf` + `requireAuth`; public product
+payloads remain allow-listed. `/stock` pauses sales without erasing pooled or
+per-size quantities and refuses to enable zero inventory; `/stock-qty` derives
+availability from quantity and preserves the per-size edit restrictions.
+Guest order placement retains its existing CSRF/rate-limit protection and
+rejects sold-out items (including mixed carts) before creating/decrementing
+anything. Existing atomic guarded decrements, rollback tests, backend constants
+in config.js, public cache headers and ETags are unchanged.
+
+**Verification.** New live-API cases cover pooled, untracked and per-size stock:
+manual Sold Out still returns list/detail payloads without unit_cost; missing
+CSRF/auth still rejects stock mutations; sold-out and mixed-cart orders return
+400 with no new order or stock decrement; toggles preserve inventory, reject
+zero stock, and quantity restocking restores availability. DOM tests cover
+all-sold-out category/sale/search and every existing sort, direct product links,
+normal gallery/description, disabled main/sticky/size/quantity controls, stock
+changes on open detail/checkout, wishlist/cart unavailability across reloads,
+and admin badges/switches. Real Chromium at 390px/1440px confirms the Pants grid
+still shows sold-out cards and image opacity is 0.65; existing mobile/grid/header
+and admin layout checks still pass. Server and suite run together in one shell:
+
+```sh
+PORT=3999 NODE_ENV=test node server.js > /tmp/kage-server.log 2>&1 & server_pid=$!
+trap 'kill "$server_pid" 2>/dev/null || true; wait "$server_pid" 2>/dev/null || true' EXIT
+PORT=3999 npm test
+```
+
+All five test files pass: **132/132 API**, shared rate-limit, storefront
+regressions, upgrade migrations, **31/31 frontend** scenarios. Tests retain
+their isolated ephemeral-port API servers; the standalone smoke server runs on
+3999 and is stopped by the shell trap.
+
+**Assumptions.** Sold Out is a purchase-availability state, not deletion and not
+an instruction to erase existing inventory. Stock-aware Pants nav/footer
+visibility is unchanged from the prior request; its Explore card/direct category
+route always works, including when all Pants are sold out. Normal category,
+search, size/price filters, pagination and sort semantics still apply. Deleted
+products may still be removed from saved cart/wishlist state.
+
 ## Remaining work (priority order)
 
 *API-side queue (C1, H1–H4, M1–M7, L1/L3–L7) completed 2026-09-23. FE-criticals

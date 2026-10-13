@@ -368,6 +368,7 @@
       background:#FFF; transition:transform 0.25s; box-shadow:0 1px 3px rgba(0,0,0,0.3);
     }
     .stock-toggle .toggle-switch.active::after { transform:translateX(18px); }
+    .product-sold-out-badge { display:inline-block; margin-top:0.3rem; padding:0.15rem 0.4rem; border:1px solid var(--border); color:var(--text-secondary); font-size:0.6rem; font-weight:700; text-transform:uppercase; }
     .stock-toggle .stock-label { font-size:0.7rem; color:var(--text-muted); }
 
     /* ===== EMPTY STATE ===== */
@@ -1274,6 +1275,7 @@
 
       <!-- Products tab -->
       <div class="tab-content" id="tab-products">
+        <p style="font-size:0.7rem;color:var(--text-muted);margin-bottom:0.75rem;">Use the In Stock / Sold Out switch to stop sales without deleting a product. Sold-out products stay visible in the shop. Restock quantities before switching a zero-stock product back on.</p>
         <div class="filter-toolbar">
           <input type="text" id="productSearch" placeholder="Search products by name..." oninput="filterProducts()" />
           <select id="productCategoryFilter" onchange="filterProducts()">
@@ -1993,8 +1995,9 @@
       arr.forEach(p => {
         const thumbSrc = p.front_image || '';
         const catLabel = (CATEGORY_OPTIONS.find(c => c.value === p.category) || {}).label || p.category;
-        const stockLabel = p.in_stock ? 'In Stock' : 'Sold Out';
-        const stockClass = p.in_stock ? 'active' : '';
+        const available = p.in_stock && (p.stock_qty == null || Number(p.stock_qty) > 0);
+        const stockLabel = available ? 'In Stock' : 'Sold Out';
+        const stockClass = available ? 'active' : '';
         const qtyText = p.size_stock
           ? Object.entries(p.size_stock).map(([size, qty]) => `${esc(size)} ${qty}`).join(' · ')
           : ((p.stock_qty != null && p.stock_qty !== '') ? p.stock_qty : '—');
@@ -2008,11 +2011,12 @@
             </div>
             <div class="product-name-cell">
               <div class="p-name">${esc(p.name)}</div>
+              ${available ? '' : '<span class="product-sold-out-badge">Sold Out</span>'}
             </div>
             <div class="p-price">${fmtRs(p.sale_price || p.price)}</div>
             <div class="p-category">${esc(catLabel)}</div>
             <div class="stock-toggle">
-              <button class="toggle-switch ${stockClass}" onclick="toggleStock(${p.id})" aria-label="Toggle stock availability for ${esc(p.name)}"></button>
+              <button class="toggle-switch ${stockClass}" onclick="toggleStock(${p.id})" aria-label="${available ? 'Mark Sold Out' : 'Mark In Stock'}: ${esc(p.name)}" aria-pressed="${available}" title="${available ? 'Mark Sold Out without deleting' : 'Mark In Stock after restocking'}"></button>
               <span class="stock-label">${stockLabel}</span>
               <span class="stock-qty-display" onclick="startStockEdit(${p.id}, this)" title="${p.size_stock ? 'Click to edit stock for each size' : 'Click to edit stock quantity'}">${qtyText}</span>
             </div>
