@@ -86,5 +86,13 @@
   and `PORT=3999 npm test` run in one shell with cleanup; all five files pass
   (132/132 API, 31/31 frontend, rate-limit/storefront/migration suites), including
   real-Chromium sold-out card checks at 390px and 1440px. Details in AUDIT.md.
+- ✅ **Partial size stock follow-up (2026-10-13):** depleted-product PUT restocking
+  re-enables availability when the summed size inventory becomes positive;
+  explicit/manual Sold Out pauses remain honored. Unavailable size buttons show
+  Sold Out underneath with accessible descriptions; available sizes and the
+  product-wide Add-to-Cart stay enabled while any size is buyable. Regression
+  coverage includes S=0/M>0/L>0, all-zero depletion, order rejection/acceptance,
+  and Chromium label/mobile overflow checks at 360px/1440px. All five files pass
+  with PORT=3999 server/test cleanup (133/133 API, 31/31 frontend scenarios).
 - ⬜ Remaining: FE-H2 CSP migration (do not drop unsafe-inline without replacing
   handlers), browser/device visual QA, dynamic-control a11y, FE-M6 typography, L2 media.

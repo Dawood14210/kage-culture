@@ -318,6 +318,37 @@ async function ready(win) {
     assert.equal(sw.eval('cart[0].qty'), 2, 'cannot add past the size count');
     assert.equal(sd.getElementById('toast').textContent, 'Not enough stock available.');
     assert.equal(sw.eval('addToCart(allProducts.find(p => p.id === ' + sizeTeeId + '), "M", 1)'), false, 'sold-out size cannot be added');
+    assert.equal(sd.querySelector('[data-size="M"]').closest('.size-option').querySelector('.size-stock-status').textContent, 'Sold Out');
+    assert.equal(sd.querySelector('[data-size="L"]').closest('.size-option').querySelector('.size-stock-status').textContent, '');
+    // Small being zero must not label the entire product Sold Out.
+    const originalCounts = { S: 2, M: 0, L: 5 };
+    try {
+      await db.prepare('UPDATE product_size_stock SET stock_qty = ? WHERE product_id = ? AND size = ?').run(0, sizeTeeId, 'S');
+      await db.prepare('UPDATE products SET stock_qty = 5 WHERE id = ?').run(sizeTeeId);
+      await sw.loadProductsFromAPI();
+      assert.equal(sd.getElementById('addToCartBtn').textContent, 'Add to Cart');
+      assert.equal(sd.getElementById('addToCartBtn').disabled, false);
+      assert.equal(sw.eval('detailSize'), 'L', 'select an available size, not zero-stock Small');
+      assert.equal(sd.querySelector('[data-size="S"]').closest('.size-option').querySelector('.size-stock-status').textContent, 'Sold Out');
+      assert.equal(sd.querySelector('[data-size="L"]').disabled, false);
+      sw.navigateTo('collection', 'anime');
+      assert.equal(sd.querySelector(`#collectionGrid [data-pid="${sizeTeeId}"] .sale-flag`), null,
+        'card must not be SOLD OUT while Large is available');
+      sw.openProductDetail(sizeTeeId);
+      await db.prepare('UPDATE product_size_stock SET stock_qty = 0 WHERE product_id = ?').run(sizeTeeId);
+      await db.prepare('UPDATE products SET stock_qty = 0, in_stock = 0 WHERE id = ?').run(sizeTeeId);
+      await sw.loadProductsFromAPI();
+      assert.equal(sd.getElementById('addToCartBtn').textContent, 'Sold Out');
+      assert.equal(sd.getElementById('addToCartBtn').disabled, true);
+      assert.ok([...sd.querySelectorAll('.size-stock-status')].every(label => label.textContent === 'Sold Out'));
+      sw.navigateTo('collection', 'anime');
+      assert.equal(sd.querySelector(`#collectionGrid [data-pid="${sizeTeeId}"] .sale-flag`).textContent, 'SOLD OUT');
+    } finally {
+      for (const [size, qty] of Object.entries(originalCounts)) {
+        await db.prepare('UPDATE product_size_stock SET stock_qty = ? WHERE product_id = ? AND size = ?').run(qty, sizeTeeId, size);
+      }
+      await db.prepare('UPDATE products SET stock_qty = 7, in_stock = 1 WHERE id = ?').run(sizeTeeId);
+    }
     console.log('✅ Per-size product page: sold-out sizes disabled, quantity capped per size');
 
     const bad = await fetch(origin + '/does-not-exist');
@@ -1290,6 +1321,33 @@ async function ready(win) {
         await settleLayout(sp);
         return sp;
       };
+      for (const width of [360, 1440]) {
+        const partialPage = await openStore(width, '/product/1', [apiProduct(1, {
+          sizes: ['S', 'M', 'L'], size_stock: { S: 0, M: 2, L: 3 }, stock_qty: 5, in_stock: true
+        })], '#addToCartBtn');
+        const partialState = await partialPage.evaluate(() => {
+          const small = document.querySelector('#detailSizePicker [data-size="S"]');
+          const label = small.closest('.size-option').querySelector('.size-stock-status');
+          const large = document.querySelector('#detailSizePicker [data-size="L"]');
+          const smallRect = small.getBoundingClientRect(), labelRect = label.getBoundingClientRect();
+          return { smallDisabled: small.disabled, label: label.textContent,
+            labelBelow: labelRect.top >= smallRect.bottom,
+            largeDisabled: large.disabled, largeLabel: large.closest('.size-option').querySelector('.size-stock-status').textContent,
+            button: document.getElementById('addToCartBtn').textContent,
+            buttonDisabled: document.getElementById('addToCartBtn').disabled,
+            overflow: document.documentElement.scrollWidth > innerWidth };
+        });
+        assert.equal(partialState.smallDisabled, true);
+        assert.equal(partialState.label, 'Sold Out');
+        assert.equal(partialState.labelBelow, true, 'the Sold Out label sits below Small, not beside the entire product');
+        assert.equal(partialState.largeDisabled, false);
+        assert.equal(partialState.largeLabel, '');
+        assert.equal(partialState.button, 'Add to Cart');
+        assert.equal(partialState.buttonDisabled, false);
+        assert.equal(partialState.overflow, false);
+        await partialPage.close();
+        console.log(`✅ ${width}px real Chromium — Small=0 labels only Small Sold Out; other sizes remain buyable`);
+      }
       const measureGrid = (sp, gridSel) => sp.evaluate((sel) => {
         const grid = document.querySelector(sel);
         const cs = getComputedStyle(grid);
