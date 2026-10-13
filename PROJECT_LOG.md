@@ -2147,3 +2147,47 @@ line/no overlap, required link gaps, shared page-content edges, centered logo,
 link and icon row, unchanged header height, and unclipped badges; hover and
 active underline styles are checked as well. `npm test` passes all five test
 files; **29/29 frontend scenarios** pass.
+
+
+---
+
+## 34. Product catalog cache freshness (2026-10-13)
+
+**Bug.** Public product GETs were browser/edge-cacheable for 60 seconds, so
+admin changes could leave new products and stock-aware Pants links invisible.
+
+**Changes.** Product list/detail GET and HEAD responses now use
+`public, max-age=0, s-maxage=10, stale-while-revalidate=30, must-revalidate`.
+They stay shared-cacheable and cookie-free; reviews retain their existing
+policy. An explicit SHA-256 ETag covers the entire public payload (including
+stock/review aggregates), detecting same-second edits and deletions as well as
+new products. Express handles conditional GET/HEAD with a bodyless 304.
+
+Storefront product fetches retain the default HTTP cache mode, never persist
+the catalog across visits, and refetch on visibilitychange only after more
+than 15 seconds, with overlapping fetches guarded. Successful reloads refresh
+the collection grid, best sellers and Pants links. Added the requested Pants
+footer item (this checkout previously had no footer collection links), and
+syncPantsCategoryVisibility now controls both it and the nav item. The homepage
+Explore card remains stock-independent. Empty/error reloads clear best sellers
+and resync links instead of leaving stale derived UI. Admin create/edit/delete,
+bulk-delete, quick-upload and stock edits reload the authenticated list with a
+timestamped, browser-cache-bypassing request.
+
+**Deployment.** DEPLOY.md explains the normal up-to-10-second fresh edge delay
+and the additional 30-second stale-while-revalidate allowance; the 10-second
+TTL is not a hard worst-case freshness bound. Public caching still protects
+the database; admin list reloads bypass that public cache.
+
+**Verification.** API regressions assert exact GET/HEAD Cache-Control, ETags,
+304s and no Set-Cookie for clients with/without CSRF cookies. A live-API DOM
+regression begins with no Pants, inserts a product server-side, advances the
+tab clock past 15 seconds and dispatches visibilitychange: nav/footer links,
+best sellers and the already-open Pants grid refresh. It also checks fresh and
+hidden tabs do not refetch, normal HTTP cache mode, no persisted product
+payloads, same-second edit ETag changes, and UI cleanup after deletion. Admin
+DOM coverage proves create/update/delete each reload their authoritative API
+list using cache busting rather than reusing mutation responses. Updated the
+old no-footer-collection-links contract to allow the stock-aware Pants link.
+`npm test` passes all five files: 129/129 API checks, shared rate-limit,
+storefront regressions, upgrade migrations, and 30/30 frontend scenarios.

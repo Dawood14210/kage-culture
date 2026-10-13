@@ -3972,6 +3972,7 @@
           <div class="footer-col footer-help">
             <h4>Help</h4>
             <ul>
+              <li id="footerPantsItem" style="display:none;"><a href="/collection/pants" onclick="navigateTo('collection', 'pants'); return false;">Pants</a></li>
               <li><a href="/about" onclick="navigateTo('about'); return false;">About</a></li>
               <li><a href="/contact" onclick="navigateTo('contact'); return false;">Contact</a></li>
               <li><a href="/tracking" onclick="navigateTo('tracking'); return false;">Track Order</a></li>
@@ -4847,8 +4848,10 @@
     // Explore link stable and available regardless of inventory.
     function syncPantsCategoryVisibility() {
       const live = categoryHasLiveProducts('pants');
-      const navItem = document.getElementById('navPantsItem');
-      if (navItem) navItem.style.display = live ? '' : 'none';
+      for (const id of ['navPantsItem', 'footerPantsItem']) {
+        const item = document.getElementById(id);
+        if (item) item.style.display = live ? '' : 'none';
+      }
     }
     window.syncPantsCategoryVisibility = syncPantsCategoryVisibility;
         let productsLoadedFromApi = false;
@@ -5476,7 +5479,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
     // Load Best Sellers (sorted by order count if available, else newest)
     function loadBestSellers() {
       const grid = document.getElementById('bestSellersGrid');
-      if (!grid || !allProducts.length) return;
+      if (!grid) return;
       const sorted = [...allProducts].sort((a, b) => {
         const oa = a.order_count || 0;
         const ob = b.order_count || 0;
@@ -6325,8 +6328,15 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
 
     // Init
     // Load products from API (overrides hardcoded defaults when server is running)
+    let lastProductsFetchAt = 0;
+    let productsFetchInFlight = false;
     async function loadProductsFromAPI() {
+      if (productsFetchInFlight) return;
+      productsFetchInFlight = true;
+      lastProductsFetchAt = Date.now();
       try {
+        // Default HTTP cache mode: revalidate via Cache-Control/ETag, never
+        // persist the catalog in localStorage/sessionStorage across visits.
         const res = await fetch('/api/products');
         if (!res.ok) throw new Error('Catalog request failed');
         const data = await res.json();
@@ -6378,6 +6388,9 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
         document.getElementById('productLoadError').hidden = false;
         renderCollectionGrid();
         initHomePageSections();
+        syncPantsCategoryVisibility();
+      } finally {
+        productsFetchInFlight = false;
       }
     }
 
@@ -6753,7 +6766,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
 
     // Auto-refresh the grid when the tab regains focus (e.g. after an admin upload)
     document.addEventListener('visibilitychange', () => {
-      if (!document.hidden) loadProductsFromAPI();
+      if (!document.hidden && Date.now() - lastProductsFetchAt > 15000) loadProductsFromAPI();
     });
 
     // ================================================================

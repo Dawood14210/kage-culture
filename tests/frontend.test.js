@@ -1504,6 +1504,62 @@ async function ready(win) {
     aw.filterProducts();
     console.log('✅ Admin batch-delete selection follows the visible product list');
 
+    // Mutation responses are deliberately different from the authoritative
+    // list, proving the panel reloads rather than patching its old local copy.
+    {
+      const savedFetch = aw.fetch;
+      const savedConfirm = aw.confirm;
+      const savedAlert = aw.alert;
+      const reads = [];
+      const writes = [];
+      let authoritative = [];
+      const fresh = { ...products[0], id: 987660, name: 'Fresh admin Pants', category: 'pants', sizes: ['M'], size_stock: null };
+      try {
+        aw.confirm = () => true;
+        aw.alert = message => { throw new Error(message); };
+        aw.fetch = async (url, options = {}) => {
+          if (String(url).startsWith('/api/admin/products')) {
+            assert.match(url, /^\/api\/admin\/products\?_=[0-9]+$/);
+            assert.equal(options.cache, 'no-store');
+            reads.push(url);
+            return { ok: true, json: async () => authoritative };
+          }
+          if (String(url).startsWith('/api/products')) {
+            writes.push(options.method);
+            authoritative = options.method === 'DELETE' ? [] : [{ ...fresh,
+              name: options.method === 'PUT' ? 'Fresh edited Pants' : fresh.name }];
+            return { ok: true, json: async () => ({ ...fresh, name: 'Mutation response only' }) };
+          }
+          return { ok: false, json: async () => ({}) };
+        };
+        aw.populateCategorySelects();
+        ad.getElementById('productCategoryFilter').value = '';
+        aw.resetForm();
+        aw.eval('formImageBlob = new Blob(["image"], { type: "image/webp" })');
+        ad.getElementById('prodName').value = 'Admin Pants';
+        ad.getElementById('prodCategory').value = 'pants';
+        ad.getElementById('prodPrice').value = '2499';
+        await aw.handleSaveProduct({ preventDefault() {} });
+        assert.equal(reads.length, 1, 'create must reload the admin list');
+        assert.match(ad.getElementById('productList').textContent, /Fresh admin Pants/);
+        aw.editProduct(fresh.id);
+        await aw.handleSaveProduct({ preventDefault() {} });
+        assert.equal(reads.length, 2, 'update must reload the admin list');
+        assert.match(ad.getElementById('productList').textContent, /Fresh edited Pants/);
+        await aw.deleteProduct(fresh.id);
+        assert.equal(reads.length, 3, 'delete must reload the admin list');
+        assert.equal(aw.eval('products.length'), 0);
+        assert.deepEqual(writes, ['POST', 'PUT', 'DELETE']);
+      } finally {
+        aw.fetch = savedFetch;
+        aw.confirm = savedConfirm;
+        aw.alert = savedAlert;
+        aw.resetForm();
+        aw.eval('products = ' + JSON.stringify(products) + '; filterProducts()');
+      }
+      console.log('✅ Admin creates, updates and deletes reload the API list with cache busting');
+    }
+
     // Review moderation stars: the global .icon rule further down the admin
     // stylesheet sets fill:none, so a bare .icon-fill rule lost the cascade
     // and every star rendered as a hollow outline (rating unreadable).
@@ -1667,7 +1723,9 @@ async function ready(win) {
     assert.equal(pantsNavItem.getAttribute('href'), pantsTileNavCheck.getAttribute('href'), 'Pants nav and card share the same collection route');
     const footerHeadings = [...d.querySelectorAll('.site-footer h4')].map(h => h.textContent.trim());
     assert.ok(!footerHeadings.includes('Shop'), 'footer has no Shop column');
-    assert.equal(d.querySelectorAll('.site-footer a[href^="/collection/"]').length, 0, 'footer has no collection links');
+    assert.equal(d.querySelectorAll('.site-footer a[href^="/collection/"]').length, 1, 'Pants is the only stock-aware footer collection link');
+    assert.equal(d.getElementById('footerPantsItem').style.display, 'none', 'Pants footer link stays hidden until stocked');
+    assert.equal(d.querySelector('#footerPantsItem a').getAttribute('href'), '/collection/pants');
     assert.equal(d.querySelector('#navLinks .mobile-icons-row'), null, 'mobile menu has no extra track-order icon row below search');
     assert.equal(d.querySelectorAll('#navLinks .nav-icon').length, 0, 'mobile menu has no icon buttons below the search bar');
     assert.equal(d.querySelector('#navLinks .nav-admin'), null, 'Admin is removed from the public nav');
@@ -1956,7 +2014,7 @@ async function ready(win) {
     console.log('✅ Filter drawer opens and its style/price/size filters still work');
 
     assert.deepEqual(errors, []);
-    console.log('\n29/29 frontend scenarios passed');
+    console.log('\n30/30 frontend scenarios passed');
   } finally {
     windows.forEach(win => win.window.close());
     await new Promise(resolve => server.close(resolve));

@@ -1894,7 +1894,7 @@
       try {
         // Admin-only endpoint: the public catalog omits internal columns such
         // as unit_cost, which the edit form and the P&L need.
-        const res = await fetch('/api/admin/products');
+        const res = await fetch('/api/admin/products?_=' + Date.now(), { cache: 'no-store' });
         if (!res.ok) throw new Error('Products request failed');
         const data = await res.json();
         if (!Array.isArray(data)) throw new Error('Unexpected products payload');
@@ -1959,9 +1959,8 @@
           return;
         }
         const deleted = new Set((data.deletedIds || ids).map(Number));
-        products = products.filter(p => !deleted.has(Number(p.id)));
         deleted.forEach(id => selectedProductIds.delete(id));
-        filterProducts();
+        await loadProducts();
         refreshStatsIfNeeded();
       } catch (err) {
         alert('Connection error while deleting selected products.');
@@ -2039,7 +2038,7 @@
           const data = await res.json();
           const p = products.find(x => x.id === id);
           if (p) p.in_stock = data.in_stock;
-          filterProducts();
+          await loadProducts();
         } else {
           const data = await res.json().catch(() => ({}));
           alert(data.error || 'Failed to toggle stock.');
@@ -2057,9 +2056,8 @@
       try {
         const res = await fetch('/api/products/' + id, { method: 'DELETE' });
         if (res.ok) {
-          products = products.filter(p => p.id !== id);
           selectedProductIds.delete(Number(id));
-          filterProducts();
+          await loadProducts();
           refreshStatsIfNeeded();
         } else {
           alert('Failed to delete product.');
@@ -2588,7 +2586,7 @@
             document.getElementById('formLiveCard').classList.add('show');
           }
           successEl.style.display = 'block';
-          loadProducts();
+          await loadProducts();
           refreshStatsIfNeeded();
         } else {
           const data = await res.json().catch(() => ({}));
@@ -2798,7 +2796,7 @@
           clearImageSelection();
           priceInput.value = '';
           if (stockInput) stockInput.value = '';
-          loadProducts(); // keep the Products tab in sync
+          await loadProducts(); // keep the Products tab in sync
           refreshStatsIfNeeded();
         } else {
           let msg = 'Upload failed. Please try again.';
@@ -3053,7 +3051,7 @@
           method: 'PATCH', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ stock_qty: Number(val) })
         });
-        if (res.ok) { const data = await res.json(); const p = products.find(x => x.id === id); if (p) { p.stock_qty = data.stock_qty; p.in_stock = data.in_stock; } filterProducts(); refreshStatsIfNeeded(); }
+        if (res.ok) { const data = await res.json(); const p = products.find(x => x.id === id); if (p) { p.stock_qty = data.stock_qty; p.in_stock = data.in_stock; } await loadProducts(); refreshStatsIfNeeded(); }
         else if (res.status !== 401) { const d = await res.json().catch(() => ({})); alert(d.error || 'Failed to update stock.'); cancelStockEdit(id); }
       } catch (e) { alert('Connection error.'); cancelStockEdit(id); }
     }

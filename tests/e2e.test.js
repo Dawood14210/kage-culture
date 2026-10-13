@@ -296,7 +296,7 @@ async function main() {
   await check('single-product GET uses public cache headers', async () => {
     const product = await request(PORT, 'GET', '/api/products/1', { headers: { Cookie: 'kage.csrf=cache-probe' } });
     assert.strictEqual(product.status, 200);
-    assert.strictEqual(product.headers['cache-control'], 'public, max-age=60, s-maxage=60');
+    assert.strictEqual(product.headers['cache-control'], 'public, max-age=0, s-maxage=10, stale-while-revalidate=30, must-revalidate');
   });
 
   await check('public cached API reads with an existing CSRF cookie do not Set-Cookie', async () => {
@@ -309,8 +309,8 @@ async function main() {
     // A CDN/edge cache would store these responses and replay one visitor's
     // cookie to every other visitor, so no Set-Cookie may be emitted at all.
     const reads = [
-      ['/api/products', 'public, max-age=60, s-maxage=60'],
-      ['/api/products/1', 'public, max-age=60, s-maxage=60'],
+      ['/api/products', 'public, max-age=0, s-maxage=10, stale-while-revalidate=30, must-revalidate'],
+      ['/api/products/1', 'public, max-age=0, s-maxage=10, stale-while-revalidate=30, must-revalidate'],
       ['/api/reviews', 'public, max-age=120, s-maxage=120']
     ];
     for (const [path, expectedCache] of reads) {
@@ -323,6 +323,25 @@ async function main() {
         // …and the same holds for a client that already carries one.
         const withCookie = await request(PORT, method, path, { headers: { Cookie: 'kage.csrf=cache-probe' } });
         assert.strictEqual(withCookie.headers['set-cookie'], undefined, `${method} ${path} must not refresh Set-Cookie`);
+      }
+    }
+  });
+
+  await check('product revalidation returns bodyless 304s without Set-Cookie', async () => {
+    for (const path of ['/api/products', '/api/products/1']) {
+      const first = await request(PORT, 'GET', path);
+      assert.strictEqual(first.status, 200);
+      assert.ok(first.headers.etag, `${path} must have an ETag`);
+      assert.strictEqual(first.headers['set-cookie'], undefined);
+      for (const cookie of [undefined, 'kage.csrf=cache-probe']) {
+        const repeat = await request(PORT, 'GET', path, { headers: {
+          'If-None-Match': first.headers.etag, ...(cookie ? { Cookie: cookie } : {})
+        } });
+        assert.strictEqual(repeat.status, 304, path);
+        assert.strictEqual(repeat.text, '');
+        assert.strictEqual(repeat.headers.etag, first.headers.etag);
+        assert.strictEqual(repeat.headers['cache-control'], first.headers['cache-control']);
+        assert.strictEqual(repeat.headers['set-cookie'], undefined);
       }
     }
   });

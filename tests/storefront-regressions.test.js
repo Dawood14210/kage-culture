@@ -96,6 +96,76 @@ async function waitForCatalog(window) {
       w.navigateTo('home');
     });
 
+    await check('visibility refetch reveals server-added Pants in nav/footer, best sellers and the open grid', async () => {
+      const db = require('../database');
+      const refreshPage = makePage('/collection/pants');
+      windows.push(refreshPage);
+      const rw = refreshPage.window, rd = rw.document;
+      await waitForCatalog(rw);
+      await wait(50);
+      assert.equal(rd.getElementById('navPantsItem').style.display, 'none');
+      assert.equal(rd.getElementById('footerPantsItem').style.display, 'none');
+      const before = await fetch(origin + '/api/products');
+      const oldTag = before.headers.get('etag');
+      const requests = [];
+      rw.fetch = (url, options) => {
+        if (url === '/api/products') requests.push(options);
+        return fetch(origin + url, options);
+      };
+      // A fresh tab return should not produce another catalog request.
+      rd.dispatchEvent(new rw.Event('visibilitychange'));
+      assert.equal(requests.length, 0);
+      const result = await db.prepare(`INSERT INTO products
+        (name, category, price, sizes, stock_qty, in_stock, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)`)
+        .run('Visibility Cargo Pants', 'pants', 2499, '["M","L"]', 3, 1, '2099-01-01 00:00:00');
+      const id = result.lastInsertRowid;
+      try {
+        const changed = await fetch(origin + '/api/products', { headers: { 'If-None-Match': oldTag } });
+        assert.equal(changed.status, 200, 'adding a product invalidates the old ETag');
+        assert.notEqual(changed.headers.get('etag'), oldTag);
+        const realNow = rw.Date.now.bind(rw.Date);
+        rw.Date.now = () => realNow() + 16000;
+        Object.defineProperty(rd, 'hidden', { configurable: true, value: true });
+        rd.dispatchEvent(new rw.Event('visibilitychange'));
+        assert.equal(requests.length, 0, 'a hidden tab must not refetch');
+        Object.defineProperty(rd, 'hidden', { configurable: true, value: false });
+        rd.dispatchEvent(new rw.Event('visibilitychange'));
+        for (let i = 0; i < 60 && rw.eval('productsFetchInFlight'); i++) await wait(25);
+        assert.equal(requests.length, 1);
+        assert.equal(requests[0]?.cache || 'default', 'default', 'storefront must use normal HTTP revalidation');
+        assert.notEqual(rd.getElementById('navPantsItem').style.display, 'none');
+        assert.notEqual(rd.getElementById('footerPantsItem').style.display, 'none');
+        assert.match(rd.getElementById('collectionGrid').textContent, /Visibility Cargo Pants/);
+        assert.match(rd.getElementById('bestSellersGrid').textContent, /Visibility Cargo Pants/);
+        assert.equal(rd.getElementById('catTilePants').querySelector('.cat-shop').textContent.trim(), 'Explore');
+        for (const storage of [rw.localStorage, rw.sessionStorage]) {
+          for (let i = 0; i < storage.length; i++) {
+            assert.doesNotMatch(storage.getItem(storage.key(i)), /Visibility Cargo Pants/, 'catalog payload must not be persisted');
+          }
+        }
+        // Same-second edits must change the detail validator, too.
+        const detail = await fetch(origin + '/api/products/' + id);
+        const detailTag = detail.headers.get('etag');
+        await db.prepare('UPDATE products SET name = ? WHERE id = ?').run('Edited Cargo Pants', id);
+        const edited = await fetch(origin + '/api/products/' + id, { headers: { 'If-None-Match': detailTag } });
+        assert.equal(edited.status, 200);
+        assert.notEqual(edited.headers.get('etag'), detailTag);
+        await db.prepare('DELETE FROM products WHERE id = ?').run(id);
+        rw.Date.now = () => realNow() + 32000;
+        rd.dispatchEvent(new rw.Event('visibilitychange'));
+        for (let i = 0; i < 60 && rw.eval('productsFetchInFlight'); i++) await wait(25);
+        assert.equal(requests.length, 2);
+        assert.equal(rd.getElementById('navPantsItem').style.display, 'none');
+        assert.equal(rd.getElementById('footerPantsItem').style.display, 'none');
+        assert.doesNotMatch(rd.getElementById('bestSellersGrid').textContent, /Cargo Pants/);
+        assert.match(rd.getElementById('collectionGrid').textContent, /No pants available right now/i);
+      } finally {
+        await db.prepare('DELETE FROM products WHERE id = ?').run(id);
+        refreshPage.window.close();
+      }
+    });
+
     await check('four category tiles in order Graphic Tees / Anime / Pants / Custom Stickers with responsive layouts', () => {
       const tiles = [...d.querySelectorAll('#categoryStrip .cat-tile')];
       assert.equal(tiles.length, 4);

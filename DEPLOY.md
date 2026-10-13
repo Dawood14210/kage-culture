@@ -14,6 +14,40 @@ The app is **serverless-ready** when configured with persistent production stora
 
 ---
 
+## Product catalog freshness
+
+Public `GET /api/products` and `GET /api/products/:id` (and their HEAD
+responses) use:
+
+```http
+Cache-Control: public, max-age=0, s-maxage=10, stale-while-revalidate=30, must-revalidate
+```
+
+Browsers revalidate on each load rather than keeping a fresh catalog for a
+minute. Vercel's shared edge cache remains enabled to protect the database:
+after an admin create/edit/delete, storefront visitors can normally see an
+**up-to-10-second edge delay** while an existing cached copy is still fresh.
+The requested `stale-while-revalidate=30` additionally permits a stale response
+while the edge refreshes in the background; 10 seconds is the fresh-cache
+lifetime, not a strict worst-case visibility guarantee. No deployment or cache
+purge is needed for product edits.
+
+Both public product endpoints return a payload-hash ETag. An unchanged
+`If-None-Match` request returns a bodyless 304, with the cache policy and no
+`Set-Cookie`; stock, reviews, edits and deletions are reflected in the validator
+when the underlying public payload changes. `/api/reviews` keeps its existing
+120-second browser/shared-cache policy.
+
+The storefront uses normal HTTP caching and does not persist product lists in
+localStorage/sessionStorage. Returning to a visible tab triggers a refetch when
+the last fetch was more than 15 seconds ago, refreshing Pants navigation/footer
+visibility, best sellers, and the open collection grid. The homepage Pants card
+always remains an Explore link, even without stock. Admin product lists use an
+authenticated, timestamped `cache: 'no-store'` request after successful writes,
+so the admin sees the API's current state without the public edge delay.
+
+---
+
 ## Step 1 — Push the code to GitHub
 
 1. Create a repo at https://github.com/new (name it e.g. `kage-culture`, **Public** or **Private** both work).
