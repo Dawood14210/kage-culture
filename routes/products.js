@@ -2,6 +2,7 @@
 // KAGE Culture — Product routes
 // ================================================================
 const express = require('express');
+const { createHash } = require('node:crypto');
 const multer = require('multer');
 const path = require('path');
 const config = require('../config');
@@ -10,6 +11,17 @@ const { requireAuth } = require('../middleware/auth');
 const { persistImage, removeImage } = require('../utils/helpers');
 const sizeStock = require('../utils/sizes');
 const productShape = require('../utils/productShape');
+
+// Hash the complete public representation, including stock/review aggregates.
+// Unlike timestamps alone, this also detects deletes and same-second edits.
+// Express handles If-None-Match (including weak tags/lists) and GET/HEAD 304s
+// in res.send(), retaining Cache-Control and ETag without sending a body.
+function sendPublicProductPayload(res, data) {
+  const payload = JSON.stringify(data);
+  const hash = createHash('sha256').update(payload).digest('hex');
+  res.setHeader('ETag', `W/"${hash}"`);
+  return res.type('json').send(payload);
+}
 
 function respondToProductWriteError(err, res) {
   console.error('products route failed:', err && err.message ? err.message : err);
@@ -52,7 +64,7 @@ module.exports = function createProductRoutes(db) {
         order_count: sold.get(Number(p.id)) || 0, // unchanged: mirrors sold_count
         ...productShape.ratingFields(revAgg.get(Number(p.id)))
       }));
-      res.json(parsed);
+      sendPublicProductPayload(res, parsed);
     } catch (err) { console.error('products route failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
   });
 
@@ -63,7 +75,7 @@ module.exports = function createProductRoutes(db) {
       if (!p) return res.status(404).json({ error: 'Product not found' });
       const sold = await productShape.getSoldCounts(db);
       const revAgg = await productShape.loadReviewAggregates(db);
-      res.json(productShape.shapePublicProduct(p, {
+      sendPublicProductPayload(res, productShape.shapePublicProduct(p, {
         size_stock: await sizeStock.loadSizeStock(db, p.id),
         sold_count: sold.get(Number(p.id)) || 0,
         order_count: sold.get(Number(p.id)) || 0, // unchanged: mirrors sold_count

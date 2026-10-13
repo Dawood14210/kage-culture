@@ -296,7 +296,7 @@ async function main() {
   await check('single-product GET uses public cache headers', async () => {
     const product = await request(PORT, 'GET', '/api/products/1', { headers: { Cookie: 'kage.csrf=cache-probe' } });
     assert.strictEqual(product.status, 200);
-    assert.strictEqual(product.headers['cache-control'], 'public, max-age=60, s-maxage=60');
+    assert.strictEqual(product.headers['cache-control'], 'public, max-age=0, s-maxage=10, stale-while-revalidate=30, must-revalidate');
   });
 
   await check('public cached API reads with an existing CSRF cookie do not Set-Cookie', async () => {
@@ -309,8 +309,8 @@ async function main() {
     // A CDN/edge cache would store these responses and replay one visitor's
     // cookie to every other visitor, so no Set-Cookie may be emitted at all.
     const reads = [
-      ['/api/products', 'public, max-age=60, s-maxage=60'],
-      ['/api/products/1', 'public, max-age=60, s-maxage=60'],
+      ['/api/products', 'public, max-age=0, s-maxage=10, stale-while-revalidate=30, must-revalidate'],
+      ['/api/products/1', 'public, max-age=0, s-maxage=10, stale-while-revalidate=30, must-revalidate'],
       ['/api/reviews', 'public, max-age=120, s-maxage=120']
     ];
     for (const [path, expectedCache] of reads) {
@@ -323,6 +323,25 @@ async function main() {
         // …and the same holds for a client that already carries one.
         const withCookie = await request(PORT, method, path, { headers: { Cookie: 'kage.csrf=cache-probe' } });
         assert.strictEqual(withCookie.headers['set-cookie'], undefined, `${method} ${path} must not refresh Set-Cookie`);
+      }
+    }
+  });
+
+  await check('product revalidation returns bodyless 304s without Set-Cookie', async () => {
+    for (const path of ['/api/products', '/api/products/1']) {
+      const first = await request(PORT, 'GET', path);
+      assert.strictEqual(first.status, 200);
+      assert.ok(first.headers.etag, `${path} must have an ETag`);
+      assert.strictEqual(first.headers['set-cookie'], undefined);
+      for (const cookie of [undefined, 'kage.csrf=cache-probe']) {
+        const repeat = await request(PORT, 'GET', path, { headers: {
+          'If-None-Match': first.headers.etag, ...(cookie ? { Cookie: cookie } : {})
+        } });
+        assert.strictEqual(repeat.status, 304, path);
+        assert.strictEqual(repeat.text, '');
+        assert.strictEqual(repeat.headers.etag, first.headers.etag);
+        assert.strictEqual(repeat.headers['cache-control'], first.headers['cache-control']);
+        assert.strictEqual(repeat.headers['set-cookie'], undefined);
       }
     }
   });
@@ -1470,6 +1489,65 @@ async function main() {
       headers: { 'X-CSRF-Token': csrf.token, Cookie: csrf.cookie }
     });
   };
+  const readProductForStock = async id => (await request(PORT, 'GET', `/api/products/${id}`)).json;
+  for (const mode of ['legacy pool', 'untracked', 'per size']) {
+    await check(`sold-out ${mode} products stay public, reject orders and restock consistently`, async () => {
+      const headers = await adminHeaders();
+      const created = await request(PORT, 'POST', '/api/products', {
+        headers, body: { name: 'Sold Out Contract ' + mode, category: 'pants', price: 1000,
+          sizes: '["M"]', unit_cost: 321,
+          ...(mode === 'per size' ? { size_stock: '{"M":3}' } : mode === 'legacy pool' ? { stock_qty: 3 } : {}) }
+      });
+      assert.strictEqual(created.status, 201, JSON.stringify(created.json));
+      const id = created.json.id;
+      const read = async () => (await request(PORT, 'GET', `/api/products/${id}`)).json;
+      try {
+        const initial = await read();
+        const noCsrf = await request(PORT, 'PATCH', `/api/products/${id}/stock`, { headers: { Cookie: adminCookie } });
+        assert.strictEqual(noCsrf.status, 403);
+        const csrf = await getCsrf();
+        const noAuth = await request(PORT, 'PATCH', `/api/products/${id}/stock`, {
+          headers: { Cookie: csrf.cookie, 'X-CSRF-Token': csrf.token }
+        });
+        assert.strictEqual(noAuth.status, 401);
+        const toggle = await request(PORT, 'PATCH', `/api/products/${id}/stock`, { headers });
+        assert.strictEqual(toggle.status, 200);
+        assert.strictEqual(toggle.json.in_stock, false);
+        const detail = await read();
+        assert.strictEqual(detail.in_stock, false);
+        assert.strictEqual(detail.stock_qty, initial.stock_qty, 'manual Sold Out preserves inventory');
+        assert.deepStrictEqual(detail.size_stock, initial.size_stock);
+        const listed = (await request(PORT, 'GET', '/api/products')).json.find(p => p.id === id);
+        assert.ok(listed, 'Sold Out must not remove the product from the public list');
+        assert.strictEqual(listed.in_stock, false);
+        assert.ok(!('unit_cost' in listed) && !('unit_cost' in detail), 'public payload remains allow-listed');
+        const beforeOrders = (await dbModule.prepare('SELECT * FROM orders').all()).length;
+        const otherBefore = (await readProductForStock(1)).stock_qty;
+        for (const items of [[{ id, qty: 1, size: 'M' }], [{ id: 1, qty: 1, size: 'L' }, { id, qty: 1, size: 'M' }]]) {
+          const rejected = await placeOrder(items, 'soldout-contract@kage.test');
+          assert.strictEqual(rejected.status, 400, JSON.stringify(rejected.json));
+          assert.match(rejected.json.error, /unavailable|out of stock/i);
+        }
+        assert.strictEqual((await dbModule.prepare('SELECT * FROM orders').all()).length, beforeOrders, 'rejection creates no order');
+        assert.strictEqual((await readProductForStock(1)).stock_qty, otherBefore, 'mixed cart rejection must not decrement available items');
+        assert.strictEqual((await read()).stock_qty, initial.stock_qty);
+        assert.strictEqual((await request(PORT, 'PATCH', `/api/products/${id}/stock`, { headers })).json.in_stock, true);
+        const zero = await request(PORT, 'PATCH', `/api/products/${id}/stock-qty`, { headers, body: { stock_qty: 0 } });
+        assert.strictEqual(zero.status, 200);
+        assert.strictEqual(zero.json.in_stock, false);
+        const blocked = await request(PORT, 'PATCH', `/api/products/${id}/stock`, { headers });
+        assert.strictEqual(blocked.status, 400, 'zero stock must not become buyable via toggle');
+        const restock = await request(PORT, 'PATCH', `/api/products/${id}/stock-qty`, { headers, body: { stock_qty: 6 } });
+        assert.strictEqual(restock.status, 200);
+        assert.strictEqual(restock.json.in_stock, true);
+        assert.strictEqual(Number(restock.json.stock_qty), 6);
+        if (mode === 'per size') assert.deepStrictEqual((await read()).size_stock, { M: 6 });
+      } finally {
+        await request(PORT, 'DELETE', `/api/products/${id}`, { headers });
+      }
+    });
+  }
+
   const getProduct = async (id) => (await request(PORT, 'GET', `/api/products/${id}`)).json;
   const sizeProductId = { id: null };
 

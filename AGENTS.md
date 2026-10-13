@@ -38,7 +38,7 @@
 - When a work item from `AUDIT.md` is completed, update `AUDIT.md`: mark the item done
   and record what changed + how it was verified.
 
-## Status snapshot (2026-09-23)
+## Status snapshot (updated 2026-10-13)
 
 - ✅ CRITICAL admin auth bypass fixed: `requireAuth` trusts only
   `cookie-session`-verified `req.session`; standalone/forged payloads and the
@@ -72,5 +72,19 @@
   Product image writes support Vercel's store-prefixed Blob token and fail clearly
   without storage; `npm test` covers 38 API + 10 DOM-level scenarios, including
   bulk product deletion and Quick Upload stock quantities. See `AUDIT.md`.
+- ✅ **Sold-out products remain browsable (2026-10-13):** category/search grids,
+  including all-sold-out sales, retain products; cards show SOLD OUT with a dimmed
+  image and still open details. Main/sticky detail buttons read Sold Out and
+  quantity/size controls disable. Catalog refetches resync open detail,
+  wishlist/cart and checkout availability; unavailable cart lines remain visible
+  rather than silently disappearing. Admin shows a Sold Out badge, labelled
+  In Stock / Sold Out switch and a non-deletion/restock explanation.
+  Backend stock/auth/allow-listed payload/atomic-decrement contracts remain
+  unchanged. New API tests cover manually sold-out pooled, untracked and
+  per-size products, order rejection (including mixed carts), stock preservation,
+  zero-stock toggle rejection and restocking. Verification: server on PORT=3999
+  and `PORT=3999 npm test` run in one shell with cleanup; all five files pass
+  (132/132 API, 31/31 frontend, rate-limit/storefront/migration suites), including
+  real-Chromium sold-out card checks at 390px and 1440px. Details in AUDIT.md.
 - ⬜ Remaining: FE-H2 CSP migration (do not drop unsafe-inline without replacing
   handlers), browser/device visual QA, dynamic-control a11y, FE-M6 typography, L2 media.

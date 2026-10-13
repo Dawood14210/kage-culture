@@ -193,7 +193,7 @@ app.use((req, res, next) => {
     res.setHeader('Cache-Control', 'no-store');
   } else if (req.method === 'GET' || req.method === 'HEAD') {
     if (req.path === '/api/products' || /^\/api\/products\/\d+$/.test(req.path)) {
-      res.setHeader('Cache-Control', 'public, max-age=60, s-maxage=60');
+      res.setHeader('Cache-Control', 'public, max-age=0, s-maxage=10, stale-while-revalidate=30, must-revalidate');
     } else if (req.path === '/api/reviews') {
       res.setHeader('Cache-Control', 'public, max-age=120, s-maxage=120');
     }
