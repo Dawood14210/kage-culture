@@ -127,6 +127,9 @@ app.use(loadCookieSession()({
 }));
 
 // ── Static Files ──────────────────────────────────────────────
+// Preserve the conventional browser favicon request without a duplicate asset.
+app.get('/favicon.ico', (req, res) => res.redirect(301, '/favicon-v2.ico'));
+
 // L4: one canonical admin entry — redirect /admin.html to /admin BEFORE the
 // static middleware can serve it directly.
 app.use((req, res, next) => {

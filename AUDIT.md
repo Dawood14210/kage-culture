@@ -850,6 +850,500 @@ enabled, and there is no page overflow. Server on PORT=3999 and `PORT=3999 npm
 test` run in one shell with cleanup: all five files pass (133/133 API and
 31/31 frontend scenarios, plus rate-limit/storefront/migration suites).
 
+### ✅ Targeted AUDIT_REPORT.md follow-up — 2026-10-13
+
+**Verified before editing; scope limited to REPO-1, PERF-2, PERF-5, A11Y-5 and
+CONTENT-1.** No auth/session, CSRF, seeding, secret resolution, inventory mutation,
+public product allow-list or CSP changes. Existing colors, typography, category
+card markup/images, layouts and responsive breakpoints remain unchanged.
+
+- **REPO-1 — fixed.** Whole-repository recursive grep (excluding `.git`, installed
+  dependencies and caches) included `server.js`, manifest, both HTML files and
+  tests. Only historical docs named the legacy files; no active reference or
+  explicit route depended on them. SHA-256 of both ICOs was
+  `4724bf2ecfcefb9a7dc068f518dffe82ed2e4684af62eeabcf015d6f11cd7724`.
+  Deleted byte-identical `public/favicon.ico` and unreferenced
+  `public/favicon-48x48.png` (16,501 bytes combined). Added a pre-static
+  `/favicon.ico` → 301 → `/favicon-v2.ico` route for implicit browser requests.
+  E2E verifies redirect/location, final 200/MIME/identical bytes, removed files,
+  legacy PNG 404, and all HTML/manifest icon URLs and dimensions.
+- **PERF-2 — fixed.** Whole-repository grep confirmed Zen Brush existed only in
+  the storefront Google Fonts request and historical audit text, not any CSS
+  font-family declaration. Removed only `&family=Zen+Brush`; retained used
+  Archivo/Noto Serif JP families, weights and `display=swap`.
+- **PERF-5 — already satisfied; regression coverage added.** Both `index.html`
+  and `admin.html` already had `display=swap` on every Google Fonts stylesheet,
+  preconnects to both Google font hosts, and `crossorigin` on the gstatic hint.
+  No admin markup change was warranted. New tests inspect every font link on
+  both pages, enforce swap/preconnect/crossorigin, and reject Zen Brush requests.
+- **A11Y-5 — fixed focus behavior; href already correct.** The existing skip link
+  already targeted the unique `#mainContent` main region (not `#main-content`).
+  Kept that consistent ID/href, added `tabindex="-1"`, and wired click activation
+  to focus the main without suppressing the anchor's normal fragment scrolling.
+  DOM coverage checks target uniqueness/focus; real Chromium tabs to the skip
+  link and presses Enter, verifying main focus and the fragment.
+- **CONTENT-1 — fixed missing surfaces.** Pants nav/footer were already driven
+  by live stock, but its tile was always shown; Graphic Tees nav/tile were always
+  shown. There is no existing Graphic Tees footer link, so none was added.
+  Marked these five existing promotion nodes with `data-stock-category` and
+  generalized the catalog-success/failure visibility sync. Visibility requires
+  loaded API data and the existing per-size-aware `categoryHasLiveProducts` /
+  `anySizeAvailable` helpers; fallback data never promotes these collections.
+  Empty, sold-out or manually paused collections hide from these surfaces;
+  restocks reveal the same nodes automatically on catalog load/refetch.
+  Routes, collection grids and their existing empty states remain intact; sold-out
+  products are still browsable through deep links/search. This supersedes earlier
+  requirements in this log that the Pants home Explore card always stay visible.
+
+**Verification.** `npm ci --no-audit --no-fund` installed the lockfile dependencies
+without changing it. New DOM catalog-refresh coverage exercises both collections:
+empty/deleted, pooled/untracked stock, manual pause, zero stock, S=0/M>0,
+all-zero size stock, restock, API failure/retry and existing empty/sold-out routes.
+The real API visibility-refetch test now also checks the Pants tile. Updated
+Chromium coverage at 390px/1440px verifies promotion visibility and real direct
+reloads for empty/sold-out Pants; stocked four-card geometry still passes at
+320/360/414/599/768/1440px. The complete suite passed in one shell with the
+PORT=3999 smoke server and cleanup:
+
+```sh
+PORT=3999 NODE_ENV=test node server.js > /tmp/kage-server.log 2>&1 & server_pid=$!
+trap 'kill "$server_pid" 2>/dev/null || true; wait "$server_pid" 2>/dev/null || true' EXIT
+PORT=3999 npm test
+```
+
+All five files pass: **133/133 API**, shared rate-limit, storefront regressions,
+upgrade migrations and **31/31 frontend** scenarios. Tests retain their isolated
+API ports; server log confirms the standalone server booted on 3999 and shut down
+via SIGTERM. `git diff --check` passes.
+
+**Assumptions.** “Products exist” for promotion means at least one buyable product,
+not merely a stored/sold-out row. A manually paused product is not buyable even
+with positive quantity; an untracked product is buyable when the existing stock
+helper permits it. Automatic updates use the existing load/refetch lifecycle,
+not new realtime polling. No live production inventory was changed or inspected;
+fixtures cover the empty-category behavior. No Graphic Tees footer entry is
+invented, and unrelated collections/surfaces remain unchanged. Initial loading
+and catalog failures keep these promotions hidden until valid data arrives.
+
+### ✅ A11Y-1 / A11Y-2 — contrast and keyboard focus — 2026-10-13
+
+**Theme clarification.** The request described a dark storefront, but this checkout
+has the warm beige/taupe storefront and light + dark admin modes. The owner selected
+**preserve existing themes** before changes. No theme conversion, typography,
+spacing, layout, catalogue, API/auth/session/CSRF, database, seeding, secrets or CSP
+changes were made. Darken foregrounds on light surfaces; lighten on dark surfaces.
+
+**A11Y-1 — verified and fixed.** WCAG sRGB relative luminance uses the 0.04045 gamma
+breakpoint and `(Llighter + 0.05) / (Ldarker + 0.05)`; translucent surfaces/text are
+alpha-composited before measuring. Storefront gray really was **2.49:1** on the
+page and **1.99:1** on cards. Muted text also failed on cards/panels. Admin muted/dim
+failed in both modes. Some status colors, white-on-white dark-mode buttons, and
+white text on transparent light-mode hover controls also failed.
+
+- Adjusted storefront muted/gray and semantic status text; primary/secondary/dim
+  and all background tokens remain unchanged. Preserved decorative accent/hover
+  colors and introduced a foreground-only hover token where the tint needs it.
+- Adjusted admin muted/dim in each mode. Added theme-aware accent/success/danger/
+  warning/info/purple foreground tokens without changing decorative accent,
+  border, status-tint or stock-switch colors. Inverse control text now contrasts
+  with the theme's primary surface and the existing fixed charcoal hover surface.
+- The admin chart-empty overlay and password-modal card now use theme-aware
+  background tokens so their inherited text remains readable in dark mode;
+  the light-mode surfaces stay the same. The chart overlay retains 92% opacity.
+- Placeholders use the accessible dim token with explicit opacity 1 (including
+  browsers whose UA stylesheet otherwise dims placeholders).
+- **498 conservative token/background pairs** pass the stricter **4.5:1** threshold
+  for every size, which also exceeds the requested large-text **3:1**. This checks
+  every ordinary foreground against *all* base surfaces, even combinations not
+  currently used; explicit inverse, tinted status and inherited-hover pairs are
+  checked separately. Minima: storefront **4.537**, admin light **4.549**, admin
+  dark **4.881**. Primary → secondary → muted → dim luminance hierarchy is tested.
+
+**A11Y-2 — verified and fixed.** Parsed every CSS rule, including nested media rules.
+The existing generic storefront ring lost to more specific form resets and later
+`:focus` rules; admin explicitly suppressed keyboard input/select/textarea outlines.
+Added exact, final `:focus-visible` counterparts for **16 storefront / 12 admin
+selectors** (including grouped selectors), using 2px accent outlines + 2px offset.
+Removed admin's `:focus-visible { outline:none }` form override. All admin rings use
+its accessible foreground-accent token. Category-tile rings are white against the
+olive band, matching the existing category-strip ring.
+
+`public/focus-modality.js` tracks pointerdown/keydown on the document. Because native
+`:focus-visible` can also match pointer-clicked text inputs, a narrowly scoped
+pointer-only `:focus` / `:focus-within` reset suppresses rings (including contact-card
+ancestor rings); Tab restores them. Those two explicitly pointer-only rules are
+intentional non-keyboard exclusions in the reset test. They cannot suppress keyboard
+rings. The deferred, same-origin script is referenced by both HTML pages; CSP stays
+unchanged. Existing hover/border feedback remains intact.
+
+**Permanent tests.** `tests/fixtures/a11y.js` parses embedded CSS through the existing,
+lockfile-pinned jsdom CSSOM dependency (no new package), resolves light/dark tokens,
+computes WCAG contrast and composites alpha. `tests/a11y.test.js` rejects any pair
+under 4.5, undefined/uncovered text tokens, collapsed hierarchy, and any ordinary
+outline reset without an explicit visible counterpart. Known-ratio assertions test
+the math. Real Chromium exercises all **40 theme/selector contexts** with click and
+Tab, checking the actual outline cascade, input-text/placeholder contrast and
+placeholder opacity. Decorative heart/star tokens are explicitly identified as
+non-body text; this is not a claim of complete-site WCAG conformance (image-backed
+text, decorative artwork/icons, disabled states and physical-device QA remain
+separate). `package.json` adds this sixth suite to `npm test`.
+
+**Full verification — passed.** Server and tests ran in one shell, on PORT=3999,
+with cleanup; log confirms server startup and SIGTERM shutdown:
+
+```sh
+PORT=3999 NODE_ENV=test node server.js > /tmp/kage-server-a11y-final.log 2>&1 & server_pid=$!
+trap 'kill "$server_pid" 2>/dev/null || true; wait "$server_pid" 2>/dev/null || true' EXIT
+PORT=3999 npm test
+```
+
+All six suites pass: **133/133 API**, rate-limit, storefront regressions, upgrade
+migrations, **31/31 frontend**, and contrast/focus (**148 storefront + 175 admin
+light + 175 admin dark pairs**, 40 Chromium focus contexts). Existing responsive
+Chromium checks still pass. JS syntax checks and `git diff --check` pass.
+
+**Files changed:** `public/index.html`, `public/admin.html`, `public/focus-modality.js`
+(new), `tests/a11y.test.js` (new), `tests/fixtures/a11y.js` (new), `package.json`,
+`AUDIT.md`, `AGENTS.md`. Assumption: all body/secondary token combinations get 4.5:1
+rather than relying on a font-size exemption; preserve both admin themes and the
+current storefront palette. No changes to production data or dependencies.
+
+**Full before/after ratio ledger.** Values below come from the original files read
+before editing and the final tokens. `B` aliases are local to each theme table.
+Tinted checks list their inherited base surface. Duplicate-color surfaces have
+identical ratios and are grouped for readability. Newly named semantic tokens list
+the original token/literal source; extra literal variants are listed separately.
+Rounded display values do not determine pass/fail.
+
+
+#### Storefront — warm light theme
+
+Background groups (aliases have identical values and ratios):
+
+- **B1:** `--bg-primary` = `#D9D4C8`.
+- **B2:** `--bg-secondary`, `--bg-card`, `--bg-card-image` = `#C4BEB0`.
+- **B3:** `--bg-card-hover` = `#CBC5B6`.
+- **B4:** `--bg-glass` = `rgba(217,212,200,0.9)`.
+- **B5:** `--bg-panel` = `#CFC9BA`.
+
+Each cell is **before → after**, in contrast-ratio units (`:1`). Transparent base
+surfaces are composited over the page. Body/secondary checks use unrounded values.
+
+| Foreground / original source | Before color | After color | B1 | B2 | B3 | B4 | B5 |
+|---|---|---|---:|---:|---:|---:|---:|
+| `--text-primary` | `#1A1815` | `#1A1815` | 11.98 → 11.98 | 9.57 → 9.57 | 10.29 → 10.29 | 11.98 → 11.98 | 10.73 → 10.73 |
+| `--text-secondary` | `#3D3931` | `#3D3931` | 7.77 → 7.77 | 6.20 → 6.20 | 6.67 → 6.67 | 7.77 → 7.77 | 6.96 → 6.96 |
+| `--text-muted` | `#5C564C` | `#4F493F` | 4.91 → 6.02 | 3.92 → 4.81 | 4.22 → 5.18 | 4.91 → 6.02 | 4.40 → 5.39 |
+| `--text-dim` | `#504C47` | `#504C47` | 5.76 → 5.76 | 4.60 → 4.60 | 4.95 → 4.95 | 5.76 → 5.76 | 5.16 → 5.16 |
+| `--text-gray` | `#8A8578` | `#514C43` | 2.49 → 5.76 | 1.99 → 4.60 | 2.14 → 4.95 | 2.49 → 5.76 | 2.23 → 5.16 |
+| `--text-success` (was `#2E7D32`) | `#2E7D32` | `#1B5520` | 3.47 → 6.00 | 2.77 → 4.79 | 2.98 → 5.16 | 3.47 → 6.00 | 3.10 → 5.37 |
+| `--text-warning` (was `#fbbf24`) | `#fbbf24` | `#5C3D00` | 1.13 → 6.69 | 1.11 → 5.34 | 1.03 → 5.75 | 1.13 → 6.69 | 1.01 → 5.99 |
+| `--text-info` (was `#60a5fa`) | `#60a5fa` | `#123C78` | 1.72 → 7.31 | 1.37 → 5.84 | 1.48 → 6.28 | 1.72 → 7.31 | 1.54 → 6.54 |
+| `--text-purple` (was `#c084fc`) | `#c084fc` | `#50257F` | 1.79 → 7.43 | 1.43 → 5.93 | 1.54 → 6.38 | 1.79 → 7.43 | 1.60 → 6.65 |
+| `--text-danger` (was `#DC2626`) | `#DC2626` | `#951919` | 3.27 → 5.84 | 2.61 → 4.66 | 2.81 → 5.02 | 3.27 → 5.84 | 2.92 → 5.23 |
+| `--text-accent-hover` (was `--accent-hover`) | `#5A5240` | `#423C2D` | 5.23 → 7.41 | 4.18 → 5.92 | 4.49 → 6.37 | 5.23 → 7.41 | 4.68 → 6.64 |
+| `--accent` | `#4A4433` | `#4A4433` | 6.56 → 6.56 | 5.24 → 5.24 | 5.63 → 5.63 | 6.56 → 6.56 | 5.87 → 5.87 |
+
+Explicit tinted/control pair checks (identical-value underlays are grouped).
+These include background-only hover rules that inherit their base text color:
+
+| Foreground | Background | Underlay group | Before → after |
+|---|---|---|---:|
+| `--text-primary` | `var(--bg-primary)` | B1 | 11.98 → 11.98 |
+| `--text-primary` | `var(--bg-secondary)` | B1 | 9.57 → 9.57 |
+| `--text-primary` | `#fff` | B1 | 17.72 → 17.72 |
+| `--text-secondary` | `rgba(255,255,255,0.92)` | B1 | 11.16 → 11.16 |
+| `--text-secondary` | `rgba(255,255,255,0.92)` | B2 | 10.99 → 10.99 |
+| `--text-secondary` | `rgba(255,255,255,0.92)` | B3 | 11.04 → 11.04 |
+| `--text-secondary` | `rgba(255,255,255,0.92)` | B5 | 11.07 → 11.07 |
+| `--heart-red` | `#FFF` | B1 | 4.83 → 4.83 |
+| `--text-gray` | `rgba(255,255,255,0.9)` | B1 | 3.55 → 8.21 |
+| `--text-gray` | `rgba(255,255,255,0.9)` | B2 | 3.48 → 8.06 |
+| `--text-gray` | `rgba(255,255,255,0.9)` | B3 | 3.50 → 8.11 |
+| `--text-gray` | `rgba(255,255,255,0.9)` | B5 | 3.51 → 8.14 |
+| `--accent` | `#FFF` | B1 | 9.70 → 9.70 |
+| `--text-primary` | `var(--bg-panel)` | B1 | 10.73 → 10.73 |
+| `--text-warning` | `rgba(251,191,36,0.15)` | B1 | 1.10 → 6.52 |
+| `--text-warning` | `rgba(251,191,36,0.15)` | B2 | 1.10 → 5.38 |
+| `--text-warning` | `rgba(251,191,36,0.15)` | B3 | 1.03 → 5.73 |
+| `--text-warning` | `rgba(251,191,36,0.15)` | B5 | 1.00 → 5.93 |
+| `--text-info` | `rgba(59,130,246,0.15)` | B1 | 1.50 → 6.39 |
+| `--text-info` | `rgba(59,130,246,0.15)` | B2 | 1.23 → 5.23 |
+| `--text-info` | `rgba(59,130,246,0.15)` | B3 | 1.31 → 5.58 |
+| `--text-info` | `rgba(59,130,246,0.15)` | B5 | 1.36 → 5.78 |
+| `--text-purple` | `rgba(168,85,247,0.15)` | B1 | 1.54 → 6.41 |
+| `--text-purple` | `rgba(168,85,247,0.15)` | B2 | 1.26 → 5.24 |
+| `--text-purple` | `rgba(168,85,247,0.15)` | B3 | 1.35 → 5.59 |
+| `--text-purple` | `rgba(168,85,247,0.15)` | B5 | 1.40 → 5.80 |
+| `--text-success` | `rgba(34,197,94,0.15)` | B1 | 3.19 → 5.52 |
+| `--text-success` | `rgba(34,197,94,0.15)` | B2 | 2.62 → 4.54 |
+| `--text-success` | `rgba(34,197,94,0.15)` | B3 | 2.79 → 4.83 |
+| `--text-success` | `rgba(34,197,94,0.15)` | B5 | 2.90 → 5.01 |
+| `--text-gray` | `var(--bg-card-image)` | B1 | 1.99 → 4.60 |
+| `--text-accent-hover` | `var(--accent-glow)` | B1 | 4.39 → 6.22 |
+| `--text-accent-hover` | `var(--accent-glow)` | B2 | 3.55 → 5.04 |
+| `--text-accent-hover` | `var(--accent-glow)` | B3 | 3.80 → 5.39 |
+| `--text-accent-hover` | `var(--accent-glow)` | B5 | 3.95 → 5.60 |
+| `--accent` | `#EFE9DA` | B1 | 8.01 → 8.01 |
+| `--accent` | `rgba(74,68,51,0.08)` | B1 | 5.84 → 5.84 |
+| `--accent` | `rgba(74,68,51,0.08)` | B2 | 4.71 → 4.71 |
+| `--accent` | `rgba(74,68,51,0.08)` | B3 | 5.05 → 5.05 |
+| `--accent` | `rgba(74,68,51,0.08)` | B5 | 5.25 → 5.25 |
+| `--text-warning` | `rgba(160, 130, 40, 0.12)` | B1 | 1.02 → 6.07 |
+| `--text-warning` | `rgba(160, 130, 40, 0.12)` | B2 | 1.20 → 4.94 |
+| `--text-warning` | `rgba(160, 130, 40, 0.12)` | B3 | 1.12 → 5.28 |
+| `--text-warning` | `rgba(160, 130, 40, 0.12)` | B5 | 1.08 → 5.49 |
+| `--accent` | `var(--bg-secondary)` | B1 | 5.24 → 5.24 |
+| `--accent` | `var(--bg-primary)` | B1 | 6.56 → 6.56 |
+
+Additional original green foreground variant: account-success / delivered-order text
+used `#4ade80`, while confirmation/notification success used `#2E7D32` (the source
+shown above). Both now use `--text-success`. Ratios for the former variant:
+
+| Original foreground | Background | Before → after |
+|---|---|---:|
+| `#4ade80` → `--text-success` | `--bg-primary` | 1.18 → 6.00 |
+| `#4ade80` → `--text-success` | `--bg-secondary` | 1.06 → 4.79 |
+| `#4ade80` → `--text-success` | `--bg-card-hover` | 1.01 → 5.16 |
+| `#4ade80` → `--text-success` | `--bg-glass` | 1.18 → 6.00 |
+| `#4ade80` → `--text-success` | `--bg-panel` | 1.06 → 5.37 |
+| `#4ade80` → `--text-success` | `rgba(34,197,94,0.15)` over `--bg-primary` | 1.08 → 5.52 |
+| `#4ade80` → `--text-success` | `rgba(34,197,94,0.15)` over `--bg-secondary` | 1.12 → 4.54 |
+| `#4ade80` → `--text-success` | `rgba(34,197,94,0.15)` over `--bg-card-hover` | 1.05 → 4.83 |
+| `#4ade80` → `--text-success` | `rgba(34,197,94,0.15)` over `--bg-panel` | 1.02 → 5.01 |
+
+#### Admin — light
+
+Background groups (aliases have identical values and ratios):
+
+- **B1:** `--bg`, `--bg-dark`, `--bg-surface` = `#F3F4F6`.
+- **B2:** `--bg-card`, `--bg-sidebar` = `#FFFFFF`.
+- **B3:** `--bg-elevated` = `#F9FAFB`.
+- **B4:** `--bg-chart-overlay` = `rgba(249,250,251,0.92)`.
+
+Each cell is **before → after**, in contrast-ratio units (`:1`). Transparent base
+surfaces are composited over the page. Body/secondary checks use unrounded values.
+
+| Foreground / original source | Before color | After color | B1 | B2 | B3 | B4 |
+|---|---|---|---:|---:|---:|---:|
+| `--text-primary` | `#111827` | `#111827` | 16.12 → 16.12 | 17.74 → 17.74 | 16.98 → 16.98 | 16.91 → 16.91 |
+| `--text-secondary` | `#4B5563` | `#4B5563` | 6.87 → 6.87 | 7.56 → 7.56 | 7.23 → 7.23 | 7.20 → 7.20 |
+| `--text-muted` | `#9CA3AF` | `#626B78` | 2.31 → 4.90 | 2.54 → 5.39 | 2.43 → 5.16 | 2.42 → 5.14 |
+| `--text-dim` | `#D1D5DB` | `#667080` | 1.34 → 4.55 | 1.47 → 5.01 | 1.41 → 4.79 | 1.40 → 4.77 |
+| `--text-accent` (was `--accent`) | `#10B981` | `#046C4E` | 2.30 → 5.85 | 2.54 → 6.44 | 2.43 → 6.16 | 2.42 → 6.14 |
+| `--text-accent-hover` (was `--accent-hover`) | `#059669` | `#045C43` | 3.42 → 7.29 | 3.77 → 8.02 | 3.61 → 7.68 | 3.59 → 7.65 |
+| `--text-success` (was `--green`) | `#10B981` | `#046C4E` | 2.30 → 5.85 | 2.54 → 6.44 | 2.43 → 6.16 | 2.42 → 6.14 |
+| `--text-warning` (was `#D97706`) | `#D97706` | `#854D0E` | 2.89 → 6.23 | 3.19 → 6.85 | 3.05 → 6.56 | 3.04 → 6.53 |
+| `--text-info` (was `#2563EB`) | `#2563EB` | `#1D4ED8` | 4.70 → 6.09 | 5.17 → 6.70 | 4.95 → 6.41 | 4.93 → 6.39 |
+| `--text-purple` (was `#8B5CF6`) | `#8B5CF6` | `#6D28D9` | 3.85 → 6.46 | 4.23 → 7.10 | 4.05 → 6.80 | 4.04 → 6.77 |
+| `--text-danger` (was `--red`) | `#EF4444` | `#B91C1C` | 3.42 → 5.88 | 3.76 → 6.47 | 3.60 → 6.19 | 3.59 → 6.17 |
+| `--text-danger-hover` (was `--red-hover`) | `#DC2626` | `#991B1B` | 4.39 → 7.55 | 4.83 → 8.31 | 4.62 → 7.95 | 4.60 → 7.92 |
+
+Explicit tinted/control pair checks (identical-value underlays are grouped).
+These include background-only hover rules that inherit their base text color:
+
+| Foreground | Background | Underlay group | Before → after |
+|---|---|---|---:|
+| `--text-on-primary` | `--text-primary` | B1 | 17.74 → 17.74 |
+| `--text-on-primary-hover` | `#374151` | B1 | 10.31 → 10.31 |
+| `--text-on-danger` | `--red` | B1 | 3.76 → 4.71 |
+| `--text-on-accent` | `--accent` | B1 | 2.54 → 6.99 |
+| `--text-primary` | `rgba(255,255,255,0.05)` | B3 | 17.01 → 17.01 |
+| `--text-primary` | `var(--bg)` | B1 | 16.12 → 16.12 |
+| `--text-danger` | `var(--red-subtle)` | B1 | 3.17 → 5.46 |
+| `--text-danger` | `var(--red-subtle)` | B2 | 3.48 → 5.99 |
+| `--text-danger` | `var(--red-subtle)` | B3 | 3.34 → 5.74 |
+| `--text-primary` | `var(--bg-elevated)` | B1 | 16.98 → 16.98 |
+| `--text-on-primary` | `var(--text-primary)` | B1 | 17.74 → 17.74 |
+| `--text-muted` | `var(--bg-elevated)` | B1 | 2.43 → 5.16 |
+| `--text-primary` | `var(--bg-card)` | B1 | 17.74 → 17.74 |
+| `--text-success` | `var(--green-bg)` | B1 | 2.15 → 5.46 |
+| `--text-success` | `var(--green-bg)` | B2 | 2.35 → 5.98 |
+| `--text-success` | `var(--green-bg)` | B3 | 2.26 → 5.73 |
+| `--text-muted` | `var(--bg-surface)` | B1 | 2.31 → 4.90 |
+| `--text-warning` | `rgba(251,191,36,0.10)` | B1 | 2.77 → 5.95 |
+| `--text-warning` | `rgba(251,191,36,0.10)` | B2 | 3.02 → 6.50 |
+| `--text-warning` | `rgba(251,191,36,0.10)` | B3 | 2.90 → 6.24 |
+| `--text-purple` | `rgba(139,92,246,0.10)` | B1 | 3.42 → 5.74 |
+| `--text-purple` | `rgba(139,92,246,0.10)` | B2 | 3.74 → 6.28 |
+| `--text-purple` | `rgba(139,92,246,0.10)` | B3 | 3.59 → 6.03 |
+| `--text-info` | `rgba(59,130,246,0.10)` | B1 | 4.22 → 5.47 |
+| `--text-info` | `rgba(59,130,246,0.10)` | B2 | 4.61 → 5.98 |
+| `--text-info` | `rgba(59,130,246,0.10)` | B3 | 4.43 → 5.74 |
+| `--text-secondary` | `rgba(107,114,128,0.10)` | B1 | 6.11 → 6.11 |
+| `--text-secondary` | `rgba(107,114,128,0.10)` | B2 | 6.68 → 6.68 |
+| `--text-secondary` | `rgba(107,114,128,0.10)` | B3 | 6.41 → 6.41 |
+| `--text-secondary` | `var(--bg-elevated)` | B1 | 7.23 → 7.23 |
+| `--text-on-danger` | `var(--red)` | B1 | 3.76 → 4.71 |
+| `--text-primary` | `rgba(255,255,255,0.05)` | B1 | 16.20 → 16.20 |
+| `--text-primary` | `rgba(255,255,255,0.05)` | B2 | 17.74 → 17.74 |
+| `--text-dim` | `var(--bg-chart-overlay)` | B1 | 1.40 → 4.77 |
+| `--text-dim` | `var(--bg-chart-overlay)` | B2 | 1.42 → 4.81 |
+| `--text-dim` | `var(--bg-chart-overlay)` | B3 | 1.41 → 4.79 |
+| `--text-on-accent` | `var(--accent)` | B1 | 2.54 → 6.99 |
+| `--text-accent-hover` | `var(--accent-bg)` | B1 | 3.19 → 6.80 |
+| `--text-accent-hover` | `var(--accent-bg)` | B2 | 3.50 → 7.44 |
+| `--text-accent-hover` | `var(--accent-bg)` | B3 | 3.35 → 7.14 |
+| `--text-success` | `rgba(16,185,129,0.10)` | B1 | 2.11 → 5.36 |
+| `--text-success` | `rgba(16,185,129,0.10)` | B2 | 2.31 → 5.86 |
+| `--text-success` | `rgba(16,185,129,0.10)` | B3 | 2.22 → 5.63 |
+| `--text-danger` | `rgba(239,68,68,0.08)` | B1 | 3.10 → 5.32 |
+| `--text-danger` | `rgba(239,68,68,0.08)` | B2 | 3.39 → 5.83 |
+| `--text-danger` | `rgba(239,68,68,0.08)` | B3 | 3.25 → 5.59 |
+| `--text-success` | `rgba(16,185,129,0.2)` | B1 | 1.93 → 4.91 |
+| `--text-success` | `rgba(16,185,129,0.2)` | B2 | 2.10 → 5.33 |
+| `--text-success` | `rgba(16,185,129,0.2)` | B3 | 2.02 → 5.13 |
+| `--text-danger` | `rgba(239,68,68,0.2)` | B1 | 2.66 → 4.57 |
+| `--text-danger` | `rgba(239,68,68,0.2)` | B2 | 2.89 → 4.97 |
+| `--text-danger` | `rgba(239,68,68,0.2)` | B3 | 2.78 → 4.78 |
+
+#### Admin — dark
+
+Background groups (aliases have identical values and ratios):
+
+- **B1:** `--bg`, `--bg-dark` = `#0F1117`.
+- **B2:** `--bg-card`, `--bg-surface` = `#1A1D27`.
+- **B3:** `--bg-sidebar` = `#14161F`.
+- **B4:** `--bg-elevated` = `#222633`.
+- **B5:** `--bg-chart-overlay` = `rgba(34,38,51,0.92)` (before: `rgba(249,250,251,0.92)`).
+
+Each cell is **before → after**, in contrast-ratio units (`:1`). Transparent base
+surfaces are composited over the page. Body/secondary checks use unrounded values.
+
+| Foreground / original source | Before color | After color | B1 | B2 | B3 | B4 | B5 |
+|---|---|---|---:|---:|---:|---:|---:|
+| `--text-primary` | `#F0F1F5` | `#F0F1F5` | 16.72 → 16.72 | 14.90 → 14.90 | 15.98 → 15.98 | 13.36 → 13.36 | 1.09 → 13.65 |
+| `--text-secondary` | `#A1A7B5` | `#A1A7B5` | 7.83 → 7.83 | 6.97 → 6.97 | 7.48 → 7.48 | 6.25 → 6.25 | 1.95 → 6.39 |
+| `--text-muted` | `#6B7280` | `#9299A6` | 3.90 → 6.59 | 3.48 → 5.87 | 3.73 → 6.30 | 3.12 → 5.26 | 3.92 → 5.38 |
+| `--text-dim` | `#4B5563` | `#8B93A3` | 2.50 → 6.11 | 2.22 → 5.44 | 2.39 → 5.84 | 1.99 → 4.88 | 6.12 → 4.99 |
+| `--text-accent` (was `--accent`) | `#34D399` | `#34D399` | 9.82 → 9.82 | 8.75 → 8.75 | 9.38 → 9.38 | 7.84 → 7.84 | 1.56 → 8.01 |
+| `--text-accent-hover` (was `--accent-hover`) | `#6EE7B7` | `#6EE7B7` | 12.38 → 12.38 | 11.03 → 11.03 | 11.83 → 11.83 | 9.89 → 9.89 | 1.24 → 10.11 |
+| `--text-success` (was `--green`) | `#34D399` | `#34D399` | 9.82 → 9.82 | 8.75 → 8.75 | 9.38 → 9.38 | 7.84 → 7.84 | 1.56 → 8.01 |
+| `--text-warning` (was `#D97706`) | `#D97706` | `#FCD34D` | 5.92 → 13.09 | 5.28 → 11.66 | 5.66 → 12.51 | 4.73 → 10.45 | 2.58 → 10.68 |
+| `--text-info` (was `#2563EB`) | `#2563EB` | `#93C5FD` | 3.65 → 10.46 | 3.25 → 9.32 | 3.49 → 10.00 | 2.92 → 8.36 | 4.19 → 8.54 |
+| `--text-purple` (was `#8B5CF6`) | `#8B5CF6` | `#C4B5FD` | 4.46 → 10.22 | 3.97 → 9.11 | 4.26 → 9.77 | 3.56 → 8.17 | 3.43 → 8.34 |
+| `--text-danger` (was `--red`) | `#F87171` | `#FC8080` | 6.82 → 7.67 | 6.08 → 6.84 | 6.52 → 7.33 | 5.45 → 6.13 | 2.24 → 6.26 |
+| `--text-danger-hover` (was `--red-hover`) | `#EF4444` | `#FC8080` | 5.01 → 7.67 | 4.47 → 6.84 | 4.79 → 7.33 | 4.01 → 6.13 | 3.05 → 6.26 |
+
+Explicit tinted/control pair checks (identical-value underlays are grouped).
+These include background-only hover rules that inherit their base text color:
+
+| Foreground | Background | Underlay group | Before → after |
+|---|---|---|---:|
+| `--text-on-primary` | `--text-primary` | B1 | 1.13 → 15.72 |
+| `--text-on-primary-hover` | `#374151` | B1 | 10.31 → 10.31 |
+| `--text-on-danger` | `--red` | B1 | 2.77 → 6.41 |
+| `--text-on-accent` | `--accent` | B1 | 1.92 → 9.23 |
+| `--text-primary` | `rgba(255,255,255,0.05)` | B4 | 11.51 → 11.51 |
+| `--text-primary` | `var(--bg)` | B1 | 16.72 → 16.72 |
+| `--text-danger` | `var(--red-subtle)` | B1 | 6.21 → 6.99 |
+| `--text-danger` | `var(--red-subtle)` | B2 | 5.45 → 6.13 |
+| `--text-danger` | `var(--red-subtle)` | B3 | 5.89 → 6.62 |
+| `--text-danger` | `var(--red-subtle)` | B4 | 4.87 → 5.48 |
+| `--text-primary` | `var(--bg-elevated)` | B1 | 13.36 → 13.36 |
+| `--text-on-primary` | `var(--text-primary)` | B1 | 1.13 → 15.72 |
+| `--text-muted` | `var(--bg-elevated)` | B1 | 3.12 → 5.26 |
+| `--text-primary` | `var(--bg-card)` | B1 | 14.90 → 14.90 |
+| `--text-success` | `var(--green-bg)` | B1 | 8.34 → 8.34 |
+| `--text-success` | `var(--green-bg)` | B2 | 7.25 → 7.25 |
+| `--text-success` | `var(--green-bg)` | B3 | 7.87 → 7.87 |
+| `--text-success` | `var(--green-bg)` | B4 | 6.45 → 6.45 |
+| `--text-muted` | `var(--bg-surface)` | B1 | 3.48 → 5.87 |
+| `--text-warning` | `rgba(251,191,36,0.10)` | B1 | 4.95 → 10.94 |
+| `--text-warning` | `rgba(251,191,36,0.10)` | B2 | 4.29 → 9.49 |
+| `--text-warning` | `rgba(251,191,36,0.10)` | B3 | 4.67 → 10.31 |
+| `--text-warning` | `rgba(251,191,36,0.10)` | B4 | 3.82 → 8.44 |
+| `--text-purple` | `rgba(139,92,246,0.10)` | B1 | 4.06 → 9.32 |
+| `--text-purple` | `rgba(139,92,246,0.10)` | B2 | 3.57 → 8.19 |
+| `--text-purple` | `rgba(139,92,246,0.10)` | B3 | 3.85 → 8.84 |
+| `--text-purple` | `rgba(139,92,246,0.10)` | B4 | 3.20 → 7.34 |
+| `--text-info` | `rgba(59,130,246,0.10)` | B1 | 3.29 → 9.42 |
+| `--text-info` | `rgba(59,130,246,0.10)` | B2 | 2.88 → 8.26 |
+| `--text-info` | `rgba(59,130,246,0.10)` | B3 | 3.11 → 8.93 |
+| `--text-info` | `rgba(59,130,246,0.10)` | B4 | 2.58 → 7.39 |
+| `--text-secondary` | `rgba(107,114,128,0.10)` | B1 | 7.16 → 7.16 |
+| `--text-secondary` | `rgba(107,114,128,0.10)` | B2 | 6.30 → 6.30 |
+| `--text-secondary` | `rgba(107,114,128,0.10)` | B3 | 6.80 → 6.80 |
+| `--text-secondary` | `rgba(107,114,128,0.10)` | B4 | 5.65 → 5.65 |
+| `--text-secondary` | `var(--bg-elevated)` | B1 | 6.25 → 6.25 |
+| `--text-on-danger` | `var(--red)` | B1 | 2.77 → 6.41 |
+| `--text-primary` | `rgba(255,255,255,0.05)` | B1 | 14.94 → 14.94 |
+| `--text-primary` | `rgba(255,255,255,0.05)` | B2 | 12.98 → 12.98 |
+| `--text-primary` | `rgba(255,255,255,0.05)` | B3 | 14.10 → 14.10 |
+| `--text-dim` | `var(--bg-chart-overlay)` | B1 | 6.12 → 4.99 |
+| `--text-dim` | `var(--bg-chart-overlay)` | B2 | 6.18 → 4.93 |
+| `--text-dim` | `var(--bg-chart-overlay)` | B3 | 6.15 → 4.96 |
+| `--text-dim` | `var(--bg-chart-overlay)` | B4 | 6.22 → 4.88 |
+| `--text-on-accent` | `var(--accent)` | B1 | 1.92 → 9.23 |
+| `--text-accent-hover` | `var(--accent-bg)` | B1 | 10.52 → 10.52 |
+| `--text-accent-hover` | `var(--accent-bg)` | B2 | 9.14 → 9.14 |
+| `--text-accent-hover` | `var(--accent-bg)` | B3 | 9.93 → 9.93 |
+| `--text-accent-hover` | `var(--accent-bg)` | B4 | 8.13 → 8.13 |
+| `--text-success` | `rgba(16,185,129,0.10)` | B1 | 8.60 → 8.60 |
+| `--text-success` | `rgba(16,185,129,0.10)` | B2 | 7.52 → 7.52 |
+| `--text-success` | `rgba(16,185,129,0.10)` | B3 | 8.14 → 8.14 |
+| `--text-success` | `rgba(16,185,129,0.10)` | B4 | 6.71 → 6.71 |
+| `--text-danger` | `rgba(239,68,68,0.08)` | B1 | 6.39 → 7.19 |
+| `--text-danger` | `rgba(239,68,68,0.08)` | B2 | 5.65 → 6.36 |
+| `--text-danger` | `rgba(239,68,68,0.08)` | B3 | 6.08 → 6.84 |
+| `--text-danger` | `rgba(239,68,68,0.08)` | B4 | 5.07 → 5.70 |
+| `--text-success` | `rgba(16,185,129,0.2)` | B1 | 7.17 → 7.17 |
+| `--text-success` | `rgba(16,185,129,0.2)` | B2 | 6.25 → 6.25 |
+| `--text-success` | `rgba(16,185,129,0.2)` | B3 | 6.77 → 6.77 |
+| `--text-success` | `rgba(16,185,129,0.2)` | B4 | 5.61 → 5.61 |
+| `--text-danger` | `rgba(239,68,68,0.2)` | B1 | 5.54 → 6.23 |
+| `--text-danger` | `rgba(239,68,68,0.2)` | B2 | 4.90 → 5.51 |
+| `--text-danger` | `rgba(239,68,68,0.2)` | B3 | 5.26 → 5.92 |
+| `--text-danger` | `rgba(239,68,68,0.2)` | B4 | 4.43 → 4.98 |
+
+#### Additional literal/state source variants
+
+These rows distinguish pre-fix colors that shared a semantic role; the main
+matrices above use the original token (or the stated representative literal).
+All columns below use the same theme background groups as above.
+
+
+**index, light:**
+
+| Source (before → after) | B1 | B2 | B3 | B4 | B5 |
+|---|---:|---:|---:|---:|---:|
+| review pending tag: `#7A6320` → `--text-warning` | 3.91 → 6.69 | 3.12 → 5.34 | 3.36 → 5.75 | 3.91 → 6.69 | 3.50 → 5.99 |
+
+**admin, light:**
+
+| Source (before → after) | B1 | B2 | B3 | B4 |
+|---|---:|---:|---:|---:|
+| approved review action: `#059669` → `--text-success` | 3.42 → 5.85 | 3.77 → 6.44 | 3.61 → 6.16 | 3.59 → 6.14 |
+| rejected review action: `#DC2626` → `--text-danger` | 4.39 → 5.88 | 4.83 → 6.47 | 4.62 → 6.19 | 4.60 → 6.17 |
+| pending dropdown hover: `#F0AD4E` → `--text-warning` | 1.77 → 6.23 | 1.95 → 6.85 | 1.86 → 6.56 | 1.85 → 6.53 |
+| confirmed dropdown hover: `#5DADE2` → `--text-info` | 2.23 → 6.09 | 2.46 → 6.70 | 2.35 → 6.41 | 2.34 → 6.39 |
+
+**admin, dark:**
+
+| Source (before → after) | B1 | B2 | B3 | B4 | B5 |
+|---|---:|---:|---:|---:|---:|
+| approved review action: `#059669` → `--text-success` | 5.01 → 9.82 | 4.46 → 8.75 | 4.79 → 9.38 | 4.00 → 7.84 | 3.05 → 8.01 |
+| rejected review action: `#DC2626` → `--text-danger` | 3.91 → 7.67 | 3.48 → 6.84 | 3.73 → 7.33 | 3.12 → 6.13 | 3.91 → 6.26 |
+| pending dropdown hover: `#F0AD4E` → `--text-warning` | 9.70 → 13.09 | 8.64 → 11.66 | 9.27 → 12.51 | 7.75 → 10.45 | 1.58 → 10.68 |
+| confirmed dropdown hover: `#5DADE2` → `--text-info` | 7.67 → 10.46 | 6.84 → 9.32 | 7.34 → 10.00 | 6.13 → 8.36 | 1.99 → 8.54 |
+
+The dark admin password-modal card formerly forced a white surface while
+inheriting the dark theme’s light `--text-primary`; it now uses `--bg-card`.
+Heading/label contrast: **1.13 → 14.90:1**.
+
+Unchanged non-token text on solid surfaces was also checked:
+
+| Foreground | Background | Before → after |
+|---|---|---:|
+| `#FFF` | `#4A4433` | 9.70 → 9.70 |
+| `#FFF` | `#5A5240` | 7.73 → 7.73 |
+| `#FFF` | `#1A1815` | 17.72 → 17.72 |
+| `rgba(255,255,255,0.6)` | `#4A4433` | 4.69 → 4.69 |
+| `#F5F5F5` | `#0A0A0A` | 18.16 → 18.16 |
+| `#FFF` | `#E21B23` | 4.76 → 4.76 |
+| `#EFE9DA` | `#4A4433` | 8.01 → 8.01 |
+| `#75251C` | `#FFF1EE` | 9.36 → 9.36 |
+
 ## Remaining work (priority order)
 
 *API-side queue (C1, H1–H4, M1–M7, L1/L3–L7) completed 2026-09-23. FE-criticals

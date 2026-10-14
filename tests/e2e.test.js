@@ -1032,6 +1032,19 @@ async function main() {
       }
     }
 
+    const legacy = await fetch(base + '/favicon.ico', { redirect: 'manual' });
+    assert.equal(legacy.status, 301, 'implicit browser favicon requests must redirect');
+    assert.equal(legacy.headers.get('location'), '/favicon-v2.ico');
+    const redirected = await fetch(base + '/favicon.ico');
+    const versioned = await fetch(base + '/favicon-v2.ico');
+    assert.equal(redirected.status, 200);
+    assert.equal(redirected.headers.get('content-type'), 'image/x-icon');
+    assert.deepEqual(Buffer.from(await redirected.arrayBuffer()), Buffer.from(await versioned.arrayBuffer()));
+    assert.equal((await fetch(base + '/favicon-48x48.png')).status, 404);
+    const { existsSync } = require('node:fs');
+    assert.equal(existsSync(require('node:path').join(__dirname, '../public/favicon.ico')), false);
+    assert.equal(existsSync(require('node:path').join(__dirname, '../public/favicon-48x48.png')), false);
+
     // Same set for the installable app icons the manifest advertises.
     const manifest = JSON.parse((await request(PORT, 'GET', '/manifest.json')).text);
     assert.ok(manifest.icons.length >= 2, 'the manifest must advertise app icons');

@@ -94,5 +94,31 @@
   coverage includes S=0/M>0/L>0, all-zero depletion, order rejection/acceptance,
   and Chromium label/mobile overflow checks at 360px/1440px. All five files pass
   with PORT=3999 server/test cleanup (133/133 API, 31/31 frontend scenarios).
+- ✅ **Targeted audit follow-up (2026-10-13):** REPO-1 legacy favicon files removed
+  after repo-wide reference/hash checks; `/favicon.ico` redirects to v2. PERF-2
+  unused Zen Brush request removed. PERF-5 was already satisfied on both pages;
+  tests enforce swap/preconnect hints. A11Y-5 skip href already matched main;
+  main is now programmatically focusable and skip activation focuses it.
+  CONTENT-1 Pants/Graphic Tees promotions now require loaded, per-size-aware
+  buyable stock (nav, home tiles, existing footer links); no new footer links.
+  Hidden nodes reappear on load/refetch/restock. This supersedes the earlier
+  always-visible Pants tile requirement; direct empty/sold-out routes still work.
+  `PORT=3999 npm test` with server/tests in one shell and cleanup passes all five
+  files (133/133 API, 31/31 frontend plus rate-limit/storefront/migration suites),
+  including Chromium skip keyboard focus and category stock/deep-link checks.
+  Details, verified non-findings and assumptions are recorded in `AUDIT.md`.
+- ✅ **A11Y-1 / A11Y-2 (2026-10-13):** owner confirmed preserving the warm/light
+  storefront and both admin modes, not converting to dark. Muted/dim/gray and
+  semantic/status/inverse foregrounds now pass 4.5:1 on base/tinted/control
+  surfaces; decorative accent/background colors stay intact except theme-aware
+  admin chart/modal surfaces needed for readable inherited text. Full before/after
+  ratios are in `AUDIT.md`. New CSS-token suite checks 498 pairs and text hierarchy.
+  Exact 2px/2px `:focus-visible` counterparts cover all 16 storefront / 12 admin
+  reset selectors; same-origin `focus-modality.js` keeps rings keyboard-only even
+  on pointer-clicked inputs. Chromium tests 40 selector/theme contexts, actual
+  text/placeholder contrast, click suppression and Tab rings. `PORT=3999 npm test`
+  with server/tests in one shell and cleanup passes all six suites (133/133 API,
+  31/31 frontend plus rate-limit/storefront/migration and contrast/focus). This
+  does not close remaining dynamic-control/image-backed/physical-device a11y QA.
 - ⬜ Remaining: FE-H2 CSP migration (do not drop unsafe-inline without replacing
   handlers), browser/device visual QA, dynamic-control a11y, FE-M6 typography, L2 media.

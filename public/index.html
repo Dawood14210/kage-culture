@@ -59,7 +59,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link
-    href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800;900&family=Noto+Serif+JP:wght@400;500;700;900&family=Zen+Brush&display=swap"
+    href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800;900&family=Noto+Serif+JP:wght@400;500;700;900&display=swap"
     rel="stylesheet"
   />
 
@@ -83,9 +83,15 @@
       --heart-red: #DC2626;
       --text-primary: #1A1815;
       --text-secondary: #3D3931;
-      --text-muted: #5C564C;
+      --text-muted: #4F493F;
       --text-dim: #504C47;
-      --text-gray: #8A8578;
+      --text-gray: #514C43;
+      --text-success: #1B5520;
+      --text-warning: #5C3D00;
+      --text-info: #123C78;
+      --text-purple: #50257F;
+      --text-danger: #951919;
+      --text-accent-hover: #423C2D;
       --font-display: 'Archivo', sans-serif;
       --font-body: 'Archivo', sans-serif;
       --font-kanji: 'Noto Serif JP', serif;
@@ -2000,7 +2006,7 @@
     }
     .account-card .acct-btn:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
     .account-card .acct-msg { font-size: 0.75rem; margin-top: 0.5rem; min-height: 1.1em; }
-    .acct-msg.success { color: #4ade80; }
+    .acct-msg.success { color: var(--text-success); }
     .acct-verify { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; margin: 0.6rem 0 0; padding: 0.7rem 0.9rem; border: 1px solid #BDB6A6; background: #EFE9DA; border-radius: 8px; font-size: 0.8rem; color: #4A4433; }
     .acct-verify[hidden] { display: none; }
     .acct-verify a { color: var(--accent); font-weight: 700; text-decoration: underline; cursor: pointer; }
@@ -2018,10 +2024,10 @@
       font-size: 0.6rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
       padding: 0.15rem 0.5rem; border-radius: 4px;
     }
-    .order-status.pending { background: rgba(251,191,36,0.15); color: #fbbf24; }
-    .order-status.confirmed { background: rgba(59,130,246,0.15); color: #60a5fa; }
-    .order-status.shipped { background: rgba(168,85,247,0.15); color: #c084fc; }
-    .order-status.delivered { background: rgba(34,197,94,0.15); color: #4ade80; }
+    .order-status.pending { background: rgba(251,191,36,0.15); color: var(--text-warning); }
+    .order-status.confirmed { background: rgba(59,130,246,0.15); color: var(--text-info); }
+    .order-status.shipped { background: rgba(168,85,247,0.15); color: var(--text-purple); }
+    .order-status.delivered { background: rgba(34,197,94,0.15); color: var(--text-success); }
     .order-status.cancelled { background: rgba(74,68,51,0.15); color: #4A4433; }
     .order-date { font-size: 0.72rem; color: var(--text-muted); margin-left: auto; }
     .order-total { font-weight: 700; font-size: 0.82rem; color: var(--text-primary); }
@@ -2358,7 +2364,7 @@
     }
     .social-icon:hover,
     .social-icon:focus-visible {
-      color: var(--accent-hover);
+      color: var(--text-accent-hover);
       background: var(--accent-glow);
       border-color: var(--accent);
       box-shadow: 0 2px 8px rgba(74,68,51,0.12);
@@ -2637,7 +2643,7 @@
       border-bottom: 1px solid var(--border-color); font-size: 0.8rem;
     }
     .confirm-detail span:first-child { color: var(--text-gray); }
-    .conf-status { color: #2E7D32; font-weight: 600; }
+    .conf-status { color: var(--text-success); font-weight: 600; }
     .confirm-items {
       margin-top: var(--spacing-md); text-align: left;
       display: flex; flex-direction: column; gap: 0.35rem;
@@ -2748,7 +2754,7 @@
       margin-top: 0.6rem;
       font-size: 0.72rem;
       font-weight: 600;
-      color: #2E7D32;
+      color: var(--text-success);
     }
     .notify-error {
       margin-top: 0.6rem;
@@ -2807,7 +2813,7 @@
     .review-date { margin-left: auto; font-size: 0.72rem; color: var(--text-gray); }
     .review-comment { font-size: 0.85rem; color: var(--text-muted); line-height: 1.55; margin: 0; }
     .review-item.pending-own { border-style: dashed; }
-    .review-pending-tag { font-size: 0.62rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #7A6320; background: rgba(160, 130, 40, 0.12); border: 1px solid rgba(160, 130, 40, 0.4); border-radius: 999px; padding: 0.12rem 0.5rem; }
+    .review-pending-tag { font-size: 0.62rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-warning); background: rgba(160, 130, 40, 0.12); border: 1px solid rgba(160, 130, 40, 0.4); border-radius: 999px; padding: 0.12rem 0.5rem; }
     .review-form-wrap { border: 1px dashed var(--border-color); border-radius: 12px; padding: 1.1rem; }
     .review-form-wrap h4 { font-size: 0.85rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 0.3rem; }
     .review-form-note { font-size: 0.75rem; color: var(--text-gray); margin-bottom: 0.9rem; }
@@ -2863,7 +2869,7 @@
     .track-result { border: 1px solid var(--border-color); border-radius: 14px; padding: var(--spacing-lg); background: var(--bg-panel); }
     .track-top { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem; margin-bottom: var(--spacing-md); }
     .track-status { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--accent); }
-    .track-status-cancelled { color: #DC2626; }
+    .track-status-cancelled { color: var(--text-danger); }
     .track-timeline { display: flex; align-items: flex-start; justify-content: space-between; margin: var(--spacing-md) 0 var(--spacing-lg); }
     .track-step { display: flex; flex-direction: column; align-items: center; gap: 0.35rem; flex: 1; position: relative; }
     .track-step::before { content: ''; position: absolute; top: 11px; left: -50%; width: 100%; height: 2px; background: var(--border-color); z-index: 0; }
@@ -3030,7 +3036,7 @@
       font-family: var(--font-kanji);
       font-weight: 900;
       font-size: clamp(1.8rem, 4vw, 3.2rem);
-      color: rgba(74,68,51,0.5);
+      color: var(--text-muted);
       z-index: 2;
     }
 
@@ -3632,7 +3638,7 @@
     .contact-card-primary:hover { color: var(--accent); }
     .contact-card-secondary { margin-top: var(--spacing-sm) !important; font-size: 0.8rem !important; }
     .contact-card-secondary a { color: var(--accent); font-weight: 600; text-decoration: underline; text-underline-offset: 2px; }
-    .contact-card-secondary a:hover { color: var(--accent-hover); }
+    .contact-card-secondary a:hover { color: var(--text-accent-hover); }
     @media (max-width: 600px) {
       .content-page-contact { grid-template-columns: 1fr; }
     }
@@ -3652,8 +3658,37 @@
       }
     }
 
+
+    /* Do not let UA placeholder opacity undo the accessible text token. */
+    input::placeholder, textarea::placeholder { color: var(--text-dim); opacity: 1; }
+
+    /* Keyboard focus: exact counterparts also beat later, specific :focus resets. */
+    .newsletter-content .newsletter-form input:focus-visible,
+    .sort-select:focus-visible,
+    .nav-search input:focus-visible,
+    .mobile-search input:focus-visible,
+    .cust-card input[type="email"]:focus-visible,
+    .cust-card input[type="password"]:focus-visible,
+    .cust-card input[type="text"]:focus-visible,
+    .account-card .acct-field input:focus-visible,
+    .newsletter-form input:focus-visible,
+    .co-field input:focus-visible,
+    .co-field textarea:focus-visible,
+    .notify-form input[type=email]:focus-visible,
+    .review-form input:focus-visible,
+    .review-form textarea:focus-visible,
+    .tracking-form input:focus-visible,
+    .coming-soon-form input:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+    .cat-tile:focus-visible { outline: 2px solid #FFF; outline-offset: 2px; }
+    /* Text inputs may match :focus-visible on pointer clicks; retain keyboard-only rings. */
+    :root[data-focus-modality="pointer"] :focus,
+    :root[data-focus-modality="pointer"] :focus-within { outline: none !important; }
   </style>
 
+  <script src="/focus-modality.js" defer></script>
 </head>
 <body>
 
@@ -3715,8 +3750,8 @@
       <ul class="nav-links" id="navLinks" aria-label="Main navigation">
         <li><a data-nav="all" href="/" onclick="navigateTo('home'); closeMenu(); return false;">Home</a></li>
         <li><a data-nav="anime" href="/collection/anime" onclick="navigateTo('collection', 'anime'); closeMenu(); return false;">Anime Shirts</a></li>
-        <li><a data-nav="graphic-tees" href="/collection/graphic-tees" onclick="navigateTo('collection', 'graphic-tees'); closeMenu(); return false;">Graphic Tees</a></li>
-        <li id="navPantsItem" style="display:none;"><a data-nav="pants" href="/collection/pants" onclick="navigateTo('collection', 'pants'); closeMenu(); return false;">Pants</a></li>
+        <li data-stock-category="graphic-tees" style="display:none;"><a data-nav="graphic-tees" href="/collection/graphic-tees" onclick="navigateTo('collection', 'graphic-tees'); closeMenu(); return false;">Graphic Tees</a></li>
+        <li id="navPantsItem" data-stock-category="pants" style="display:none;"><a data-nav="pants" href="/collection/pants" onclick="navigateTo('collection', 'pants'); closeMenu(); return false;">Pants</a></li>
         <li><a data-nav="custom-stickers" href="/custom-stickers" onclick="navigateTo('custom-stickers'); closeMenu(); return false;">Custom Stickers</a></li>
         <li><a data-nav="about" href="/about" onclick="navigateTo('about'); closeMenu(); return false;">About</a></li>
         <li><a data-nav="contact" href="/contact" onclick="navigateTo('contact'); closeMenu(); return false;">Contact</a></li>
@@ -3747,7 +3782,7 @@
     </div>
   </header>
 
-  <main id="mainContent" aria-label="Main content">
+  <main id="mainContent" tabindex="-1" aria-label="Main content">
   <div id="productLoadError" role="alert" hidden style="padding:1rem 2rem;background:#FFF1EE;color:#75251C;text-align:center;">The catalog could not load. Shopping is temporarily unavailable. <button type="button" class="btn btn-sm btn-outline" onclick="loadProductsFromAPI()">Retry</button></div>
   <!-- HOME PAGE -->
   <div class="page active" id="page-home">
@@ -3791,7 +3826,7 @@
       <div class="category-band">
         <div class="container">
           <div class="category-strip" id="categoryStrip" tabindex="0" aria-label="Shop categories">
-            <a class="cat-tile" href="/collection/graphic-tees" data-cat="graphic-tees" onclick="navigateTo('collection', 'graphic-tees'); return false;">
+            <a class="cat-tile" data-stock-category="graphic-tees" style="display:none;" href="/collection/graphic-tees" data-cat="graphic-tees" onclick="navigateTo('collection', 'graphic-tees'); return false;">
               <span class="cat-thumb"><img src="/images/graphic-tees.jpg" alt="Graphic Tees" loading="lazy" /></span>
               <span class="cat-info">
                 <span class="cat-name">Graphic Tees</span>
@@ -3807,7 +3842,7 @@
                 <span class="cat-shop">Explore <i><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg></i></span>
               </span>
             </a>
-            <a class="cat-tile" id="catTilePants" href="/collection/pants" data-cat="pants" onclick="navigateTo('collection', 'pants'); return false;">
+            <a class="cat-tile" data-stock-category="pants" style="display:none;" id="catTilePants" href="/collection/pants" data-cat="pants" onclick="navigateTo('collection', 'pants'); return false;">
               <span class="cat-thumb"><img src="/images/pants.jpg" alt="Pants" loading="lazy" /></span>
               <span class="cat-info">
                 <span class="cat-name">Pants</span>
@@ -3975,7 +4010,7 @@
           <div class="footer-col footer-help">
             <h4>Help</h4>
             <ul>
-              <li id="footerPantsItem" style="display:none;"><a href="/collection/pants" onclick="navigateTo('collection', 'pants'); return false;">Pants</a></li>
+              <li id="footerPantsItem" data-stock-category="pants" style="display:none;"><a href="/collection/pants" onclick="navigateTo('collection', 'pants'); return false;">Pants</a></li>
               <li><a href="/about" onclick="navigateTo('about'); return false;">About</a></li>
               <li><a href="/contact" onclick="navigateTo('contact'); return false;">Contact</a></li>
               <li><a href="/tracking" onclick="navigateTo('tracking'); return false;">Track Order</a></li>
@@ -4850,16 +4885,18 @@
     window.CATEGORY_OPTIONS = CATEGORY_OPTIONS;
     window.CATEGORY_NAMES = CATEGORY_NAMES;
     window.COMING_SOON_CATS = COMING_SOON_CATS;
-    // Only the Pants nav/footer links depend on live stock. Keep the homepage
-    // Explore link stable and available regardless of inventory.
-    function syncPantsCategoryVisibility() {
-      const live = categoryHasLiveProducts('pants');
-      for (const id of ['navPantsItem', 'footerPantsItem']) {
-        const item = document.getElementById(id);
-        if (item) item.style.display = live ? '' : 'none';
-      }
+    // Promote these collections only when the loaded catalog has buyable stock.
+    // Keep their links/nodes intact so direct routes and later restocks still work.
+    function syncCollectionVisibility() {
+      document.querySelectorAll('[data-stock-category]').forEach(item => {
+        const live = productsLoadedFromApi && categoryHasLiveProducts(item.dataset.stockCategory);
+        item.style.display = live ? '' : 'none';
+      });
     }
-    window.syncPantsCategoryVisibility = syncPantsCategoryVisibility;
+    window.syncCollectionVisibility = syncCollectionVisibility;
+    document.querySelector('.skip-link').addEventListener('click', () => {
+      document.getElementById('mainContent').focus({ preventScroll: true });
+    });
         let productsLoadedFromApi = false;
     function categoryHasProducts(filter) {
       if (!productsLoadedFromApi) return true;
@@ -6427,7 +6464,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
         if (document.getElementById('page-checkout').classList.contains('active')) renderCheckout();
         renderCollectionGrid();
         initHomePageSections();
-        syncPantsCategoryVisibility();
+        syncCollectionVisibility();
       } catch(e) {
         console.error('Could not load catalog:', e);
         productsLoadedFromApi = false;
@@ -6435,7 +6472,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
         document.getElementById('productLoadError').hidden = false;
         renderCollectionGrid();
         initHomePageSections();
-        syncPantsCategoryVisibility();
+        syncCollectionVisibility();
       } finally {
         productsFetchInFlight = false;
       }
