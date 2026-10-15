@@ -109,6 +109,14 @@ No longer claims `kage.db` file persistence; documents that local sql.js is in-m
 ### ✅ L6 — SEO/a11y
 Keyboard/AT access fixed (see M6). The 2026-10-12 follow-up replaced the hard-coded crawler files with dynamic `/sitemap.xml` and `/robots.txt` endpoints derived from `SITE_URL` (or the request origin fallback); canonical, Open Graph and JSON-LD site URLs use the same configuration.
 
+**SEO-2 — dynamic sitemap (2026-10-14):** `/sitemap.xml` now includes the homepage and public content/policy/contact/tracking pages (including Custom Stickers), product detail URLs for every listed product (including sold-out items), and only collection/category routes backed by products (including `all`, `new`, and an active `sale` route). Product entries carry a normalized `<lastmod>` from `products.updated_at`; entries have explicit change frequency and priority. `SITEMAP_CACHE_MS` is ten minutes and drives both in-process product-data caching (with concurrent-request coalescing) and public `max-age`/`s-maxage` headers. The product read is a single narrow query. Empty or failed databases still return all static URLs; the Vercel readiness gate allows sitemap/robots requests to reach those fallbacks. `robots.txt` references the sitemap and disallows `/admin` and `/api`.
+
+**Verification:** `PORT=3999 npm test` passes all six suites. E2E checks strictly parse the XML, require a seeded product and sold-out product URL, verify product `<lastmod>`, collection and static URLs, no private/admin URLs or unescaped XML ampersands, and the 10-minute cache header. A serverless DB-outage fixture confirms sitemap and robots still return static content.
+
+**SEO-1 / SEO-4 / SEO-3 — server-rendered metadata and structured data (2026-10-15):** Product and collection routes now render route-specific titles, ~155-character descriptions, canonical URLs, Open Graph and Twitter metadata with absolute product-front/collection imagery. Product metadata and JSON-LD use the explicit public product shape; Product offers report PKR and stock-aware `InStock`/`OutOfStock`, and approved reviews alone contribute aggregate/review schema. Organization JSON-LD is preserved, WebSite JSON-LD is present, and product/collection pages add BreadcrumbList data. Dynamic JSON-LD encodes `<` as the JSON Unicode escape for U+003C; untrusted metadata content is HTML-escaped. A missing numeric product lookup returns the SPA shell with HTTP 404; homepage tags remain unchanged, and SPA product/collection title updates match server titles.
+
+**Verification:** `PORT=3999 npm test` passes all six suites. E2E validates product/collection metadata, valid JSON-LD, hostile product/review strings, approved-only rating data, sold-out availability, omitted admin fields, missing-product 404, and unchanged homepage tags; frontend tests pin client-side title parity.
+
 ### ✅ L7 — Regression tests added — `tests/e2e.test.js`
 Framework-free (`node tests/e2e.test.js`), boots the real app on an ephemeral port with the in-memory fallback. **14/14 passing**: auth-middleware regression suite (valid/forged/tampered/no-cookie/customer-on-admin-route), admin setup gating, order PII phone-gate (401/404/200-sanitized), `/track`, stock decrement 4→3 + over-stock 400, CSRF on admin mutation.
 
@@ -227,8 +235,9 @@ filter panel already do), then drop the directive and nonce what remains.
 
 - **FE-M1. No URL routing or history** — "pages" never touch `pushState`; browser Back
   exits the site, products can't be deep-linked, and every unknown path serves the home
-  shell with no 404. This is also what keeps the sitemap at `/` only (see L6) and the
-  canonical/OG tags hardcoded to the vercel.app domain.
+  shell with no 404. At the time, this also left the sitemap at `/` only and canonical/OG
+  tags hardcoded to the vercel.app domain; routing and crawler coverage were fixed later
+  (see FE-M1 completion and L6 / SEO-2).
 - **FE-M2. Cart & wishlist are memory-only** — a refresh loses both (only recently-viewed
   persists, via `kageRv` localStorage). Persisting the cart is cheap and high-value.
 - **FE-M3. `renderCheckout()` stacks listeners** — attaches a new `change` listener to
@@ -411,8 +420,8 @@ Captured real headless Chromium renders of storefront and authenticated admin at
 
 Still open: **FE-H2** (remove inline handlers and `'unsafe-inline'` together — removing
 only the CSP allowance breaks all clicks), remaining keyboard polish for dynamically
-rendered non-native controls, broader SEO/server-rendered metadata, and L2 video
-cold-start optimization. Do not mark these done without a browser/CSP migration.
+rendered non-native controls, and L2 video cold-start optimization. Do not mark these
+done without a browser/CSP migration.
 
 ---
 
@@ -1414,3 +1423,5 @@ Unchanged non-token text on solid surfaces was also checked:
 9. ~~FE-H1 (esc the grid attrs)~~ ✅ done; FE-H2 long-term alongside event delegation
 10. ~~FE-M1 + FE-M2 — routing and cart persistence~~ ✅ done (2026-10-10)
 11. FE-H2 CSP migration, remaining a11y/visual checks, then L2 (deployment decision)
+12. ~~SEO-2 — dynamic product/category sitemap with caching and crawler fallbacks~~ ✅ 2026-10-14
+13. ~~SEO-1 / SEO-4 — server-rendered product/collection metadata; SEO-3 — structured data~~ ✅ 2026-10-15

@@ -13,6 +13,8 @@ const { csrfMiddleware, CSRF_ENDPOINT } = require('./middleware/csrf');
 const { requireAuth } = require('./middleware/auth');
 const { getSessionSecret } = require('./utils/secret');
 const { getSiteUrlForRequest } = require('./utils/siteUrl');
+const productShape = require('./utils/productShape');
+const sizeStock = require('./utils/sizes');
 const demoProducts = require('./utils/demoProducts');
 
 // Lazy-loaded heavy modules (loaded on first use, not on every cold start)
@@ -44,17 +46,515 @@ function setHtmlNoStore(res) {
 function escapeXml(value) {
   return String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
 }
-function renderStorefrontHtml(req) {
+const SITEMAP_STATIC_URLS = [
+  { path: '/', changefreq: 'daily', priority: '1.0' },
+  { path: '/about', changefreq: 'monthly', priority: '0.6' },
+  { path: '/contact', changefreq: 'monthly', priority: '0.5' },
+  { path: '/custom-stickers', changefreq: 'monthly', priority: '0.5' },
+  { path: '/returns', changefreq: 'monthly', priority: '0.4' },
+  { path: '/shipping', changefreq: 'monthly', priority: '0.4' },
+  { path: '/terms', changefreq: 'yearly', priority: '0.3' },
+  { path: '/privacy', changefreq: 'yearly', priority: '0.3' },
+  { path: '/tracking', changefreq: 'monthly', priority: '0.4' }
+];
+// These slugs are routable collection filters. Only emit a category URL when
+// at least one public product is actually assigned to it.
+const SITEMAP_CATEGORY_SLUGS = new Set([
+  ...config.PRODUCT_CATEGORY_VALUES,
+  ...config.COMING_SOON_CATEGORIES.filter(category => category !== 'sale')
+]);
+let sitemapProductsCache = null;
+let sitemapProductsCacheUntil = 0;
+let sitemapProductsPromise = null;
+
+function sitemapLastmod(value) {
+  if (value == null || String(value).trim() === '') return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+
+function shapeSitemapProduct(row) {
+  const id = Number(row && row.id);
+  if (!Number.isSafeInteger(id) || id < 1) return null;
+  return {
+    id,
+    category: String(row.category || '').trim().toLowerCase(),
+    price: Number(row.price),
+    salePrice: row.sale_price == null || row.sale_price === '' ? null : Number(row.sale_price),
+    lastmod: sitemapLastmod(row.updated_at)
+  };
+}
+
+// One indexed, narrow read per ten-minute window. The in-flight promise also
+// coalesces concurrent cold requests in a warm Vercel instance. A failed or
+// empty database becomes an empty catalogue, leaving the static URLs intact.
+function getSitemapProducts() {
+  if (sitemapProductsCache && Date.now() < sitemapProductsCacheUntil) {
+    return Promise.resolve(sitemapProductsCache);
+  }
+  if (sitemapProductsPromise) return sitemapProductsPromise;
+
+  sitemapProductsPromise = Promise.resolve()
+    .then(() => db.prepare('SELECT id, category, price, sale_price, updated_at FROM products ORDER BY id ASC').all())
+    .then(rows => (Array.isArray(rows) ? rows : []).map(shapeSitemapProduct).filter(Boolean))
+    .catch(() => {
+      // Avoid logging backend error details here; some drivers include
+      // connection metadata in them. The response remains a valid static map.
+      console.warn('Sitemap product lookup failed; serving static URLs.');
+      return [];
+    })
+    .then(products => {
+      sitemapProductsCache = products;
+      sitemapProductsCacheUntil = Date.now() + config.SITEMAP_CACHE_MS;
+      return products;
+    })
+    .finally(() => { sitemapProductsPromise = null; });
+
+  return sitemapProductsPromise;
+}
+
+function sitemapEntry(siteUrl, { path: urlPath, changefreq, priority, lastmod }) {
+  const lines = [
+    '  <url>',
+    `    <loc>${escapeXml(new URL(urlPath, `${siteUrl}/`).href)}</loc>`
+  ];
+  if (lastmod) lines.push(`    <lastmod>${escapeXml(lastmod)}</lastmod>`);
+  lines.push(`    <changefreq>${escapeXml(changefreq)}</changefreq>`);
+  lines.push(`    <priority>${escapeXml(priority)}</priority>`);
+  lines.push('  </url>');
+  return lines.join('\n');
+}
+
+function renderSitemap(siteUrl, products) {
+  const sitemapUrls = [...SITEMAP_STATIC_URLS];
+  if (products.length) {
+    sitemapUrls.push(
+      { path: '/collection/all', changefreq: 'weekly', priority: '0.9' },
+      { path: '/collection/new', changefreq: 'weekly', priority: '0.8' }
+    );
+
+    const categories = new Set(products.map(product => product.category));
+    for (const category of SITEMAP_CATEGORY_SLUGS) {
+      if (categories.has(category)) {
+        sitemapUrls.push({ path: `/collection/${category}`, changefreq: 'weekly', priority: '0.8' });
+      }
+    }
+    if (products.some(product => Number.isFinite(product.salePrice) && Number.isFinite(product.price) && product.salePrice < product.price)) {
+      sitemapUrls.push({ path: '/collection/sale', changefreq: 'weekly', priority: '0.7' });
+    }
+  }
+
+  for (const product of products) {
+    sitemapUrls.push({
+      path: `/product/${product.id}`,
+      lastmod: product.lastmod,
+      changefreq: 'weekly',
+      priority: '0.7'
+    });
+  }
+
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${sitemapUrls.map(entry => sitemapEntry(siteUrl, entry)).join('\n')}\n</urlset>\n`;
+}
+
+const COLLECTION_SEO = Object.freeze({
+  all: {
+    name: 'Shop All',
+    description: 'Shop every KAGE Culture drop: premium streetwear, graphic tees, anime shirts, and pants made for everyday.'
+  },
+  new: {
+    name: 'New Arrivals',
+    description: 'Explore the latest KAGE Culture streetwear arrivals, featuring original art and everyday fits.'
+  },
+  sale: {
+    name: 'Sale',
+    description: 'Shop limited-time markdowns on KAGE Culture streetwear while selected pieces are still available.'
+  },
+  anime: {
+    name: 'Anime Shirts',
+    description: 'Shop anime-inspired shirts with original artwork, premium cotton, and everyday streetwear fits.'
+  },
+  'graphic-tees': {
+    name: 'Graphic Tees',
+    description: 'Discover original graphic tees from KAGE Culture, printed on premium cotton for everyday wear.'
+  },
+  pants: {
+    name: 'Pants',
+    description: 'Shop relaxed KAGE Culture pants, designed to pair with original graphic tees and streetwear drops.'
+  },
+  compression: {
+    name: 'Compression',
+    description: 'Explore KAGE Culture compression streetwear: engineered fits with original art and everyday comfort.'
+  },
+  oversized: {
+    name: 'Oversized',
+    description: 'Shop oversized KAGE Culture streetwear with relaxed silhouettes, premium fabrics, and original art.'
+  }
+});
+
+function escapeHtml(value) {
+  return String(value == null ? '' : value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function upsertMetaContent(html, attribute, key, content) {
+  const marker = `<meta ${attribute}="${key}"`;
+  const start = html.indexOf(marker);
+  const safeContent = escapeHtml(content);
+  if (start < 0) {
+    const headEnd = html.indexOf('</head>');
+    if (headEnd < 0) return html;
+    const tag = `<meta ${attribute}="${escapeHtml(key)}" content="${safeContent}" />`;
+    return `${html.slice(0, headEnd)}  ${tag}\n${html.slice(headEnd)}`;
+  }
+
+  const tagEnd = html.indexOf('>', start);
+  if (tagEnd < 0) return html;
+  const tag = html.slice(start, tagEnd + 1);
+  const contentMarker = 'content="';
+  const contentStart = tag.indexOf(contentMarker);
+  let replacement;
+  if (contentStart < 0) {
+    const close = tag.lastIndexOf('/>');
+    replacement = close >= 0
+      ? `${tag.slice(0, close)} content="${safeContent}" ${tag.slice(close)}`
+      : `${tag.slice(0, -1)} content="${safeContent}">`;
+  } else {
+    const valueStart = contentStart + contentMarker.length;
+    const valueEnd = tag.indexOf('"', valueStart);
+    if (valueEnd < 0) return html;
+    replacement = `${tag.slice(0, valueStart)}${safeContent}${tag.slice(valueEnd)}`;
+  }
+  return `${html.slice(0, start)}${replacement}${html.slice(tagEnd + 1)}`;
+}
+
+function removeMetaTag(html, attribute, key) {
+  const start = html.indexOf(`<meta ${attribute}="${key}"`);
+  if (start < 0) return html;
+  const end = html.indexOf('>', start);
+  return end < 0 ? html : `${html.slice(0, start)}${html.slice(end + 1)}`;
+}
+
+function replaceCanonicalLink(html, url) {
+  const start = html.indexOf('<link rel="canonical"');
+  if (start < 0) return html;
+  const end = html.indexOf('>', start);
+  return end < 0 ? html : `${html.slice(0, start)}<link rel="canonical" href="${escapeHtml(url)}" />${html.slice(end + 1)}`;
+}
+
+function plainSeoText(value) {
+  return String(value || '')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&nbsp;|&#160;|&#xA0;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function trimSeoDescription(value, fallback = '') {
+  const text = plainSeoText(value) || plainSeoText(fallback);
+  const maxLength = Math.max(1, Number(config.SEO_DESCRIPTION_MAX_LENGTH) || 155);
+  if (text.length <= maxLength) return text;
+  return `${text.slice(0, maxLength - 1).trimEnd()}…`;
+}
+
+function normalizeSeoName(value) {
+  return String(value == null ? '' : value).replace(/\s+/g, ' ').trim() || 'KAGE Culture';
+}
+
+function absoluteHttpUrl(value, siteUrl) {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+  try {
+    const url = new URL(raw, `${siteUrl}/`);
+    return ['http:', 'https:'].includes(url.protocol) ? url.href : null;
+  } catch (_) { return null; }
+}
+
+function publicProductImages(product, siteUrl) {
+  const images = [...new Set([
+    product.front_image,
+    product.back_image,
+    ...(Array.isArray(product.extra_images) ? product.extra_images : [])
+  ].map(image => absoluteHttpUrl(image, siteUrl)).filter(Boolean))];
+  if (!images.length) images.push(new URL('/images/og-image.jpg', `${siteUrl}/`).href);
+  const frontImage = absoluteHttpUrl(product.front_image, siteUrl);
+  return { images, frontImage: frontImage || images[0] };
+}
+
+function schemaDate(value) {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString().slice(0, 10);
+}
+
+async function loadApprovedReviewSchema(productId) {
+  try {
+    const [ratingRows, reviewRows] = await Promise.all([
+      db.prepare('SELECT rating FROM reviews WHERE product_id = ? AND status = ?').all(productId, 'approved'),
+      db.prepare('SELECT id, customer_name, rating, comment, created_at FROM reviews WHERE product_id = ? AND status = ? ORDER BY id DESC LIMIT ?')
+        .all(productId, 'approved', config.SEO_REVIEW_SCHEMA_LIMIT)
+    ]);
+    const ratings = (Array.isArray(ratingRows) ? ratingRows : [])
+      .map(row => Number(row.rating))
+      .filter(rating => Number.isFinite(rating) && rating >= 1 && rating <= 5);
+    if (!ratings.length) return null;
+
+    const reviews = (Array.isArray(reviewRows) ? reviewRows : [])
+      .filter(row => Number.isFinite(Number(row.rating)) && Number(row.rating) >= 1 && Number(row.rating) <= 5)
+      .sort((a, b) => Number(b.id) - Number(a.id))
+      .slice(0, config.SEO_REVIEW_SCHEMA_LIMIT)
+      .map(row => {
+        const review = {
+          '@type': 'Review',
+          author: { '@type': 'Person', name: normalizeSeoName(row.customer_name) },
+          reviewRating: {
+            '@type': 'Rating',
+            ratingValue: Number(row.rating),
+            bestRating: 5,
+            worstRating: 1
+          }
+        };
+        const body = String(row.comment || '').trim();
+        if (body) review.reviewBody = body;
+        const datePublished = schemaDate(row.created_at);
+        if (datePublished) review.datePublished = datePublished;
+        return review;
+      });
+    return {
+      reviewCount: ratings.length,
+      ratingValue: Math.round((ratings.reduce((total, rating) => total + rating, 0) / ratings.length) * 10) / 10,
+      reviews
+    };
+  } catch (_) {
+    // Review metadata is optional: a review-table hiccup must not prevent the
+    // public product shell from rendering, and no pending data is exposed.
+    return null;
+  }
+}
+
+function breadcrumbSchema(entries) {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: entries.map((entry, index) => ({
+      '@type': 'ListItem',
+      position: index + 1,
+      name: entry.name,
+      item: entry.url
+    }))
+  };
+}
+
+function serializeJsonLd(data) {
+  const backslash = String.fromCharCode(92);
+  return JSON.stringify(data)
+    .replace(/</g, `${backslash}u003c`)
+    .split(String.fromCharCode(0x2028)).join(`${backslash}u2028`)
+    .split(String.fromCharCode(0x2029)).join(`${backslash}u2029`);
+}
+
+function appendJsonLd(html, schemas) {
+  const newline = String.fromCharCode(10);
+  const scripts = schemas.map(schema => `  <script type="application/ld+json" data-seo-generated="true">${serializeJsonLd(schema)}</script>`).join(newline);
+  const headEnd = html.lastIndexOf('</head>');
+  if (headEnd < 0) return html;
+  return `${html.slice(0, headEnd)}${scripts}${newline}${html.slice(headEnd)}`;
+}
+
+function applySeoMetadata(html, seo) {
+  const titleStart = html.indexOf('<title>');
+  const titleEnd = html.indexOf('</title>', titleStart);
+  if (titleStart >= 0 && titleEnd >= 0) {
+    html = `${html.slice(0, titleStart)}<title>${escapeHtml(seo.title)}</title>${html.slice(titleEnd + '</title>'.length)}`;
+  }
+  html = replaceCanonicalLink(html, seo.url);
+  html = upsertMetaContent(html, 'name', 'description', seo.description);
+  html = upsertMetaContent(html, 'property', 'og:type', seo.type);
+  html = upsertMetaContent(html, 'property', 'og:title', seo.title);
+  html = upsertMetaContent(html, 'property', 'og:description', seo.description);
+  html = upsertMetaContent(html, 'property', 'og:image', seo.image);
+  html = upsertMetaContent(html, 'property', 'og:image:alt', seo.imageAlt);
+  html = upsertMetaContent(html, 'property', 'og:url', seo.url);
+  html = upsertMetaContent(html, 'name', 'twitter:title', seo.title);
+  html = upsertMetaContent(html, 'name', 'twitter:description', seo.description);
+  html = upsertMetaContent(html, 'name', 'twitter:image', seo.image);
+  html = upsertMetaContent(html, 'name', 'twitter:url', seo.url);
+  html = removeMetaTag(html, 'property', 'og:image:width');
+  html = removeMetaTag(html, 'property', 'og:image:height');
+  return html;
+}
+
+async function collectionSeoImage(slug, siteUrl) {
+  const columns = productShape.PUBLIC_PRODUCT_SELECT;
+  let row;
+  try {
+    if (config.PRODUCT_CATEGORY_VALUES.has(slug)) {
+      row = await db.prepare(`SELECT ${columns} FROM products WHERE category = ? AND front_image IS NOT NULL AND front_image != '' ORDER BY created_at DESC, id DESC LIMIT 1`).get(slug);
+      if (!row) row = await db.prepare(`SELECT ${columns} FROM products WHERE category = ? ORDER BY created_at DESC, id DESC LIMIT 1`).get(slug);
+    } else if (slug === 'sale') {
+      const candidates = await db.prepare(`SELECT ${columns} FROM products WHERE sale_price > ? AND sale_price < price ORDER BY created_at DESC, id DESC`)
+        .all(0);
+      const discounted = (candidates || []).filter(candidate => Number(candidate.sale_price) > 0 && Number(candidate.sale_price) < Number(candidate.price));
+      row = discounted.find(candidate => absoluteHttpUrl(candidate.front_image, siteUrl)) || discounted[0];
+    } else {
+      row = await db.prepare(`SELECT ${columns} FROM products WHERE front_image IS NOT NULL AND front_image != '' ORDER BY created_at DESC, id DESC LIMIT 1`).get();
+      if (!row) row = await db.prepare(`SELECT ${columns} FROM products ORDER BY created_at DESC, id DESC LIMIT 1`).get();
+    }
+  } catch (_) { row = null; }
+  if (!row) return new URL('/images/og-image.jpg', `${siteUrl}/`).href;
+  const product = productShape.shapePublicProduct(row);
+  return publicProductImages(product, siteUrl).frontImage;
+}
+
+function productIdFromPath(pathname) {
+  const prefix = '/product/';
+  const pathValue = String(pathname || '');
+  if (!pathValue.startsWith(prefix)) return null;
+  const id = pathValue.slice(prefix.length);
+  return id.length && Array.from(id).every(character => character >= '0' && character <= '9') ? id : null;
+}
+
+function collectionSlugFromPath(pathname) {
+  const prefix = '/collection/';
+  const pathValue = String(pathname || '');
+  if (!pathValue.startsWith(prefix)) return null;
+  const slug = pathValue.slice(prefix.length);
+  const valid = slug.length && Array.from(slug).every(character =>
+    (character >= 'a' && character <= 'z') || (character >= '0' && character <= '9') || character === '-');
+  return valid ? slug : null;
+}
+
+async function resolveSeoPage(req, siteUrl) {
+  const rawProductId = productIdFromPath(req.path);
+  if (rawProductId !== null) {
+    const id = Number(rawProductId);
+    if (!Number.isSafeInteger(id) || id < 1) return { status: 404 };
+    let row;
+    try {
+      row = await db.prepare(`SELECT ${productShape.PUBLIC_PRODUCT_SELECT} FROM products WHERE id = ?`).get(id);
+    } catch (_) {
+      // A lookup error is not evidence that the product is unknown. Preserve
+      // the SPA shell/status when the database itself cannot answer reliably.
+      return { status: 200 };
+    }
+    if (!row) return { status: 404 };
+
+    let sizeStockMap = null;
+    try { sizeStockMap = await sizeStock.loadSizeStock(db, row.id); } catch (_) { /* use public stock_qty below */ }
+    const product = productShape.shapePublicProduct(row, { size_stock: sizeStockMap });
+    const name = normalizeSeoName(product.name);
+    const description = trimSeoDescription(product.description,
+      `Shop ${name} from KAGE Culture: premium streetwear with original art, made for everyday wear.`);
+    const { images, frontImage } = publicProductImages(product, siteUrl);
+    const canonical = new URL(`/product/${id}`, `${siteUrl}/`).href;
+    const offerPrice = product.sale_price != null && product.sale_price > 0 && product.sale_price < product.price
+      ? product.sale_price
+      : product.price;
+    const productSchema = {
+      '@context': 'https://schema.org',
+      '@type': 'Product',
+      name,
+      image: images,
+      description,
+      sku: String(product.id),
+      productID: String(product.id),
+      brand: { '@type': 'Brand', name: 'KAGE Culture' },
+      offers: {
+        '@type': 'Offer',
+        url: canonical,
+        priceCurrency: 'PKR',
+        price: offerPrice,
+        availability: product.in_stock ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
+        itemCondition: 'https://schema.org/NewCondition'
+      }
+    };
+    const reviewData = await loadApprovedReviewSchema(product.id);
+    if (reviewData && reviewData.reviewCount > 0) {
+      productSchema.aggregateRating = {
+        '@type': 'AggregateRating',
+        ratingValue: reviewData.ratingValue,
+        reviewCount: reviewData.reviewCount,
+        bestRating: 5,
+        worstRating: 1
+      };
+      if (reviewData.reviews.length) productSchema.review = reviewData.reviews;
+    }
+
+    const categorySlug = COLLECTION_SEO[product.category] ? product.category : 'all';
+    const category = COLLECTION_SEO[categorySlug];
+    const categoryUrl = new URL(`/collection/${categorySlug}`, `${siteUrl}/`).href;
+    return {
+      status: 200,
+      seo: {
+        title: `${name} | KAGE CULTURE`,
+        description,
+        url: canonical,
+        image: frontImage,
+        imageAlt: name,
+        type: 'product'
+      },
+      schemas: [
+        productSchema,
+        breadcrumbSchema([
+          { name: 'Home', url: new URL('/', `${siteUrl}/`).href },
+          { name: category.name, url: categoryUrl },
+          { name, url: canonical }
+        ])
+      ]
+    };
+  }
+
+  const slug = collectionSlugFromPath(req.path);
+  if (slug !== null) {
+    const collection = COLLECTION_SEO[slug];
+    if (!collection) return { status: 200 };
+    const canonical = new URL(`/collection/${slug}`, `${siteUrl}/`).href;
+    return {
+      status: 200,
+      seo: {
+        title: `${collection.name} | KAGE CULTURE`,
+        description: trimSeoDescription(collection.description),
+        url: canonical,
+        image: await collectionSeoImage(slug, siteUrl),
+        imageAlt: `${collection.name} by KAGE Culture`,
+        type: 'website'
+      },
+      schemas: [breadcrumbSchema([
+        { name: 'Home', url: new URL('/', `${siteUrl}/`).href },
+        { name: collection.name, url: canonical }
+      ])]
+    };
+  }
+  return { status: 200 };
+}
+
+async function renderStorefrontHtml(req) {
   const siteUrl = getSiteUrlForRequest(req);
   const pagePath = req.path === '/index.html' ? '/' : req.path;
   const pageUrl = new URL(pagePath || '/', `${siteUrl}/`).href;
-  return STOREFRONT_HTML_TEMPLATE
+  let html = STOREFRONT_HTML_TEMPLATE
     .replaceAll('__SITE_URL__', siteUrl)
     .replaceAll('__PAGE_URL__', pageUrl);
+  const resolved = await resolveSeoPage(req, siteUrl);
+  if (resolved.seo) {
+    html = applySeoMetadata(html, resolved.seo);
+    html = appendJsonLd(html, resolved.schemas || []);
+  }
+  return { html, status: resolved.status || 200 };
 }
-function sendStorefrontHtml(req, res, status = 200) {
+
+async function sendStorefrontHtml(req, res, status) {
   setHtmlNoStore(res);
-  res.status(status).type('html').send(renderStorefrontHtml(req));
+  const rendered = await renderStorefrontHtml(req);
+  res.status(status == null ? rendered.status : status).type('html').send(rendered.html);
 }
 
 // Session secret — resolved through the single rule in utils/secret.js:
@@ -93,7 +593,13 @@ app.use(loadHelmet()({
 }));
 
 // ── Rate Limiting ─────────────────────────────────────────────
-app.use(globalLimiter);
+app.use((req, res, next) => {
+  // A failed readiness check already proves the shared DB-backed limiter is
+  // unavailable; don't make a second database attempt before serving crawler
+  // documents from their static fallback.
+  if (req.crawlerDatabaseUnavailable) return next();
+  return globalLimiter(req, res, next);
+});
 
 // ── CSRF ──────────────────────────────────────────────────────
 app.use(csrfMiddleware);
@@ -146,21 +652,24 @@ app.use('/vendor', express.static(path.join(__dirname, 'public', 'vendor'), {
   setHeaders: (res) => res.setHeader('Cache-Control', 'public, max-age=31536000, immutable')
 }));
 
-// These small public documents and the storefront shell use the same canonical
-// origin configuration. Keep them no-store: CSRF middleware may set a cookie
-// on a first GET, and an origin is expected to be configured before crawling.
-app.get('/sitemap.xml', (req, res) => {
-  const siteUrl = escapeXml(getSiteUrlForRequest(req));
-  const sitemap = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n  <url>\n    <loc>${siteUrl}/</loc>\n    <changefreq>daily</changefreq>\n    <priority>1.0</priority>\n  </url>\n</urlset>\n`;
-  res.setHeader('Cache-Control', 'no-store');
-  res.type('application/xml').send(sitemap);
+// These public documents use the same canonical origin configuration. The
+// sitemap is shared-cacheable (CSRF middleware suppresses its first-visit
+// cookie automatically); robots.txt stays no-store because it is tiny/static.
+app.get('/sitemap.xml', async (req, res) => {
+  const siteUrl = getSiteUrlForRequest(req);
+  const cacheSeconds = Math.max(0, Math.floor(config.SITEMAP_CACHE_MS / 1000));
+  res.setHeader('Cache-Control', `public, max-age=${cacheSeconds}, s-maxage=${cacheSeconds}`);
+  const products = req.crawlerDatabaseUnavailable ? [] : await getSitemapProducts();
+  res.type('application/xml').send(renderSitemap(siteUrl, products));
 });
 app.get('/robots.txt', (req, res) => {
   const siteUrl = getSiteUrlForRequest(req);
   res.setHeader('Cache-Control', 'no-store');
-  res.type('text/plain').send(`User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /api/\n\nSitemap: ${siteUrl}/sitemap.xml\n`);
+  res.type('text/plain').send(`User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /api\n\nSitemap: ${siteUrl}/sitemap.xml\n`);
 });
-app.get(['/', '/index.html'], (req, res) => sendStorefrontHtml(req, res));
+app.get(['/', '/index.html'], (req, res, next) => {
+  sendStorefrontHtml(req, res).catch(next);
+});
 
 app.use(express.static(path.join(__dirname, 'public'), {
   // HTML stays uncacheable so deployments take effect immediately. Replaceable
@@ -398,10 +907,14 @@ async function ensureReady() {
       res.sendFile(path.join(__dirname, 'public', 'admin.html'));
     });
     const spaPages = new Set(['/', '/about', '/contact', '/tracking', '/shipping', '/returns', '/privacy', '/terms', '/account', '/checkout', '/confirmation', '/reset-password', '/verify-email', '/custom-stickers', '/coming-soon']);
-    app.get('*', (req, res) => {
+    app.get('*', (req, res, next) => {
       if (req.path.startsWith('/api/')) return res.status(404).json({ error: 'Not found.' });
-      const known = spaPages.has(req.path) || /^\/product\/\d+$/.test(req.path) || /^\/collection\/[a-z0-9-]+$/.test(req.path);
-      sendStorefrontHtml(req, res, known ? 200 : 404);
+      const isProductRoute = productIdFromPath(req.path) !== null;
+      const known = spaPages.has(req.path) || isProductRoute || collectionSlugFromPath(req.path) !== null;
+      // Product status comes from the public DB lookup: known products are 200,
+      // missing products are 404, and lookup failures remain the SPA shell.
+      const statusOverride = isProductRoute ? undefined : (known ? 200 : 404);
+      sendStorefrontHtml(req, res, statusOverride).catch(next);
     });
 
     // Must sit AFTER the routes so route/middleware errors reach it as JSON
@@ -459,8 +972,27 @@ function sendUnavailable(res) {
   res.end(JSON.stringify(body));
 }
 
+function requestPathname(req) {
+  if (typeof req.path === 'string') return req.path;
+  try { return new URL(String(req.url || '/'), 'http://localhost').pathname; }
+  catch (_) { return ''; }
+}
+
+function isCrawlerDocumentRequest(req) {
+  return ['GET', 'HEAD'].includes(String(req.method || 'GET').toUpperCase()) &&
+    ['/sitemap.xml', '/robots.txt'].includes(requestPathname(req));
+}
+
 function readinessGate(req, res, next) {
+  const crawlerDocument = isCrawlerDocumentRequest(req);
   return getReady().then(() => next(), (err) => {
+    if (crawlerDocument) {
+      // Crawler documents have a static fallback even when the database is
+      // unavailable. The sitemap route skips its product query on this request.
+      req.crawlerDatabaseUnavailable = true;
+      console.warn('Serving crawler document fallback after database readiness failure.');
+      return next();
+    }
     console.error('Server not ready:', err.message);
     try { sendUnavailable(res); } catch (e) { console.error('503 write failed:', e.message); }
   });
@@ -475,6 +1007,7 @@ module.exports.ensureReady = ensureReady;
 module.exports.getReady = getReady;         // tests: retry/backoff behaviour
 module.exports.bootstrapData = bootstrapData; // tests: one-time-per-database steps
 module.exports.readinessGate = readinessGate;
+module.exports.escapeXml = escapeXml;   // sitemap XML escaping regression tests
 
 // Local dev / direct execution: listen and manage the process lifecycle.
 if (require.main === module) {

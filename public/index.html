@@ -56,6 +56,15 @@
   }
   </script>
 
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "name": "KAGE Culture",
+    "url": "__SITE_URL__/"
+  }
+  </script>
+
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link
@@ -5012,8 +5021,12 @@
       const canonicalUrl = siteRoot + location.pathname;
       document.querySelector('link[rel="canonical"]').href = canonicalUrl;
       document.querySelector('meta[property="og:url"]').content = canonicalUrl;
-      document.title = target === 'home' ? 'KAGE CULTURE — Engineered Fit. Original Art.'
-        : ((target === 'product' && currentProduct) ? currentProduct.name : target.replace(/-/g, ' ')) + ' | KAGE CULTURE';
+      const collectionTitleName = filter === 'all' ? 'Shop All'
+        : filter === 'new' ? 'New Arrivals'
+          : (CATEGORY_NAMES[filter] || String(filter || '').replace(/-/g, ' '));
+      document.title = isCollectionRoute ? `${collectionTitleName} | KAGE CULTURE`
+        : target === 'home' ? 'KAGE CULTURE — Engineered Fit. Original Art.'
+          : ((target === 'product' && currentProduct) ? `${String(currentProduct.name || '').replace(/\s+/g, ' ').trim()} | KAGE CULTURE` : target.replace(/-/g, ' ') + ' | KAGE CULTURE');
       window.scrollTo({ top: 0 });
       closeFilterDrawer();
             // Toggle body class for tracking page to disable footer watermark
