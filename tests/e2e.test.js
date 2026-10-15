@@ -27,6 +27,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { spawnSync } = require('child_process');
+const { JSDOM } = require('jsdom');
 const demoProducts = require('../utils/demoProducts');
 
 // Fresh module state for every run
@@ -176,6 +177,10 @@ async function captureSmtpEmails(fn, settings = {}) {
   }
 }
 const hrefOf = (html) => (String(html).match(/href="([^"]+)"/) || [])[1] || '';
+function parseJsonLdSchemas(html) {
+  const document = new JSDOM(html).window.document;
+  return Array.from(document.querySelectorAll('script[type="application/ld+json"]'), script => JSON.parse(script.textContent));
+}
 function assertSmtpHeaders(mail, to, subject) {
   assert.deepStrictEqual(mail.from, { address: 'shop@gmail.test', name: '' }, 'SMTP_USER is the default sender');
   assert.deepStrictEqual(mail.to, [{ address: to, name: '' }], 'the intended recipient is preserved');
@@ -261,8 +266,166 @@ async function main() {
     assert.ok(page.text.includes(`<meta property="og:url" content="${rootUrl}" />`));
     assert.ok(page.text.includes(`"url": "${rootUrl}"`));
     assert.ok(page.text.includes(`"logo": "${process.env.SITE_URL}/images/icon-512-v2.png"`));
+    const homeDocument = new JSDOM(page.text).window.document;
+    assert.strictEqual(homeDocument.title, 'KAGE CULTURE — Engineered Fit. Original Art.');
+    assert.strictEqual(homeDocument.querySelector('meta[name="description"]').content,
+      'KAGE Culture — Premium streetwear. Anime inspired. Built for everyday. Shop oversized tees, graphic tees, and compression gear.');
+    assert.strictEqual(homeDocument.querySelector('meta[property="og:title"]').content,
+      'KAGE Culture — Engineered Fit. Original Art.');
+    assert.strictEqual(homeDocument.querySelector('meta[property="og:description"]').content,
+      'Premium streetwear. Anime inspired. Built for everyday.');
+    const homeSchemas = parseJsonLdSchemas(page.text);
+    assert.ok(homeSchemas.some(schema => schema['@type'] === 'Organization'), 'homepage Organization JSON-LD remains');
+    const website = homeSchemas.find(schema => schema['@type'] === 'WebSite');
+    assert.ok(website, 'homepage includes WebSite JSON-LD');
+    assert.strictEqual(website.url, rootUrl);
     assert.ok(sitemap.text.includes(`<loc>${rootUrl}</loc>`));
     assert.ok(robots.text.includes(`Sitemap: ${process.env.SITE_URL}/sitemap.xml`));
+    assert.match(robots.text, /^User-agent: \*\nAllow: \/\nDisallow: \/admin\nDisallow: \/api\n/m);
+  });
+
+  await check('product and collection routes server-render safe metadata and structured data', async () => {
+    const seeded = await dbModule.prepare('SELECT id, name, description, front_image, back_image, extra_images FROM products WHERE name = ?').get('Shadow Fit');
+    const soldOut = await dbModule.prepare('SELECT id FROM products WHERE name = ?').get('Hollow Gaze');
+    assert.ok(seeded, 'the seeded product must be available for SSR coverage');
+    assert.ok(soldOut, 'the seeded sold-out product must be available for schema coverage');
+    const originalProduct = { ...seeded };
+    const hostileName = 'Hostile </script><script>alert("seo-test")</script> & Tee';
+    const hostileDescription = `<p>${'Premium cotton with original art & everyday wear. '.repeat(7)}</p>`;
+    const reviewOrderNumbers = ['SEO-META-APPROVED-A', 'SEO-META-APPROVED-B', 'SEO-META-PENDING'];
+    const createdAt = new Date().toISOString();
+
+    try {
+      await dbModule.prepare('UPDATE products SET name = ?, description = ?, front_image = ?, back_image = ?, extra_images = ? WHERE id = ?')
+        .run(hostileName, hostileDescription, '/uploads/seo-front.png', 'https://images.kage.test/seo-back.jpg', '["/uploads/seo-gallery.png"]', seeded.id);
+      await dbModule.prepare('INSERT INTO reviews (product_id, order_number, customer_name, rating, comment, status, viewer_token, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+        .run(seeded.id, reviewOrderNumbers[0], 'Buyer <b>Ada</b>', 5, 'Excellent </script><script>alert("review-test")</script>', 'approved', '', createdAt);
+      await dbModule.prepare('INSERT INTO reviews (product_id, order_number, customer_name, rating, comment, status, viewer_token, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+        .run(seeded.id, reviewOrderNumbers[1], 'Kai', 4, 'Great fit', 'approved', '', createdAt);
+      await dbModule.prepare('INSERT INTO reviews (product_id, order_number, customer_name, rating, comment, status, viewer_token, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+        .run(seeded.id, reviewOrderNumbers[2], 'Pending Buyer', 1, 'Pending review must not be indexed', 'pending', '', createdAt);
+
+      const productPage = await request(PORT, 'GET', `/product/${seeded.id}`);
+      assert.strictEqual(productPage.status, 200);
+      const productDocument = new JSDOM(productPage.text).window.document;
+      const expectedTitle = `${hostileName} | KAGE CULTURE`;
+      const productUrl = `${process.env.SITE_URL}/product/${seeded.id}`;
+      const frontImage = `${process.env.SITE_URL}/uploads/seo-front.png`;
+      assert.strictEqual(productDocument.title, expectedTitle);
+      assert.strictEqual(productDocument.querySelector('meta[name="description"]').content.length,
+        require('../config').SEO_DESCRIPTION_MAX_LENGTH, 'long descriptions are capped around 155 characters');
+      assert.ok(productDocument.querySelector('meta[name="description"]').content.endsWith('…'));
+      assert.strictEqual(productDocument.querySelector('link[rel="canonical"]').href, productUrl);
+      assert.strictEqual(productDocument.querySelector('meta[property="og:type"]').content, 'product');
+      assert.strictEqual(productDocument.querySelector('meta[property="og:title"]').content, expectedTitle);
+      assert.strictEqual(productDocument.querySelector('meta[property="og:image"]').content, frontImage);
+      assert.strictEqual(productDocument.querySelector('meta[name="twitter:title"]').content, expectedTitle);
+      assert.strictEqual(productDocument.querySelector('meta[name="twitter:image"]').content, frontImage);
+      assert.strictEqual(productDocument.querySelector('meta[name="twitter:url"]').content, productUrl);
+      assert.ok(!productPage.text.includes('<script>alert("seo-test")</script>'), 'hostile product names never create raw HTML/script tags');
+      assert.ok(productPage.text.includes(`${String.fromCharCode(92)}u003c/script`), 'JSON-LD escapes < as \\u003c');
+
+      const productSchemas = parseJsonLdSchemas(productPage.text);
+      const productSchema = productSchemas.find(schema => schema['@type'] === 'Product');
+      assert.ok(productSchema, 'product route has a Product JSON-LD block');
+      assert.strictEqual(productSchema.name, hostileName, 'escaped JSON-LD retains the original product name');
+      assert.deepStrictEqual(productSchema.image, [frontImage, 'https://images.kage.test/seo-back.jpg', `${process.env.SITE_URL}/uploads/seo-gallery.png`]);
+      assert.ok(productSchema.image.every(image => /^https?:\/\//.test(image)), 'all schema images are absolute HTTP(S) URLs');
+      assert.strictEqual(productSchema.sku, String(seeded.id));
+      assert.strictEqual(productSchema.productID, String(seeded.id));
+      assert.deepStrictEqual(productSchema.brand, { '@type': 'Brand', name: 'KAGE Culture' });
+      assert.strictEqual(productSchema.offers.priceCurrency, 'PKR');
+      assert.strictEqual(productSchema.offers.price, 1499);
+      assert.strictEqual(productSchema.offers.url, productUrl);
+      assert.strictEqual(productSchema.offers.availability, 'https://schema.org/InStock');
+      assert.strictEqual(productSchema.description.length, require('../config').SEO_DESCRIPTION_MAX_LENGTH);
+      assert.strictEqual(productSchema.aggregateRating.reviewCount, 2, 'only approved reviews contribute to the aggregate');
+      assert.strictEqual(productSchema.aggregateRating.ratingValue, 4.5);
+      assert.strictEqual(productSchema.review.length, 2, 'only approved reviews are embedded');
+      assert.ok(!JSON.stringify(productSchema).includes('Pending review must not be indexed'));
+      assert.doesNotMatch(JSON.stringify(productSchema), /unit_cost|updated_at|viewer_token|order_number/,
+        'the schema contains no admin-only product columns or private review fields');
+      const productBreadcrumb = productSchemas.find(schema => schema['@type'] === 'BreadcrumbList');
+      assert.ok(productBreadcrumb, 'product route has BreadcrumbList JSON-LD');
+      assert.strictEqual(productBreadcrumb.itemListElement.at(-1).item, productUrl);
+
+      const soldOutPage = await request(PORT, 'GET', `/product/${soldOut.id}`);
+      assert.strictEqual(soldOutPage.status, 200);
+      const soldOutSchema = parseJsonLdSchemas(soldOutPage.text).find(schema => schema['@type'] === 'Product');
+      assert.ok(soldOutSchema);
+      assert.strictEqual(soldOutSchema.offers.availability, 'https://schema.org/OutOfStock');
+      assert.ok(!('aggregateRating' in soldOutSchema) && !('review' in soldOutSchema),
+        'review schema is omitted when no approved reviews exist');
+
+      const collectionPage = await request(PORT, 'GET', '/collection/anime');
+      assert.strictEqual(collectionPage.status, 200);
+      const collectionDocument = new JSDOM(collectionPage.text).window.document;
+      const collectionUrl = `${process.env.SITE_URL}/collection/anime`;
+      assert.strictEqual(collectionDocument.title, 'Anime Shirts | KAGE CULTURE');
+      assert.strictEqual(collectionDocument.querySelector('link[rel="canonical"]').href, collectionUrl);
+      assert.strictEqual(collectionDocument.querySelector('meta[name="description"]').content,
+        'Shop anime-inspired shirts with original artwork, premium cotton, and everyday streetwear fits.');
+      assert.strictEqual(collectionDocument.querySelector('meta[property="og:image"]').content, frontImage);
+      assert.strictEqual(collectionDocument.querySelector('meta[name="twitter:url"]').content, collectionUrl);
+      const collectionSchemas = parseJsonLdSchemas(collectionPage.text);
+      const collectionBreadcrumb = collectionSchemas.find(schema => schema['@type'] === 'BreadcrumbList');
+      assert.ok(collectionBreadcrumb, 'collection route has BreadcrumbList JSON-LD');
+      assert.strictEqual(collectionBreadcrumb.itemListElement.at(-1).item, collectionUrl);
+      assert.ok(!collectionSchemas.some(schema => schema['@type'] === 'Product'), 'collection route does not invent a Product entity');
+
+      const missing = await request(PORT, 'GET', '/product/999999999');
+      assert.strictEqual(missing.status, 404, 'an established missing product uses HTTP 404');
+      assert.match(missing.headers['content-type'] || '', /text\/html/);
+      assert.ok(missing.text.includes('<!DOCTYPE html>'), '404 retains the SPA shell');
+    } finally {
+      for (const orderNumber of reviewOrderNumbers) {
+        await dbModule.prepare('DELETE FROM reviews WHERE order_number = ?').run(orderNumber);
+      }
+      await dbModule.prepare('UPDATE products SET name = ?, description = ?, front_image = ?, back_image = ?, extra_images = ? WHERE id = ?')
+        .run(originalProduct.name, originalProduct.description, originalProduct.front_image, originalProduct.back_image, originalProduct.extra_images, seeded.id);
+    }
+  });
+
+  await check('sitemap is valid, cached XML with product/category/static URLs and no private routes', async () => {
+    const sitemap = await request(PORT, 'GET', '/sitemap.xml');
+    const known = await dbModule.prepare('SELECT id, updated_at FROM products WHERE name = ?').get('Shadow Fit');
+    const soldOut = await dbModule.prepare('SELECT id FROM products WHERE name = ?').get('Hollow Gaze');
+    assert.ok(known, 'the seeded known product must be present');
+    assert.ok(soldOut, 'the seeded sold-out product must be present');
+
+    const namespace = 'http://www.sitemaps.org/schemas/sitemap/0.9';
+    const xmlDocument = new JSDOM(sitemap.text, { contentType: 'application/xml' }).window.document;
+    assert.strictEqual(xmlDocument.documentElement.localName, 'urlset');
+    assert.strictEqual(xmlDocument.getElementsByTagName('parsererror').length, 0, 'the response must parse as valid XML');
+    const locations = Array.from(xmlDocument.getElementsByTagNameNS(namespace, 'loc'), node => node.textContent);
+    const expectedProductUrl = `${process.env.SITE_URL}/product/${known.id}`;
+    assert.ok(locations.includes(expectedProductUrl), `missing known product URL ${expectedProductUrl}`);
+    assert.ok(locations.includes(`${process.env.SITE_URL}/product/${soldOut.id}`), 'sold-out products remain listed');
+
+    for (const route of [
+      '/', '/about', '/contact', '/custom-stickers', '/returns', '/shipping', '/terms', '/privacy', '/tracking',
+      '/collection/all', '/collection/new', '/collection/anime', '/collection/graphic-tees', '/collection/sale'
+    ]) {
+      const url = route === '/' ? `${process.env.SITE_URL}/` : `${process.env.SITE_URL}${route}`;
+      assert.ok(locations.includes(url), `missing expected public URL ${url}`);
+    }
+    for (const forbidden of ['/admin', '/admin.html', '/api', '/cart', '/checkout', '/account', '/reset-password', '/verify-email', '/confirmation']) {
+      assert.ok(!locations.some(location => new URL(location).pathname === forbidden || new URL(location).pathname.startsWith(`${forbidden}/`)),
+        `private route must not appear: ${forbidden}`);
+    }
+
+    const entries = Array.from(xmlDocument.getElementsByTagNameNS(namespace, 'url'));
+    const productEntry = entries.find(entry => entry.getElementsByTagNameNS(namespace, 'loc')[0]?.textContent === expectedProductUrl);
+    assert.ok(productEntry, 'known product entry must be in the parsed document');
+    assert.strictEqual(productEntry.getElementsByTagNameNS(namespace, 'lastmod')[0]?.textContent,
+      new Date(known.updated_at).toISOString(), 'product lastmod must come from updated_at');
+
+    assert.strictEqual(sitemap.headers['cache-control'], `public, max-age=${Math.floor(require('../config').SITEMAP_CACHE_MS / 1000)}, s-maxage=${Math.floor(require('../config').SITEMAP_CACHE_MS / 1000)}`);
+    assert.strictEqual(sitemap.headers['set-cookie'], undefined, 'a shared-cacheable sitemap must not set visitor-specific cookies');
+    assert.doesNotMatch(sitemap.text, /&(?!(?:amp|lt|gt|quot|apos|#\d+|#x[0-9A-Fa-f]+);)/,
+      'all ampersands in the XML must be escaped as valid entities');
+    assert.strictEqual(serverModule.escapeXml(`&<>"'`), '&amp;&lt;&gt;&quot;&apos;',
+      'the sitemap escaper encodes all XML-significant characters');
   });
 
   await check('production page tags fall back to the request origin and warn when SITE_URL is unset', async () => {
@@ -3085,6 +3248,8 @@ async function main() {
     const out = JSON.parse(line);
     assert.strictEqual(out.all503, true, JSON.stringify(out));
     assert.strictEqual(out.bodyLeaks, false, 'no 503 body may leak internals');
+    assert.strictEqual(out.crawlerFallback, true, 'sitemap and robots must serve static crawler content during DB failure');
+    assert.deepStrictEqual(out.crawlerStatuses, [200, 200]);
     assert.strictEqual(out.unhandled, 0, 'no unhandled rejection may be emitted');
     assert.strictEqual(out.alive, true, 'the process must survive');
     assert.deepStrictEqual(out.statuses, [503, 503, 503, 503, 503], JSON.stringify(out));

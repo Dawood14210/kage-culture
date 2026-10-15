@@ -38,7 +38,7 @@
 - When a work item from `AUDIT.md` is completed, update `AUDIT.md`: mark the item done
   and record what changed + how it was verified.
 
-## Status snapshot (updated 2026-10-13)
+## Status snapshot (updated 2026-10-15)
 
 - ✅ CRITICAL admin auth bypass fixed: `requireAuth` trusts only
   `cookie-session`-verified `req.session`; standalone/forged payloads and the
@@ -120,5 +120,23 @@
   with server/tests in one shell and cleanup passes all six suites (133/133 API,
   31/31 frontend plus rate-limit/storefront/migration and contrast/focus). This
   does not close remaining dynamic-control/image-backed/physical-device a11y QA.
+- ✅ **SEO-2 dynamic sitemap (2026-10-14):** `/sitemap.xml` lists static public content,
+  product-backed collection routes and every product detail (including sold-out products),
+  with product `<lastmod>` from `updated_at`. Configured 10-minute in-process and HTTP
+  caching, XML escaping, and static fallbacks for empty/unavailable databases; Vercel's
+  readiness gate still serves sitemap/robots during database outages. `robots.txt`
+  references the sitemap and blocks `/admin` and `/api`. `PORT=3999 npm test` passes all
+  six suites; E2E validates XML, known and sold-out product URLs, cache headers, private
+  URL exclusion, ampersand escaping and the DB-outage fallback.
+- ✅ **SEO-1 / SEO-4 / SEO-3 (2026-10-15):** product and collection routes now
+  receive server-rendered titles, ~155-character descriptions, canonical, Open Graph
+  and Twitter metadata with absolute imagery. Product schema uses the public product
+  shape, PKR offers, stock-aware availability and approved-review aggregates/samples;
+  BreadcrumbList is emitted for products and collections, Organization is retained,
+  and WebSite JSON-LD is present. JSON-LD escapes `<`, unknown numeric products return
+  the SPA shell with 404, and client-side titles match server-rendered titles.
+  `PORT=3999 npm test` passes all six suites; E2E covers hostile content, schema parsing,
+  sold-out availability, approved-only reviews, missing products and unchanged homepage
+  metadata. Details in `AUDIT.md`.
 - ⬜ Remaining: FE-H2 CSP migration (do not drop unsafe-inline without replacing
   handlers), browser/device visual QA, dynamic-control a11y, FE-M6 typography, L2 media.

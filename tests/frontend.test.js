@@ -135,6 +135,7 @@ async function ready(win) {
     await ready(w);
     w.navigateTo('collection', 'anime');
     assert.equal(d.querySelector('#collectionTitle').textContent, 'ANIME SHIRTS');
+    assert.equal(d.title, 'Anime Shirts | KAGE CULTURE', 'SPA collection title matches server-rendered collection metadata');
     assert.ok([...d.querySelectorAll('#collectionGrid .product-card h3')].every(x =>
       ['Shadow Fit', 'Oni Muscle Tee', 'Kage Core Compression'].includes(x.textContent)),
       'anime filter must not leak graphic-tees products');
@@ -197,6 +198,7 @@ async function ready(win) {
 
     w.openProductDetail(9);
     assert.equal(w.location.pathname, '/product/9');
+    assert.equal(d.title, 'Wrath Silhouette | KAGE CULTURE', 'SPA product title matches server-rendered product metadata');
     w.navigateTo('tracking');
     assert.equal(w.location.pathname, '/tracking');
     w.history.back();

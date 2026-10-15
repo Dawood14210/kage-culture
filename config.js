@@ -36,6 +36,16 @@ module.exports = {
   // single SQL aggregate is recomputed. Order writes invalidate immediately.
   SOLD_COUNT_CACHE_MS: 60 * 1000,
 
+  // Sitemap product/category data is reused per warm serverless instance for
+  // ten minutes; the same duration is advertised to browser and shared caches.
+  SITEMAP_CACHE_MS: 10 * 60 * 1000,
+
+  // Server-rendered SEO descriptions stay within search-result snippet length;
+  // Product JSON-LD includes only a small approved-review sample while its
+  // aggregate rating/count reflect all approved reviews.
+  SEO_DESCRIPTION_MAX_LENGTH: 155,
+  SEO_REVIEW_SCHEMA_LIMIT: 5,
+
   // KAGE Clan
   CLAN_THRESHOLD: 5, // shirts needed to join the clan
 
