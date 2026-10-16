@@ -1,7 +1,7 @@
 // DOM-level interaction regressions for the static storefront and admin panel.
 // Run with `npm test`. Most scenarios are DOM-level (jsdom — no browser
-// download required); the category-strip geometry checks run in real Chromium
-// (see tests/fixtures/chromium.js).
+// download required); responsive layout, image-priority and floating-action
+// checks run in real Chromium (see tests/fixtures/chromium.js).
 // The panel scenario logs in for real: the admin view now reads its catalog
 // from the authenticated /api/admin/products endpoint, because the public
 // one deliberately omits internal columns such as unit_cost.
@@ -13,7 +13,7 @@ process.env.SESSION_SECRET = process.env.SESSION_SECRET || 'frontend-test-secret
 // process the way e2e.test.js does, before the server (and its limiter) is loaded.
 require('../config').RATE_LIMIT_GLOBAL = 1000;
 const assert = require('node:assert/strict');
-const { readFileSync } = require('node:fs');
+const { readFileSync, existsSync } = require('node:fs');
 const { JSDOM, VirtualConsole } = require('jsdom');
 const { app, ensureReady } = require('../server');
 
@@ -232,8 +232,20 @@ async function ready(win) {
       try {
         await ready(pw); await wait(50);
         pw.quickAdd(pid);
+        const cartThumb = pd.querySelector('#cartItems .cart-item-image img');
+        assert.ok(cartThumb, 'cart drawer renders the product thumbnail');
+        assert.equal(cartThumb.getAttribute('width'), '55');
+        assert.equal(cartThumb.getAttribute('height'), '55');
+        assert.equal(cartThumb.getAttribute('loading'), 'lazy');
+        assert.equal(cartThumb.getAttribute('decoding'), 'async');
         pw.toggleWishlist(pid);
         pw.navigateTo('checkout');
+        const checkoutThumb = pd.querySelector('#coItems .co-item-img img');
+        assert.ok(checkoutThumb, 'checkout summary renders the product thumbnail');
+        assert.equal(checkoutThumb.getAttribute('width'), '52');
+        assert.equal(checkoutThumb.getAttribute('height'), '60');
+        assert.equal(checkoutThumb.getAttribute('loading'), 'lazy');
+        assert.equal(checkoutThumb.getAttribute('decoding'), 'async');
         await db.prepare('UPDATE products SET in_stock = 0 WHERE id = ?').run(pid);
         await pw.loadProductsFromAPI();
         assert.equal(pw.eval('cart.length'), 1, 'sold-out cart lines stay visible after refresh');
@@ -490,6 +502,15 @@ async function ready(win) {
     w.openProductDetail(999001);
     assert.equal(d.querySelectorAll('#galleryTrack img').length, 2, 'front and back images both render');
     assert.equal(d.querySelectorAll('#detailThumbnails .detail-thumb').length, 2, 'front and back thumbnails both render');
+    const galleryImages = [...d.querySelectorAll('#galleryTrack img')];
+    assert.deepEqual(galleryImages.map(image => [image.getAttribute('width'), image.getAttribute('height')]), [['900', '1200'], ['900', '1200']]);
+    assert.equal(galleryImages[0].getAttribute('loading'), 'eager');
+    assert.equal(galleryImages[0].getAttribute('decoding'), 'async');
+    assert.equal(galleryImages[0].getAttribute('fetchpriority'), 'high', 'only the first visible detail image gets high priority');
+    assert.equal(galleryImages[1].getAttribute('loading'), 'lazy');
+    assert.equal(galleryImages[1].getAttribute('fetchpriority'), null);
+    const thumbImages = [...d.querySelectorAll('#detailThumbnails img')];
+    assert.ok(thumbImages.every(image => image.getAttribute('width') === '56' && image.getAttribute('height') === '56' && image.getAttribute('loading') === 'lazy' && image.getAttribute('decoding') === 'async'));
     w.switchDetailAngle(1);
     assert.ok(d.querySelectorAll('#detailThumbnails .detail-thumb')[1].classList.contains('active'), 'tapping the back thumbnail switches the main image');
     assert.equal(d.getElementById('galleryTrack').style.transform, 'translateX(-100%)', 'gallery track moved to the back image');
@@ -541,6 +562,8 @@ async function ready(win) {
     assert.match(returnsCopy, /within 7 days of receiving your order/, 'existing 7-day return window is unchanged');
     assert.match(returnsCopy, /contact us within 48 hours with photos/, 'existing 48-hour defective/wrong-item window is unchanged');
     assert.match(returnsCopy, /Custom-designed items and custom stickers \(non-returnable unless defective or wrong\)/);
+    assert.match(returnsCopy, /return shipping paid by customer unless item is defective/i, 'the checkout trust wording does not imply free return shipping');
+    assert.match(returnsCopy, /Sale items \(final sale unless defective\)/, 'sale-item exclusions remain visible in the return policy');
 
     const termsBody = d.querySelector('#page-terms .content-page-body');
     const termsCopy = termsBody.textContent;
@@ -588,6 +611,21 @@ async function ready(win) {
     assert.equal(d.getElementById('paymentRefGroup'), null, 'non-COD payment reference controls are removed');
     assert.equal(d.getElementById('coPaymentRef'), null, 'non-COD payment reference input is removed');
     assert.equal(d.querySelector('#page-checkout .co-safe').textContent.trim(), 'Cash on Delivery accepted. We will contact you about the delivery charges.');
+    const checkoutTrust = d.querySelector('#page-checkout .co-trust-strip');
+    assert.equal(checkoutTrust.getAttribute('aria-label'), 'Checkout reassurance');
+    assert.deepEqual([...checkoutTrust.querySelectorAll('li')].map(item => item.textContent.trim()), [
+      'Cash on Delivery', 'Secure checkout', 'Easy returns · 7-day window · eligible items', 'WhatsApp support · +92 322 804 2633'
+    ], 'checkout reassurance uses the actual COD, returns and support policies');
+    const checkoutReturnsLink = checkoutTrust.querySelector('a[href="/returns"]');
+    assert.ok(checkoutReturnsLink, 'the returns reassurance links to the local /returns policy');
+    assert.match(checkoutReturnsLink.getAttribute('onclick'), /navigateTo\('returns'\)/, 'the returns link preserves SPA navigation');
+    const checkoutSupportLink = checkoutTrust.querySelector('a[href^="https://wa.me/"]');
+    assert.equal(new URL(checkoutSupportLink.href).pathname, '/923228042633');
+    assert.equal(checkoutSupportLink.getAttribute('target'), '_blank');
+    assert.match(checkoutSupportLink.getAttribute('rel'), /noopener/);
+    assert.match(checkoutSupportLink.getAttribute('rel'), /noreferrer/);
+    assert.match(storeHtml, /\.co-trust-strip\s*\{[^}]*grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/, 'checkout reassurance stays compact in two columns');
+    assert.match(storeHtml, /@media \(max-width: 380px\) \{\s*\.co-trust-strip \{ grid-template-columns: 1fr; \}/, 'checkout reassurance stacks for narrow 320px screens');
     assert.deepEqual([...d.querySelectorAll('.payment-icons .payment-icon')].map(icon => icon.textContent.trim()), ['COD'], 'footer only advertises COD');
     const shippingPaymentHeading = [...d.querySelectorAll('#page-shipping .content-page-body h3')].find(h => h.textContent.trim() === 'Payment Methods');
     assert.deepEqual([...shippingPaymentHeading.nextElementSibling.querySelectorAll('li')].map(li => li.textContent.trim()), ['Cash on Delivery (COD) — pay when your order arrives']);
@@ -699,10 +737,11 @@ async function ready(win) {
     assert.match(socialCss, /\.social-icon:hover,\s*\.social-icon:focus-visible\s*\{[^}]*background:\s*var\(--accent-glow\);/, 'social hover/focus accent remains subtle and theme-colored');
     assert.doesNotMatch(socialCss, /\.social-(?:instagram|snapchat|email|etsy|whatsapp)(?::hover)?\s*\{/, 'no per-brand rainbow overrides remain');
     const whatsappStart = storeHtml.indexOf('FLOATING WHATSAPP BUTTON');
-    const whatsappEnd = storeHtml.indexOf('Keep page-bottom content clear', whatsappStart);
+    const whatsappEnd = storeHtml.indexOf('    .footer-newsletter h4 {', whatsappStart);
     const whatsappCss = storeHtml.slice(whatsappStart, whatsappEnd);
     assert.ok(whatsappStart >= 0 && whatsappEnd > whatsappStart, 'WhatsApp/footer spacing rules exist');
     assert.match(whatsappCss, /\.whatsapp-float \{\s*position: fixed;[\s\S]*?bottom: 24px;[\s\S]*?width: 60px;[\s\S]*?height: 60px;/, 'wide floating button dimensions and edge offset are known');
+    assert.match(whatsappCss, /body:has\(#page-product\.active\) \.whatsapp-float,[\s\S]*?body:has\(#page-checkout\.active\) \.whatsapp-float,[\s\S]*?body:has\(#cartDrawer\.open\) \.whatsapp-float,[\s\S]*?display: none;/, 'the floating action is hidden on product, cart and checkout surfaces at every width');
     assert.match(whatsappCss, /@media \(max-width: 768px\) \{[\s\S]*?\.whatsapp-float \{\s*bottom: calc\(20px \+ env\(safe-area-inset-bottom, 0px\)\);[\s\S]*?width: 56px;[\s\S]*?height: 56px;/, 'mobile floating button dimensions include the safe-area offset');
     assert.match(whatsappCss, /@media \(max-width: 768px\) \{[\s\S]*?\.site-footer \{ padding-bottom: calc\(var\(--spacing-md\) \+ env\(safe-area-inset-bottom, 0px\)\); \}/, 'mobile footer uses normal bottom padding plus safe-area inset without a large gap below Privacy · Terms');
     assert.doesNotMatch(whatsappCss, /\.site-footer \{ padding-bottom: calc\(var\(--spacing-md\) \+ (?:76|84)px/, 'no extra 76px/84px gap below Privacy · Terms');
@@ -771,6 +810,13 @@ async function ready(win) {
     assert.ok(d.querySelector('.product-grid .product-card .card-rating'), 'rendered cards keep the reserved rating row');
     assert.match(w.renderProductCard({ id: 1, name: 'No reviews yet', price: 10, fit: 'Regular', stock_qty: 10 }), /<div class="card-rating"><\/div>/, 'a product with no reviews still reserves the rating row');
     assert.match(w.renderProductCard({ id: 1, name: 'Reviewed', price: 10, fit: 'Regular', stock_qty: 10, rating: 5, review_count: 2 }), /<div class="card-rating"><span class="star-rating"/, 'a reviewed product fills that row with stars');
+    const cardImageTag = w.renderProductCard({ id: 1, name: 'Responsive image', price: 10, fit: 'Regular', stock_qty: 10, images: ['/uploads/card.webp'] }).match(/<img\b[^>]*>/)?.[0];
+    assert.ok(cardImageTag, 'the shared card renderer includes its product image');
+    assert.match(cardImageTag, /width="600" height="800"/);
+    assert.match(cardImageTag, /sizes="\(max-width: 768px\)[^"]+"/);
+    assert.match(cardImageTag, /loading="lazy" decoding="async"/);
+    assert.doesNotMatch(cardImageTag, /fetchpriority="high"/, 'non-visible shared cards do not receive high fetch priority');
+    assert.match(storeHtml, /function prioritizeFirstVisibleProductImage\(grid\)/, "only a visible grid's first image can be promoted");
     assert.match(storeHtml, /\.product-grid \.product-card \{[^}]*display: flex;[^}]*flex-direction: column;/, 'cards are flex columns so a grid row stretches them to equal height');
     assert.match(storeHtml, /\.product-grid \.product-card-image img \{[^}]*object-fit: cover;[^}]*padding: 8%;/, 'product card images stay uniform (object-fit: cover) while keeping their 8% card boundary');
     assert.match(storeHtml, /\.product-grid \.product-card-body \{[^}]*flex: 1 1 auto;[^}]*\}/, 'the card body fills the remaining card height');
@@ -919,12 +965,97 @@ async function ready(win) {
     assert.match(storeHtml, /\.category-strip:focus-visible \{[^}]*?outline: 2px solid #FFF;/, 'the keyboard-focusable row has a visible focus ring');
     assert.equal(d.getElementById('categoryStrip').getAttribute('tabindex'), '0', 'the category row is keyboard focusable');
     assert.ok(d.getElementById('categoryStrip').getAttribute('aria-label'), 'the category row is labelled for assistive tech');
+    const categoryPictures = [...d.querySelectorAll('#categoryStrip .cat-thumb picture')];
+    assert.equal(categoryPictures.length, 4, 'all four static category tiles retain their responsive picture markup');
+    assert.deepEqual(categoryPictures.map(picture => picture.querySelector('img').getAttribute('alt')), ['Graphic Tees', 'Anime Shirts', 'Pants', 'Custom Stickers']);
+    for (const picture of categoryPictures) {
+      const source = picture.querySelector('source');
+      const image = picture.querySelector('img');
+      assert.equal(source.getAttribute('type'), 'image/webp');
+      assert.match(source.getAttribute('srcset'), /-200\.webp 200w, [^,]+-500\.webp 500w/);
+      assert.equal(source.getAttribute('sizes'), '116px');
+      assert.match(image.getAttribute('src'), /^\/images\/(?:graphic-tees|anime-shirts|pants|custom-stickers)\.jpg$/, 'JPEG fallback path remains intact');
+      assert.equal(image.getAttribute('width'), '600');
+      assert.equal(image.getAttribute('height'), '600');
+      assert.equal(image.getAttribute('loading'), 'lazy');
+      assert.equal(image.getAttribute('decoding'), 'async');
+    }
+    for (const file of ['graphic-tees-200.webp', 'graphic-tees-500.webp', 'anime-shirts-200.webp', 'anime-shirts-500.webp', 'pants-200.webp', 'pants-500.webp', 'custom-stickers-200.webp', 'custom-stickers-500.webp']) {
+      assert.ok(existsSync(require.resolve('../public/images/' + file)), `${file} exists for its srcset candidate`);
+    }
+    assert.match(storeHtml, /hero-700\.webp 700w/, 'the existing hero 700px variant stays in its responsive srcset');
+    assert.match(storeHtml, /about-hero-500\.webp 600w/, 'the existing about 500px variant stays in its responsive srcset');
     console.log('✅ Category strip shows four Explore links: 2×2 phone grid + 4-col tablet/desktop layouts with aligned, pinned labels');
 
     // ---- Real Chromium: category strip geometry at phone/tablet/desktop widths ----
     const { launchChromium, waitForCatalog, settleLayout } = require('./fixtures/chromium');
     const browser = await launchChromium();
     try {
+      // ---- UX-1: the fixed WhatsApp shortcut must never cover commerce CTAs.
+      const overlapPage = await browser.newPage();
+      const overlapWidths = [320, 360, 390, 540, 768, 1024, 1440];
+      await overlapPage.setViewport({ width: overlapWidths[0], height: 900 });
+      await overlapPage.goto(origin + '/product/1', { waitUntil: 'domcontentloaded' });
+      await waitForCatalog(overlapPage);
+      await overlapPage.waitForSelector('#page-product.active', { timeout: 20000 });
+      await settleLayout(overlapPage);
+      const productImagePriority = await overlapPage.evaluate(() => {
+        const images = [...document.querySelectorAll('#page-product #galleryTrack img')];
+        return { count: images.length, firstHigh: images[0]?.getAttribute('fetchpriority') === 'high', highCount: images.filter(image => image.getAttribute('fetchpriority') === 'high').length, firstLoading: images[0]?.getAttribute('loading') };
+      });
+      assert.ok(productImagePriority.count > 0);
+      assert.equal(productImagePriority.firstHigh, true, 'the first visible detail image has high fetch priority');
+      assert.equal(productImagePriority.highCount, 1, 'only one detail gallery image has high fetch priority');
+      assert.equal(productImagePriority.firstLoading, 'eager');
+      const assertNoWhatsAppOverlap = async (state, selector) => {
+        for (const width of overlapWidths) {
+          await overlapPage.setViewport({ width, height: 900 });
+          await overlapPage.evaluate((actionSelector) => {
+            const action = document.querySelector(actionSelector);
+            if (action) action.scrollIntoView({ block: 'center', behavior: 'instant' });
+          }, selector);
+          await settleLayout(overlapPage);
+          const geometry = await overlapPage.evaluate((actionSelector) => {
+            const float = document.querySelector('.whatsapp-float');
+            const floatStyle = getComputedStyle(float);
+            const floatRect = float.getBoundingClientRect();
+            const actions = [...document.querySelectorAll(actionSelector)].filter((el) => {
+              const style = getComputedStyle(el), rect = el.getBoundingClientRect();
+              return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
+            });
+            const overlaps = floatStyle.display !== 'none' && actions.some((el) => {
+              const r = el.getBoundingClientRect();
+              return r.left < floatRect.right && r.right > floatRect.left && r.top < floatRect.bottom && r.bottom > floatRect.top;
+            });
+            return { display: floatStyle.display, visibleActions: actions.length, overlaps };
+          }, selector);
+          assert.ok(geometry.visibleActions > 0, `${state} action is visible at ${width}px`);
+          assert.equal(geometry.display, 'none', `${width}px ${state} hides the floating WhatsApp shortcut`);
+          assert.equal(geometry.overlaps, false, `${width}px WhatsApp does not overlap a ${state} action`);
+        }
+      };
+      await assertNoWhatsAppOverlap('product Add to Cart', '#page-product #addToCartBtn, #stickyCartBar .btn');
+      await overlapPage.evaluate(() => { navigateTo('home'); window.scrollTo(0, 0); quickAdd(1); });
+      await overlapPage.waitForFunction(() => document.getElementById('cartDrawer').classList.contains('open'));
+      await assertNoWhatsAppOverlap('cart checkout', '#cartFooter button');
+      await overlapPage.evaluate(() => startCheckout());
+      await overlapPage.waitForSelector('#page-checkout.active', { timeout: 20000 });
+      await assertNoWhatsAppOverlap('checkout Place Order', '#coPlaceBtn');
+      for (const width of overlapWidths) {
+        await overlapPage.setViewport({ width, height: 900 });
+        await settleLayout(overlapPage);
+        const trustLayout = await overlapPage.evaluate(() => {
+          const strip = document.querySelector('#page-checkout .co-trust-strip');
+          return { columns: getComputedStyle(strip).gridTemplateColumns.trim().split(' ').length, overflow: strip.scrollWidth > strip.clientWidth };
+        });
+        assert.equal(trustLayout.columns, width <= 380 ? 1 : 2, `${width}px checkout trust strip uses its responsive columns`);
+        assert.equal(trustLayout.overflow, false, `${width}px checkout trust text stays inside the strip`);
+      }
+      await overlapPage.evaluate(() => { navigateTo('home'); window.scrollTo(0, 0); });
+      assert.equal(await overlapPage.$eval('.whatsapp-float', (el) => getComputedStyle(el).display), 'flex', 'WhatsApp remains available away from commerce actions');
+      await overlapPage.close();
+      console.log('✅ Real Chromium — WhatsApp float stays clear of product, cart and checkout actions at 320–1440px');
+
       // ---- Desktop header: alignment, one-line navigation, and spacing at
       // ---- the requested widths, with the inventory-controlled Pants link
       // ---- both hidden and visible (eight links total).
@@ -1055,6 +1186,19 @@ async function ready(win) {
           syncCollectionVisibility();
         });
         await settleLayout(bp);
+        if (vw === 360) {
+          await bp.waitForFunction(() => {
+            return ['Anime Shirts', 'Custom Stickers'].every((alt) => {
+              const image = [...document.querySelectorAll('#categoryStrip img')].find(candidate => candidate.alt === alt);
+              return image && image.currentSrc;
+            });
+          }, { timeout: 10000 });
+          const categorySources = await bp.evaluate(() => Object.fromEntries(
+            ['Anime Shirts', 'Custom Stickers'].map(alt => [alt, [...document.querySelectorAll('#categoryStrip img')].find(image => image.alt === alt).currentSrc])
+          ));
+          assert.ok(categorySources['Anime Shirts'].endsWith('/anime-shirts-200.webp'), '360px 1x category tile selects the small WebP candidate');
+          assert.ok(categorySources['Custom Stickers'].endsWith('/custom-stickers-200.webp'), '360px 1x category tile selects the small WebP candidate');
+        }
         const m = await bp.evaluate(() => {
           const strip = document.querySelector('#page-home .category-strip');
           const tiles = [...strip.querySelectorAll('.cat-tile')];
@@ -1375,7 +1519,7 @@ async function ready(win) {
           const btn = card.querySelector('.quick-view-btn');
           const b = btn.getBoundingClientRect();
           return {
-            id: card.dataset.pid, html: card.outerHTML,
+            id: card.dataset.pid, html: card.outerHTML.replace(/\s(?:loading|fetchpriority)="[^"]*"/g, ''),
             top: r.top, left: r.left, right: r.right, w: r.width, h: r.height,
             imgW: card.querySelector('.product-card-image').getBoundingClientRect().width,
             imgH: card.querySelector('.product-card-image').getBoundingClientRect().height,
@@ -1435,6 +1579,17 @@ async function ready(win) {
       for (const [vw, cols] of [[320, 2], [360, 2], [414, 2], [599, 2], [600, 3], [768, 3], [1023, 3], [1024, 4], [1025, 4], [1440, 4]]) {
         const sp = await openStore(vw, '/collection/all', stressCatalog, '#collectionGrid .product-card');
         const m = measuredCollection[vw] = await measureGrid(sp, '#collectionGrid');
+        if (vw === 320) {
+          const priorities = await sp.evaluate(() => {
+            const images = [...document.querySelectorAll('#collectionGrid .product-card-image img')];
+            const high = images.filter(image => image.getAttribute('fetchpriority') === 'high');
+            return { count: images.length, highCount: high.length, firstIsHigh: high[0] === images[0], firstLoading: images[0]?.getAttribute('loading') };
+          });
+          assert.ok(priorities.count > 0, 'the collection grid renders product images');
+          assert.equal(priorities.highCount, 1, 'one visible collection card is promoted');
+          assert.equal(priorities.firstIsHigh, true, 'only the first collection product image is promoted');
+          assert.equal(priorities.firstLoading, 'lazy', 'product-card images retain lazy loading even when the visible first image gets high priority');
+        }
         if ([360, 414, 1440].includes(vw)) collectionStyles[vw] = await styleSnapshot(sp, '#collectionGrid', snapshotIds);
         const rows = groupRows(m.cards);
         assert.equal(m.cards.length, 8, `${vw}px: the first page shows 8 cards`);

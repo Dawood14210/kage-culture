@@ -519,6 +519,11 @@
       border-color: rgba(255,255,255,0.5);
       box-shadow: 0 8px 32px rgba(0,0,0,0.25);
     }
+    .cat-thumb picture {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
     .cat-thumb img {
       width: 100%;
       height: 100%;
@@ -2409,6 +2414,13 @@
       width: 28px;
       height: 28px;
     }
+    /* Keep the floating support shortcut clear of commerce actions on every width. */
+    body:has(#page-product.active) .whatsapp-float,
+    body:has(#page-checkout.active) .whatsapp-float,
+    body:has(#cartDrawer.open) .whatsapp-float,
+    body:has(#wishlistDrawer.open) .whatsapp-float {
+      display: none;
+    }
     @keyframes whatsappPulse {
       0%, 100% { box-shadow: 0 2px 8px rgba(0,0,0,0.18); }
       50% { box-shadow: 0 2px 12px rgba(0,0,0,0.22), 0 0 0 6px rgba(37,211,102,0.12); }
@@ -2420,19 +2432,10 @@
         width: 56px;
         height: 56px;
       }
-      /* Product pages show the 70px sticky cart bar along the bottom edge; lift the button above it there. */
-      body:has(#page-product.active) .whatsapp-float {
-        bottom: calc(86px + env(safe-area-inset-bottom, 0px));
-      }
       .whatsapp-float svg { width: 26px; height: 26px; }
       /* Keep normal bottom padding below Privacy · Terms (plus safe-area inset); only add clearance when the mobile sticky cart bar is active on a product page. */
       .site-footer { padding-bottom: calc(var(--spacing-md) + env(safe-area-inset-bottom, 0px)); }
       body:has(#page-product.active) .site-footer { padding-bottom: calc(var(--spacing-md) + 70px + env(safe-area-inset-bottom, 0px)); }
-    }
-    /* Keep page-bottom content clear of the floating WhatsApp button
-       on touch layouts (it sits over the last row otherwise). */
-    @media (hover: none) {
-      .checkout-page { padding-bottom: calc(var(--spacing-xl) + 56px); }
     }
     .footer-newsletter h4 {
       font-family: var(--font-display);
@@ -2623,7 +2626,36 @@
       padding-top: 0.5rem; margin-top: 0.3rem;
     }
     .co-place { width: 100%; margin-top: var(--spacing-md); min-height: 52px; }
+    .co-trust-strip {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.55rem 0.75rem;
+      margin: 0.8rem 0 0;
+      padding: 0.8rem 0 0;
+      border-top: 1px solid var(--border-color);
+      list-style: none;
+    }
+    .co-trust-strip li {
+      min-width: 0;
+      color: var(--text-secondary);
+      font-size: 0.72rem;
+      line-height: 1.4;
+      overflow-wrap: anywhere;
+    }
+    .co-trust-strip a {
+      color: var(--accent);
+      text-decoration: underline;
+      text-underline-offset: 0.14em;
+    }
+    .co-trust-strip a:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+      border-radius: 2px;
+    }
     .co-safe { font-size: 0.7rem; color: var(--text-gray); margin-top: 0.7rem; text-align: center; }
+    @media (max-width: 380px) {
+      .co-trust-strip { grid-template-columns: 1fr; }
+    }
 
     /* ================================================================
        ORDER CONFIRMATION
@@ -3836,7 +3868,7 @@
         <div class="container">
           <div class="category-strip" id="categoryStrip" tabindex="0" aria-label="Shop categories">
             <a class="cat-tile" data-stock-category="graphic-tees" style="display:none;" href="/collection/graphic-tees" data-cat="graphic-tees" onclick="navigateTo('collection', 'graphic-tees'); return false;">
-              <span class="cat-thumb"><img src="/images/graphic-tees.jpg" alt="Graphic Tees" loading="lazy" /></span>
+              <span class="cat-thumb"><picture><source type="image/webp" srcset="/images/graphic-tees-200.webp 200w, /images/graphic-tees-500.webp 500w" sizes="116px" /><img src="/images/graphic-tees.jpg" alt="Graphic Tees" width="600" height="600" sizes="116px" loading="lazy" decoding="async" /></picture></span>
               <span class="cat-info">
                 <span class="cat-name">Graphic Tees</span>
                 <span class="cat-desc">Bold prints on oversized fits.</span>
@@ -3844,7 +3876,7 @@
               </span>
             </a>
             <a class="cat-tile" href="/collection/anime" data-cat="anime" onclick="navigateTo('collection', 'anime'); return false;">
-              <span class="cat-thumb"><img src="/images/anime-shirts.jpg" alt="Anime Shirts" loading="lazy" /></span>
+              <span class="cat-thumb"><picture><source type="image/webp" srcset="/images/anime-shirts-200.webp 200w, /images/anime-shirts-500.webp 500w" sizes="116px" /><img src="/images/anime-shirts.jpg" alt="Anime Shirts" width="600" height="600" sizes="116px" loading="lazy" decoding="async" /></picture></span>
               <span class="cat-info">
                 <span class="cat-name">Anime Shirts</span>
                 <span class="cat-desc">Original art on premium cotton.</span>
@@ -3852,7 +3884,7 @@
               </span>
             </a>
             <a class="cat-tile" data-stock-category="pants" style="display:none;" id="catTilePants" href="/collection/pants" data-cat="pants" onclick="navigateTo('collection', 'pants'); return false;">
-              <span class="cat-thumb"><img src="/images/pants.jpg" alt="Pants" loading="lazy" /></span>
+              <span class="cat-thumb"><picture><source type="image/webp" srcset="/images/pants-200.webp 200w, /images/pants-500.webp 500w" sizes="116px" /><img src="/images/pants.jpg" alt="Pants" width="600" height="600" sizes="116px" loading="lazy" decoding="async" /></picture></span>
               <span class="cat-info">
                 <span class="cat-name">Pants</span>
                 <span class="cat-desc">Relaxed fits for every drop.</span>
@@ -3860,7 +3892,7 @@
               </span>
             </a>
             <a class="cat-tile" href="/custom-stickers" data-cat="custom-stickers" onclick="navigateTo('custom-stickers'); return false;">
-              <span class="cat-thumb"><img src="/images/custom-stickers.jpg" alt="Custom Stickers" loading="lazy" /></span>
+              <span class="cat-thumb"><picture><source type="image/webp" srcset="/images/custom-stickers-200.webp 200w, /images/custom-stickers-500.webp 500w" sizes="116px" /><img src="/images/custom-stickers.jpg" alt="Custom Stickers" width="600" height="600" sizes="116px" loading="lazy" decoding="async" /></picture></span>
               <span class="cat-info">
                 <span class="cat-name">Custom Stickers</span>
                 <span class="cat-desc">Your design, our print.</span>
@@ -4159,6 +4191,12 @@
             <div class="co-grand"><span>Total before delivery</span><span id="coTotal">Rs. 0</span></div>
           </div>
           <button class="btn btn-primary co-place" id="coPlaceBtn" onclick="placeOrder()">Place Order</button>
+          <ul class="co-trust-strip" aria-label="Checkout reassurance">
+            <li>Cash on Delivery</li>
+            <li>Secure checkout</li>
+            <li><a href="/returns" onclick="navigateTo('returns'); return false;">Easy returns · 7-day window · eligible items</a></li>
+            <li><a href="https://wa.me/923228042633?text=Hi%20Kage%20Culture%2C%20I%20need%20help" target="_blank" rel="noopener noreferrer">WhatsApp support · +92 322 804 2633</a></li>
+          </ul>
           <p class="co-safe">Cash on Delivery accepted. We will contact you about the delivery charges.</p>
         </aside>
       </div>
@@ -5107,7 +5145,7 @@
         const unavailable = cartItemUnavailable(item);
         const t = item.price * item.qty; sub += t;
         return `<div class="co-item">
-          <div class="co-item-img"><img src="${esc(item.images && item.images[0] ? item.images[0] : '')}" alt="${esc(item.name)}" /></div>
+          <div class="co-item-img"><img src="${esc(item.images && item.images[0] ? item.images[0] : '')}" alt="${esc(item.name)}" width="52" height="60" sizes="52px" loading="lazy" decoding="async" /></div>
           <div class="co-item-info"><div class="co-item-name">${esc(item.name)}</div><div class="co-item-meta">Size ${esc(item.size)} · Qty ${item.qty}${unavailable ? ' · Unavailable' : ''}</div></div>
           <div class="co-item-price">Rs. ${t}</div>
         </div>`;
@@ -5292,6 +5330,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
 
       // Same cards as the home Best Sellers: one shared renderer (renderProductCard).
       grid.innerHTML = pageItems.map(renderProductCard).join('');
+      prioritizeFirstVisibleProductImage(grid);
     }
 
     function nextPage() {
@@ -5530,7 +5569,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       return `
         <div class="product-card" data-pid="${p.id}" role="link" tabindex="0" aria-label="View ${esc(p.name)}" onclick="openProductDetail(${p.id})" onkeydown="if(event.key==='Enter'&&event.target===this){event.preventDefault();openProductDetail(${p.id});}">
           <div class="product-card-image${anySizeAvailable(p) ? '' : ' sold-out'}">
-            ${img ? `<img src="${esc(img)}" alt="${esc(p.name)}" loading="lazy" />` : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:var(--text-dim);font-size:0.8rem;">No Image</div>`}
+            ${img ? `<img src="${esc(img)}" alt="${esc(p.name)}" width="600" height="800" sizes="(max-width: 768px) calc((100vw - 40px) / 2), (max-width: 1024px) calc((100vw - 80px) / 3), (max-width: 1279px) calc((100vw - 112px) / 4), 296px" loading="lazy" decoding="async" />` : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:var(--text-dim);font-size:0.8rem;">No Image</div>`}
             <button class="product-wishlist ${isWishlisted ? 'active' : ''}" onclick="event.stopPropagation();toggleWishlist(${p.id}, this)" aria-label="Wishlist">
               ${HEART_SVG}
             </button>
@@ -5548,6 +5587,17 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
           </div>
         </div>`;
     }
+    function prioritizeFirstVisibleProductImage(grid) {
+      if (!grid || !grid.getClientRects().length) return;
+      if (/^\/product\//.test(location.pathname) && grid.closest('#page-home')) return;
+      const image = [...grid.querySelectorAll('.product-card-image img')].find(candidate => {
+        const rect = candidate.getBoundingClientRect();
+        return rect.bottom > 0 && rect.top < window.innerHeight;
+      });
+      if (!image) return;
+      image.setAttribute('fetchpriority', 'high');
+    }
+
     // The renderer used to be home-only; the old name still points at it.
     window.renderHomeProductCard = renderProductCard;
 
@@ -5564,6 +5614,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
         return db - da;
       }).slice(0, 8);
       grid.innerHTML = sorted.map(renderProductCard).join('');
+      prioritizeFirstVisibleProductImage(grid);
     }
 
     // Initialize all homepage sections after products load
@@ -5751,7 +5802,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       loadReviews(p.id);
       document.getElementById('detailQty').textContent = '1';
       const track = document.getElementById('galleryTrack');
-      track.innerHTML = p.images.map((img,i) => `<img src="${esc(img)}" alt="${esc(p.name)} view ${i+1}" loading="${i>0?'lazy':'eager'}" />`).join('');
+      track.innerHTML = p.images.map((img,i) => `<img src="${esc(img)}" alt="${esc(p.name)} view ${i+1}" width="900" height="1200" sizes="(max-width: 768px) 92vw, (max-width: 1279px) 45vw, 600px" loading="${i>0?'lazy':'eager'}" decoding="async"${i===0?' fetchpriority="high"':''} />`).join('');
       track.style.transform = 'translateX(0)';
       const dc = document.getElementById('detailDots');
       if (p.images.length > 1) {
@@ -5759,7 +5810,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
         dc.style.display = 'flex';
       } else dc.style.display = 'none';
       const th = document.getElementById('detailThumbnails');
-      th.innerHTML = p.images.map((img,i) => `<div class="detail-thumb ${i===0?'active':''}" role="button" tabindex="0" aria-label="View image ${i+1}" onclick="switchDetailAngle(${i})" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();switchDetailAngle(${i});}"><img src="${esc(img)}" alt="View ${i+1}" /></div>`).join('');
+      th.innerHTML = p.images.map((img,i) => `<div class="detail-thumb ${i===0?'active':''}" role="button" tabindex="0" aria-label="View image ${i+1}" onclick="switchDetailAngle(${i})" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();switchDetailAngle(${i});}"><img src="${esc(img)}" alt="View ${i+1}" width="56" height="56" sizes="56px" loading="lazy" decoding="async" /></div>`).join('');
       renderSizePicker(p);
       setupGallerySwipe();
       renderDetailAvailability(p);
@@ -6343,7 +6394,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       items.innerHTML = cart.map((item,i) => {
         const unavailable = cartItemUnavailable(item);
         const t = item.price * item.qty; sub += t;
-        return `<div class="cart-item"><div class="cart-item-image"><img src="${esc(item.images[0])}" alt="${esc(item.name)}" /></div><div class="cart-item-info"><h4>${esc(item.name)}</h4><div class="cart-item-meta">Size: ${esc(item.size)} · ${esc(item.fit)}${unavailable ? ' · Sold Out — unavailable' : ''}</div><div class="cart-item-price">Rs. ${t}</div></div><div style="display:flex;flex-direction:column;align-items:flex-end;gap:0.3rem;"><div class="cart-item-qty"><button onclick="changeCartQty(${i},-1)"${unavailable ? ' disabled' : ''}>−</button><span>${item.qty}</span><button onclick="changeCartQty(${i},1)"${unavailable ? ' disabled' : ''}>+</button></div><button class="cart-item-remove" onclick="removeFromCart(${i})">Remove</button></div></div>`;
+        return `<div class="cart-item"><div class="cart-item-image"><img src="${esc(item.images[0])}" alt="${esc(item.name)}" width="55" height="55" sizes="55px" loading="lazy" decoding="async" /></div><div class="cart-item-info"><h4>${esc(item.name)}</h4><div class="cart-item-meta">Size: ${esc(item.size)} · ${esc(item.fit)}${unavailable ? ' · Sold Out — unavailable' : ''}</div><div class="cart-item-price">Rs. ${t}</div></div><div style="display:flex;flex-direction:column;align-items:flex-end;gap:0.3rem;"><div class="cart-item-qty"><button onclick="changeCartQty(${i},-1)"${unavailable ? ' disabled' : ''}>−</button><span>${item.qty}</span><button onclick="changeCartQty(${i},1)"${unavailable ? ' disabled' : ''}>+</button></div><button class="cart-item-remove" onclick="removeFromCart(${i})">Remove</button></div></div>`;
       }).join('');
       document.getElementById('cartSubtotal').textContent = 'Rs. ' + fmt(sub);
     }

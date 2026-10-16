@@ -140,3 +140,27 @@
   metadata. Details in `AUDIT.md`.
 - ⬜ Remaining: FE-H2 CSP migration (do not drop unsafe-inline without replacing
   handlers), browser/device visual QA, dynamic-control a11y, FE-M6 typography, L2 media.
+
+### 2026-10-16 — CONV-2 / UX-1 / PERF-3
+- ✅ Checkout now presents a compact, labelled COD / secure-checkout / eligible
+  7-day returns / WhatsApp support strip beneath Place Order. Keep the return
+  phrase qualified: sale/custom items have exclusions and return shipping is
+  customer-paid except for defective items; delivery fees are confirmed after
+  the order rather than promised as a flat amount.
+- ✅ The WhatsApp float is suppressed on product, checkout, cart and wishlist
+  drawer surfaces. Real Chromium regression checks cover the actual product,
+  cart and checkout actions at 320, 360, 390, 540, 768, 1024 and 1440px.
+- ✅ Responsive image fallbacks keep their original paths. The four static
+  category photos have 200w/500w WebP candidates plus JPEG `<img>` fallbacks;
+  existing hero-700 and about-hero-500 candidates remain. Dynamic images carry
+  display dimensions, `sizes` and async decoding; product-card, related/recent
+  and cart images retain lazy loading, while the first detail-gallery image is
+  eager. Only the first visible grid image and first detail image get high fetch
+  priority.
+- Product image uploads are intentionally stored unchanged: `routes/products.js`
+  uses 8MB in-memory raster uploads and `persistImage()` writes the original
+  buffer to local `/uploads` or Vercel Blob. No image resizer is installed;
+  avoid adding a heavy native dependency or rewriting image URLs without an
+  explicit storage/migration plan. See `AUDIT.md` for measured byte savings.
+- Verification: `PORT=3999 npm test` passes all six scripts, including the
+  new 31/31 frontend + Chromium scenario set.

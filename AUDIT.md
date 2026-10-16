@@ -1425,3 +1425,47 @@ Unchanged non-token text on solid surfaces was also checked:
 11. FE-H2 CSP migration, remaining a11y/visual checks, then L2 (deployment decision)
 12. ~~SEO-2 — dynamic product/category sitemap with caching and crawler fallbacks~~ ✅ 2026-10-14
 13. ~~SEO-1 / SEO-4 — server-rendered product/collection metadata; SEO-3 — structured data~~ ✅ 2026-10-15
+
+## 2026-10-16 follow-up — CONV-2 / UX-1 / PERF-3
+
+- **CONV-2:** Added an accessible text trust list directly after Place Order: Cash
+  on Delivery, Secure checkout, a `/returns` link labelled “Easy returns ·
+  7-day window · eligible items,” and WhatsApp support at +92 322 804 2633. It keeps the store's
+  actual qualifications: COD only; delivery charge confirmed by location; sale
+  items are final sale except if defective; custom designs/stickers are
+  non-returnable unless defective or wrong; return shipping is customer-paid
+  unless defective. The checkout does not imply free returns or a fixed shipping
+  charge. The strip stacks below 381px and remains two columns above that.
+- **UX-1:** The floating WhatsApp action hides whenever product, checkout, cart,
+  or wishlist-drawer controls are present, at every viewport width. Headless
+  Chromium verifies the product Add to Cart/sticky CTA, cart checkout button and
+  Place Order remain unobscured at 320, 360, 390, 540, 768, 1024 and 1440px; the
+  shortcut remains available on the home page.
+- **PERF-3:** Product upload paths were inspected before changing images:
+  `routes/products.js` accepts raster uploads up to 8MB in memory and
+  `persistImage()` stores the original buffer at local `/uploads` or in Vercel
+  Blob. No resizer is installed; `sharp` is absent and would add a heavy native
+  dependency, so uploads remain untouched and their URLs/cart behavior are
+  preserved. Product cards, gallery, related/recent cards and cart thumbnails
+  now include display dimensions, responsive `sizes`, lazy loading and async
+  decoding; the first detail-gallery image is eager/high priority, while the
+  first visible grid image gets high priority without overriding its existing
+  lazy loading. Gallery swipe/auto-scroll is unchanged. Category photos use new
+  200w/500w WebP candidates in `<picture>` while retaining each JPEG fallback;
+  existing hero-700 and about-hero-500 `srcset` variants are preserved.
+- **390×844, DPR 1 image response-body bytes:** fresh headless Chromium pages,
+  cache disabled, the same in-memory seeded catalog/API, and identical harness
+  for `HEAD:public/index.html` (before) and the working tree (after). Totals sum
+  decoded bodies from completed HTTP `Image` responses after catalog load/network
+  idle; these are body sizes, not compressed wire-transfer sizes. Inline data
+  URIs are excluded (the seeded demo products use inline SVG placeholders). Home
+  loaded 7 HTTP images and `/product/1` loaded 6 in both runs. Home:
+  **311,808 → 113,325 bytes** (−198,483; **63.7%**). `/product/1`:
+  **243,572 → 106,197 bytes** (−137,375; **56.4%**). The savings are from
+  responsive WebP category candidates; uploaded product images are not resized
+  at upload time.
+- Regression coverage: checkout policy/link and image-attribute DOM checks,
+  real-Chromium responsive `currentSrc`/priority and overlap checks. Targeted
+  `PORT=3999 node tests/frontend.test.js` passes **31/31** scenarios; final
+  `PORT=3999 npm test` passes all six scripts (E2E, rate-limit, storefront,
+  migration, frontend/Chromium, and accessibility).
