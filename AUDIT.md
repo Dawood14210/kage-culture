@@ -1576,3 +1576,25 @@ Unchanged non-token text on solid surfaces was also checked:
   scenario 37 proving delegated nav/card clicks work in real Chromium
   under the locked policy. `npm test` passes all six suites (139/139 API,
   37/37 frontend).
+- **PERF-1 shell split (done; completes the FE-H2/SEC-1 end goal):**
+  `index.html` 346KB → 71KB and `admin.html` 181KB → 30KB — CSS/JS now
+  live in `storefront.css/js` and `admin.css/js`, extracted byte-exact
+  (the mid-page marquee block merged at bundle head; its seamless-loop
+  guarantee only measures the topbar above it, so end-of-body timing is
+  equivalent). Only `application/ld+json` data blocks stay inline
+  (CSP-exempt). The server hashes all four bundles at boot, substitutes
+  `?v=` tokens into both pages (`/admin` now renders from a template
+  with the same no-store headers), and serves hashed URLs immutable for
+  a year (unhashed fall through to the daily static handler). Tests: a
+  shared `stitch` fixture reassembles both pages byte-identically for
+  jsdom (used by the frontend, storefront-regression and a11y suites);
+  e2e JS/CSS assertions fetch the bundles; new checks pin the hashed
+  references, immutability semantics, and a 120KB shell cap. With every
+  executable script same-origin, `script-src` dropped `'unsafe-inline'`
+  (and the dead `fonts.googleapis` entry) to plain `'self'` —
+  `script-src-attr` stays `'none'`, and the e2e CSP check pins both on
+  `/` and `/admin`. All real-Chromium scenarios pass under the strict
+  policy. `style-src 'unsafe-inline'` remains (inline `style=`
+  attributes throughout the markup — a separate, much larger
+  migration). `npm test` passes all six suites (141/141 API, 37/37
+  frontend).
