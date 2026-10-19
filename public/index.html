@@ -3790,7 +3790,7 @@
     </script>
 
     <div class="container nav-inner">
-      <div class="kage-logo" data-route="home" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();navigateTo('home');}">
+      <div class="kage-logo" data-route="home" role="button" tabindex="0" data-key>
         <img src="/images/logo/kage-horizontal-light.svg" alt="Kage Culture" width="1030" height="352" fetchpriority="high" decoding="async">
       </div>
 
@@ -4165,7 +4165,7 @@
       <div class="checkout-head">
         <p class="section-label">Secure Checkout</p>
         <h2 class="section-title">COMPLETE YOUR ORDER</h2>
-        <span class="checkout-back" data-route="home" data-init-shop="all" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();navigateTo('home');initShop('all');}">← Back to shop</span>
+        <span class="checkout-back" data-route="home" data-init-shop="all" role="button" tabindex="0" data-key>← Back to shop</span>
       </div>
       <div class="checkout-error" id="checkoutError" style="display:none;" role="alert"></div>
       <div class="checkout-layout">
@@ -4247,7 +4247,7 @@
         </div>
 
         <div class="detail-info">
-          <span class="back-link" data-route="collection" data-filter="@current" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();navigateTo('collection', currentCollectionFilter);}">← Back to collection</span>
+          <span class="back-link" data-route="collection" data-filter="@current" role="button" tabindex="0" data-key>← Back to collection</span>
           <h1 id="detailName"></h1>
           <span class="detail-price" id="detailPrice"></span>
           <div class="detail-rating" id="detailRating"></div>
@@ -4614,7 +4614,7 @@
               <button class="btn btn-primary" type="submit">Notify Me</button>
             </form>
             <p class="coming-soon-msg" id="comingSoonMsg"></p>
-            <span class="coming-soon-back" data-route="home" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();navigateTo('home');}">← Back to Home</span>
+            <span class="coming-soon-back" data-route="home" role="button" tabindex="0" data-key>← Back to Home</span>
           </div>
         </div>
       </section>
