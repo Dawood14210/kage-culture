@@ -8,7 +8,8 @@ const { readFileSync } = require('node:fs');
 const { JSDOM, VirtualConsole } = require('jsdom');
 const { app, ensureReady } = require('../server');
 
-const html = readFileSync(require.resolve('../public/index.html'), 'utf8');
+const { stitched } = require('./fixtures/stitch');
+const html = stitched('storefront');
 const serverSource = readFileSync(require.resolve('../server.js'), 'utf8');
 const failures = [];
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -75,7 +76,9 @@ async function waitForCatalog(window) {
 
     await check('both pages keep swap/preconnect font hints and never request unused Zen Brush', () => {
       for (const source of [html, readFileSync(require.resolve('../public/admin.html'), 'utf8')]) {
-        const dom = new JSDOM(source);
+        // Base URL so the relative PERF-1 bundle links resolve (only the
+        // absolute font/preconnect hints are asserted below).
+        const dom = new JSDOM(source, { url: 'http://localhost/' });
         try {
           const links = [...dom.window.document.querySelectorAll('link')];
           const fonts = links.filter(link => link.rel === 'stylesheet' && new URL(link.href).hostname === 'fonts.googleapis.com');

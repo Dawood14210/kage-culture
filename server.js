@@ -39,6 +39,27 @@ const PORT = process.env.PORT || 3000;
 app.set('trust proxy', 1);
 
 const STOREFRONT_HTML_TEMPLATE = fs.readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf8');
+const ADMIN_HTML_TEMPLATE = fs.readFileSync(path.join(__dirname, 'public', 'admin.html'), 'utf8');
+// PERF-1: the split CSS/JS bundles are cache-busted by content hash. Hashes
+// are computed once at boot; every deploy produces new URLs, so the hashed
+// copies can be served immutable for a year (see the routes below).
+const ASSET_HASH = {};
+for (const [token, file] of Object.entries({
+  STORE_CSS: 'storefront.css',
+  STORE_JS: 'storefront.js',
+  ADMIN_CSS: 'admin.css',
+  ADMIN_JS: 'admin.js'
+})) {
+  const bytes = fs.readFileSync(path.join(__dirname, 'public', file));
+  ASSET_HASH[token] = crypto.createHash('sha256').update(bytes).digest('hex').slice(0, 10);
+}
+function substituteAssetHashes(html) {
+  return html
+    .replaceAll('__STORE_CSS_HASH__', ASSET_HASH.STORE_CSS)
+    .replaceAll('__STORE_JS_HASH__', ASSET_HASH.STORE_JS)
+    .replaceAll('__ADMIN_CSS_HASH__', ASSET_HASH.ADMIN_CSS)
+    .replaceAll('__ADMIN_JS_HASH__', ASSET_HASH.ADMIN_JS);
+}
 function setHtmlNoStore(res) {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.setHeader('Pragma', 'no-cache');
@@ -541,7 +562,7 @@ async function renderStorefrontHtml(req) {
   const siteUrl = getSiteUrlForRequest(req);
   const pagePath = req.path === '/index.html' ? '/' : req.path;
   const pageUrl = new URL(pagePath || '/', `${siteUrl}/`).href;
-  let html = STOREFRONT_HTML_TEMPLATE
+  let html = substituteAssetHashes(STOREFRONT_HTML_TEMPLATE)
     .replaceAll('__SITE_URL__', siteUrl)
     .replaceAll('__PAGE_URL__', pageUrl);
   const resolved = await resolveSeoPage(req, siteUrl);
@@ -673,6 +694,16 @@ app.get('/robots.txt', (req, res) => {
 });
 app.get(['/', '/index.html'], (req, res, next) => {
   sendStorefrontHtml(req, res).catch(next);
+});
+
+// Hashed bundle URLs (?v=<content hash>) are immutable for a year: the hash
+// changes on every deploy, so a cached copy can never go stale. Unhashed
+// requests fall through to the one-day static handler below.
+const HASHED_ASSETS = new Set(['/storefront.css', '/storefront.js', '/admin.css', '/admin.js']);
+app.get([...HASHED_ASSETS], (req, res, next) => {
+  if (!req.query.v) return next();
+  res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+  res.sendFile(path.join(__dirname, 'public', req.path.slice(1)));
 });
 
 app.use(express.static(path.join(__dirname, 'public'), {
@@ -932,7 +963,7 @@ async function ensureReady() {
     // redirects to /admin above (before static), giving one canonical entry.
     app.get('/admin', (req, res) => {
       setHtmlNoStore(res);
-      res.sendFile(path.join(__dirname, 'public', 'admin.html'));
+      res.type('html').send(substituteAssetHashes(ADMIN_HTML_TEMPLATE));
     });
     const spaPages = new Set(['/', '/about', '/contact', '/tracking', '/shipping', '/returns', '/privacy', '/terms', '/account', '/checkout', '/confirmation', '/reset-password', '/verify-email', '/custom-stickers', '/coming-soon']);
     app.get('*', (req, res, next) => {

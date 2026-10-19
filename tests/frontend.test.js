@@ -17,8 +17,9 @@ const { readFileSync, existsSync } = require('node:fs');
 const { JSDOM, VirtualConsole } = require('jsdom');
 const { app, ensureReady } = require('../server');
 
-const storeHtml = readFileSync(require.resolve('../public/index.html'), 'utf8');
-const adminHtml = readFileSync(require.resolve('../public/admin.html'), 'utf8');
+const { stitched } = require('./fixtures/stitch');
+const storeHtml = stitched('storefront');
+const adminHtml = stitched('admin');
 const errors = [];
 const virtualConsole = new VirtualConsole();
 virtualConsole.on('jsdomError', e => {

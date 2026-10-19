@@ -4,7 +4,9 @@ const path = require('node:path');
 const { parse } = require('rrweb-cssom');
 
 function readPage(name) {
-  return readFileSync(path.join(__dirname, '../../public', `${name}.html`), 'utf8');
+  // PERF-1 split the CSS out; stitch it back so the <style> parse below and
+  // the token scans keep seeing the full page.
+  return require('./stitch').stitched(name === 'admin' ? 'admin' : 'storefront');
 }
 function cssFrom(html) {
   return [...html.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g)].map(m => m[1]).join('\n');

@@ -61,6 +61,14 @@ function request(port, method, path, { body, headers } = {}) {
   });
 }
 
+// Fetch a PERF-1 bundle body (the split CSS/JS live outside the shell now,
+// so content assertions against them fetch the asset instead of the page).
+async function asset(port, path) {
+  const r = await request(port, 'GET', path);
+  assert.strictEqual(r.status, 200, `${path} must be served`);
+  return r.text;
+}
+
 // Pull the Set-Cookie pairs out of a login response
 function cookieHeader(res) {
   const sc = res.headers['set-cookie'] || [];
@@ -936,7 +944,7 @@ async function main() {
     const r = await request(PORT, 'GET', '/reset-password?token=abc&type=customer');
     assert.strictEqual(r.status, 200);
     assert.ok(r.text.includes('page-reset'), 'shell must contain the reset view');
-    assert.ok(r.text.includes('initPasswordReset'), 'shell must contain the reset JS');
+    assert.ok((await asset(PORT, '/storefront.js')).includes('initPasswordReset'), 'the JS bundle must contain the reset code');
   });
 
   // ---------------------------------------------------------------
@@ -964,8 +972,9 @@ async function main() {
     const r = await request(PORT, 'GET', '/');
     assert.strictEqual(r.status, 200);
     assert.ok(!r.text.includes("onclick=\"navigateTo('product', "), 'stale navigateTo(product) wiring must be gone');
-    assert.ok(r.text.includes('data-action="open-product" data-pid="${p.id}"'), 'cards carry the delegated open-product action');
-    assert.ok(r.text.includes("'open-product': (el) => openProductDetail(Number(el.dataset.pid))"), 'the action table routes to openProductDetail');
+    const storeJs = await asset(PORT, '/storefront.js');
+    assert.ok(storeJs.includes('data-action="open-product" data-pid="${p.id}"'), 'cards carry the delegated open-product action');
+    assert.ok(storeJs.includes("'open-product': (el) => openProductDetail(Number(el.dataset.pid))"), 'the action table routes to openProductDetail');
   });
 
   // ---------------------------------------------------------------
@@ -990,16 +999,47 @@ async function main() {
     assert.match(csp, /script-src[^;]*'unsafe-inline'/, 'inline <script> blocks stay allowed until PERF-1 externalises them');
   });
 
+  // ---------------------------------------------------------------
+  // PERF-1 — split bundles: hashed, immutable, shell stays small
+  // ---------------------------------------------------------------
+  console.log('\nSplit bundles (PERF-1):');
+  await check('pages reference hashed CSS/JS bundles and stay small', async () => {
+    const pages = { '/': ['storefront.css', 'storefront.js'], '/admin': ['admin.css', 'admin.js'] };
+    for (const [path, bundles] of Object.entries(pages)) {
+      const r = await request(PORT, 'GET', path);
+      assert.strictEqual(r.status, 200, path);
+      assert.ok(Buffer.byteLength(r.text, 'utf8') < 120000, `${path} shell must stay under 120KB, got ${Buffer.byteLength(r.text, 'utf8')}`);
+      assert.ok(!r.text.includes('__STORE_') && !r.text.includes('__ADMIN_'), `${path} must substitute every asset hash token`);
+      for (const bundle of bundles) {
+        const m = new RegExp(`/${bundle}\\?v=([0-9a-f]{10})`).exec(r.text);
+        assert.ok(m, `${path} must reference /${bundle} with a 10-hex content hash`);
+      }
+    }
+  });
+
+  await check('hashed bundles are immutable for a year, unhashed revalidate daily', async () => {
+    for (const bundle of ['/storefront.css', '/storefront.js', '/admin.css', '/admin.js']) {
+      const bare = await request(PORT, 'GET', bundle);
+      assert.strictEqual(bare.status, 200, bundle);
+      assert.strictEqual(bare.headers['cache-control'], 'public, max-age=86400, must-revalidate', `${bundle} without a hash revalidates daily`);
+      const hashed = await request(PORT, 'GET', `${bundle}?v=0123456789`);
+      assert.strictEqual(hashed.status, 200, bundle);
+      assert.strictEqual(hashed.headers['cache-control'], 'public, max-age=31536000, immutable', `${bundle}?v= is immutable`);
+      assert.strictEqual(hashed.text, bare.text, 'the hash only affects caching, never the bytes');
+    }
+  });
+
   await check('collection grid and Best Sellers share ONE card template (no second renderer, no Add to Cart card)', async () => {
     const r = await request(PORT, 'GET', '/');
     assert.strictEqual(r.status, 200);
     assert.ok(/<div class="product-grid collection-grid" id="collectionGrid"><\/div>/.test(r.text),
       '#collectionGrid is a .product-grid, so it picks up the Best Sellers card CSS');
-    assert.strictEqual((r.text.match(/<div class="product-card"/g) || []).length, 1, 'exactly one product-card template may exist');
-    assert.strictEqual((r.text.match(/function renderProductCard\(/g) || []).length, 1, 'exactly one card renderer may exist');
-    assert.ok(/pageItems\.map\(renderProductCard\)/.test(r.text), 'renderCollectionGrid renders through renderProductCard');
-    assert.ok(/sorted\.map\(renderProductCard\)/.test(r.text), 'Best Sellers renders through renderProductCard');
-    assert.ok(!r.text.includes('class="quick-add"') && !r.text.includes('class="wishlist-icon ${'),
+    const storeJs = await asset(PORT, '/storefront.js');
+    assert.strictEqual((storeJs.match(/<div class="product-card"/g) || []).length, 1, 'exactly one product-card template may exist');
+    assert.strictEqual((storeJs.match(/function renderProductCard\(/g) || []).length, 1, 'exactly one card renderer may exist');
+    assert.ok(/pageItems\.map\(renderProductCard\)/.test(storeJs), 'renderCollectionGrid renders through renderProductCard');
+    assert.ok(/sorted\.map\(renderProductCard\)/.test(storeJs), 'Best Sellers renders through renderProductCard');
+    assert.ok(!storeJs.includes('class="quick-add"') && !storeJs.includes('class="wishlist-icon ${'),
       'the old collection-only card markup (Add to Cart / wishlist-icon) is gone');
   });
 
@@ -1012,9 +1052,8 @@ async function main() {
   // ---------------------------------------------------------------
   console.log('\nNav search layout:');
   await check('single .nav-search positioning rule, centred + width-guarded', async () => {
-    const r = await request(PORT, 'GET', '/');
-    assert.strictEqual(r.status, 200);
-    const positional = (r.text.match(/\.nav-search\s*\{[^}]*\}/g) || [])
+    const storeCss = await asset(PORT, '/storefront.css');
+    const positional = (storeCss.match(/\.nav-search\s*\{[^}]*\}/g) || [])
       .filter((rule) => /position\s*:/.test(rule));
     assert.strictEqual(positional.length, 1, `expected one .nav-search positioning rule, found ${positional.length}`);
     const rule = positional[0];
@@ -1040,13 +1079,15 @@ async function main() {
       const start = r.text.indexOf('<svg', r.text.indexOf(marker));
       return norm(r.text.slice(start, r.text.indexOf('</svg>', start) + 6));
     };
-    const constant = r.text.match(/const HEART_SVG = .(<svg[\s\S]*?<\/svg>).;/);
+    const storeJs = await asset(PORT, '/storefront.js');
+    const storeCss = await asset(PORT, '/storefront.css');
+    const constant = storeJs.match(/const HEART_SVG = .(<svg[\s\S]*?<\/svg>).;/);
     assert.ok(constant, 'HEART_SVG constant must be defined');
     assert.strictEqual(norm(constant[1]), svgAfter('id="wishlistNav"'), 'card heart must match the navbar icon exactly');
-    assert.ok((r.text.match(/\$\{HEART_SVG\}/g) || []).length >= 1, 'the shared card renderer must use HEART_SVG');
-    assert.ok(!r.text.includes('&#9825;') && !r.text.includes('&#9829;'), 'text-glyph hearts must be gone');
-    assert.ok(!/toggleWishlist\(\$\{p\.id\}\)"/.test(r.text), 'card buttons must pass their element so the heart updates on click');
-    assert.ok(/\.wishlist-icon\.active svg,/.test(r.text) && /\.product-wishlist\.active svg \{ fill: currentColor/.test(r.text), 'saved items must fill the heart');
+    assert.ok((storeJs.match(/\$\{HEART_SVG\}/g) || []).length >= 1, 'the shared card renderer must use HEART_SVG');
+    assert.ok(!storeJs.includes('&#9825;') && !storeJs.includes('&#9829;'), 'text-glyph hearts must be gone');
+    assert.ok(!/toggleWishlist\(\$\{p\.id\}\)"/.test(storeJs), 'card buttons must pass their element so the heart updates on click');
+    assert.ok(/\.wishlist-icon\.active svg,/.test(storeCss) && /\.product-wishlist\.active svg \{ fill: currentColor/.test(storeCss), 'saved items must fill the heart');
   });
 
   // 12. Heart pop animation — saving a product pops the heart once.
@@ -1055,11 +1096,11 @@ async function main() {
   // ---------------------------------------------------------------
   console.log('\nHeart pop animation:');
   await check('heart-pop keyframe on svg, .pop-gated, added only when saving', async () => {
-    const r = await request(PORT, 'GET', '/');
-    assert.strictEqual(r.status, 200);
-    assert.ok(/@keyframes heart-pop[\s\S]*?\.wishlist-icon\.pop svg,\s*\.product-wishlist\.pop svg\s*\{\s*animation:\s*heart-pop/.test(r.text),
+    const storeJs = await asset(PORT, '/storefront.js');
+    const storeCss = await asset(PORT, '/storefront.css');
+    assert.ok(/@keyframes heart-pop[\s\S]*?\.wishlist-icon\.pop svg,\s*\.product-wishlist\.pop svg\s*\{\s*animation:\s*heart-pop/.test(storeCss),
       'keyframe must animate the svg via .pop, not the button');
-    const fn = r.text.match(/function toggleWishlist\([\s\S]*?\n    \}/);
+    const fn = storeJs.match(/function toggleWishlist\([\s\S]*?\n    \}/);
     assert.ok(fn, 'toggleWishlist must be defined');
     assert.ok(/classList\.add\('pop'\)/.test(fn[0]) && /classList\.remove\('pop'\)/.test(fn[0]),
       'toggleWishlist must toggle the .pop class');
@@ -1076,19 +1117,18 @@ async function main() {
   // ---------------------------------------------------------------
   console.log('\nTrack order page:');
   await check('trackOrder re-enables button + cancelled/awaiting_verification handled', async () => {
-    const r = await request(PORT, 'GET', '/');
-    assert.strictEqual(r.status, 200);
-    const track = r.text.match(/async function trackOrder\([\s\S]*?\n    \}/);
+    const storeJs = await asset(PORT, '/storefront.js');
+    const track = storeJs.match(/async function trackOrder\([\s\S]*?\n    \}/);
     assert.ok(track, 'trackOrder must be defined');
     assert.ok(/finally\s*\{[\s\S]*?btn\.disabled\s*=\s*false/.test(track[0]),
       'submit button must be re-enabled in finally (no dead button after an error)');
-    const render = r.text.match(/function renderTracking\([\s\S]*?\n    \}/);
+    const render = storeJs.match(/function renderTracking\([\s\S]*?\n    \}/);
     assert.ok(render, 'renderTracking must be defined');
-    assert.ok(/status === 'cancelled'/.test(render[0]) && /track-status-cancelled/.test(r.text),
+    assert.ok(/status === 'cancelled'/.test(render[0]) && /track-status-cancelled/.test(storeJs),
       'cancelled orders must render the terminal state, not a live timeline');
     assert.ok(/awaiting_verification.*\? 1 :/.test(render[0]),
       'awaiting_verification must map to the confirmed step, not clamp to pending');
-    assert.ok(/TRACK_STATUS_LABELS/.test(r.text) && /formatTrackDate/.test(r.text),
+    assert.ok(/TRACK_STATUS_LABELS/.test(storeJs) && /formatTrackDate/.test(storeJs),
       'statuses must be humanized and the placed date formatted');
   });
 
@@ -1100,27 +1140,27 @@ async function main() {
   // ---------------------------------------------------------------
   console.log('\nResponsive layout guards:');
   await check('storefront ≤540px + ≤360px blocks present, checkout stacks', async () => {
-    const r = await request(PORT, 'GET', '/');
-    assert.strictEqual(r.status, 200);
-    assert.ok(/@media \(max-width: 540px\)[\s\S]*?\.track-timeline \{\s*flex-direction: column/.test(r.text),
+    const storeCss = await asset(PORT, '/storefront.css');
+    assert.ok(/@media \(max-width: 540px\)[\s\S]*?\.track-timeline \{\s*flex-direction: column/.test(storeCss),
       'track timeline must stack vertically on phones (4 labels across overflow)');
-    assert.ok(/\.nav-links li \{\s*min-height: 0;/.test(r.text) && /\.nav-links li:has\(\.nav-icon\) \{\s*min-height: 44px;/.test(r.text),
+    assert.ok(/\.nav-links li \{\s*min-height: 0;/.test(storeCss) && /\.nav-links li:has\(\.nav-icon\) \{\s*min-height: 44px;/.test(storeCss),
       'nav dropdown rows must not inherit the 44px min-height as full-width rows');
-    assert.ok(/@media \(max-width: 360px\)[\s\S]*?\.nav-inner \{\s*flex-wrap: wrap/.test(r.text),
+    assert.ok(/@media \(max-width: 360px\)[\s\S]*?\.nav-inner \{\s*flex-wrap: wrap/.test(storeCss),
       'header must wrap instead of overflowing on ultra-narrow phones');
-    assert.ok(/\.co-row \{\s*grid-template-columns: 1fr;\s*\}/.test(r.text),
+    assert.ok(/\.co-row \{\s*grid-template-columns: 1fr;\s*\}/.test(storeCss),
       'checkout form rows must collapse to one column on phones');
   });
 
   await check('admin ≤768px wrap-cards, legend hidden, no zoom lock', async () => {
     const r = await request(PORT, 'GET', '/admin');
     assert.strictEqual(r.status, 200);
+    const adminCss = await asset(PORT, '/admin.css');
     // The media block now includes top-bar/main-wrapper fixes BEFORE product-row
-    assert.ok(/@media\(max-width:768px\)[\s\S]*?\.product-row\{display:flex;flex-wrap:wrap/.test(r.text),
+    assert.ok(/@media\(max-width:768px\)[\s\S]*?\.product-row\{display:flex;flex-wrap:wrap/.test(adminCss),
       'admin product/order rows must become wrap cards on phones');
-    assert.ok(/\.product-row\.header-row\{display:none;\}/.test(r.text),
+    assert.ok(/\.product-row\.header-row\{display:none;\}/.test(adminCss),
       'admin column-label legend must hide once rows wrap');
-    assert.ok(/\.pnl-summary\{grid-template-columns:1fr;\}/.test(r.text),
+    assert.ok(/\.pnl-summary\{grid-template-columns:1fr;\}/.test(adminCss),
       'PnL summary must go single-column on phones');
     assert.ok(!r.text.includes('user-scalable=no'),
       'admin must not disable pinch-zoom (accessibility)');
@@ -1132,34 +1172,33 @@ async function main() {
   // the data they name), orders crushed six columns into the products
   // template, and the products table overflowed the page between 901-1024px.
   await check('admin tables keep one column template per table and collapse safely', async () => {
-    const r = await request(PORT, 'GET', '/admin');
-    assert.strictEqual(r.status, 200);
+    const adminCss = await asset(PORT, '/admin.css');
     // Every track must be fixed or minmax-bounded: a trailing `auto` track
     // sized the legend's "Actions" (≈56px) and the row buttons (≈108px)
     // differently, which made the shared 1fr name track differ between them.
-    const products = /#tab-products \.product-row \{ grid-template-columns:[^}]+\}/.exec(r.text);
+    const products = /#tab-products \.product-row \{ grid-template-columns:[^}]+\}/.exec(adminCss);
     assert.ok(products, 'the products table must own its column template');
     assert.match(products[0], / 108px; \}$/,
       'products legend/actions track must be a fixed width, never auto');
     // Orders (six columns) and recent orders (five) must not inherit the
     // seven-column products template.
-    assert.match(r.text, /#tab-orders \.product-row \{ grid-template-columns:minmax\(0, max-content\)/,
+    assert.match(adminCss, /#tab-orders \.product-row \{ grid-template-columns:minmax\(0, max-content\)/,
       'order rows must define their own six-column template');
-    assert.match(r.text, /\.recent-orders \.product-row \{ grid-template-columns:/,
+    assert.match(adminCss, /\.recent-orders \.product-row \{ grid-template-columns:/,
       'dashboard recent-order rows must define their own five-column template');
     // Wrap-card tiers. Orders' status menus are position:absolute, so those
     // rows wrap at 1060px rather than living inside an overflow container.
-    assert.ok(/@media\(max-width:1060px\)[\s\S]*?#tab-orders \.product-row[\s\S]*?display:flex;flex-wrap:wrap/.test(r.text),
+    assert.ok(/@media\(max-width:1060px\)[\s\S]*?#tab-orders \.product-row[\s\S]*?display:flex;flex-wrap:wrap/.test(adminCss),
       'order rows must become wrap cards before their columns collide');
-    assert.ok(/#tab-orders \.product-row\.header-row[\s\S]*?display:none;/.test(r.text),
+    assert.ok(/#tab-orders \.product-row\.header-row[\s\S]*?display:none;/.test(adminCss),
       'the orders legend must hide at the wrap-card breakpoint (id-scoped, so it outranks the flex rule)');
-    assert.ok(/@media\(max-width:900px\)[\s\S]*?\.product-row\{display:flex;flex-wrap:wrap/.test(r.text),
+    assert.ok(/@media\(max-width:900px\)[\s\S]*?\.product-row\{display:flex;flex-wrap:wrap/.test(adminCss),
       'the products table must become wrap cards before its columns collide');
     // Only the products list may scroll sideways — anything inside the orders
     // rows would be clipped by such a container.
-    assert.ok(/#tab-products \.product-list \{ overflow-x:auto; \}/.test(r.text),
+    assert.ok(/#tab-products \.product-list \{ overflow-x:auto; \}/.test(adminCss),
       'the products table gets its own horizontal scroll at tablet widths');
-    assert.ok(!/#tab-orders[^{]*\.product-list[^{]*\{[^}]*overflow-x/.test(r.text),
+    assert.ok(!/#tab-orders[^{]*\.product-list[^{]*\{[^}]*overflow-x/.test(adminCss),
       'the orders list must never become a scroll container');
   });
 
