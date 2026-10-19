@@ -648,13 +648,13 @@ async function ready(win) {
     assert.ok(contactCards.every(card => card.querySelector('.contact-card-icon svg[viewBox="0 0 24 24"] path, .contact-card-icon svg[viewBox="0 0 24 24"] circle, .contact-card-icon svg[viewBox="0 0 24 24"] rect')), 'each card has an inline vector icon');
     assert.ok(contactCards.every(card => card.querySelector('.contact-card-icon').getAttribute('aria-hidden') === 'true'), 'contact icons are decorative to screen readers');
     assert.doesNotMatch(contactCards.map(card => card.innerHTML).join(''), /💬|📦|📸/, 'contact emoji icons are removed');
-    const instagramUrl = 'https://instagram.com/kage__culture';
+    const instagramUrl = 'https://instagram.com/kage_culture';
     const instagramCard = contactCards[2];
     assert.equal(instagramCard.getAttribute('href'), instagramUrl, 'Instagram card links to the footer URL');
-    assert.match(instagramCard.textContent, /@kage__culture/, 'contact handle matches the Instagram URL');
+    assert.match(instagramCard.textContent, /@kage_culture/, 'contact handle matches the Instagram URL');
     assert.equal(d.querySelector('.footer-instagram-handle'), null, 'footer handle text below social icons is removed');
     assert.equal(d.querySelector('.footer-social .social-instagram').getAttribute('href'), instagramUrl);
-    assert.match(storeHtml, /"sameAs":\s*\[\s*"https:\/\/instagram\.com\/kage__culture"/, 'structured data also uses the footer Instagram URL');
+    assert.match(storeHtml, /"sameAs":\s*\[\s*"https:\/\/instagram\.com\/kage_culture"/, 'structured data also uses the footer Instagram URL');
     assert.doesNotMatch(storeHtml, /instagram\.com\/kageculture/, 'the stale unseparated Instagram handle is removed');
     const orderSupport = contactCards[1];
     const trackLink = orderSupport.querySelector('.contact-card-primary');
@@ -664,7 +664,7 @@ async function ready(win) {
     assert.match(orderSupport.querySelector('.contact-card-secondary').textContent, /^or\s/);
     assert.match(orderSupport.querySelector('.contact-card-secondary a').getAttribute('href'), /^https:\/\/wa\.me\//);
     assert.equal(contactCards[3].getAttribute('href'), 'mailto:kageculture01@gmail.com', 'Email card uses the footer address in a mailto link');
-    assert.equal(d.querySelector('.contact-working-hours'), null, 'unconfirmed working hours are omitted rather than published as placeholders');
+    assert.equal(d.querySelector('.contact-working-hours')?.textContent.trim(), 'Working hours: Monday to Saturday, 11am to 8pm (Pakistan time). Sunday closed.', 'confirmed working hours are published on the contact page');
     const publicContactAndShippingCopy = [d.querySelector('#page-contact').textContent, shippingCopy].join('\n');
     assert.doesNotMatch(publicContactAndShippingCopy, /\bTODO\b|\[/, 'customer-visible contact and shipping text has no unresolved placeholders');
     w.navigateTo('contact');

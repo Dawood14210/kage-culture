@@ -3611,6 +3611,7 @@
     .contact-card-secondary { margin-top: var(--spacing-sm) !important; font-size: 0.8rem !important; }
     .contact-card-secondary a { color: var(--accent); font-weight: 600; text-decoration: underline; text-underline-offset: 2px; }
     .contact-card-secondary a:hover { color: var(--text-accent-hover); }
+    .contact-working-hours { text-align: center; color: var(--text-muted); font-size: 0.85rem; margin: var(--spacing-md) 0 0; }
     @media (max-width: 600px) {
       .content-page-contact { grid-template-columns: 1fr; }
     }
