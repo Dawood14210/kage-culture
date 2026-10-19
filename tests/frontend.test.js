@@ -592,6 +592,7 @@ async function ready(win) {
     assert.doesNotMatch(privacyCopy, /kage\.cust/, 'Privacy lists the active session cookie rather than the legacy fallback name');
     assert.match(privacyCopy, /private one-click unsubscribe link/i, 'Privacy describes the self-service unsubscribe control');
     assert.doesNotMatch(privacyCopy, /does not provide a self-service unsubscribe control/i, 'the no-self-service disclaimer is gone');
+    assert.match(privacyCopy, /Umami Cloud.*uses no cookies and collects no personal data/i, 'Privacy discloses the Umami analytics tag (D2)');
     const newsletterRemovalParagraph = [...privacyBody.querySelectorAll('p')].find(paragraph => paragraph.textContent.includes('one-click unsubscribe link'));
     assert.equal(newsletterRemovalParagraph?.querySelector('a')?.getAttribute('href'), 'https://wa.me/923228042633', 'the WhatsApp fallback path is retained for lost links');
     assert.match(privacyCopy, /not legal advice.*reviewed by a qualified legal professional/i);

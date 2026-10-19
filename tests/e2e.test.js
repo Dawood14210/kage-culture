@@ -997,7 +997,7 @@ async function main() {
       assert.strictEqual(r.status, 200, path);
       const csp = r.headers['content-security-policy'] || '';
       const scriptSrc = /script-src[^;]*/.exec(csp)?.[0] || '';
-      assert.equal(scriptSrc, "script-src 'self'", `${path}: scripts load only from same-origin bundles, got: ${scriptSrc}`);
+      assert.equal(scriptSrc, "script-src 'self' https://cloud.umami.is", `${path}: scripts load only from same-origin bundles + Umami, got: ${scriptSrc}`);
       assert.match(csp, /script-src-attr 'none'/, 'injected inline handlers cannot execute');
     }
   });
@@ -1017,6 +1017,30 @@ async function main() {
         const m = new RegExp(`/${bundle}\\?v=([0-9a-f]{10})`).exec(r.text);
         assert.ok(m, `${path} must reference /${bundle} with a 10-hex content hash`);
       }
+    }
+  });
+
+  await check('Umami tag renders only when UMAMI_WEBSITE_ID is set (storefront only)', async () => {
+    const prev = process.env.UMAMI_WEBSITE_ID;
+    try {
+      delete process.env.UMAMI_WEBSITE_ID;
+      const off = await request(PORT, 'GET', '/');
+      assert.ok(!off.text.includes('cloud.umami.is'), 'no tag and no tracking without an id');
+      assert.ok(!off.text.includes('__UMAMI_TAG__'), 'the placeholder never leaks to visitors');
+      process.env.UMAMI_WEBSITE_ID = '12ab34cd-56ef-78ab-90cd-ef1234567890';
+      const on = await request(PORT, 'GET', '/');
+      assert.ok(on.text.includes('<script defer src="https://cloud.umami.is/script.js" data-website-id="12ab34cd-56ef-78ab-90cd-ef1234567890"></script>'),
+        'the tag renders with the configured id');
+      const csp = on.headers['content-security-policy'] || '';
+      assert.match(csp, /connect-src[^;]*https:\/\/cloud\.umami\.is/, 'beacons are allowed to Umami Cloud');
+      process.env.UMAMI_WEBSITE_ID = '"><script>alert(1)</script>';
+      const hostile = await request(PORT, 'GET', '/');
+      assert.ok(!hostile.text.includes('cloud.umami.is/script.js'), 'a hostile id renders no tag');
+      const admin = await request(PORT, 'GET', '/admin');
+      assert.ok(!admin.text.includes('cloud.umami.is'), 'the admin panel carries no analytics');
+    } finally {
+      if (prev === undefined) delete process.env.UMAMI_WEBSITE_ID;
+      else process.env.UMAMI_WEBSITE_ID = prev;
     }
   });
 

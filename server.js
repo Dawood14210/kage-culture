@@ -60,6 +60,16 @@ function substituteAssetHashes(html) {
     .replaceAll('__ADMIN_CSS_HASH__', ASSET_HASH.ADMIN_CSS)
     .replaceAll('__ADMIN_JS_HASH__', ASSET_HASH.ADMIN_JS);
 }
+// D2 (ANALYTICS-1): Umami Cloud tracker tag. The website id comes from the
+// owner's Umami Cloud dashboard after adding the site; when unset (or not a
+// plausible id) no tag is rendered and no tracking happens. Read per request
+// so tests can flip it without rebooting. Storefront only — the admin panel
+// carries no analytics.
+function umamiTag() {
+  const id = String(process.env.UMAMI_WEBSITE_ID || '').trim();
+  if (!/^[0-9a-f-]{8,64}$/i.test(id)) return '';
+  return `<script defer src="https://cloud.umami.is/script.js" data-website-id="${id}"></script>`;
+}
 function setHtmlNoStore(res) {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.setHeader('Pragma', 'no-cache');
@@ -564,7 +574,8 @@ async function renderStorefrontHtml(req) {
   const pageUrl = new URL(pagePath || '/', `${siteUrl}/`).href;
   let html = substituteAssetHashes(STOREFRONT_HTML_TEMPLATE)
     .replaceAll('__SITE_URL__', siteUrl)
-    .replaceAll('__PAGE_URL__', pageUrl);
+    .replaceAll('__PAGE_URL__', pageUrl)
+    .replaceAll('<!--__UMAMI_TAG__-->', umamiTag());
   const resolved = await resolveSeoPage(req, siteUrl);
   if (resolved.seo) {
     html = applySeoMetadata(html, resolved.seo);
@@ -597,10 +608,10 @@ app.use(loadHelmet()({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      // PERF-1 done: all executable scripts are same-origin bundles, so no
-      // inline script — injected or otherwise — can run. (The fonts host that
-      // used to sit here served nothing executable and is gone too.)
-      scriptSrc: ["'self'"],
+      // PERF-1 done: all first-party scripts are same-origin bundles, so no
+      // inline script — injected or otherwise — can run. Umami Cloud (D2) is
+      // the single allowed third-party script for privacy-friendly analytics.
+      scriptSrc: ["'self'", "https://cloud.umami.is"],
       // FE-H2 done: every click/key/submit/change handler is delegated
       // (data-route/data-action + addEventListener), so inline handlers are
       // explicitly forbidden — injected onclick= attributes cannot execute.
@@ -610,7 +621,7 @@ app.use(loadHelmet()({
       styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://cdn.jsdelivr.net"],
       fontSrc: ["'self'", "https://fonts.gstatic.com", "https://cdn.jsdelivr.net"],
       imgSrc: ["'self'", "data:", "https:", "blob:"],
-      connectSrc: ["'self'", "https://*.blob.vercel-storage.com"],
+      connectSrc: ["'self'", "https://*.blob.vercel-storage.com", "https://cloud.umami.is"],
       frameSrc: ["'none'"]
     }
   },
