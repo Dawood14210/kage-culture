@@ -597,9 +597,10 @@ app.use(loadHelmet()({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      // 'unsafe-inline' stays ONLY for the <script> blocks themselves; it goes
-      // away once PERF-1 moves them to external files (see AUDIT.md).
-      scriptSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      // PERF-1 done: all executable scripts are same-origin bundles, so no
+      // inline script — injected or otherwise — can run. (The fonts host that
+      // used to sit here served nothing executable and is gone too.)
+      scriptSrc: ["'self'"],
       // FE-H2 done: every click/key/submit/change handler is delegated
       // (data-route/data-action + addEventListener), so inline handlers are
       // explicitly forbidden — injected onclick= attributes cannot execute.

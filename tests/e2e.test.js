@@ -991,12 +991,15 @@ async function main() {
     }
   });
 
-  await check("CSP sets script-src-attr 'none' while inline scripts still need script-src", async () => {
-    const r = await request(PORT, 'GET', '/');
-    assert.strictEqual(r.status, 200);
-    const csp = r.headers['content-security-policy'] || '';
-    assert.match(csp, /script-src-attr 'none'/, 'injected inline handlers cannot execute');
-    assert.match(csp, /script-src[^;]*'unsafe-inline'/, 'inline <script> blocks stay allowed until PERF-1 externalises them');
+  await check("CSP forbids inline scripts and handlers; only same-origin bundles run", async () => {
+    for (const path of ['/', '/admin']) {
+      const r = await request(PORT, 'GET', path);
+      assert.strictEqual(r.status, 200, path);
+      const csp = r.headers['content-security-policy'] || '';
+      const scriptSrc = /script-src[^;]*/.exec(csp)?.[0] || '';
+      assert.equal(scriptSrc, "script-src 'self'", `${path}: scripts load only from same-origin bundles, got: ${scriptSrc}`);
+      assert.match(csp, /script-src-attr 'none'/, 'injected inline handlers cannot execute');
+    }
   });
 
   // ---------------------------------------------------------------
