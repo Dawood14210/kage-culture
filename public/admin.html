@@ -1153,8 +1153,8 @@
       <input type="email" id="loginEmail" placeholder="admin@kage.com" autocomplete="email" />
       <label for="loginPassword">Password</label>
       <input type="password" id="loginPassword" placeholder="Enter password" autocomplete="current-password" />
-      <button id="loginBtn" onclick="handleLogin()">Sign In</button>
-      <p style="text-align:center;margin-top:0.8rem;font-size:0.78rem;"><a href="#" onclick="requestPasswordReset('admin'); return false;" style="color:var(--text-accent);text-decoration:none;">Forgot password?</a></p>
+      <button id="loginBtn" data-action="login">Sign In</button>
+      <p style="text-align:center;margin-top:0.8rem;font-size:0.78rem;"><a href="#" data-action="request-pw-reset" style="color:var(--text-accent);text-decoration:none;">Forgot password?</a></p>
     </div>
   </div>
 
@@ -1163,18 +1163,18 @@
     <aside class="sidebar">
       <div class="sidebar-logo">KAGE <span>Admin</span></div>
       <nav class="sidebar-nav" id="sidebarNav">
-        <button class="sidebar-item active" data-section="dashboard" onclick="switchSection('dashboard')"><span class="si-icon"><svg class="icon"><use href="#i-grid"/></svg></span><span class="si-label">Dashboard</span></button>
-        <button class="sidebar-item" data-section="products" onclick="switchSection('products')"><span class="si-icon"><svg class="icon"><use href="#i-box"/></svg></span><span class="si-label">Products</span></button>
-        <button class="sidebar-item" data-section="upload" onclick="switchSection('upload')"><span class="si-icon"><svg class="icon"><use href="#i-zap"/></svg></span><span class="si-label">Quick Upload</span></button>
-        <button class="sidebar-item" data-section="add" onclick="switchSection('add')"><span class="si-icon"><svg class="icon"><use href="#i-plus"/></svg></span><span class="si-label">Add Product</span></button>
-        <button class="sidebar-item" data-section="orders" onclick="switchSection('orders')"><span class="si-icon"><svg class="icon"><use href="#i-cart"/></svg></span><span class="si-label">Orders</span></button>
-        <button class="sidebar-item" data-section="reviews" onclick="switchSection('reviews')"><span class="si-icon"><svg class="icon"><use href="#i-star"/></svg></span><span class="si-label">Reviews</span></button>
-        <button class="sidebar-item" data-section="reports" onclick="switchSection('reports')"><span class="si-icon"><svg class="icon"><use href="#i-trending-up"/></svg></span><span class="si-label">Reports</span></button>
+        <button class="sidebar-item active" data-section="dashboard" data-action="section" data-section="dashboard"><span class="si-icon"><svg class="icon"><use href="#i-grid"/></svg></span><span class="si-label">Dashboard</span></button>
+        <button class="sidebar-item" data-section="products" data-action="section" data-section="products"><span class="si-icon"><svg class="icon"><use href="#i-box"/></svg></span><span class="si-label">Products</span></button>
+        <button class="sidebar-item" data-section="upload" data-action="section" data-section="upload"><span class="si-icon"><svg class="icon"><use href="#i-zap"/></svg></span><span class="si-label">Quick Upload</span></button>
+        <button class="sidebar-item" data-section="add" data-action="section" data-section="add"><span class="si-icon"><svg class="icon"><use href="#i-plus"/></svg></span><span class="si-label">Add Product</span></button>
+        <button class="sidebar-item" data-section="orders" data-action="section" data-section="orders"><span class="si-icon"><svg class="icon"><use href="#i-cart"/></svg></span><span class="si-label">Orders</span></button>
+        <button class="sidebar-item" data-section="reviews" data-action="section" data-section="reviews"><span class="si-icon"><svg class="icon"><use href="#i-star"/></svg></span><span class="si-label">Reviews</span></button>
+        <button class="sidebar-item" data-section="reports" data-action="section" data-section="reports"><span class="si-icon"><svg class="icon"><use href="#i-trending-up"/></svg></span><span class="si-label">Reports</span></button>
       </nav>
       <div class="sidebar-footer">
         <span class="admin-email" id="adminEmail"></span>
-        <button class="sidebar-link" onclick="openChangePasswordModal()">Change Password</button>
-        <button class="sidebar-link sidebar-logout" onclick="handleLogout()">Log Out</button>
+        <button class="sidebar-link" data-action="open-pw-modal">Change Password</button>
+        <button class="sidebar-link sidebar-logout" data-action="logout">Log Out</button>
       </div>
     </aside>
     <div class="main-wrapper">
@@ -1182,15 +1182,15 @@
         <h2 class="top-bar-title" id="sectionTitle">Dashboard</h2>
         <div class="top-bar-right">
           <a href="/" class="btn-store-link" title="Open storefront"><svg class="icon"><use href="#i-store"/></svg> View Store</a>
-          <div class="theme-toggle" onclick="toggleTheme()" title="Toggle dark mode">
+          <div class="theme-toggle" data-action="theme" title="Toggle dark mode">
             <span class="theme-toggle-icon"></span>
             <div class="theme-toggle-track"><div class="theme-toggle-thumb"></div></div>
           </div>
           <span class="top-bar-email" id="adminEmailTop"></span>
-          <button class="btn-action" onclick="switchSection('add')">+ Add Product</button>
+          <button class="btn-action" data-action="section" data-section="add">+ Add Product</button>
         </div>
         <div class="mobile-admin-nav">
-          <select id="mobileAdminSection" aria-label="Admin section" onchange="switchSection(this.value)">
+          <select id="mobileAdminSection" aria-label="Admin section" data-change="section-select">
             <option value="dashboard">Dashboard</option>
             <option value="products">Products</option>
             <option value="upload">Quick Upload</option>
@@ -1199,8 +1199,8 @@
             <option value="reviews">Reviews</option>
             <option value="reports">Reports</option>
           </select>
-          <button type="button" onclick="openChangePasswordModal()">Password</button>
-          <button type="button" onclick="handleLogout()">Log out</button>
+          <button type="button" data-action="open-pw-modal">Password</button>
+          <button type="button" data-action="logout">Log out</button>
         </div>
       </header>
       <main class="main-content">
@@ -1274,7 +1274,7 @@
                 <img id="previewImg" alt="Image preview" />
                 <div class="preview-meta" id="previewMeta"></div>
                 <div class="preview-actions">
-                  <button type="button" class="btn-change" onclick="clearImageSelection()">Choose different</button>
+                  <button type="button" class="btn-change" data-action="clear-images">Choose different</button>
                 </div>
               </div>
             </div>
@@ -1309,7 +1309,7 @@
               <div class="quick-stock-hint">Enter the available units. Leave blank only if you are not tracking stock; enter 0 to mark it sold out.</div>
             </div>
             <div class="quick-actions">
-              <button type="button" id="quickUploadBtn" onclick="handleQuickUpload()">Upload</button>
+              <button type="button" id="quickUploadBtn" data-action="quick-upload">Upload</button>
             </div>
             <div class="live-card" id="liveCard">
               <div class="lc-thumb"><img id="lcImg" alt="" /></div>
@@ -1328,16 +1328,16 @@
       <div class="tab-content" id="tab-products">
         <p style="font-size:0.7rem;color:var(--text-muted);margin-bottom:0.75rem;">Use the In Stock / Sold Out switch to stop sales without deleting a product. Sold-out products stay visible in the shop. Restock quantities before switching a zero-stock product back on.</p>
         <div class="filter-toolbar">
-          <input type="text" id="productSearch" placeholder="Search products by name..." oninput="filterProducts()" />
-          <select id="productCategoryFilter" onchange="filterProducts()">
+          <input type="text" id="productSearch" placeholder="Search products by name..." data-input="filter-products" />
+          <select id="productCategoryFilter" data-change="filter-products">
             <option value="">All Categories</option>
           </select>
-          <button class="filter-clear-btn" onclick="clearProductFilters()">Clear</button>
+          <button class="filter-clear-btn" data-action="clear-product-filters">Clear</button>
         </div>
         <div class="product-bulk-toolbar">
-          <label class="product-bulk-select"><input id="selectVisibleProducts" class="product-select" type="checkbox" onchange="toggleSelectVisibleProducts(this.checked)" /> Select visible</label>
+          <label class="product-bulk-select"><input id="selectVisibleProducts" class="product-select" type="checkbox" data-change="select-visible" /> Select visible</label>
           <span id="selectedProductCount" class="product-bulk-count" aria-live="polite">0 selected</span>
-          <button type="button" id="bulkDeleteProductsBtn" class="bulk-delete-btn" onclick="deleteSelectedProducts()" disabled>Delete selected (0)</button>
+          <button type="button" id="bulkDeleteProductsBtn" class="bulk-delete-btn" data-action="delete-selected" disabled>Delete selected (0)</button>
         </div>
         <div class="product-list" id="productList">
           <div class="product-row header-row">
@@ -1357,7 +1357,7 @@
       <div class="tab-content" id="tab-add">
         <div class="form-success" id="formSuccess">Product saved!</div>
         <div class="form-error" id="formError"></div>
-        <form class="form-grid" id="productForm" onsubmit="handleSaveProduct(event)">
+        <form class="form-grid" id="productForm" data-form="save-product">
           <input type="hidden" id="editId" value="" />
 
           <!-- 1. Product name -->
@@ -1378,7 +1378,7 @@
                 <div class="uz-error" id="formImgError"></div>
               </div>
               <div class="preview-box" id="frontPreview"></div>
-              <button type="button" class="btn-change" id="formImgChange" style="display:none;" onclick="document.getElementById('frontInput').click()">Choose different</button>
+              <button type="button" class="btn-change" id="formImgChange" style="display:none;" data-action="front-input">Choose different</button>
             </div>
           </div>
 
@@ -1468,7 +1468,7 @@
 
           <div class="form-actions">
             <button type="submit" class="btn-primary" id="saveBtn">Add Product</button>
-            <button type="button" class="btn-secondary" onclick="resetForm()" id="cancelBtn" style="display:none;">Cancel</button>
+            <button type="button" class="btn-secondary" data-action="reset-form" id="cancelBtn" style="display:none;">Cancel</button>
           </div>
         </form>
 
@@ -1487,8 +1487,8 @@
       <!-- Orders tab -->
       <div class="tab-content" id="tab-orders">
         <div class="order-filter-toolbar">
-          <input type="text" id="orderSearch" placeholder="Search by order #, name, phone..." oninput="filterOrders()" />
-          <select id="orderStatusFilter" onchange="filterOrders()">
+          <input type="text" id="orderSearch" placeholder="Search by order #, name, phone..." data-input="filter-orders" />
+          <select id="orderStatusFilter" data-change="filter-orders">
             <option value="">All Status</option>
             <option value="pending">Pending</option>
             <option value="awaiting_verification">Awaiting Payment</option>
@@ -1497,10 +1497,10 @@
             <option value="delivered">Delivered</option>
             <option value="cancelled">Cancelled</option>
           </select>
-          <button class="sort-btn active" id="orderSortBtn" onclick="toggleOrderSort()">
+          <button class="sort-btn active" id="orderSortBtn" data-action="order-sort">
             <span id="orderSortLabel"><svg class="icon"><use href="#i-arrow-down"/></svg> Newest</span>
           </button>
-          <button class="sort-btn" onclick="exportOrdersCsv()" title="Download orders as CSV">
+          <button class="sort-btn" data-action="export-csv" title="Download orders as CSV">
             <svg class="icon"><use href="#i-download"/></svg> Export CSV
           </button>
         </div>
@@ -1514,9 +1514,9 @@
         <div class="reviews-head-row">
           <div class="reports-title">Review Moderation</div>
           <div class="reviews-toolbar">
-            <button class="period-btn active" data-rf="pending" onclick="setReviewFilter('pending')">Pending</button>
-            <button class="period-btn" data-rf="approved" onclick="setReviewFilter('approved')">Approved</button>
-            <button class="period-btn" data-rf="rejected" onclick="setReviewFilter('rejected')">Rejected</button>
+            <button class="period-btn active" data-rf="pending" data-action="review-filter" data-value="pending">Pending</button>
+            <button class="period-btn" data-rf="approved" data-action="review-filter" data-value="approved">Approved</button>
+            <button class="period-btn" data-rf="rejected" data-action="review-filter" data-value="rejected">Rejected</button>
           </div>
         </div>
         <div class="reviews-list" id="reviewsList">
@@ -1529,9 +1529,9 @@
         <div class="reports-head">
           <div class="reports-title">Profit &amp; Loss</div>
           <div class="period-toggle">
-            <button class="period-btn active" data-period="daily" onclick="setPnlPeriod('daily')">Daily</button>
-            <button class="period-btn" data-period="weekly" onclick="setPnlPeriod('weekly')">Weekly</button>
-            <button class="period-btn" data-period="monthly" onclick="setPnlPeriod('monthly')">Monthly</button>
+            <button class="period-btn active" data-period="daily" data-action="pnl-period" data-value="daily">Daily</button>
+            <button class="period-btn" data-period="weekly" data-action="pnl-period" data-value="weekly">Weekly</button>
+            <button class="period-btn" data-period="monthly" data-action="pnl-period" data-value="monthly">Monthly</button>
           </div>
         </div>
 
@@ -1956,7 +1956,7 @@
         selectedProductIds = new Set([...selectedProductIds].filter(id => currentIds.has(Number(id))));
         filterProducts();
       } catch (err) {
-        document.getElementById('productList').innerHTML = '<div class="empty-state">Failed to load products. <button type="button" onclick="loadProducts()">Retry</button></div>';
+        document.getElementById('productList').innerHTML = '<div class="empty-state">Failed to load products. <button type="button" data-action="load-products">Retry</button></div>';
       }
     }
 
@@ -2056,7 +2056,7 @@
 
         html += `
           <div class="product-row" data-id="${p.id}">
-            <input class="product-select" type="checkbox" aria-label="Select ${esc(p.name)}" ${isSelected ? 'checked' : ''} onchange="toggleProductSelection(${p.id}, this.checked)" />
+            <input class="product-select" type="checkbox" aria-label="Select ${esc(p.name)}" ${isSelected ? 'checked' : ''} data-change="product-select" data-id="${p.id}" />
             <div class="thumb">
               ${thumbSrc ? `<img src="${esc(thumbSrc)}" alt="${esc(p.name)}" />` : '—'}
             </div>
@@ -2067,13 +2067,13 @@
             <div class="p-price">${fmtRs(p.sale_price || p.price)}</div>
             <div class="p-category">${esc(catLabel)}</div>
             <div class="stock-toggle">
-              <button class="toggle-switch ${stockClass}" onclick="toggleStock(${p.id})" aria-label="${available ? 'Mark Sold Out' : 'Mark In Stock'}: ${esc(p.name)}" aria-pressed="${available}" title="${available ? 'Mark Sold Out without deleting' : 'Mark In Stock after restocking'}"></button>
+              <button class="toggle-switch ${stockClass}" data-action="toggle-stock" data-id="${p.id}" aria-label="${available ? 'Mark Sold Out' : 'Mark In Stock'}: ${esc(p.name)}" aria-pressed="${available}" title="${available ? 'Mark Sold Out without deleting' : 'Mark In Stock after restocking'}"></button>
               <span class="stock-label">${stockLabel}</span>
-              <span class="stock-qty-display" onclick="startStockEdit(${p.id}, this)" title="${p.size_stock ? 'Click to edit stock for each size' : 'Click to edit stock quantity'}">${qtyText}</span>
+              <span class="stock-qty-display" data-action="start-stock-edit" data-id="${p.id}" title="${p.size_stock ? 'Click to edit stock for each size' : 'Click to edit stock quantity'}">${qtyText}</span>
             </div>
             <div class="actions">
-              <button onclick="editProduct(${p.id})">Edit</button>
-              <button class="delete-btn" onclick="deleteProduct(${p.id})">Delete</button>
+              <button data-action="edit-product" data-id="${p.id}">Edit</button>
+              <button class="delete-btn" data-action="delete-product" data-id="${p.id}">Delete</button>
             </div>
           </div>
         `;
@@ -2881,7 +2881,7 @@
         filterOrders();
       } catch (err) {
         allOrders = [];
-        document.getElementById('ordersList').innerHTML = '<div class="empty-state">Failed to load orders. <button type="button" onclick="loadOrders()">Retry</button></div>';
+        document.getElementById('ordersList').innerHTML = '<div class="empty-state">Failed to load orders. <button type="button" data-action="load-orders">Retry</button></div>';
       }
     }
 
@@ -2930,8 +2930,8 @@
         const shippingPendingBadge = o.shipping_pending && o.status !== 'cancelled' ? `<div class="p-category" style="font-size:0.62rem;color:var(--text-accent);">Delivery charge pending</div>` : '';
         const verifiedBadge = o.payment_method !== 'cod' && o.payment_verified ? `<div class="p-category" style="font-size:0.62rem;color:var(--text-success);">${icon('check')} Payment Verified</div>` : '';
         const payOpts = o.payment_method !== 'cod'
-          ? `<button onclick="verifyPayment(${o.id}, ${o.payment_verified ? 'false' : 'true'})" class="status-opt status-opt-confirmed">${icon('credit-card')} ${o.payment_verified ? 'Remove Verification' : 'Verify Payment'}</button>`
-          : `<button onclick="codConfirm(${o.id}, ${o.cod_confirmed ? 'false' : 'true'})" class="status-opt status-opt-delivered">${icon('dollar')} ${o.cod_confirmed ? 'Undo COD Confirmation' : 'Mark COD Confirmed'}</button>`;
+          ? `<button data-action="verify-payment" data-id="${o.id}" data-value="${o.payment_verified ? 'false' : 'true'}" class="status-opt status-opt-confirmed">${icon('credit-card')} ${o.payment_verified ? 'Remove Verification' : 'Verify Payment'}</button>`
+          : `<button data-action="cod-confirm" data-id="${o.id}" data-value="${o.cod_confirmed ? 'false' : 'true'}" class="status-opt status-opt-delivered">${icon('dollar')} ${o.cod_confirmed ? 'Undo COD Confirmation' : 'Mark COD Confirmed'}</button>`;
         html += `
           <div class="product-row order-row">
             <div data-label="Order">
@@ -2948,14 +2948,14 @@
             <div class="status-cell" data-label="Status">
               <span class="status-badge status-${esc(st)}">${statusLabel}</span>
               <div class="status-dropdown">
-                <button class="status-dropdown-btn" onclick="toggleStatusDropdown(this)" aria-label="Change status">▾</button>
+                <button class="status-dropdown-btn" data-action="status-dropdown" aria-label="Change status">▾</button>
                 <div class="status-dropdown-menu">
                   ${payOpts}
-                  <button onclick="updateOrderStatus(${o.id},'confirmed')" class="status-opt status-opt-confirmed">${icon('check')} Confirm</button>
-                  <button onclick="updateOrderStatus(${o.id},'shipped')" class="status-opt status-opt-shipped">${icon('truck')} Mark Shipped</button>
-                  <button onclick="updateOrderStatus(${o.id},'delivered')" class="status-opt status-opt-delivered">${icon('check-circle')} Delivered</button>
-                  <button onclick="updateOrderStatus(${o.id},'cancelled')" class="status-opt status-opt-cancelled">${icon('x')} Cancel</button>
-                  <button onclick="updateOrderStatus(${o.id},'pending')" class="status-opt status-opt-pending">${icon('rotate')} Reset to Pending</button>
+                  <button data-action="order-status" data-id="${o.id}" data-status="confirmed" class="status-opt status-opt-confirmed">${icon('check')} Confirm</button>
+                  <button data-action="order-status" data-id="${o.id}" data-status="shipped" class="status-opt status-opt-shipped">${icon('truck')} Mark Shipped</button>
+                  <button data-action="order-status" data-id="${o.id}" data-status="delivered" class="status-opt status-opt-delivered">${icon('check-circle')} Delivered</button>
+                  <button data-action="order-status" data-id="${o.id}" data-status="cancelled" class="status-opt status-opt-cancelled">${icon('x')} Cancel</button>
+                  <button data-action="order-status" data-id="${o.id}" data-status="pending" class="status-opt status-opt-pending">${icon('rotate')} Reset to Pending</button>
                 </div>
               </div>
             </div>
@@ -3088,9 +3088,9 @@
       if (p.size_stock) { editProduct(id); return; }
       const current = (p.stock_qty != null && p.stock_qty !== '') ? p.stock_qty : '';
       span.outerHTML = '<div class="stock-qty-cell" data-editing="' + id + '">' +
-        '<input class="stock-qty-input" type="number" min="0" step="1" value="' + current + '" onkeydown="if(event.key===\'Enter\')saveStockEdit(' + id + ');if(event.key===\'Escape\')cancelStockEdit(' + id + ');" autofocus />' +
-        '<button class="stock-qty-save" onclick="saveStockEdit(' + id + ')" title="Save">' + icon('check') + '</button>' +
-        '<button class="stock-qty-cancel" onclick="cancelStockEdit(' + id + ')" title="Cancel">' + icon('x') + '</button>' +
+        '<input class="stock-qty-input" type="number" min="0" step="1" value="' + current + '" data-keys="stock-edit" data-id="' + id + '" autofocus />' +
+        '<button class="stock-qty-save" data-action="save-stock" data-id="' + id + '" title="Save">' + icon('check') + '</button>' +
+        '<button class="stock-qty-cancel" data-action="cancel-stock" data-id="' + id + '" title="Cancel">' + icon('x') + '</button>' +
         '</div>';
       document.querySelector('[data-editing="' + id + '"] .stock-qty-input').focus();
     }
@@ -3157,7 +3157,7 @@
       const list = document.getElementById('reviewsList'); if (!list) return;
       const rows = allReviews.filter(r => r.status === reviewFilter);
       if (!rows.length) { list.innerHTML = '<div class="empty-state">No ' + reviewFilter + ' reviews.</div>'; return; }
-      list.innerHTML = rows.map(r => '<div class="review-row"><div class="review-top"><span class="review-prod">' + esc(productName(r.product_id)) + '</span><span class="review-stars">' + starRating(r.rating) + '</span><span class="review-meta">' + esc(r.customer_name || 'Verified Buyer') + ' · ' + esc(r.order_number || '') + '</span></div>' + (r.comment ? '<p class="review-comment">' + esc(r.comment) + '</p>' : '<p class="review-comment dim">(no comment)</p>') + '<div class="review-actions">' + (r.status !== 'approved' ? '<button class="approve-btn" onclick="setReviewStatus(' + r.id + ', \x27approved\x27)"">' + icon('check') + ' Approve</button>' : '') + (r.status !== 'rejected' ? '<button class="reject-btn" onclick="setReviewStatus(' + r.id + ', \x27rejected\x27)"">' + icon('x') + ' Reject</button>' : '') + '<button class="delete-btn" onclick="deleteReview(' + r.id + ')">Delete</button></div></div>').join('');
+      list.innerHTML = rows.map(r => '<div class="review-row"><div class="review-top"><span class="review-prod">' + esc(productName(r.product_id)) + '</span><span class="review-stars">' + starRating(r.rating) + '</span><span class="review-meta">' + esc(r.customer_name || 'Verified Buyer') + ' · ' + esc(r.order_number || '') + '</span></div>' + (r.comment ? '<p class="review-comment">' + esc(r.comment) + '</p>' : '<p class="review-comment dim">(no comment)</p>') + '<div class="review-actions">' + (r.status !== 'approved' ? '<button class="approve-btn" data-action="review-status" data-id="' + r.id + '" data-status="approved"">' + icon('check') + ' Approve</button>' : '') + (r.status !== 'rejected' ? '<button class="reject-btn" data-action="review-status" data-id="' + r.id + '" data-status="rejected"">' + icon('x') + ' Reject</button>' : '') + '<button class="delete-btn" data-action="delete-review" data-id="' + r.id + '">Delete</button></div></div>').join('');
     }
     async function setReviewStatus(id, status) {
       try {
@@ -3385,6 +3385,102 @@
       else if (!e.shiftKey && (document.activeElement === last || !modal.contains(document.activeElement))) { e.preventDefault(); first.focus(); }
     });
 
+    // ================================================================
+    // FE-H2: DELEGATED EVENTS — no inline handlers anywhere.
+    // Clickables carry data-action="name" (+ data-* params); selects and
+    // checkboxes carry data-change, text filters data-input, the product
+    // form data-form, and the stock-edit box data-keys. Document-level
+    // listeners route via closest(), so the innermost match wins. IDs are
+    // Number()ed on the way in: several callees compare with === against
+    // the numeric ids parsed from JSON. data-change and data-input stay
+    // strictly separate because checkboxes fire both events.
+    // ================================================================
+    const ADMIN_ACTIONS = {
+      'login': () => handleLogin(),
+      'request-pw-reset': () => requestPasswordReset('admin'),
+      'section': (el) => switchSection(el.dataset.section),
+      'open-pw-modal': () => openChangePasswordModal(),
+      'close-pw-modal': () => closeChangePasswordModal(),
+      'change-pw': () => handleChangePassword(),
+      'logout': () => handleLogout(),
+      'theme': () => toggleTheme(),
+      'clear-images': () => clearImageSelection(),
+      'quick-upload': () => handleQuickUpload(),
+      'clear-product-filters': () => clearProductFilters(),
+      'delete-selected': () => deleteSelectedProducts(),
+      'front-input': () => document.getElementById('frontInput').click(),
+      'reset-form': () => resetForm(),
+      'order-sort': () => toggleOrderSort(),
+      'export-csv': () => exportOrdersCsv(),
+      'review-filter': (el) => setReviewFilter(el.dataset.value),
+      'pnl-period': (el) => setPnlPeriod(el.dataset.value),
+      'load-products': () => loadProducts(),
+      'load-orders': () => loadOrders(),
+      'toggle-stock': (el) => toggleStock(Number(el.dataset.id)),
+      'start-stock-edit': (el) => startStockEdit(Number(el.dataset.id), el),
+      'save-stock': (el) => saveStockEdit(Number(el.dataset.id)),
+      'cancel-stock': (el) => cancelStockEdit(Number(el.dataset.id)),
+      'edit-product': (el) => editProduct(Number(el.dataset.id)),
+      'delete-product': (el) => deleteProduct(Number(el.dataset.id)),
+      'verify-payment': (el) => verifyPayment(Number(el.dataset.id), el.dataset.value),
+      'cod-confirm': (el) => codConfirm(Number(el.dataset.id), el.dataset.value),
+      'status-dropdown': (el) => toggleStatusDropdown(el),
+      'order-status': (el) => updateOrderStatus(Number(el.dataset.id), el.dataset.status),
+      'review-status': (el) => setReviewStatus(Number(el.dataset.id), el.dataset.status),
+      'delete-review': (el) => deleteReview(Number(el.dataset.id)),
+    };
+    document.addEventListener('click', (e) => {
+      if (!e.target || typeof e.target.closest !== 'function') return;
+      const hit = e.target.closest('[data-action]');
+      if (!hit) return;
+      const fn = ADMIN_ACTIONS[hit.dataset.action];
+      if (!fn) return;
+      if (hit.tagName === 'A') e.preventDefault();
+      fn(hit, e);
+    });
+    const ADMIN_CHANGES = {
+      'section-select': (el) => switchSection(el.value),
+      'filter-products': () => filterProducts(),
+      'filter-orders': () => filterOrders(),
+      'select-visible': (el) => toggleSelectVisibleProducts(el.checked),
+      'product-select': (el) => toggleProductSelection(Number(el.dataset.id), el.checked),
+    };
+    document.addEventListener('change', (e) => {
+      if (!e.target || typeof e.target.closest !== 'function') return;
+      const hit = e.target.closest('[data-change]');
+      if (!hit) return;
+      const fn = ADMIN_CHANGES[hit.dataset.change];
+      if (fn) fn(hit, e);
+    });
+    const ADMIN_INPUTS = {
+      'filter-products': () => filterProducts(),
+      'filter-orders': () => filterOrders(),
+    };
+    document.addEventListener('input', (e) => {
+      if (!e.target || typeof e.target.closest !== 'function') return;
+      const hit = e.target.closest('[data-input]');
+      if (!hit) return;
+      const fn = ADMIN_INPUTS[hit.dataset.input];
+      if (fn) fn(hit, e);
+    });
+    document.addEventListener('submit', (e) => {
+      if (!e.target || typeof e.target.closest !== 'function') return;
+      const form = e.target.closest('[data-form]');
+      if (!form) return;
+      if (form.dataset.form === 'save-product') handleSaveProduct(e);
+    });
+    document.addEventListener('keydown', (e) => {
+      const t = e.target;
+      if (!t || typeof t.closest !== 'function') return;
+      const hit = t.closest('[data-keys]');
+      if (!hit) return;
+      if (hit.dataset.keys === 'stock-edit') {
+        const id = Number(hit.dataset.id);
+        if (e.key === 'Enter') saveStockEdit(id);
+        else if (e.key === 'Escape') cancelStockEdit(id);
+      }
+    });
+
     // (Change-password Enter submit is bound in openChangePasswordModal() —
     // the modal markup lives after this script, so it doesn't exist yet here.)
   </script>
@@ -3392,7 +3488,7 @@
   <!-- CHANGE PASSWORD MODAL -->
   <div id="changePwModal" role="dialog" aria-modal="true" aria-label="Change password" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.4);backdrop-filter:blur(4px);align-items:center;justify-content:center;">
     <div style="background:var(--bg-card);border:1px solid #E5E7EB;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,0.12);padding:2rem;max-width:400px;width:90%;position:relative;">
-      <button onclick="closeChangePasswordModal()" style="position:absolute;top:12px;right:12px;background:none;border:none;color:#999;font-size:1.2rem;cursor:pointer;" aria-label="Close"><svg class="icon" style="width:18px;height:18px;"><use href="#i-x"/></svg></button>
+      <button data-action="close-pw-modal" style="position:absolute;top:12px;right:12px;background:none;border:none;color:#999;font-size:1.2rem;cursor:pointer;" aria-label="Close"><svg class="icon" style="width:18px;height:18px;"><use href="#i-x"/></svg></button>
       <h3 style="font-family:'Anton',sans-serif;letter-spacing:0.06em;margin-bottom:1rem;">Change Password</h3>
       <div id="changePwError" style="color:var(--text-danger);font-size:0.8rem;margin-bottom:0.8rem;display:none;"></div>
       <label style="display:block;font-size:0.7rem;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:0.3rem;">Current Password</label>
@@ -3401,7 +3497,7 @@
       <input type="password" id="newPw" style="width:100%;padding:0.7rem;border:1px solid #333;border-radius:8px;background:#0A0A0A;color:#F5F5F5;font-size:0.9rem;margin-bottom:0.8rem;" />
       <label style="display:block;font-size:0.7rem;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:0.3rem;">Confirm New Password</label>
       <input type="password" id="confirmPw" style="width:100%;padding:0.7rem;border:1px solid #333;border-radius:8px;background:#0A0A0A;color:#F5F5F5;font-size:0.9rem;margin-bottom:1rem;" />
-      <button onclick="handleChangePassword()" style="width:100%;padding:0.8rem;background:#E21B23;color:white;border:none;border-radius:8px;font-weight:700;font-size:0.8rem;letter-spacing:0.08em;text-transform:uppercase;cursor:pointer;">Update Password</button>
+      <button data-action="change-pw" style="width:100%;padding:0.8rem;background:#E21B23;color:white;border:none;border-radius:8px;font-weight:700;font-size:0.8rem;letter-spacing:0.08em;text-transform:uppercase;cursor:pointer;">Update Password</button>
     </div>
   </div>
 </body>
