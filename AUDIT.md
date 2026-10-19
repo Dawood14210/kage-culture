@@ -1612,3 +1612,37 @@ Unchanged non-token text on solid surfaces was also checked:
   `express.static` and reads the templates + bundles at boot). Revisit
   only with preview-deploy verification; if done, keep the HTML
   templates and the four hashed bundles in `includeFiles`.
+- **D1/CONV-1 delivery band (done 2026-10-19):** owner set Rs. 250–450.
+  Checkout, confirmation, tracking, the Shipping policy and the order
+  email show the band through one `DELIVERY_FEE_BAND` const instead of
+  "To be confirmed"; the exact fee depends on the city and is confirmed
+  by phone before dispatch. The API still stores `shipping = 0` with
+  `shipping_pending` until the admin confirms the real fee, and the
+  admin "Delivery charge pending" badge is unchanged. Regression:
+  frontend delivery-copy assertions updated to the band, e2e asserts the
+  pending email carries it.
+- **D2/ANALYTICS-1 Umami Cloud (done 2026-10-19):** the deferred tracker
+  tag renders on the storefront only when `UMAMI_WEBSITE_ID` is set (id
+  shape validated; unset or hostile values render nothing). CSP allows
+  `cloud.umami.is` for scripts and beacons; the admin panel carries no
+  analytics; the Privacy policy discloses the cookieless tracking.
+  Regression: e2e pins `script-src 'self' https://cloud.umami.is` and
+  covers set/unset/hostile-id/admin-exclusion; frontend asserts the
+  disclosure. Operator step: add the site in the Umami Cloud dashboard
+  and set `UMAMI_WEBSITE_ID` on Vercel (documented in `.env.example`).
+- **D3/CONTENT-2 campaigns (closed 2026-10-19 — decided SMTP-only):**
+  owner chose no bulk sending; the newsletter stays notify-only and no
+  campaign code was added. The manage-link-in-response design stands
+  (possession only permits unsubscribing, reversible by resubscribing).
+- **Contact details (done 2026-10-19):** Instagram verified as
+  `@kage_culture` (single underscore — fixed in the contact card, footer
+  icon and JSON-LD `sameAs`); working hours published as "Monday to
+  Saturday, 11am to 8pm (Pakistan time). Sunday closed." with a
+  `.contact-working-hours` rule; JazzCash confirmed identical to the
+  WhatsApp number (+92 322 804 2633), no code change (no account number
+  is displayed anywhere — recorded here for future payment UI).
+- **SEC-2 HSTS preload (assessed 2026-10-19 — no action):** optional and
+  informational; preload is effectively irreversible and the audit
+  requires confirmed subdomains first. Helmet's default HSTS stays.
+  Revisit only if the brand commits to HTTPS-everywhere including all
+  subdomains.

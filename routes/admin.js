@@ -223,10 +223,10 @@ module.exports = function createAdminRoutes(db) {
       const existing = await db.prepare('SELECT id, unsubscribed, unsubscribe_token FROM newsletter_subscribers WHERE LOWER(TRIM(email)) = ?').get(clean);
       if (existing) {
         const token = await subscriberToken(db, existing.id, existing.unsubscribe_token);
-        // NOTE: the manage link is returned to whoever posts the address. There
-        // is no mailer yet to deliver it privately; possession of the link only
-        // permits unsubscribing (reversible by resubscribing), and guessing a
-        // token is infeasible. Revisit once campaign email exists (CONTENT-2/D3).
+        // NOTE: the manage link is returned to whoever posts the address. D3
+        // decided SMTP-only with no campaign mailer, so there is no private
+        // delivery channel; possession of the link only permits unsubscribing
+        // (reversible by resubscribing), and guessing a token is infeasible.
         const unsubscribe_url = '/newsletter/unsubscribe?token=' + token;
         if (existing.unsubscribed) {
           await db.prepare('UPDATE newsletter_subscribers SET unsubscribed = 0 WHERE id = ?').run(existing.id);
