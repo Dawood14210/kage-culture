@@ -576,12 +576,15 @@ app.use(loadHelmet()({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
+      // 'unsafe-inline' stays ONLY for the <script> blocks themselves; it goes
+      // away once PERF-1 moves them to external files (see AUDIT.md).
       scriptSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-      // REQUIRED: the storefront/admin are built on inline onclick/onkeydown
-      // handlers — omitting this lets helmet default to script-src-attr 'none',
-      // which silently blocks every click (prod incident 2026-09-23).
-      // Long-term removal tracked in AUDIT.md as FE-H2 (event delegation).
-      scriptSrcAttr: ["'unsafe-inline'"],
+      // FE-H2 done: every click/key/submit/change handler is delegated
+      // (data-route/data-action + addEventListener), so inline handlers are
+      // explicitly forbidden — injected onclick= attributes cannot execute.
+      // (History: omitting this defaulted to 'none' while inline handlers
+      // still existed and silently blocked every click, 2026-09-23.)
+      scriptSrcAttr: ["'none'"],
       styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://cdn.jsdelivr.net"],
       fontSrc: ["'self'", "https://fonts.gstatic.com", "https://cdn.jsdelivr.net"],
       imgSrc: ["'self'", "data:", "https:", "blob:"],

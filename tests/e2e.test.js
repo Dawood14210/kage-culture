@@ -968,6 +968,28 @@ async function main() {
     assert.ok(r.text.includes("'open-product': (el) => openProductDetail(Number(el.dataset.pid))"), 'the action table routes to openProductDetail');
   });
 
+  // ---------------------------------------------------------------
+  // FE-H2 — delegated events: zero inline handlers, CSP forbids them
+  // ---------------------------------------------------------------
+  console.log('\nDelegated events (FE-H2):');
+  await check('served pages carry zero inline event handlers', async () => {
+    for (const path of ['/', '/admin']) {
+      const r = await request(PORT, 'GET', path);
+      assert.strictEqual(r.status, 200, path);
+      // Whitespace-prefixed so meta content="..." never matches.
+      const hits = r.text.match(/\son[a-z]+="[^"]{0,40}/g) || [];
+      assert.deepStrictEqual(hits, [], `${path} must have no on*= attributes, found: ${hits.slice(0, 3).join(' | ')}`);
+    }
+  });
+
+  await check("CSP sets script-src-attr 'none' while inline scripts still need script-src", async () => {
+    const r = await request(PORT, 'GET', '/');
+    assert.strictEqual(r.status, 200);
+    const csp = r.headers['content-security-policy'] || '';
+    assert.match(csp, /script-src-attr 'none'/, 'injected inline handlers cannot execute');
+    assert.match(csp, /script-src[^;]*'unsafe-inline'/, 'inline <script> blocks stay allowed until PERF-1 externalises them');
+  });
+
   await check('collection grid and Best Sellers share ONE card template (no second renderer, no Add to Cart card)', async () => {
     const r = await request(PORT, 'GET', '/');
     assert.strictEqual(r.status, 200);

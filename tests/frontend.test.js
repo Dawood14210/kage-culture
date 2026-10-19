@@ -2600,8 +2600,32 @@ async function ready(win) {
     }
     console.log('✅ CONTENT-2 UI: the private unsubscribe link appears after subscribing');
 
+    // ---- FE-H2: delegated clicks work in real Chromium under script-src-attr 'none'.
+    {
+      const { launchChromium: launchDel, waitForCatalog: waitDelCatalog } = require('./fixtures/chromium');
+      const delBrowser = await launchDel();
+      try {
+        const dp = await delBrowser.newPage();
+        await dp.setViewport({ width: 1280, height: 800 });
+        await dp.goto(origin + '/', { waitUntil: 'domcontentloaded' });
+        await waitDelCatalog(dp);
+        await dp.waitForFunction(() => { try { return eval('bootNavComplete') === true; } catch (e) { return false; } });
+        await dp.click('#navLinks a[data-route="contact"]');
+        await dp.waitForFunction(() => document.getElementById('page-contact').classList.contains('active'));
+        assert.match(dp.url(), /\/contact$/, 'delegated nav link routes in real Chromium');
+        await dp.click('.kage-logo');
+        await dp.waitForFunction(() => document.getElementById('page-home').classList.contains('active'));
+        await dp.click('.product-card[data-action="open-product"]');
+        await dp.waitForSelector('#page-product.active', { timeout: 20000 });
+        assert.match(dp.url(), /\/product\/\d+/, 'delegated card click opens the detail view');
+      } finally {
+        await delBrowser.close();
+      }
+    }
+    console.log('✅ FE-H2 delegation: nav + card clicks work in real Chromium under the locked CSP');
+
     assert.deepEqual(errors, []);
-    console.log('\n36/36 frontend scenarios passed');
+    console.log('\n37/37 frontend scenarios passed');
   } finally {
     windows.forEach(win => win.window.close());
     await new Promise(resolve => server.close(resolve));
