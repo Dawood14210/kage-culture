@@ -1442,7 +1442,7 @@ Unchanged non-token text on solid surfaces was also checked:
 8. ~~FE-C3 + FE-C4 — CSP-blocked admin chart; reachable-but-dead password reset~~ ✅ done
 9. ~~FE-H1 (esc the grid attrs)~~ ✅ done; FE-H2 long-term alongside event delegation
 10. ~~FE-M1 + FE-M2 — routing and cart persistence~~ ✅ done (2026-10-10)
-11. FE-H2 CSP migration, remaining a11y/visual checks, then L2 (deployment decision)
+11. ~~FE-H2 CSP migration, remaining a11y/visual checks, then L2 (deployment decision)~~ ✅ done 2026-10-19 (FE-H2 delegation + PERF-1 split + strict CSP; L2 assessed — no action, see PERF-4/L2 entry)
 12. ~~SEO-2 — dynamic product/category sitemap with caching and crawler fallbacks~~ ✅ 2026-10-14
 13. ~~SEO-1 / SEO-4 — server-rendered product/collection metadata; SEO-3 — structured data~~ ✅ 2026-10-15
 
@@ -1598,3 +1598,17 @@ Unchanged non-token text on solid surfaces was also checked:
   attributes throughout the markup — a separate, much larger
   migration). `npm test` passes all six suites (141/141 API, 37/37
   frontend).
+- **PERF-4/L2 lambda bundle (assessed 2026-10-19 — no action):** the
+  report's 9.3MB premise is stale: `public/` is 1.86MB total with zero
+  mp4s (L2's videos are gone from the repo), and the PERF-1 split added
+  only ~2KB net (bundle banners). The only remaining lever is replacing
+  the catch-all `routes` entry with `rewrites` + relocating `server.js`
+  so Vercel serves static files without invoking the lambda — but that
+  cannot be verified without a Vercel deploy, a mistake there is a total
+  outage (same class as the 2026-09-23 incident), and the payoff is ~200ms
+  of occasional cold-start latency on an already-small bundle. No safe
+  partial step exists either: with the catch-all in place, excluding any
+  file from `includeFiles` 404s it (the lambda serves all static via
+  `express.static` and reads the templates + bundles at boot). Revisit
+  only with preview-deploy verification; if done, keep the HTML
+  templates and the four hashed bundles in `includeFiles`.
