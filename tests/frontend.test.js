@@ -212,7 +212,8 @@ async function ready(win) {
     // Hero copy and CTA: headline is shown, the button goes to the full collection, and the header height is published for the hero offset.
     assert.equal(deepLink.window.document.querySelector('.hero-title').textContent, 'Engineered Fit. Original Art.');
     assert.equal(deepLink.window.document.querySelector('.hero-copy .btn').getAttribute('href'), '/collection/all');
-    assert.match(deepLink.window.document.querySelector('.hero-copy .btn').getAttribute('onclick'), /navigateTo\('collection', 'all'\)/);
+    assert.equal(deepLink.window.document.querySelector('.hero-copy .btn').getAttribute('data-route'), 'collection');
+    assert.equal(deepLink.window.document.querySelector('.hero-copy .btn').getAttribute('data-filter'), 'all');
     assert.notEqual(deepLink.window.document.documentElement.style.getPropertyValue('--header-h'), '');
     console.log('✅ Product deep links, media, and browser Back work');
 
@@ -588,9 +589,10 @@ async function ready(win) {
     assert.match(privacyCopy, /kage\.session.*customer and admin login sessions/i);
     assert.match(privacyCopy, /kage\.csrf.*cross-site request forgery/i);
     assert.doesNotMatch(privacyCopy, /kage\.cust/, 'Privacy lists the active session cookie rather than the legacy fallback name');
-    assert.match(privacyCopy, /does not provide a self-service unsubscribe control/i);
-    const newsletterRemovalParagraph = [...privacyBody.querySelectorAll('p')].find(paragraph => paragraph.textContent.includes('self-service unsubscribe control'));
-    assert.equal(newsletterRemovalParagraph?.querySelector('a')?.getAttribute('href'), 'https://wa.me/923228042633', 'newsletter removal requests have an existing WhatsApp contact path');
+    assert.match(privacyCopy, /private one-click unsubscribe link/i, 'Privacy describes the self-service unsubscribe control');
+    assert.doesNotMatch(privacyCopy, /does not provide a self-service unsubscribe control/i, 'the no-self-service disclaimer is gone');
+    const newsletterRemovalParagraph = [...privacyBody.querySelectorAll('p')].find(paragraph => paragraph.textContent.includes('one-click unsubscribe link'));
+    assert.equal(newsletterRemovalParagraph?.querySelector('a')?.getAttribute('href'), 'https://wa.me/923228042633', 'the WhatsApp fallback path is retained for lost links');
     assert.match(privacyCopy, /not legal advice.*reviewed by a qualified legal professional/i);
 
     const shippingCopy = d.querySelector('#page-shipping .content-page-body').textContent;
@@ -618,7 +620,7 @@ async function ready(win) {
     ], 'checkout reassurance uses the actual COD, returns and support policies');
     const checkoutReturnsLink = checkoutTrust.querySelector('a[href="/returns"]');
     assert.ok(checkoutReturnsLink, 'the returns reassurance links to the local /returns policy');
-    assert.match(checkoutReturnsLink.getAttribute('onclick'), /navigateTo\('returns'\)/, 'the returns link preserves SPA navigation');
+    assert.equal(checkoutReturnsLink.getAttribute('data-route'), 'returns', 'the returns link preserves SPA navigation');
     const checkoutSupportLink = checkoutTrust.querySelector('a[href^="https://wa.me/"]');
     assert.equal(new URL(checkoutSupportLink.href).pathname, '/923228042633');
     assert.equal(checkoutSupportLink.getAttribute('target'), '_blank');
@@ -655,7 +657,7 @@ async function ready(win) {
     const orderSupport = contactCards[1];
     const trackLink = orderSupport.querySelector('.contact-card-primary');
     assert.equal(trackLink.getAttribute('href'), '/tracking', 'Order Support main link goes to Track Order');
-    assert.match(trackLink.getAttribute('onclick'), /navigateTo\('tracking'\)/);
+    assert.equal(trackLink.getAttribute('data-route'), 'tracking');
     assert.equal(orderSupport.querySelector('.contact-card-secondary a').textContent.trim(), 'message us on WhatsApp');
     assert.match(orderSupport.querySelector('.contact-card-secondary').textContent, /^or\s/);
     assert.match(orderSupport.querySelector('.contact-card-secondary a').getAttribute('href'), /^https:\/\/wa\.me\//);
@@ -2141,7 +2143,7 @@ async function ready(win) {
     assert.match(banner.textContent, /Verify your email/i, 'the banner explains why history is hidden');
     assert.match(cd.getElementById('acctVerifyLink').textContent, /Resend/i, 'the banner offers a resend link');
     assert.match(cd.getElementById('acctOrders').textContent, /Verify your email to see your orders/i, 'the history area shows the verify state');
-    assert.match(cd.getElementById('acctOrders').innerHTML, /resendVerificationEmail\(\)/, 'the empty state links to the resend action');
+    assert.match(cd.getElementById('acctOrders').innerHTML, /data-action="resend-verification"/, 'the empty state links to the resend action');
     // Verified: the banner hides and real rows render.
     cw.updateVerifyBanner(true);
     cw.renderAccountOrders([{ order_number: 'KAGE-TEST1234', status: 'pending', total: 1500, created_at: '2026-10-11 10:00:00' }], true);
@@ -2324,8 +2326,282 @@ async function ready(win) {
     assert.ok(w.eval('getFilteredProducts().length > 0'), 'the full catalog returns after reset');
     console.log('✅ Filter drawer opens and its style/price/size filters still work');
 
+    // ---- FE-M6: no micro-typography — every readable font-size is >= 10px.
+    {
+      const re = /font-size:\s*([0-9.]+)(rem|px|em)/g;
+      const tiny = [];
+      let m;
+      while ((m = re.exec(storeHtml))) {
+        const px = m[2] === 'px' ? parseFloat(m[1]) : parseFloat(m[1]) * 16;
+        if (px < 10 - 1e-9) {
+          // The filter-checkbox ::after checkmark is a decorative glyph inside
+          // a checkbox, not readable text — the only allowed sub-10px size.
+          const context = storeHtml.slice(Math.max(0, m.index - 300), m.index);
+          if (!context.includes('.filter-checkbox input[type="checkbox"]:checked::after')) {
+            const lineStart = storeHtml.lastIndexOf('\n', m.index);
+            tiny.push(storeHtml.slice(lineStart + 1, m.index + m[0].length).trim());
+          }
+        }
+      }
+      assert.deepEqual(tiny, [], `micro-typography must stay fixed (all readable text >= 10px): ${tiny.join(' | ')}`);
+      assert.match(storeHtml, /\.nav-icon \.badge \{[\s\S]*?font-size: 0\.625rem;/, 'nav badge text is 10px');
+      assert.match(storeHtml, /\.cart-item-remove \{[^}]*font-size: 0\.7rem;/, 'cart Remove button is 11.2px');
+      assert.match(storeHtml, /\.quick-add \{[\s\S]*?font-size: 0\.7rem;/, 'Quick View / Add to Cart button is 11.2px');
+    }
+    console.log('✅ FE-M6 micro-typography: every readable font-size is >= 10px');
+
+    // ---- A11Y-3: screen-reader announcements for dynamic updates.
+    {
+      assert.match(storeHtml, /<div id="srAnnounce" class="sr-only" aria-live="polite"><\/div>/, 'hidden polite live region exists');
+      assert.match(storeHtml, /\.sr-only \{[\s\S]*?clip: rect\(0,0,0,0\);/, '.sr-only clips to 1px');
+      assert.match(storeHtml, /id="resultCount" aria-live="polite"/, 'result count is a live status');
+      assert.match(storeHtml, /id="checkoutError"[^>]*role="alert"/, 'checkout errors are assertive');
+      assert.match(storeHtml, /id="trkError"[^>]*role="alert"/, 'tracking errors are assertive');
+      assert.match(storeHtml, /function announce\(msg\)/, 'announce() helper exists');
+
+      const live = page(storeHtml, '/', { browserCookies: true }); windows.push(live);
+      const lw = live.window, ld = lw.document;
+      await ready(lw);
+      const said = () => ld.getElementById('srAnnounce').textContent;
+      assert.equal(said(), '', 'live region starts empty');
+
+      lw.eval(`announce('Hello screen reader')`); await wait(80);
+      assert.equal(said(), 'Hello screen reader', 'announce() publishes');
+      lw.eval(`announce('Hello screen reader')`); await wait(80);
+      assert.equal(said(), 'Hello screen reader', 'a repeated message still lands');
+
+      lw.showToast('Mirror check'); await wait(80);
+      assert.equal(said(), 'Mirror check', 'showToast mirrors into the live region');
+
+      const pid = lw.eval(`(function () {
+        const p = allProducts.find(x => x.in_stock && x.sizes && x.sizes.length
+          && (x.stock_qty == null || Number(x.stock_qty) > 1)
+          && (!x.size_stock || Number(x.size_stock[x.sizes[0]] || 0) > 1));
+        return p ? p.id : null;
+      })()`);
+      assert.ok(pid, 'a product with 2+ units in stock must exist for the quantity checks');
+      lw.toggleWishlist(pid); await wait(120);
+      assert.match(said(), /Saved .* to favourites\./, 'saving announces');
+      lw.toggleWishlist(pid); await wait(120);
+      assert.match(said(), /Removed .* from favourites\./, 'unsaving announces');
+
+      const added = lw.eval(`(function () { const p = allProducts.find(x => x.id === ${pid}); return addToCart(p, p.sizes[0], 1); })()`);
+      assert.equal(added, true, 'in-stock product goes into the cart');
+      await wait(120);
+      assert.match(said(), /added to cart/, 'cart add announces');
+      lw.eval('changeCartQty(0, 1)'); await wait(120);
+      assert.match(said(), /quantity 2\./, 'quantity change announces');
+      lw.eval('removeFromCart(0)'); await wait(120);
+      assert.match(said(), /Removed .* from cart\./, 'cart removal announces');
+
+      lw.navigateTo('collection', 'all');
+      lw.onSearchInput('wolf');
+      assert.equal(ld.getElementById('resultCount').getAttribute('aria-live'), 'polite');
+      assert.match(ld.getElementById('resultCount').textContent, /\d+ results?/, 'filtering updates the live result count');
+      lw.onSearchInput('zzz-no-such-product');
+      assert.equal(ld.getElementById('resultCount').textContent, '0 results');
+      lw.onSearchInput('');
+
+      lw.eval(`(function () { const p = allProducts.find(x => x.id === ${pid}); return addToCart(p, p.sizes[0], 1); })()`);
+      lw.navigateTo('checkout');
+      ld.getElementById('coName').value = 'Live Region';
+      ld.getElementById('coEmail').value = 'live.region@kage.test';
+      ld.getElementById('coPhone').value = '03001234501';
+      ld.getElementById('coAddress').value = '1 Live St';
+      ld.getElementById('coCity').value = 'Lahore';
+      await lw.eval('placeOrder()'); await wait(120);
+      assert.match(said(), /^Order KAGE-[A-Z0-9]{8} placed\./, 'order placement announces the order number');
+    }
+    console.log('✅ A11Y-3 announcements: toast/wishlist/cart/filter/order updates reach screen readers');
+
+    // ---- A11Y-4/FE-M5: route-change focus + dialog focus (jsdom part).
+    {
+      const focus = page(storeHtml, '/'); windows.push(focus);
+      const fw = focus.window, fd = fw.document;
+      await ready(fw);
+      assert.equal(fd.activeElement, fd.body, 'boot leaves focus alone (skip link stays first)');
+      for (let i = 0; i < 60 && !fw.eval('bootNavComplete'); i++) await wait(50);
+      assert.equal(fw.eval('bootNavComplete'), true, 'boot routing completes');
+      assert.equal(fd.activeElement, fd.body, 'async boot restore still leaves focus alone');
+
+      fw.navigateTo('contact');
+      assert.equal(fd.activeElement, fd.getElementById('mainContent'), 'route change moves focus to main');
+
+      fw.navigateTo('account');
+      assert.ok(fd.getElementById('custOverlay').classList.contains('open'), 'logged-out account opens the login modal');
+      await wait(120);
+      assert.equal(fd.activeElement, fd.getElementById('custLoginEmail'), 'modal takes focus to its email field');
+      fw.closeCustModal();
+      assert.equal(fd.activeElement, fd.getElementById('mainContent'), 'closing the modal restores the previous focus');
+
+      const pid = fw.eval('allProducts.find(p => p.in_stock).id');
+      fw.openProductDetail(pid);
+      assert.equal(fd.activeElement, fd.getElementById('mainContent'), 'product route moves focus to main');
+      const galleryOpener = fd.getElementById('detailMainImage');
+      galleryOpener.focus();
+      fw.openImageZoom();
+      assert.equal(fd.activeElement, fd.querySelector('#imageZoomOverlay .zoom-close'), 'zoom moves focus to its close button');
+      fw.closeImageZoom();
+      assert.equal(fd.activeElement, galleryOpener, 'closing zoom restores focus to the gallery');
+    }
+    console.log('✅ A11Y-4 route/dialog focus: main on route change, modal + zoom focus in and back');
+
+    // ---- A11Y-4/FE-M5: Tab-wrap trapping (real Chromium — jsdom has no layout,
+    // so the visibility filter would hide every control there).
+    {
+      const { launchChromium: launchTrap, waitForCatalog: waitTrapCatalog } = require('./fixtures/chromium');
+      const trapBrowser = await launchTrap();
+      try {
+        const tp = await trapBrowser.newPage();
+        await tp.setViewport({ width: 390, height: 844 });
+        await tp.goto(origin + '/', { waitUntil: 'domcontentloaded' });
+        await waitTrapCatalog(tp);
+        await tp.waitForFunction(() => { try { return eval('bootNavComplete') === true; } catch (e) { return false; } });
+        const FOCUS_SEL = 'a[href], button:not(:disabled), input:not(:disabled), select, textarea, [tabindex]:not([tabindex="-1"])';
+
+        const quickAdded = await tp.evaluate(() => {
+          const p = allProducts.find(x => x.in_stock && x.sizes && x.sizes.length && (x.stock_qty == null || Number(x.stock_qty) > 0));
+          if (!p) return false;
+          quickAdd(p.id);
+          return true;
+        });
+        assert.equal(quickAdded, true, 'a buyable product must exist for the drawer trap check');
+        await tp.waitForFunction(() => document.getElementById('cartDrawer').classList.contains('open'));
+        await tp.waitForFunction(() => document.activeElement && document.activeElement.classList.contains('cart-close'));
+        const wrapFwd = await tp.evaluate((sel) => {
+          const box = document.getElementById('cartDrawer');
+          const items = [...box.querySelectorAll(sel)].filter(el => el.getClientRects().length);
+          items[items.length - 1].focus();
+          document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }));
+          return { ok: document.activeElement === items[0], n: items.length };
+        }, FOCUS_SEL);
+        assert.ok(wrapFwd.n > 1, 'drawer has multiple focusable controls');
+        assert.equal(wrapFwd.ok, true, 'Tab on the last drawer control wraps to the first');
+        const wrapBack = await tp.evaluate((sel) => {
+          const box = document.getElementById('cartDrawer');
+          const items = [...box.querySelectorAll(sel)].filter(el => el.getClientRects().length);
+          items[0].focus();
+          const ev = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true });
+          Object.defineProperty(ev, 'shiftKey', { value: true });
+          document.dispatchEvent(ev);
+          return document.activeElement === items[items.length - 1];
+        }, FOCUS_SEL);
+        assert.equal(wrapBack, true, 'Shift+Tab on the first drawer control wraps to the last');
+        // Focus parked outside a modal overlay is pulled back inside on Tab.
+        const pullIn = await tp.evaluate((sel) => {
+          const box = document.getElementById('cartDrawer');
+          const items = [...box.querySelectorAll(sel)].filter(el => el.getClientRects().length);
+          document.activeElement.blur();
+          document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }));
+          return document.activeElement === items[0];
+        }, FOCUS_SEL);
+        assert.equal(pullIn, true, 'Tab from outside the drawer lands on its first control');
+        await tp.keyboard.press('Escape');
+        await tp.waitForFunction(() => !document.getElementById('cartDrawer').classList.contains('open'));
+
+        // Mobile menu: trapped while open, Escape returns focus to the hamburger.
+        await tp.evaluate(() => document.getElementById('hamburger').focus());
+        await tp.keyboard.press('Enter');
+        await tp.waitForFunction(() => document.getElementById('navLinks').classList.contains('open'));
+        const menuWrap = await tp.evaluate((sel) => {
+          const box = document.getElementById('navLinks');
+          const items = [...box.querySelectorAll(sel)].filter(el => el.getClientRects().length);
+          items[items.length - 1].focus();
+          document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }));
+          return { ok: document.activeElement === items[0], n: items.length };
+        }, FOCUS_SEL);
+        assert.ok(menuWrap.n > 1, 'menu has multiple focusable links');
+        assert.equal(menuWrap.ok, true, 'Tab on the last menu link wraps to the first');
+        await tp.keyboard.press('Escape');
+        await tp.waitForFunction(() => !document.getElementById('navLinks').classList.contains('open'));
+        const menuFocusBack = await tp.evaluate(() => document.activeElement.id === 'hamburger');
+        assert.equal(menuFocusBack, true, 'Escape on the menu returns focus to the hamburger');
+
+        // Zoom view: Tab stays inside, Escape restores focus to the gallery.
+        await tp.goto(origin + '/product/1', { waitUntil: 'domcontentloaded' });
+        await waitTrapCatalog(tp);
+        await tp.waitForSelector('#page-product.active', { timeout: 20000 });
+        await tp.evaluate(() => { document.getElementById('detailMainImage').focus(); openImageZoom(); });
+        const zoomIn = await tp.evaluate(() => document.activeElement.classList.contains('zoom-close'));
+        assert.equal(zoomIn, true, 'zoom moves focus to its close button');
+        await tp.evaluate(() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true })));
+        const zoomStay = await tp.evaluate(() => document.activeElement.classList.contains('zoom-close'));
+        assert.equal(zoomStay, true, 'Tab stays inside the zoom view');
+        await tp.keyboard.press('Escape');
+        await tp.waitForFunction(() => document.getElementById('imageZoomOverlay').hidden);
+        const zoomBack = await tp.evaluate(() => document.activeElement.id === 'detailMainImage');
+        assert.equal(zoomBack, true, 'closing zoom restores focus to the gallery');
+      } finally {
+        await trapBrowser.close();
+      }
+    }
+    console.log('✅ A11Y-4 Tab traps: drawer wraps both ways, menu + zoom trap and restore focus');
+
+    // ---- SEO-4 client: SPA navigations keep social meta in sync.
+    {
+      const seo = page(storeHtml, '/'); windows.push(seo);
+      const sw = seo.window, sd = sw.document;
+      await ready(sw);
+      const meta = (attr, key) => sd.querySelector(`meta[${attr}="${key}"]`).content;
+      // Homepage restore copy must match the served shell head.
+      assert.equal(sd.title, sw.eval('HOME_SOCIAL_META.title'), 'restore title matches the shell');
+      assert.equal(meta('name', 'description'), sw.eval('HOME_SOCIAL_META.description'), 'restore description matches the shell');
+      assert.equal(meta('property', 'og:image:alt'), sw.eval('HOME_SOCIAL_META.imageAlt'), 'restore image alt matches the shell');
+      assert.equal(sw.eval('defaultSocialImage()'), sw.location.origin + '/images/og-image.jpg', 'default social image is the absolute og-image');
+      assert.match(storeHtml, /__SITE_URL__\/images\/og-image\.jpg/, 'shell og:image uses the site-url placeholder');
+
+      const pid = sw.eval('allProducts.find(p => p.in_stock).id');
+      const pname = sw.eval(`allProducts.find(p => p.id === ${pid}).name`);
+      sw.openProductDetail(pid);
+      assert.equal(sd.title, `${pname} | KAGE CULTURE`);
+      assert.equal(meta('property', 'og:title'), `${pname} | KAGE CULTURE`, 'product og:title follows the route');
+      assert.equal(meta('name', 'twitter:title'), `${pname} | KAGE CULTURE`);
+      assert.match(meta('property', 'og:image'), /^https?:\/\//, 'product og:image is absolute');
+      assert.equal(meta('property', 'og:type'), 'product');
+      assert.ok(meta('name', 'description').length > 0 && meta('name', 'description').length <= 155, 'product description is snippet-length');
+      assert.equal(meta('name', 'description'), meta('property', 'og:description'), 'description tags agree');
+      assert.equal(meta('name', 'twitter:description'), meta('property', 'og:description'));
+
+      sw.navigateTo('collection', 'anime');
+      assert.equal(meta('property', 'og:title'), 'Anime Shirts | KAGE CULTURE');
+      assert.equal(meta('name', 'description'), 'Shop anime-inspired shirts with original artwork, premium cotton, and everyday streetwear fits.');
+      assert.equal(meta('property', 'og:type'), 'website');
+      assert.match(meta('property', 'og:image'), /^https?:\/\//);
+
+      sw.navigateTo('contact');
+      assert.equal(meta('property', 'og:title'), sw.eval('HOME_SOCIAL_META.title'), 'content pages restore the homepage social title');
+      assert.equal(meta('name', 'description'), sw.eval('HOME_SOCIAL_META.description'));
+      assert.equal(meta('property', 'og:type'), 'website');
+
+      sw.navigateTo('home');
+      assert.equal(meta('property', 'og:title'), sw.eval('HOME_SOCIAL_META.title'), 'home restores the homepage social title');
+      assert.equal(meta('property', 'og:image'), sw.eval('defaultSocialImage()'));
+
+      // Let the product view's async review fetch settle before teardown:
+      // closing the window with it in flight throws on the dead jsdom global.
+      for (let i = 0; i < 60 && !sd.getElementById('reviewsList').textContent.trim(); i++) await wait(50);
+      assert.ok(sd.getElementById('reviewsList').textContent.trim(), 'reviews settle before teardown');
+    }
+    console.log('✅ SEO-4 client: product/collection navigations sync social tags, home restores them');
+
+    // ---- CONTENT-2 UI: subscribing surfaces the private unsubscribe link.
+    {
+      const nl = page(storeHtml, '/', { browserCookies: true }); windows.push(nl);
+      const nw = nl.window, nd = nw.document;
+      await ready(nw);
+      const nlForm = nd.querySelector('.newsletter-form');
+      nlForm.querySelector('input[type=email]').value = 'footer.link@kage.test';
+      await nw.subscribeNewsletter({ preventDefault() {}, target: nlForm });
+      const nlMsg = nlForm.parentElement.querySelector('.newsletter-msg');
+      assert.match(nlMsg.textContent, /Welcome to the clan/i);
+      const manageLink = nlMsg.querySelector('a[href^="/newsletter/unsubscribe?token="]');
+      assert.ok(manageLink, 'subscribe success shows the private unsubscribe link');
+      assert.match(manageLink.getAttribute('href'), /token=[0-9a-f]{48}$/);
+    }
+    console.log('✅ CONTENT-2 UI: the private unsubscribe link appears after subscribing');
+
     assert.deepEqual(errors, []);
-    console.log('\n31/31 frontend scenarios passed');
+    console.log('\n36/36 frontend scenarios passed');
   } finally {
     windows.forEach(win => win.window.close());
     await new Promise(resolve => server.close(resolve));

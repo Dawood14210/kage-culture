@@ -964,7 +964,8 @@ async function main() {
     const r = await request(PORT, 'GET', '/');
     assert.strictEqual(r.status, 200);
     assert.ok(!r.text.includes("onclick=\"navigateTo('product', "), 'stale navigateTo(product) wiring must be gone');
-    assert.ok(r.text.includes('openProductDetail(${p.id})'), 'cards must call openProductDetail');
+    assert.ok(r.text.includes('data-action="open-product" data-pid="${p.id}"'), 'cards carry the delegated open-product action');
+    assert.ok(r.text.includes("'open-product': (el) => openProductDetail(Number(el.dataset.pid))"), 'the action table routes to openProductDetail');
   });
 
   await check('collection grid and Best Sellers share ONE card template (no second renderer, no Add to Cart card)', async () => {
@@ -2635,7 +2636,7 @@ async function main() {
     const file = tempDb('fresh');
     const out = runBootstrap('seed-fresh', file);
     assert.strictEqual(out.products, demoProducts.DEMO_PRODUCTS.length, JSON.stringify(out));
-    assert.deepStrictEqual(Object.keys(out.keys).sort(), ['backfill_unit_costs_v1', 'normalize_demo_categories_v1', 'normalize_emails_v1', 'remove_old_categories_v1', 'seed_products_v1', 'sync_seed_sale_prices_v1']);
+    assert.deepStrictEqual(Object.keys(out.keys).sort(), ['backfill_newsletter_tokens_v1', 'backfill_unit_costs_v1', 'normalize_demo_categories_v1', 'normalize_emails_v1', 'remove_old_categories_v1', 'seed_products_v1', 'sync_seed_sale_prices_v1']);
     assert.strictEqual(out.keys.seed_products_v1, 'seeded');
     assert.strictEqual(out.keys.normalize_demo_categories_v1, 'normalized:0', 'fresh products already use their route collection keys');
     const seededGraphics = demoProducts.DEMO_PRODUCTS.filter(product => product.category === 'graphic-tees').map(product => product.name);
@@ -2711,9 +2712,10 @@ async function main() {
   await check('a failed seed does not record its key and is retried next time', async () => {
     const file = tempDb('retry');
     const broken = runBootstrap('break-seed', file);
-    // The email normalisation does not touch `products`, so it may record its own
-    // marker; the product-dependent steps must not be marked done.
-    assert.deepStrictEqual(Object.keys(broken.keysAfterFailure), ['normalize_emails_v1'],
+    // The email normalisation and the newsletter token backfill do not touch
+    // `products`, so they may record their own markers; the product-dependent
+    // steps must not be marked done.
+    assert.deepStrictEqual(Object.keys(broken.keysAfterFailure), ['backfill_newsletter_tokens_v1', 'normalize_emails_v1'],
       `a failed bootstrap must not record the failed steps' markers: ${JSON.stringify(broken)}`);
     assert.strictEqual(broken.products, 0, 'nothing should have been inserted by the failed attempt');
 
@@ -2753,7 +2755,7 @@ async function main() {
     assert.ok(products.some(product => product.category === 'graphic-tees'), 'restored Graphic Tees retain the storefront category key');
     // The bootstrap markers are untouched by a deliberate re-seed.
     const markers = await dbModule.prepare('SELECT key FROM app_settings').all();
-    assert.strictEqual(markers.length, 6, JSON.stringify(markers));
+    assert.strictEqual(markers.length, 7, JSON.stringify(markers));
   });
 
   // ---------------------------------------------------------------
@@ -3025,6 +3027,94 @@ async function main() {
     const reopen = await request(PORT, 'PATCH', `/api/orders/${lastRow.id}/status`, { body: { status: 'pending' }, headers: await adminHeaders() });
     assert.strictEqual(reopen.status, 200, JSON.stringify(reopen.json));
     assert.strictEqual((await request(PORT, 'GET', `/api/products/${plenty.id}`)).json.size_stock['One Size'], 4, 'reactivation must retake the units');
+  });
+
+  // ---------------------------------------------------------------
+  // Newsletter one-click unsubscribe (CONTENT-2)
+  // ---------------------------------------------------------------
+  console.log('\nNewsletter unsubscribe:');
+  await check('subscribe mints a token link; confirm page + POST unsubscribe; resubscribe restores', async () => {
+    const csrf = await getCsrf();
+    const post = (body) => request(PORT, 'POST', '/api/newsletter', {
+      body, headers: { 'X-CSRF-Token': csrf.token, Cookie: csrf.cookie }
+    });
+    const sub = await post({ email: 'Unsub.Probe@Kage.Test' });
+    assert.strictEqual(sub.status, 200, JSON.stringify(sub.json));
+    assert.match(sub.json.message, /welcome to the clan/i);
+    assert.match(sub.json.unsubscribe_url, /^\/newsletter\/unsubscribe\?token=[0-9a-f]{48}$/);
+    const token = sub.json.unsubscribe_url.split('token=')[1];
+    const row = await dbModule.prepare('SELECT * FROM newsletter_subscribers WHERE LOWER(email) = ?').get('unsub.probe@kage.test');
+    assert.strictEqual(row.unsubscribe_token, token);
+    assert.ok(!row.unsubscribed, 'a new subscriber is active');
+
+    // Already-subscribed returns the SAME link (self-service recovery).
+    const again = await post({ email: 'unsub.probe@kage.test' });
+    assert.match(again.json.message, /already subscribed/i);
+    assert.strictEqual(again.json.unsubscribe_url, sub.json.unsubscribe_url);
+
+    // Confirm page: missing / unknown / valid tokens.
+    const missing = await request(PORT, 'GET', '/newsletter/unsubscribe');
+    assert.strictEqual(missing.status, 400);
+    assert.match(missing.headers['content-type'], /html/);
+    const unknown = await request(PORT, 'GET', '/newsletter/unsubscribe?token=' + '0'.repeat(48));
+    assert.strictEqual(unknown.status, 404);
+    const confirm = await request(PORT, 'GET', '/newsletter/unsubscribe?token=' + token);
+    assert.strictEqual(confirm.status, 200);
+    assert.match(confirm.text, /Unsubscribe\?/);
+    assert.ok(confirm.text.includes(token), 'the confirm form carries the token');
+    assert.match(confirm.text, /un•••@kage\.test/, 'the address is masked');
+    assert.doesNotMatch(confirm.text, /unsub\.probe@kage\.test/, 'the full address is not echoed');
+    assert.strictEqual(confirm.headers['cache-control'], 'no-store');
+    assert.ok(!(await dbModule.prepare('SELECT unsubscribed FROM newsletter_subscribers WHERE id = ?').get(row.id)).unsubscribed,
+      'GET must not unsubscribe (mail-client prefetch safety)');
+
+    // POST performs it; idempotent; validates the token.
+    const doUnsub = await request(PORT, 'POST', '/api/newsletter/unsubscribe', { body: { token } });
+    assert.strictEqual(doUnsub.status, 200, JSON.stringify(doUnsub.json));
+    assert.ok((await dbModule.prepare('SELECT unsubscribed FROM newsletter_subscribers WHERE id = ?').get(row.id)).unsubscribed);
+    const doUnsubAgain = await request(PORT, 'POST', '/api/newsletter/unsubscribe', { body: { token } });
+    assert.strictEqual(doUnsubAgain.status, 200);
+    const badToken = await request(PORT, 'POST', '/api/newsletter/unsubscribe', { body: { token: 'nope' } });
+    assert.strictEqual(badToken.status, 404);
+    const noToken = await request(PORT, 'POST', '/api/newsletter/unsubscribe', { body: {} });
+    assert.strictEqual(noToken.status, 400);
+
+    // The confirm page now reports the settled state.
+    const settled = await request(PORT, 'GET', '/newsletter/unsubscribe?token=' + token);
+    assert.strictEqual(settled.status, 200);
+    assert.match(settled.text, /Already unsubscribed/);
+
+    // Resubscribing clears the flag and keeps the same token.
+    const back = await post({ email: 'unsub.probe@kage.test' });
+    assert.match(back.json.message, /welcome back/i);
+    assert.strictEqual(back.json.unsubscribe_url, sub.json.unsubscribe_url);
+    assert.ok(!(await dbModule.prepare('SELECT unsubscribed FROM newsletter_subscribers WHERE id = ?').get(row.id)).unsubscribed);
+  });
+
+  await check('legacy tokenless rows are repaired on subscribe and by the bootstrap backfill', async () => {
+    await dbModule.prepare('INSERT INTO newsletter_subscribers (email) VALUES (?)').run('legacy.tokenless@kage.test');
+    const csrf = await getCsrf();
+    const repair = await request(PORT, 'POST', '/api/newsletter', {
+      body: { email: 'legacy.tokenless@kage.test' },
+      headers: { 'X-CSRF-Token': csrf.token, Cookie: csrf.cookie }
+    });
+    assert.strictEqual(repair.status, 200);
+    assert.match(repair.json.unsubscribe_url, /token=[0-9a-f]{48}$/);
+    const repaired = await dbModule.prepare('SELECT unsubscribe_token FROM newsletter_subscribers WHERE email = ?').get('legacy.tokenless@kage.test');
+    assert.match(repaired.unsubscribe_token, /^[0-9a-f]{48}$/, 'lazy repair persists the token');
+
+    // Bootstrap backfill: drop the marker, add another legacy row, re-run.
+    await dbModule.prepare('INSERT INTO newsletter_subscribers (email) VALUES (?)').run('legacy.backfill@kage.test');
+    await dbModule.prepare('DELETE FROM app_settings WHERE key = ?').run('backfill_newsletter_tokens_v1');
+    assert.strictEqual(await serverModule.bootstrapData(), true);
+    const filled = await dbModule.prepare('SELECT unsubscribe_token FROM newsletter_subscribers WHERE email = ?').get('legacy.backfill@kage.test');
+    assert.match(filled.unsubscribe_token, /^[0-9a-f]{48}$/, 'boot backfill fills tokenless rows');
+    assert.ok(await dbModule.getSetting('backfill_newsletter_tokens_v1'), 'the step records its marker');
+    // Idempotent: the minted token survives a second run.
+    await dbModule.prepare('DELETE FROM app_settings WHERE key = ?').run('backfill_newsletter_tokens_v1');
+    assert.strictEqual(await serverModule.bootstrapData(), true);
+    const kept = await dbModule.prepare('SELECT unsubscribe_token FROM newsletter_subscribers WHERE email = ?').get('legacy.backfill@kage.test');
+    assert.strictEqual(kept.unsubscribe_token, filled.unsubscribe_token);
   });
 
   // ---------------------------------------------------------------

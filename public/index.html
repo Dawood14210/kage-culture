@@ -143,6 +143,11 @@
       text-decoration: none;
     }
     .skip-link:focus { top: 0; }
+    /* Visually-hidden live region for screen-reader announcements (A11Y-3). */
+    .sr-only {
+      position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+      overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+    }
 
     body {
       background: var(--bg-primary);
@@ -376,8 +381,8 @@
     .nav-icon .badge {
       position: absolute; top: 4px; right: 4px;
       background: var(--accent); color: #FFF;
-      font-size: 0.5rem; font-weight: 700;
-      width: 16px; height: 16px; border-radius: 50%;
+      font-size: 0.625rem; font-weight: 700;
+      min-width: 18px; height: 18px; padding: 0 4px; border-radius: 999px;
       display: flex; align-items: center; justify-content: center;
       transition: transform var(--transition-fast);
     }
@@ -780,7 +785,7 @@
       left: 10px;
       background: var(--accent);
       color: #FFF;
-      font-size: 0.55rem;
+      font-size: 0.65rem;
       font-weight: 700;
       letter-spacing: 0.08em;
       text-transform: uppercase;
@@ -1086,7 +1091,7 @@
       justify-content: center;
       background: var(--accent);
       color: #FFF;
-      font-size: 0.6rem;
+      font-size: 0.625rem;
       font-weight: 700;
       width: 18px;
       height: 18px;
@@ -1243,7 +1248,7 @@
       position: absolute; top: 10px; left: 10px;
       background: var(--bg-primary);
       color: var(--text-primary);
-      font-size: 0.55rem; font-weight: 600;
+      font-size: 0.65rem; font-weight: 600;
       letter-spacing: 0.06em; text-transform: uppercase;
       padding: 0.2rem 0.5rem;
       border: 1px solid var(--border-color);
@@ -1614,7 +1619,7 @@
     .size-btn.selected { border-color: var(--text-primary); color: var(--text-primary); }
     .size-picker { display: flex; flex-wrap: wrap; gap: 0.4rem; }
     .size-option { display: flex; flex-direction: column; align-items: center; }
-    .size-stock-status { min-height: 1em; margin-top: 0.25rem; font-size: 0.6rem; color: var(--text-gray); }
+    .size-stock-status { min-height: 1em; margin-top: 0.25rem; font-size: 0.65rem; color: var(--text-gray); }
     .size-btn:disabled { opacity: 0.4; cursor: not-allowed; text-decoration: line-through; }
     .size-btn:disabled:hover { border-color: var(--border-color); color: var(--text-muted); }
     .size-single { font-size: 0.95rem; font-weight: 700; padding: 0.5rem 0.8rem; background: rgba(0,0,0,0.03); border: 1px solid var(--border-color); display: inline-block; border-radius: 8px; }
@@ -1738,7 +1743,7 @@
     }
     .cart-item-qty button:hover { border-color: var(--text-primary); }
     .cart-item-qty span { font-size: 0.8rem; font-weight: 600; min-width: 16px; text-align: center; }
-    .cart-item-remove { background: none; border: none; color: var(--text-muted); font-size: 0.55rem; cursor: pointer; }
+    .cart-item-remove { background: none; border: none; color: var(--text-muted); font-size: 0.7rem; cursor: pointer; }
     .cart-item-remove:hover { color: var(--accent); }
     .cart-footer { border-top: 1px solid var(--border-color); padding: var(--spacing-md); display: flex; flex-direction: column; gap: var(--spacing-md); }
     .cart-subtotal { display: flex; justify-content: space-between; font-weight: 700; font-size: 0.9rem; }
@@ -1769,7 +1774,7 @@
     }
     .payment-icons { display: flex; gap: var(--spacing-xs); align-items: center; flex-wrap: wrap; }
     .payment-icon {
-      font-size: 0.55rem;
+      font-size: 0.65rem;
       text-transform: uppercase;
       color: var(--text-muted);
       padding: 0.2rem 0.4rem;
@@ -2035,7 +2040,7 @@
     .order-row:hover { border-color: var(--accent); }
     .order-num { font-weight: 700; font-size: 0.82rem; color: var(--text-primary); }
     .order-status {
-      font-size: 0.6rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+      font-size: 0.65rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
       padding: 0.15rem 0.5rem; border-radius: 4px;
     }
     .order-status.pending { background: rgba(251,191,36,0.15); color: var(--text-warning); }
@@ -2167,7 +2172,7 @@
       color: #FFF;
       border: 1px solid var(--text-primary);
       font-family: var(--font-body);
-      font-size: 0.6rem;
+      font-size: 0.7rem;
       font-weight: 700;
       letter-spacing: 0.12em;
       text-transform: uppercase;
@@ -2189,7 +2194,7 @@
       left: 10px;
       background: var(--accent);
       color: #FFF;
-      font-size: 0.5rem;
+      font-size: 0.65rem;
       font-weight: 700;
       letter-spacing: 0.08em;
       text-transform: uppercase;
@@ -2854,7 +2859,7 @@
     .review-date { margin-left: auto; font-size: 0.72rem; color: var(--text-gray); }
     .review-comment { font-size: 0.85rem; color: var(--text-muted); line-height: 1.55; margin: 0; }
     .review-item.pending-own { border-style: dashed; }
-    .review-pending-tag { font-size: 0.62rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-warning); background: rgba(160, 130, 40, 0.12); border: 1px solid rgba(160, 130, 40, 0.4); border-radius: 999px; padding: 0.12rem 0.5rem; }
+    .review-pending-tag { font-size: 0.65rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-warning); background: rgba(160, 130, 40, 0.12); border: 1px solid rgba(160, 130, 40, 0.4); border-radius: 999px; padding: 0.12rem 0.5rem; }
     .review-form-wrap { border: 1px dashed var(--border-color); border-radius: 12px; padding: 1.1rem; }
     .review-form-wrap h4 { font-size: 0.85rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 0.3rem; }
     .review-form-note { font-size: 0.75rem; color: var(--text-gray); margin-bottom: 0.9rem; }
@@ -2880,7 +2885,7 @@
     .review-error { font-size: 0.8rem; color: var(--accent); }
 
     /* Low stock urgency (real inventory only) */
-    .low-stock-flag { position: absolute; left: 10px; bottom: 10px; background: #4A4433; color: #EFE9DA; font-size: 0.62rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; padding: 0.28rem 0.5rem; border-radius: 6px; z-index: 2; }
+    .low-stock-flag { position: absolute; left: 10px; bottom: 10px; background: #4A4433; color: #EFE9DA; font-size: 0.65rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; padding: 0.28rem 0.5rem; border-radius: 6px; z-index: 2; }
     .detail-urgency { display: flex; align-items: center; gap: 0.7rem; flex-wrap: wrap; margin: 0.5rem 0; }
     .urgency-low { color: #4A4433; font-size: 0.82rem; font-weight: 700; }
     .urgency-sold { color: var(--text-gray); font-size: 0.78rem; }
@@ -2960,7 +2965,7 @@
       display: inline-flex;
       align-items: center;
       gap: 0.6rem;
-      font-size: 0.62rem;
+      font-size: 0.65rem;
       font-weight: 700;
       letter-spacing: 0.28em;
       text-transform: uppercase;
@@ -3735,6 +3740,7 @@
 
   <!-- Skip to content link for keyboard users -->
   <a href="#mainContent" class="skip-link">Skip to content</a>
+  <div id="srAnnounce" class="sr-only" aria-live="polite"></div>
 
   <!-- HEADER -->
   <header class="site-header" id="siteHeader">
@@ -3784,36 +3790,36 @@
     </script>
 
     <div class="container nav-inner">
-      <div class="kage-logo" onclick="navigateTo('home')" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();navigateTo('home');}">
+      <div class="kage-logo" data-route="home" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();navigateTo('home');}">
         <img src="/images/logo/kage-horizontal-light.svg" alt="Kage Culture" width="1030" height="352" fetchpriority="high" decoding="async">
       </div>
 
       <ul class="nav-links" id="navLinks" aria-label="Main navigation">
-        <li><a data-nav="all" href="/" onclick="navigateTo('home'); closeMenu(); return false;">Home</a></li>
-        <li><a data-nav="anime" href="/collection/anime" onclick="navigateTo('collection', 'anime'); closeMenu(); return false;">Anime Shirts</a></li>
-        <li data-stock-category="graphic-tees" style="display:none;"><a data-nav="graphic-tees" href="/collection/graphic-tees" onclick="navigateTo('collection', 'graphic-tees'); closeMenu(); return false;">Graphic Tees</a></li>
-        <li id="navPantsItem" data-stock-category="pants" style="display:none;"><a data-nav="pants" href="/collection/pants" onclick="navigateTo('collection', 'pants'); closeMenu(); return false;">Pants</a></li>
-        <li><a data-nav="custom-stickers" href="/custom-stickers" onclick="navigateTo('custom-stickers'); closeMenu(); return false;">Custom Stickers</a></li>
-        <li><a data-nav="about" href="/about" onclick="navigateTo('about'); closeMenu(); return false;">About</a></li>
-        <li><a data-nav="contact" href="/contact" onclick="navigateTo('contact'); closeMenu(); return false;">Contact</a></li>
-        <li><a data-nav="tracking" href="/tracking" onclick="navigateTo('tracking'); closeMenu(); return false;">Track Order</a></li>
+        <li><a data-nav="all" href="/" data-route="home" data-close-menu>Home</a></li>
+        <li><a data-nav="anime" href="/collection/anime" data-route="collection" data-filter="anime" data-close-menu>Anime Shirts</a></li>
+        <li data-stock-category="graphic-tees" style="display:none;"><a data-nav="graphic-tees" href="/collection/graphic-tees" data-route="collection" data-filter="graphic-tees" data-close-menu>Graphic Tees</a></li>
+        <li id="navPantsItem" data-stock-category="pants" style="display:none;"><a data-nav="pants" href="/collection/pants" data-route="collection" data-filter="pants" data-close-menu>Pants</a></li>
+        <li><a data-nav="custom-stickers" href="/custom-stickers" data-route="custom-stickers" data-close-menu>Custom Stickers</a></li>
+        <li><a data-nav="about" href="/about" data-route="about" data-close-menu>About</a></li>
+        <li><a data-nav="contact" href="/contact" data-route="contact" data-close-menu>Contact</a></li>
+        <li><a data-nav="tracking" href="/tracking" data-route="tracking" data-close-menu>Track Order</a></li>
         <li class="mobile-search">
-          <input type="search" id="mobileSearch" placeholder="Search drops…" enterkeyhint="search" aria-label="Search drops" oninput="onSearchInput(this.value)" onkeydown="mobileSearchKeydown(event)" />
-          <button type="button" class="mobile-search-btn" onclick="submitMobileSearch(event)" aria-label="Submit search"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></button>
+          <input type="search" id="mobileSearch" placeholder="Search drops…" enterkeyhint="search" aria-label="Search drops" />
+          <button type="button" class="mobile-search-btn" data-action="mobile-search-submit" aria-label="Submit search"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></button>
         </li>
       </ul>
 
       <div class="nav-search">
-        <input type="search" id="searchInput" placeholder="Search drops…" oninput="onSearchInput(this.value)" onkeydown="searchKeydown(event)" onblur="searchBlur()" aria-label="Search drops" />
+        <input type="search" id="searchInput" placeholder="Search drops…" aria-label="Search drops" />
         <span class="nav-search-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></span>
               </div>
 
               <div class="nav-icons">
-                <button class="nav-icon nav-search-toggle" id="searchToggle" type="button" onclick="toggleDesktopSearch()" title="Search" aria-label="Search" aria-controls="searchInput" aria-expanded="false"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></button>
-                <button class="nav-icon" onclick="navigateTo('tracking')" title="Track Order" aria-label="Track Order"><img src="/images/track-order.png" alt="" width="22" height="22" /></button>
-                <button class="nav-icon" id="wishlistNav" onclick="toggleWishlistFilter()" title="Wishlist" aria-label="Wishlist"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg><span class="badge" id="wishlistCount">0</span></button>
-                <button class="nav-icon" id="customerAccountBtn" onclick="handleAccountClick()" title="Account" aria-label="Account"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></button>
-                <button class="nav-icon" onclick="toggleCart()" title="Cart" aria-label="Shopping Cart">
+                <button class="nav-icon nav-search-toggle" id="searchToggle" type="button" data-action="desktop-search" title="Search" aria-label="Search" aria-controls="searchInput" aria-expanded="false"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></button>
+                <button class="nav-icon" data-route="tracking" title="Track Order" aria-label="Track Order"><img src="/images/track-order.png" alt="" width="22" height="22" /></button>
+                <button class="nav-icon" id="wishlistNav" data-action="toggle-wishlist" title="Wishlist" aria-label="Wishlist"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg><span class="badge" id="wishlistCount">0</span></button>
+                <button class="nav-icon" id="customerAccountBtn" data-action="account" title="Account" aria-label="Account"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></button>
+                <button class="nav-icon" data-action="toggle-cart" title="Cart" aria-label="Shopping Cart">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg><span class="badge" id="cartCount">0</span>
                 </button>
                 <button class="hamburger" id="hamburger" type="button" aria-label="Open menu" aria-controls="navLinks" aria-expanded="false">
@@ -3824,7 +3830,7 @@
   </header>
 
   <main id="mainContent" tabindex="-1" aria-label="Main content">
-  <div id="productLoadError" role="alert" hidden style="padding:1rem 2rem;background:#FFF1EE;color:#75251C;text-align:center;">The catalog could not load. Shopping is temporarily unavailable. <button type="button" class="btn btn-sm btn-outline" onclick="loadProductsFromAPI()">Retry</button></div>
+  <div id="productLoadError" role="alert" hidden style="padding:1rem 2rem;background:#FFF1EE;color:#75251C;text-align:center;">The catalog could not load. Shopping is temporarily unavailable. <button type="button" class="btn btn-sm btn-outline" data-action="load-products">Retry</button></div>
   <!-- HOME PAGE -->
   <div class="page active" id="page-home">
     <!-- HERO — CAMPAIGN IMAGE LAYOUT -->
@@ -3858,7 +3864,7 @@
       <div class="hero-copy">
         <h1 class="hero-title" id="heroTitle">Engineered Fit. Original Art.</h1>
         <p class="hero-sub">Anime inspired. Built for everyday.</p>
-        <a class="btn btn-primary" href="/collection/all" onclick="navigateTo('collection', 'all'); return false;">Shop the Drops</a>
+        <a class="btn btn-primary" href="/collection/all" data-route="collection" data-filter="all">Shop the Drops</a>
       </div>
     </section>
 
@@ -3867,7 +3873,7 @@
       <div class="category-band">
         <div class="container">
           <div class="category-strip" id="categoryStrip" tabindex="0" aria-label="Shop categories">
-            <a class="cat-tile" data-stock-category="graphic-tees" style="display:none;" href="/collection/graphic-tees" data-cat="graphic-tees" onclick="navigateTo('collection', 'graphic-tees'); return false;">
+            <a class="cat-tile" data-stock-category="graphic-tees" style="display:none;" href="/collection/graphic-tees" data-cat="graphic-tees" data-route="collection" data-filter="graphic-tees">
               <span class="cat-thumb"><picture><source type="image/webp" srcset="/images/graphic-tees-200.webp 200w, /images/graphic-tees-500.webp 500w" sizes="116px" /><img src="/images/graphic-tees.jpg" alt="Graphic Tees" width="600" height="600" sizes="116px" loading="lazy" decoding="async" /></picture></span>
               <span class="cat-info">
                 <span class="cat-name">Graphic Tees</span>
@@ -3875,7 +3881,7 @@
                 <span class="cat-shop">Explore <i><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg></i></span>
               </span>
             </a>
-            <a class="cat-tile" href="/collection/anime" data-cat="anime" onclick="navigateTo('collection', 'anime'); return false;">
+            <a class="cat-tile" href="/collection/anime" data-cat="anime" data-route="collection" data-filter="anime">
               <span class="cat-thumb"><picture><source type="image/webp" srcset="/images/anime-shirts-200.webp 200w, /images/anime-shirts-500.webp 500w" sizes="116px" /><img src="/images/anime-shirts.jpg" alt="Anime Shirts" width="600" height="600" sizes="116px" loading="lazy" decoding="async" /></picture></span>
               <span class="cat-info">
                 <span class="cat-name">Anime Shirts</span>
@@ -3883,7 +3889,7 @@
                 <span class="cat-shop">Explore <i><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg></i></span>
               </span>
             </a>
-            <a class="cat-tile" data-stock-category="pants" style="display:none;" id="catTilePants" href="/collection/pants" data-cat="pants" onclick="navigateTo('collection', 'pants'); return false;">
+            <a class="cat-tile" data-stock-category="pants" style="display:none;" id="catTilePants" href="/collection/pants" data-cat="pants" data-route="collection" data-filter="pants">
               <span class="cat-thumb"><picture><source type="image/webp" srcset="/images/pants-200.webp 200w, /images/pants-500.webp 500w" sizes="116px" /><img src="/images/pants.jpg" alt="Pants" width="600" height="600" sizes="116px" loading="lazy" decoding="async" /></picture></span>
               <span class="cat-info">
                 <span class="cat-name">Pants</span>
@@ -3891,7 +3897,7 @@
                 <span class="cat-shop">Explore <i><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg></i></span>
               </span>
             </a>
-            <a class="cat-tile" href="/custom-stickers" data-cat="custom-stickers" onclick="navigateTo('custom-stickers'); return false;">
+            <a class="cat-tile" href="/custom-stickers" data-cat="custom-stickers" data-route="custom-stickers">
               <span class="cat-thumb"><picture><source type="image/webp" srcset="/images/custom-stickers-200.webp 200w, /images/custom-stickers-500.webp 500w" sizes="116px" /><img src="/images/custom-stickers.jpg" alt="Custom Stickers" width="600" height="600" sizes="116px" loading="lazy" decoding="async" /></picture></span>
               <span class="cat-info">
                 <span class="cat-name">Custom Stickers</span>
@@ -3911,7 +3917,7 @@
           <p class="section-label">New Season</p>
           <h2 class="vibes-title">NEW<br />VIBES</h2>
           <p class="vibes-desc">New original anime drops daily.<br /><span class="vibes-jp">カゲ — エディット — Kage Edit</span></p>
-          <button class="vibes-cta" onclick="navigateTo('collection', 'anime')">Explore Collection</button>
+          <button class="vibes-cta" data-route="collection" data-filter="anime">Explore Collection</button>
         </div>
         <div class="vibes-image">
           <picture>
@@ -3967,7 +3973,7 @@
             <p class="section-label">Most Popular</p>
             <h2 class="section-title">BEST SELLERS</h2>
           </div>
-          <a class="bestsellers-viewall" href="/collection/all" onclick="navigateTo('collection', 'all'); return false;">View All <i><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg></i></a>
+          <a class="bestsellers-viewall" href="/collection/all" data-route="collection" data-filter="all">View All <i><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg></i></a>
         </div>
         <div class="product-grid" id="bestSellersGrid"></div>
       </div>
@@ -4000,7 +4006,7 @@
 
           <div class="shop-main">
             <div class="filter-bar">
-              <span class="result-count" id="resultCount"></span>
+              <span class="result-count" id="resultCount" aria-live="polite"></span>
               <div class="filter-toolbar">
                 <select class="sort-select" id="sortSelect">
                   <option value="featured">Sort: Featured</option>
@@ -4008,7 +4014,7 @@
                   <option value="price-high">Price: High — Low</option>
                   <option value="newest">Newest</option>
                 </select>
-                <button class="filter-toggle-btn" onclick="openFilterDrawer()">
+                <button class="filter-toggle-btn" data-action="open-filter">
                   <span>☰</span> Filter <span class="badge" id="filterBadge">0</span>
                 </button>
               </div>
@@ -4020,7 +4026,7 @@
               </div>
               <div class="pagination-row">
                 <span class="page-info" id="pageInfo">Page 1 of 1</span>
-                <button class="next-btn" id="nextBtn" onclick="nextPage()">Next <span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg></span></button>
+                <button class="next-btn" id="nextBtn" data-action="next-page">Next <span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg></span></button>
               </div>
             </div>
           </div>
@@ -4029,15 +4035,15 @@
     </section>
 
     <!-- MOBILE FILTER DRAWER -->
-    <div class="filter-overlay" id="filterOverlay" onclick="closeFilterDrawer()"></div>
+    <div class="filter-overlay" id="filterOverlay" data-action="close-filter"></div>
     <div class="filter-drawer" id="filterDrawer">
       <div class="filter-drawer-header">
         <h3>Filter</h3>
-        <button class="close-btn" onclick="closeFilterDrawer()"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+        <button class="close-btn" data-action="close-filter"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
       </div>
       <div class="filter-drawer-body filter-panel" id="filterDrawerBody"></div>
       <div class="filter-drawer-footer">
-        <button class="btn btn-primary btn-sm" onclick="closeFilterDrawer(); renderCollectionGrid();">Apply</button>
+        <button class="btn btn-primary btn-sm" data-action="close-filter-render">Apply</button>
       </div>
     </div>
 
@@ -4051,14 +4057,14 @@
           <div class="footer-col footer-help">
             <h4>Help</h4>
             <ul>
-              <li id="footerPantsItem" data-stock-category="pants" style="display:none;"><a href="/collection/pants" onclick="navigateTo('collection', 'pants'); return false;">Pants</a></li>
-              <li><a href="/about" onclick="navigateTo('about'); return false;">About</a></li>
-              <li><a href="/contact" onclick="navigateTo('contact'); return false;">Contact</a></li>
-              <li><a href="/tracking" onclick="navigateTo('tracking'); return false;">Track Order</a></li>
-              <li><a href="/shipping" onclick="navigateTo('shipping'); return false;">Shipping</a></li>
-              <li><a href="/returns" onclick="navigateTo('returns'); return false;">Returns & Refunds</a></li>
-              <li><a href="/privacy" onclick="navigateTo('privacy'); return false;">Privacy Policy</a></li>
-              <li><a href="/terms" onclick="navigateTo('terms'); return false;">Terms of Service</a></li>
+              <li id="footerPantsItem" data-stock-category="pants" style="display:none;"><a href="/collection/pants" data-route="collection" data-filter="pants">Pants</a></li>
+              <li><a href="/about" data-route="about">About</a></li>
+              <li><a href="/contact" data-route="contact">Contact</a></li>
+              <li><a href="/tracking" data-route="tracking">Track Order</a></li>
+              <li><a href="/shipping" data-route="shipping">Shipping</a></li>
+              <li><a href="/returns" data-route="returns">Returns & Refunds</a></li>
+              <li><a href="/privacy" data-route="privacy">Privacy Policy</a></li>
+              <li><a href="/terms" data-route="terms">Terms of Service</a></li>
             </ul>
           </div>
           <div class="footer-social">
@@ -4084,7 +4090,7 @@
           <div class="footer-newsletter">
             <h4>JOIN THE CLAN.</h4>
             <p>First drop access, restock alerts, and clan-only pricing. No spam, ever.</p>
-            <form class="newsletter-form" onsubmit="subscribeNewsletter(event)">
+            <form class="newsletter-form" data-form="newsletter">
               <input type="email" placeholder="Your email" required />
               <button class="btn btn-primary btn-sm" type="submit">Subscribe</button>
             </form>
@@ -4097,9 +4103,9 @@
             <span class="payment-icon">COD</span>
           </div>
           <div class="footer-bottom-links">
-            <a href="/privacy" onclick="navigateTo('privacy'); return false;">Privacy</a>
+            <a href="/privacy" data-route="privacy">Privacy</a>
             <span class="footer-bottom-separator" aria-hidden="true">·</span>
-            <a href="/terms" onclick="navigateTo('terms'); return false;">Terms</a>
+            <a href="/terms" data-route="terms">Terms</a>
           </div>
         </div>
       </div>
@@ -4112,12 +4118,12 @@
       <p class="section-label">Order Lookup</p>
       <h2 class="section-title">TRACK YOUR ORDER</h2>
       <p class="tracking-sub">Enter your order number and the phone number you ordered with. No account needed — it's that simple.</p>
-      <form class="tracking-form" onsubmit="trackOrder(event)">
+      <form class="tracking-form" data-form="tracking">
         <input type="text" id="trkNumber" placeholder="Order number (e.g. KAGE-XXXXXXXX)" autocomplete="off" />
         <input type="tel" id="trkPhone" placeholder="Phone number" />
         <button class="btn btn-primary" type="submit">Track Order</button>
       </form>
-      <div class="tracking-error" id="trkError" style="display:none;"></div>
+      <div class="tracking-error" id="trkError" style="display:none;" role="alert"></div>
       <div id="trkResult" style="display:none;"></div>
     </div>
   </div>
@@ -4128,14 +4134,14 @@
       <p class="section-label">Account Recovery</p>
       <h2 class="section-title">RESET YOUR PASSWORD</h2>
       <p class="tracking-sub">Choose a new password for your account.</p>
-      <form class="tracking-form" onsubmit="submitPasswordReset(event)">
+      <form class="tracking-form" data-form="password-reset">
         <input type="password" id="rstPassword" placeholder="New password (min. 6 characters)" autocomplete="new-password" />
         <input type="password" id="rstConfirm" placeholder="Confirm new password" autocomplete="new-password" />
         <button class="btn btn-primary" type="submit">Update Password</button>
       </form>
       <div class="tracking-error" id="rstError" style="display:none;"></div>
       <div id="rstMsg" style="display:none; margin-top:0.8rem; font-size:0.85rem; color:var(--accent);"></div>
-      <p style="margin-top:1rem;"><a href="/" onclick="navigateTo('home'); return false;" style="color: var(--accent); cursor: pointer; font-size: 0.85rem;">← Back to Shop</a></p>
+      <p style="margin-top:1rem;"><a href="/" data-route="home" style="color: var(--accent); cursor: pointer; font-size: 0.85rem;">← Back to Shop</a></p>
     </div>
   </div>
 
@@ -4147,8 +4153,8 @@
       <p class="tracking-sub">We're confirming the email address on your KAGE Culture account.</p>
       <div class="tracking-error" id="vfyError" style="display:none;"></div>
       <div id="vfyMsg" style="display:none; margin-top:0.8rem; font-size:0.85rem; color:var(--accent);"></div>
-      <p style="margin-top:1rem;"><a href="/account" onclick="navigateTo('account'); loadAccountPage(); return false;" style="color: var(--accent); cursor: pointer; font-size: 0.85rem;">Go to my account →</a></p>
-      <p style="margin-top:0.6rem;"><a href="/" onclick="navigateTo('home'); return false;" style="color: var(--accent); cursor: pointer; font-size: 0.85rem;">← Back to Shop</a></p>
+      <p style="margin-top:1rem;"><a href="/account" data-route="account" data-load-account style="color: var(--accent); cursor: pointer; font-size: 0.85rem;">Go to my account →</a></p>
+      <p style="margin-top:0.6rem;"><a href="/" data-route="home" style="color: var(--accent); cursor: pointer; font-size: 0.85rem;">← Back to Shop</a></p>
     </div>
   </div>
 
@@ -4159,9 +4165,9 @@
       <div class="checkout-head">
         <p class="section-label">Secure Checkout</p>
         <h2 class="section-title">COMPLETE YOUR ORDER</h2>
-        <span class="checkout-back" onclick="navigateTo('home'); initShop('all')" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();navigateTo('home');initShop('all');}">← Back to shop</span>
+        <span class="checkout-back" data-route="home" data-init-shop="all" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();navigateTo('home');initShop('all');}">← Back to shop</span>
       </div>
-      <div class="checkout-error" id="checkoutError" style="display:none;"></div>
+      <div class="checkout-error" id="checkoutError" style="display:none;" role="alert"></div>
       <div class="checkout-layout">
         <div class="checkout-form">
           <h3>Contact &amp; Delivery</h3>
@@ -4190,11 +4196,11 @@
             <div><span>Delivery charge</span><span id="coShipping">To be confirmed</span></div>
             <div class="co-grand"><span>Total before delivery</span><span id="coTotal">Rs. 0</span></div>
           </div>
-          <button class="btn btn-primary co-place" id="coPlaceBtn" onclick="placeOrder()">Place Order</button>
+          <button class="btn btn-primary co-place" id="coPlaceBtn" data-action="place-order">Place Order</button>
           <ul class="co-trust-strip" aria-label="Checkout reassurance">
             <li>Cash on Delivery</li>
             <li>Secure checkout</li>
-            <li><a href="/returns" onclick="navigateTo('returns'); return false;">Easy returns · 7-day window · eligible items</a></li>
+            <li><a href="/returns" data-route="returns">Easy returns · 7-day window · eligible items</a></li>
             <li><a href="https://wa.me/923228042633?text=Hi%20Kage%20Culture%2C%20I%20need%20help" target="_blank" rel="noopener noreferrer">WhatsApp support · +92 322 804 2633</a></li>
           </ul>
           <p class="co-safe">Cash on Delivery accepted. We will contact you about the delivery charges.</p>
@@ -4221,8 +4227,8 @@
         <div class="confirm-items" id="confItems"></div>
         <div class="confirm-next">
           <p>We'll confirm your order and contact you about the delivery charges by email or phone shortly. Keep your order number handy.</p>
-          <p style="text-align:center;margin-bottom:0.6rem;"><a class="track-order-link" href="/tracking" onclick="goTrackOrder(); return false;">Track your order anytime <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg></a></p>
-          <button class="btn btn-primary" onclick="navigateTo('home'); initShop('all')">Continue Shopping</button>
+          <p style="text-align:center;margin-bottom:0.6rem;"><a class="track-order-link" href="/tracking" data-action="go-track">Track your order anytime <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg></a></p>
+          <button class="btn btn-primary" data-route="home" data-init-shop="all">Continue Shopping</button>
         </div>
       </div>
     </div>
@@ -4241,7 +4247,7 @@
         </div>
 
         <div class="detail-info">
-          <span class="back-link" onclick="navigateTo('collection', currentCollectionFilter)" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();navigateTo('collection', currentCollectionFilter);}">← Back to collection</span>
+          <span class="back-link" data-route="collection" data-filter="@current" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();navigateTo('collection', currentCollectionFilter);}">← Back to collection</span>
           <h1 id="detailName"></h1>
           <span class="detail-price" id="detailPrice"></span>
           <div class="detail-rating" id="detailRating"></div>
@@ -4255,18 +4261,18 @@
           <div>
             <label style="font-size:0.7rem;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;display:block;margin-bottom:0.4rem;">Quantity</label>
             <div style="display:flex;align-items:center;gap:0.6rem;">
-              <button class="qty-btn" onclick="detailChangeQty(-1)">−</button>
+              <button class="qty-btn" data-action="detail-qty" data-delta="-1">−</button>
               <span style="font-weight:600;font-size:1rem;min-width:24px;text-align:center;" id="detailQty">1</span>
-              <button class="qty-btn" onclick="detailChangeQty(1)">+</button>
+              <button class="qty-btn" data-action="detail-qty" data-delta="1">+</button>
             </div>
           </div>
-          <button class="btn btn-primary" onclick="detailAddToCart()" id="addToCartBtn">Add to Cart</button>
+          <button class="btn btn-primary" data-action="detail-add" id="addToCartBtn">Add to Cart</button>
           <p class="detail-trust-line">Cash on delivery · 7-day returns · Fast delivery</p>
           <div class="detail-tabs">
             <div class="tab-headers">
-              <span class="tab-header active" data-tab="fabric" onclick="switchTab(this)">Fabric &amp; Care</span>
-              <span class="tab-header" data-tab="fit" onclick="switchTab(this)">Fit Guide</span>
-              <span class="tab-header" data-tab="shipping" onclick="switchTab(this)">Shipping &amp; Returns</span>
+              <span class="tab-header active" data-tab="fabric" data-action="tab">Fabric &amp; Care</span>
+              <span class="tab-header" data-tab="fit" data-action="tab">Fit Guide</span>
+              <span class="tab-header" data-tab="shipping" data-action="tab">Shipping &amp; Returns</span>
             </div>
             <div class="tab-content">
               <div class="tab-pane active" id="tab-fabric"><ul><li>100% heavyweight cotton — 220 GSM</li><li>Pre-shrunk fabric, wash cold inside out</li><li>Do not bleach — tumble dry low</li><li>Screen-printed with eco-friendly water-based inks</li></ul></div>
@@ -4296,7 +4302,7 @@
         <div class="review-form-wrap">
           <h4>Leave a Review</h4>
           <p class="review-form-note">Only customers with a <strong>delivered</strong> order can review — we verify your order number and phone to keep reviews authentic.</p>
-          <form class="review-form" onsubmit="submitReview(event)">
+          <form class="review-form" data-form="review">
             <div class="star-input" id="starInput" role="radiogroup" aria-label="Rate this product from 1 to 5 stars">
               <button type="button" role="radio" data-v="1" aria-checked="false" aria-label="1 star" tabindex="0">★</button><button type="button" role="radio" data-v="2" aria-checked="false" aria-label="2 stars" tabindex="-1">★</button><button type="button" role="radio" data-v="3" aria-checked="false" aria-label="3 stars" tabindex="-1">★</button><button type="button" role="radio" data-v="4" aria-checked="false" aria-label="4 stars" tabindex="-1">★</button><button type="button" role="radio" data-v="5" aria-checked="false" aria-label="5 stars" tabindex="-1">★</button>
             </div>
@@ -4315,38 +4321,38 @@
 
     <div class="sticky-cart-bar" id="stickyCartBar">
       <span class="sticky-price" id="stickyPrice">Rs. 0</span>
-      <button class="btn btn-primary" onclick="detailAddToCart()">Add to Cart</button>
+      <button class="btn btn-primary" data-action="detail-add">Add to Cart</button>
     </div>
 
     <!-- Full-screen zoom view of the current gallery image -->
-    <div class="zoom-overlay" id="imageZoomOverlay" role="dialog" aria-modal="true" aria-label="Enlarged product image" onclick="closeImageZoom()" hidden>
+    <div class="zoom-overlay" id="imageZoomOverlay" role="dialog" aria-modal="true" aria-label="Enlarged product image" data-action="zoom-close" hidden>
       <button type="button" class="zoom-close" aria-label="Close zoom view">×</button>
       <img id="zoomImage" alt="" />
     </div>
   </div>
 
-  <div class="page" id="page-not-found"><div class="container tracking-page"><h1>Page not found</h1><p>That link doesn't lead to a KAGE page.</p><button class="btn btn-primary" onclick="navigateTo('home')">Back to shop</button></div></div>
+  <div class="page" id="page-not-found"><div class="container tracking-page"><h1>Page not found</h1><p>That link doesn't lead to a KAGE page.</p><button class="btn btn-primary" data-route="home">Back to shop</button></div></div>
 
   <!-- CART -->
-  <div class="cart-overlay" id="cartOverlay" onclick="toggleCart()"></div>
+  <div class="cart-overlay" id="cartOverlay" data-action="toggle-cart"></div>
   <div class="cart-drawer" id="cartDrawer">
     <div class="cart-header">
       <h3>Your Cart</h3>
-      <button class="cart-close" onclick="toggleCart()"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+      <button class="cart-close" data-action="toggle-cart"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
     </div>
     <div class="cart-items" id="cartItems"><div class="cart-empty"><span class="cart-empty-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg></span><p>Your cart is empty.</p></div></div>
     <div class="cart-footer" id="cartFooter" style="display:none;">
       <div class="cart-subtotal"><span>Subtotal</span><span class="subtotal-value" id="cartSubtotal">Rs. 0</span></div>
-      <button class="btn btn-primary" onclick="startCheckout()">Checkout</button>
+      <button class="btn btn-primary" data-action="start-checkout">Checkout</button>
     </div>
   </div>
 
   <!-- WISHLIST DRAWER -->
-  <div class="cart-overlay" id="wishlistOverlay" onclick="toggleWishlistFilter()"></div>
+  <div class="cart-overlay" id="wishlistOverlay" data-action="toggle-wishlist"></div>
   <div class="cart-drawer" id="wishlistDrawer">
     <div class="cart-header">
       <h3><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>Favourites</h3>
-                <button class="cart-close" onclick="toggleWishlistFilter()"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+                <button class="cart-close" data-action="toggle-wishlist"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
     </div>
     <div class="cart-items" id="wishlistItems"><div class="cart-empty"><span class="cart-empty-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg></span>No favourite picks yet.<br><span style="font-size:0.75rem;margin-top:0.3rem;display:block;">Tap the heart icon on any product to save it here.</span></div></div>
   </div>
@@ -4358,7 +4364,7 @@
       <div class="account-email" id="acctEmail"></div>
       <div class="acct-verify" id="acctVerifyBanner" hidden>
         <span id="acctVerifyText">Verify your email to see your order history.</span>
-        <a href="#" id="acctVerifyLink" onclick="resendVerificationEmail(); return false;">Resend verification email</a>
+        <a href="#" id="acctVerifyLink" data-action="resend-verification">Resend verification email</a>
       </div>
       <div class="account-grid">
         <div class="account-sidebar">
@@ -4368,17 +4374,17 @@
             <div class="acct-field"><label for="acctPhone">Phone</label><input type="tel" id="acctPhone" /></div>
             <div class="acct-field"><label for="acctAddress">Address</label><input type="text" id="acctAddress" /></div>
             <div class="acct-field"><label for="acctCity">City</label><input type="text" id="acctCity" /></div>
-            <button class="acct-btn" onclick="saveAccountProfile()">Save Changes</button>
+            <button class="acct-btn" data-action="save-profile">Save Changes</button>
             <div class="acct-msg" id="acctProfileMsg"></div>
           </div>
           <div class="account-card">
             <h3>Change Password</h3>
             <div class="acct-field"><label for="acctCurrentPw">Current Password</label><input type="password" id="acctCurrentPw" /></div>
             <div class="acct-field"><label for="acctNewPw">New Password</label><input type="password" id="acctNewPw" placeholder="Min. 6 characters" /></div>
-            <button class="acct-btn" onclick="changeAccountPassword()">Update Password</button>
+            <button class="acct-btn" data-action="change-password">Update Password</button>
             <div class="acct-msg" id="acctPwMsg"></div>
           </div>
-          <button class="account-logout" onclick="customerLogout()">Sign Out</button>
+          <button class="account-logout" data-action="customer-logout">Sign Out</button>
         </div>
         <div>
           <div class="account-card">
@@ -4424,7 +4430,7 @@
           <h3>Defective Items</h3>
           <p>If you received a defective or wrong item, contact us within 48 hours with photos. We'll cover return shipping and send a replacement or full refund.</p>
         </div>
-        <p class="content-page-back"><a href="/" onclick="navigateTo('home'); return false;" style="color: var(--accent); cursor: pointer; font-size: 0.85rem;">← Back to Shop</a></p>
+        <p class="content-page-back"><a href="/" data-route="home" style="color: var(--accent); cursor: pointer; font-size: 0.85rem;">← Back to Shop</a></p>
       </div>
     </div>
 
@@ -4460,7 +4466,7 @@
             <li style="padding: 0.3rem 0;"><strong style="color: var(--text-primary);">Cash on Delivery (COD)</strong> — pay when your order arrives</li>
           </ul>
         </div>
-        <p class="content-page-back"><a href="/" onclick="navigateTo('home'); return false;" style="color: var(--accent); cursor: pointer; font-size: 0.85rem;">← Back to Shop</a></p>
+        <p class="content-page-back"><a href="/" data-route="home" style="color: var(--accent); cursor: pointer; font-size: 0.85rem;">← Back to Shop</a></p>
       </div>
     </div>
 
@@ -4490,14 +4496,14 @@
           <p>For questions about these terms, contact us via WhatsApp at <a href="https://wa.me/923228042633" style="color: var(--accent);" target="_blank">+92 322 804 2633</a>.</p>
 
           <h3>7. Custom Orders &amp; Returns</h3>
-          <p>Custom-designed items and custom stickers cannot be returned unless they are defective or the wrong item was supplied. See our <a href="/returns" onclick="navigateTo('returns'); return false;" style="color: var(--accent);">Returns &amp; Refund Policy</a> for the return process and eligibility.</p>
+          <p>Custom-designed items and custom stickers cannot be returned unless they are defective or the wrong item was supplied. See our <a href="/returns" data-route="returns" style="color: var(--accent);">Returns &amp; Refund Policy</a> for the return process and eligibility.</p>
 
           <h3>8. Governing Law</h3>
           <p>These Terms are governed by the laws of Pakistan.</p>
 
           <p><em>This policy is provided for general information only, is not legal advice, and should be reviewed by a qualified legal professional.</em></p>
         </div>
-        <p class="content-page-back"><a href="/" onclick="navigateTo('home'); return false;" style="color: var(--accent); cursor: pointer; font-size: 0.85rem;">← Back to Shop</a></p>
+        <p class="content-page-back"><a href="/" data-route="home" style="color: var(--accent); cursor: pointer; font-size: 0.85rem;">← Back to Shop</a></p>
       </div>
     </div>
 
@@ -4518,7 +4524,7 @@
 
           <h3>How We Use Your Information</h3>
           <p>We use this information to process and support orders, manage customer accounts, respond to requests, and coordinate delivery. When needed to deliver an order, we may share the necessary delivery details—such as your name, phone number, address, and city—with the courier partner handling the delivery.</p>
-          <p>Newsletter sign-up emails are for product-drop, restock, and KAGE Clan updates. The current website stores sign-ups but does not provide a self-service unsubscribe control. To request removal from the newsletter list, contact us via WhatsApp at <a href="https://wa.me/923228042633" style="color: var(--accent);" target="_blank">+92 322 804 2633</a>.</p>
+          <p>Newsletter sign-up emails are for product-drop, restock, and KAGE Clan updates. Every subscription carries a private one-click unsubscribe link, shown right after you subscribe — open it and confirm to leave the list immediately, no account needed. If you lost the link, just subscribe again with the same address to see it, or contact us via WhatsApp at <a href="https://wa.me/923228042633" style="color: var(--accent);" target="_blank">+92 322 804 2633</a>.</p>
           <p>We do not sell your personal data or share it with third parties for their marketing.</p>
 
           <h3>Data Security</h3>
@@ -4532,7 +4538,7 @@
 
           <p><em>This policy is provided for general information only, is not legal advice, and should be reviewed by a qualified legal professional.</em></p>
         </div>
-        <p class="content-page-back"><a href="/" onclick="navigateTo('home'); return false;" style="color: var(--accent); cursor: pointer; font-size: 0.85rem;">← Back to Shop</a></p>
+        <p class="content-page-back"><a href="/" data-route="home" style="color: var(--accent); cursor: pointer; font-size: 0.85rem;">← Back to Shop</a></p>
       </div>
     </div>
 
@@ -4558,7 +4564,7 @@
             <div class="about-hero">
               <picture>
                 <source type="image/webp" srcset="/images/about-hero-500.webp 600w, /images/about-hero.webp 1024w" sizes="(max-width: 768px) 92vw, (max-width: 900px) 55vw, 60vw" />
-                <img class="about-hero-img" src="/images/about-hero.jpg" srcset="/images/about-hero-500.jpg 600w, /images/about-hero.jpg 1024w" sizes="(max-width: 768px) 92vw, (max-width: 900px) 55vw, 60vw" alt="Kage Culture model mid-kick in an oversized black t-shirt with red graphic art and loose denim, set against metallic KAGE split-letter typography, a circular ring frame, and graffiti detailing" loading="lazy" onerror="this.style.display='none'; document.getElementById('aboutHeroFallback').style.display='flex';" />
+                <img class="about-hero-img" id="aboutHeroImg" src="/images/about-hero.jpg" srcset="/images/about-hero-500.jpg 600w, /images/about-hero.jpg 1024w" sizes="(max-width: 768px) 92vw, (max-width: 900px) 55vw, 60vw" alt="Kage Culture model mid-kick in an oversized black t-shirt with red graphic art and loose denim, set against metallic KAGE split-letter typography, a circular ring frame, and graffiti detailing" loading="lazy" />
               </picture>
               <div class="about-hero-fallback" id="aboutHeroFallback">
                 <span class="about-ring" aria-hidden="true"></span>
@@ -4602,13 +4608,13 @@
             </div>
             <h1 class="coming-soon-title" id="comingSoonTitle">GRAPHIC TEES — COMING SOON</h1>
             <p class="coming-soon-sub">This collection is on its way. Check back soon.</p>
-            <form class="coming-soon-form" onsubmit="notifyMe(event)">
+            <form class="coming-soon-form" data-form="notify">
               <input type="email" id="comingSoonEmail" placeholder="Enter your email" required />
               <input type="hidden" id="comingSoonCategory" value="graphic-tees" />
               <button class="btn btn-primary" type="submit">Notify Me</button>
             </form>
             <p class="coming-soon-msg" id="comingSoonMsg"></p>
-            <span class="coming-soon-back" onclick="navigateTo('home')" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();navigateTo('home');}">← Back to Home</span>
+            <span class="coming-soon-back" data-route="home" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();navigateTo('home');}">← Back to Home</span>
           </div>
         </div>
       </section>
@@ -4633,7 +4639,7 @@
               <svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 18 0"/><path d="M3 12v4a2 2 0 0 0 2 2h2v-7H5a2 2 0 0 0-2 2Z"/><path d="M21 12v4a2 2 0 0 1-2 2h-2v-7h2a2 2 0 0 1 2 2Z"/><path d="M17 20a3 3 0 0 1-3 2h-2"/></svg>
             </span>
             <div class="contact-card-body">
-              <a class="contact-card-primary" href="/tracking" onclick="navigateTo('tracking'); return false;">
+              <a class="contact-card-primary" href="/tracking" data-route="tracking">
                 <h3>Order Support</h3>
                 <p>Track your order</p>
               </a>
@@ -4659,7 +4665,7 @@
             </span>
           </a>
         </div>
-        <p class="content-page-back"><a href="/" onclick="navigateTo('home'); return false;" style="color: var(--accent); cursor: pointer; font-size: 0.85rem;">← Back to Shop</a></p>
+        <p class="content-page-back"><a href="/" data-route="home" style="color: var(--accent); cursor: pointer; font-size: 0.85rem;">← Back to Shop</a></p>
       </div>
     </div>
 
@@ -4973,6 +4979,10 @@
       if (emailEl) emailEl.value = '';
     }
     let restoringHistory = false;
+    // Flipped once the synchronous boot routing AND the async deep-link restore
+    // finish. Later navigateTo() calls are user-initiated, so they move focus
+    // to the main content (A11Y-4 / FE-M5).
+    let bootNavComplete = false;
     function routeFor(page, filter) {
       if (page === 'home') return '/';
       if (page === 'collection') return '/collection/' + encodeURIComponent(filter || 'all');
@@ -5021,6 +5031,103 @@
     }
     window.addEventListener('popstate', restoreRouteFromLocation);
 
+    // ---------- Client-side social meta (SEO-4) ----------
+    // The server renders route-specific meta for product/collection URLs
+    // (server.js resolveSeoPage); SPA navigations after first load keep the same
+    // tags in sync so copied links unfurl correctly. Homepage defaults are
+    // constants (NOT boot-captured: a deep-linked boot already carries
+    // product/collection meta); content pages and home restore them, matching
+    // what the server serves for those routes. Keep this copy identical to the
+    // shell <head> — the SEO-4 regression test enforces parity on a '/' boot.
+    const HOME_SOCIAL_META = {
+      title: 'KAGE CULTURE \u2014 Engineered Fit. Original Art.',
+      description: 'KAGE Culture \u2014 Premium streetwear. Anime inspired. Built for everyday. Shop oversized tees, graphic tees, and compression gear.',
+      imageAlt: 'KAGE Culture campaign: a model in a white oversized tee printed with EVERYONE, mid-kick in front of a light wall covered in graffiti lettering',
+      type: 'website'
+    };
+    function homeSocialMeta() {
+      return { ...HOME_SOCIAL_META, image: defaultSocialImage() };
+    }
+    // Mirrors server.js COLLECTION_SEO — keep the copy in sync.
+    const COLLECTION_SOCIAL = {
+      all: { name: 'Shop All', description: 'Shop every KAGE Culture drop: premium streetwear, graphic tees, anime shirts, and pants made for everyday.' },
+      new: { name: 'New Arrivals', description: 'Explore the latest KAGE Culture streetwear arrivals, featuring original art and everyday fits.' },
+      sale: { name: 'Sale', description: 'Shop limited-time markdowns on KAGE Culture streetwear while selected pieces are still available.' },
+      anime: { name: 'Anime Shirts', description: 'Shop anime-inspired shirts with original artwork, premium cotton, and everyday streetwear fits.' },
+      'graphic-tees': { name: 'Graphic Tees', description: 'Discover original graphic tees from KAGE Culture, printed on premium cotton for everyday wear.' },
+      pants: { name: 'Pants', description: 'Shop relaxed KAGE Culture pants, designed to pair with original graphic tees and streetwear drops.' },
+      compression: { name: 'Compression', description: 'Explore KAGE Culture compression streetwear: engineered fits with original art and everyday comfort.' },
+      oversized: { name: 'Oversized', description: 'Shop oversized KAGE Culture streetwear with relaxed silhouettes, premium fabrics, and original art.' }
+    };
+    function setSocialMeta(meta) {
+      const set = (attr, key, value) => {
+        if (value == null) return;
+        const el = document.querySelector(`meta[${attr}="${key}"]`);
+        if (el) el.content = value;
+      };
+      set('name', 'description', meta.description);
+      set('property', 'og:type', meta.type);
+      set('property', 'og:title', meta.title);
+      set('property', 'og:description', meta.description);
+      set('property', 'og:image', meta.image);
+      set('property', 'og:image:alt', meta.imageAlt);
+      set('name', 'twitter:title', meta.title);
+      set('name', 'twitter:description', meta.description);
+      set('name', 'twitter:image', meta.image);
+    }
+    function absoluteSocialImage(value) {
+      const raw = String(value || '').trim();
+      if (!raw) return null;
+      try {
+        const url = new URL(raw, location.origin + '/');
+        return (url.protocol === 'http:' || url.protocol === 'https:') ? url.href : null;
+      } catch (_) { return null; }
+    }
+    function trimSocialDescription(value, fallback) {
+      const clean = (v) => String(v || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+      const text = clean(value) || clean(fallback);
+      if (text.length <= 155) return text;
+      return text.slice(0, 154).trimEnd() + '\u2026';
+    }
+    function siteRootForMeta() {
+      const configured = document.querySelector('meta[name="site-url"]')?.content || '';
+      return /^https?:\/\//i.test(configured) ? configured.replace(/\/+$/, '') : location.origin;
+    }
+    function defaultSocialImage() {
+      return siteRootForMeta() + '/images/og-image.jpg';
+    }
+    function syncSocialMetaForRoute(page, filter, target) {
+      if (target === 'product' && currentProduct) {
+        const pName = String(currentProduct.name || '').replace(/\s+/g, ' ').trim() || 'KAGE Culture';
+        setSocialMeta({
+          title: `${pName} | KAGE CULTURE`,
+          description: trimSocialDescription(currentProduct.desc, `Shop ${pName} from KAGE Culture: premium streetwear with original art, made for everyday wear.`),
+          image: absoluteSocialImage(currentProduct.images && currentProduct.images[0]) || defaultSocialImage(),
+          imageAlt: pName,
+          type: 'product'
+        });
+        return;
+      }
+      if (page === 'collection') {
+        const info = COLLECTION_SOCIAL[filter] || COLLECTION_SOCIAL.all;
+        // Newest-first like the catalog API, so the pick approximates the
+        // server's newest-with-image choice for the same route.
+        const pool = filter === 'sale'
+          ? allProducts.filter(p => p.on_sale)
+          : (filter === 'all' || filter === 'new') ? allProducts : allProducts.filter(p => p.collection === filter);
+        let image = null;
+        for (const p of pool) { image = absoluteSocialImage(p.images && p.images[0]); if (image) break; }
+        setSocialMeta({
+          title: `${info.name} | KAGE CULTURE`,
+          description: trimSocialDescription(info.description),
+          image: image || defaultSocialImage(),
+          imageAlt: `${info.name} by KAGE Culture`,
+          type: 'website'
+        });
+        return;
+      }
+      setSocialMeta(homeSocialMeta());
+    }
     function navigateTo(page, filter, options = {}) {
       document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
       if (page === 'collection') {
@@ -5065,6 +5172,7 @@
       document.title = isCollectionRoute ? `${collectionTitleName} | KAGE CULTURE`
         : target === 'home' ? 'KAGE CULTURE — Engineered Fit. Original Art.'
           : ((target === 'product' && currentProduct) ? `${String(currentProduct.name || '').replace(/\s+/g, ' ').trim()} | KAGE CULTURE` : target.replace(/-/g, ' ') + ' | KAGE CULTURE');
+      syncSocialMetaForRoute(page, filter, target);
       window.scrollTo({ top: 0 });
       closeFilterDrawer();
             // Toggle body class for tracking page to disable footer watermark
@@ -5102,6 +5210,14 @@
       } else {
         // Content pages (returns, shipping, terms, privacy, contact, account)
         navDeactivate();
+      }
+      // User-initiated route changes move keyboard/screen-reader focus to the
+      // main content. Boot routing is skipped: stealing focus on load would
+      // strand the skip link behind the focused element. Runs last so it wins
+      // over drawer focus restoration above.
+      if (bootNavComplete) {
+        var mainFocus = document.getElementById('mainContent');
+        if (mainFocus && mainFocus.focus) mainFocus.focus({ preventScroll: true });
       }
     }
 
@@ -5200,6 +5316,7 @@
           cart = [];
           updateCartUI();
           navigateTo('confirmation');
+          announce('Order ' + (data.order_number || '') + ' placed. Thank you for shopping with KAGE Culture.');
         } else {
           errEl.textContent = data.error || 'Could not place the order. Please try again.';
           errEl.style.display = 'block';
@@ -5317,7 +5434,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       const isBrowsingCategory = currentCollectionFilter && ['anime','graphic-tees','pants','sale'].includes(currentCollectionFilter) && !searchQuery.trim() && !wishlistOnly && filterState.cats.size === 3 && filterState.priceMin === 0 && filterState.priceMax === 10000 && !filterState.size;
       if (isBrowsingCategory && filtered.length === 0) {
         const name = CATEGORY_NAMES[currentCollectionFilter] || currentCollectionFilter;
-        grid.innerHTML = '<div class="no-results"><p>No ' + esc(name.toLowerCase()) + ' available right now.</p><p style="font-size:0.8rem;margin-top:0.5rem;color:var(--text-gray);">Check back soon for new drops.</p><p style="margin-top:1rem;"><button class="btn btn-primary btn-sm" onclick="navigateTo(\'collection\',\'all\')">Browse all shirts</button></p></div>';
+        grid.innerHTML = '<div class="no-results"><p>No ' + esc(name.toLowerCase()) + ' available right now.</p><p style="font-size:0.8rem;margin-top:0.5rem;color:var(--text-gray);">Check back soon for new drops.</p><p style="margin-top:1rem;"><button class="btn btn-primary btn-sm" data-route="collection" data-filter="all">Browse all shirts</button></p></div>';
         document.getElementById('resultCount').textContent = '0 results';
         document.getElementById('pageInfo').textContent = 'Page 1 of 1';
         document.getElementById('nextBtn').style.display = 'none';
@@ -5425,6 +5542,8 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
         }
       }
       document.getElementById('wishlistCount').textContent = wishlist.size;
+      var wName = (allProducts.find(function (x) { return x.id === id; }) || {}).name || 'Product';
+      announce(saved ? 'Saved ' + wName + ' to favourites.' : 'Removed ' + wName + ' from favourites.');
       persistShopState();
       if (wishlistOnly) renderCollectionGrid();
       // Saving a product shows the favourites list so the user sees it was added.
@@ -5466,7 +5585,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
         if (!p) return;
         var img = (p.images && p.images[0]) || p.image || '';
         var available = anySizeAvailable(p);
-        html += '<div class="cart-item"><div class="cart-item-image">' + (img ? '<img src="' + esc(img) + '" alt="' + esc(p.name) + '" />' : '') + '</div><div class="cart-item-info"><h4>' + esc(p.name) + '</h4><div class="cart-item-meta">' + esc(p.fit || '') + (available ? '' : ' · Sold Out — unavailable') + '</div><div class="cart-item-price">Rs. ' + (p.sale_price || p.price) + '</div></div><div style="display:flex;flex-direction:column;gap:0.3rem;"><button class="btn btn-sm btn-outline"' + (available ? '' : ' disabled') + ' onclick="event.stopPropagation();quickAdd(' + p.id + ')" style="font-size:0.6rem;">' + (available ? 'Add to Cart' : 'Sold Out') + '</button><button style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:0.7rem;min-height:36px;" onclick="toggleWishlist(' + p.id + '); renderWishlistDrawer();">Remove</button></div></div>';
+        html += '<div class="cart-item"><div class="cart-item-image">' + (img ? '<img src="' + esc(img) + '" alt="' + esc(p.name) + '" />' : '') + '</div><div class="cart-item-info"><h4>' + esc(p.name) + '</h4><div class="cart-item-meta">' + esc(p.fit || '') + (available ? '' : ' · Sold Out — unavailable') + '</div><div class="cart-item-price">Rs. ' + (p.sale_price || p.price) + '</div></div><div style="display:flex;flex-direction:column;gap:0.3rem;"><button class="btn btn-sm btn-outline"' + (available ? '' : ' disabled') + ' data-action="quick-add" data-pid="' + p.id + '" style="font-size:0.7rem;">' + (available ? 'Add to Cart' : 'Sold Out') + '</button><button style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:0.7rem;min-height:36px;" data-action="wishlist-remove" data-pid="' + p.id + '">Remove</button></div></div>';
       });
       container.innerHTML = html;
     }
@@ -5479,7 +5598,18 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       const size = defaultSizeFor(p);
       if (addToCart(p, size, 1)) showToast(p.name + ' added to cart (' + size + ')');
     }
+    // Screen-reader announcements (A11Y-3): every toast is mirrored into the
+    // visually-hidden live region. Clearing first and settling on a timer
+    // re-announces even when the same message repeats back-to-back.
+    function announce(msg) {
+      var el = document.getElementById('srAnnounce');
+      if (!el || !msg) return;
+      clearTimeout(announce._tm);
+      el.textContent = '';
+      announce._tm = setTimeout(function () { el.textContent = msg; }, 50);
+    }
     function showToast(msg) {
+      announce(msg);
       let t = document.getElementById('toast');
       if (!t) {
         t = document.createElement('div');
@@ -5508,7 +5638,18 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
         });
         const data = await res.json().catch(() => ({}));
         if (res.ok) {
-          if (msg) msg.textContent = data.message || 'Welcome to the clan! Stay tuned for restock alerts and early drop access.';
+          if (msg) {
+            msg.textContent = data.message || 'Welcome to the clan! Stay tuned for restock alerts and early drop access.';
+            if (data.unsubscribe_url) {
+              // Private one-click link (CONTENT-2): shown once, to whoever
+              // holds the inbox. Bookmark it — it is the self-service exit.
+              const link = document.createElement('a');
+              link.href = data.unsubscribe_url;
+              link.textContent = 'Private unsubscribe link (bookmark this page to leave anytime)';
+              link.style.cssText = 'display:block;margin-top:0.4rem;font-size:0.7rem;color:var(--text-muted);';
+              msg.appendChild(link);
+            }
+          }
           input.value = '';
         } else {
           if (msg) msg.textContent = data.error || 'Something went wrong. Try again.';
@@ -5567,10 +5708,10 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
           : `Rs. ${fmt(range.min)}`;
       const isWishlisted = wishlist && wishlist.has(p.id);
       return `
-        <div class="product-card" data-pid="${p.id}" role="link" tabindex="0" aria-label="View ${esc(p.name)}" onclick="openProductDetail(${p.id})" onkeydown="if(event.key==='Enter'&&event.target===this){event.preventDefault();openProductDetail(${p.id});}">
+        <div class="product-card" data-pid="${p.id}" role="link" tabindex="0" aria-label="View ${esc(p.name)}" data-action="open-product" data-pid="${p.id}" data-key="enter">
           <div class="product-card-image${anySizeAvailable(p) ? '' : ' sold-out'}">
             ${img ? `<img src="${esc(img)}" alt="${esc(p.name)}" width="600" height="800" sizes="(max-width: 768px) calc((100vw - 40px) / 2), (max-width: 1024px) calc((100vw - 80px) / 3), (max-width: 1279px) calc((100vw - 112px) / 4), 296px" loading="lazy" decoding="async" />` : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:var(--text-dim);font-size:0.8rem;">No Image</div>`}
-            <button class="product-wishlist ${isWishlisted ? 'active' : ''}" onclick="event.stopPropagation();toggleWishlist(${p.id}, this)" aria-label="Wishlist">
+            <button class="product-wishlist ${isWishlisted ? 'active' : ''}" data-action="toggle-wish" data-pid="${p.id}" aria-label="Wishlist">
               ${HEART_SVG}
             </button>
             ${discount > 0 ? `<span class="product-discount-badge">-${discount}%</span>` : ''}
@@ -5583,7 +5724,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
             <p class="price">
               ${priceHtml}
             </p>
-            <button class="quick-view-btn" onclick="event.stopPropagation();openProductDetail(${p.id})">Quick View</button>
+            <button class="quick-view-btn" data-action="open-product" data-pid="${p.id}">Quick View</button>
           </div>
         </div>`;
     }
@@ -5627,7 +5768,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
     function filterPanelHTML() {
       return `
         <div class="filter-section" data-group="cats">
-          <button class="filter-head" type="button" onclick="toggleFilterSection(this)"><span>Category</span><span class="chev">▾</span></button>
+          <button class="filter-head" type="button" data-action="filter-section"><span>Category</span><span class="chev">▾</span></button>
           <div class="filter-body filter-checkboxes">
             <label class="filter-checkbox"><input type="checkbox" class="fp-cat" value="Anime-Inspired" /> Anime-Inspired</label>
             <label class="filter-checkbox"><input type="checkbox" class="fp-cat" value="Japanese Art" /> Japanese Art</label>
@@ -5658,7 +5799,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
             <option value="XXL">XXL</option>
           </select>
         </div>
-        <button class="btn btn-outline btn-sm" onclick="resetFilters()" style="width:100%;margin-top:0.25rem;">Reset Filters</button>`;
+        <button class="btn btn-outline btn-sm" data-action="reset-filters" style="width:100%;margin-top:0.25rem;">Reset Filters</button>`;
     }
 
     function readFiltersFromPanel(panel) {
@@ -5810,7 +5951,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
         dc.style.display = 'flex';
       } else dc.style.display = 'none';
       const th = document.getElementById('detailThumbnails');
-      th.innerHTML = p.images.map((img,i) => `<div class="detail-thumb ${i===0?'active':''}" role="button" tabindex="0" aria-label="View image ${i+1}" onclick="switchDetailAngle(${i})" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();switchDetailAngle(${i});}"><img src="${esc(img)}" alt="View ${i+1}" width="56" height="56" sizes="56px" loading="lazy" decoding="async" /></div>`).join('');
+      th.innerHTML = p.images.map((img,i) => `<div class="detail-thumb ${i===0?'active':''}" role="button" tabindex="0" aria-label="View image ${i+1}" data-action="detail-angle" data-index="${i}" data-key><img src="${esc(img)}" alt="View ${i+1}" width="56" height="56" sizes="56px" loading="lazy" decoding="async" /></div>`).join('');
       renderSizePicker(p);
       setupGallerySwipe();
       renderDetailAvailability(p);
@@ -5899,6 +6040,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       if (!overlay || !img) return;
       img.src = src;
       img.alt = currentProduct.name + ' — enlarged view';
+      overlay._previousFocus = document.activeElement;
       overlay.hidden = false;
       document.body.style.overflow = 'hidden';
       const closeBtn = overlay.querySelector('.zoom-close');
@@ -5909,6 +6051,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       if (!overlay || overlay.hidden) return;
       overlay.hidden = true;
       document.body.style.overflow = '';
+      overlay._previousFocus?.focus();
     }
     // Escape (or a tap on the dark backdrop) closes the zoom view.
     document.addEventListener('keydown', (e) => {
@@ -6376,6 +6519,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
         cart.push({ ...product, size, qty: Math.min(99, qty) });
       }
       updateCartUI();
+      announce(product.name + ' added to cart (' + size + ')');
       const badge = document.getElementById('cartCount');
       badge.classList.add('bump');
       setTimeout(() => badge.classList.remove('bump'), 300);
@@ -6394,16 +6538,16 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       items.innerHTML = cart.map((item,i) => {
         const unavailable = cartItemUnavailable(item);
         const t = item.price * item.qty; sub += t;
-        return `<div class="cart-item"><div class="cart-item-image"><img src="${esc(item.images[0])}" alt="${esc(item.name)}" width="55" height="55" sizes="55px" loading="lazy" decoding="async" /></div><div class="cart-item-info"><h4>${esc(item.name)}</h4><div class="cart-item-meta">Size: ${esc(item.size)} · ${esc(item.fit)}${unavailable ? ' · Sold Out — unavailable' : ''}</div><div class="cart-item-price">Rs. ${t}</div></div><div style="display:flex;flex-direction:column;align-items:flex-end;gap:0.3rem;"><div class="cart-item-qty"><button onclick="changeCartQty(${i},-1)"${unavailable ? ' disabled' : ''}>−</button><span>${item.qty}</span><button onclick="changeCartQty(${i},1)"${unavailable ? ' disabled' : ''}>+</button></div><button class="cart-item-remove" onclick="removeFromCart(${i})">Remove</button></div></div>`;
+        return `<div class="cart-item"><div class="cart-item-image"><img src="${esc(item.images[0])}" alt="${esc(item.name)}" width="55" height="55" sizes="55px" loading="lazy" decoding="async" /></div><div class="cart-item-info"><h4>${esc(item.name)}</h4><div class="cart-item-meta">Size: ${esc(item.size)} · ${esc(item.fit)}${unavailable ? ' · Sold Out — unavailable' : ''}</div><div class="cart-item-price">Rs. ${t}</div></div><div style="display:flex;flex-direction:column;align-items:flex-end;gap:0.3rem;"><div class="cart-item-qty"><button data-action="cart-qty" data-index="${i}" data-delta="-1"${unavailable ? ' disabled' : ''}>−</button><span>${item.qty}</span><button data-action="cart-qty" data-index="${i}" data-delta="1"${unavailable ? ' disabled' : ''}>+</button></div><button class="cart-item-remove" data-action="cart-remove" data-index="${i}">Remove</button></div></div>`;
       }).join('');
       document.getElementById('cartSubtotal').textContent = 'Rs. ' + fmt(sub);
     }
-    function removeFromCart(i) { cart.splice(i,1); updateCartUI(); }
+    function removeFromCart(i) { var n = cart[i] ? cart[i].name : 'Item'; cart.splice(i,1); updateCartUI(); announce('Removed ' + n + ' from cart.'); }
     function changeCartQty(i,d) {
       if (!cart[i] || cartItemUnavailable(cart[i])) { showToast('This item is unavailable. Remove it from your cart.'); return; }
       if (cart[i].qty + d <= 0) { removeFromCart(i); return; }
       if (cart[i].qty + d > maxQtyFor(cart[i], cart[i].size)) { showToast('Not enough stock available.'); return; }
-      cart[i].qty += d; updateCartUI();
+      cart[i].qty += d; updateCartUI(); announce(cart[i].name + ' quantity ' + cart[i].qty + '.');
     }
     function toggleCart(force) {
       const o = document.getElementById('cartOverlay'), d = document.getElementById('cartDrawer');
@@ -6418,7 +6562,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
         d.setAttribute('role', 'dialog');
         d.setAttribute('aria-modal', 'true');
         d.setAttribute('aria-label', 'Shopping cart');
-        const closeBtn = d.querySelector('button[onclick*="toggleCart"]');
+        const closeBtn = d.querySelector('button[data-action="toggle-cart"]');
         if (closeBtn) setTimeout(() => closeBtn.focus(), 100);
       } else if (d._previousFocus && d._previousFocus.focus) {
         d._previousFocus.focus();
@@ -6447,15 +6591,20 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       hamburger.setAttribute('aria-label', open ? 'Close menu' : 'Open menu');
     }
     hamburger.addEventListener('click', () => setMenuOpen(!navLinks.classList.contains('open')));
-    navLinks.addEventListener('click', event => {
-      if (event.target && typeof event.target.closest === 'function' && event.target.closest('a')) closeMenu();
-    });
+    // FE-H2: the old navLinks click listener lived here. It fired during the
+    // bubble phase — before the document-level route handler — which inverted
+    // the original navigate-then-close order (navigateTo clears body overflow
+    // via closeFilterDrawer, so closing first lost the menu's saved value).
+    // Every menu link now carries data-close-menu and the delegated handler
+    // closes after navigating, exactly like the old inline wiring.
     document.addEventListener('pointerdown', event => {
       if (!navLinks.classList.contains('open')) return;
       if (navLinks.contains(event.target) || hamburger.contains(event.target)) return;
       closeMenu();
     });
     function closeMenu() { setMenuOpen(false); }
+    // Escape path for the trapped menu: closing returns focus to the trigger.
+    function closeMenuAndRefocus() { closeMenu(); if (hamburger && hamburger.focus) hamburger.focus(); }
 
     // ================================================================
     // PARALLAX WATERMARK
@@ -6817,7 +6966,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
         // SECURITY: until the email is confirmed the history stays hidden, so
         // the empty state explains why instead of looking like "no orders".
         wrap.innerHTML = verified === false
-          ? '<div style="text-align:center;padding:1rem;color:var(--text-muted);font-size:0.82rem;">Verify your email to see your orders.<br><a href="#" onclick="resendVerificationEmail(); return false;" style="color:var(--accent);font-weight:700;text-decoration:underline;">Resend verification email</a></div>'
+          ? '<div style="text-align:center;padding:1rem;color:var(--text-muted);font-size:0.82rem;">Verify your email to see your orders.<br><a href="#" data-action="resend-verification" style="color:var(--accent);font-weight:700;text-decoration:underline;">Resend verification email</a></div>'
           : '<div style="text-align:center;padding:1rem;color:var(--text-muted);font-size:0.82rem;">No orders yet. Time to shop!</div>';
         return;
       }
@@ -6889,7 +7038,9 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
         ['#custOverlay.open .cust-card', closeCustModal],
         ['#filterDrawer.open', closeFilterDrawer],
         ['#wishlistDrawer.open', toggleWishlistFilter],
-        ['#cartDrawer.open', toggleCart]
+        ['#cartDrawer.open', toggleCart],
+        ['#imageZoomOverlay:not([hidden])', closeImageZoom],
+        ['#navLinks.open', closeMenuAndRefocus]
       ].map(([selector, close]) => ({ el: document.querySelector(selector), close })).find(x => x.el);
       if (!open) { if (e.key === 'Escape' && navLinks.classList.contains('open')) { closeMenu(); hamburger.focus(); } return; }
       if (e.key === 'Escape') { e.preventDefault(); open.close(); return; }
@@ -6908,9 +7059,14 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
     if (initialPath === '/tracking') navigateTo('tracking', null, { skipHistory: true });
     else if (initialPath === '/confirmation' && lastOrder) navigateTo('confirmation', null, { skipHistory: true });
     else navigateTo('home', null, { skipHistory: true });
-    Promise.all([loadProductsFromAPI(), checkCustomerAuth()]).then(() => {
+    // Deep-link restore runs after the catalog loads; only then is boot routing
+    // done. Resolve AND reject paths flip the flag so a failed boot fetch can
+    // never wedge later navigations out of focus management.
+    const finishBootRouting = () => {
       if (location.pathname === initialPath && initialPath !== '/') restoreRouteFromLocation();
-    });
+      bootNavComplete = true;
+    };
+    Promise.all([loadProductsFromAPI(), checkCustomerAuth()]).then(finishBootRouting, finishBootRouting);
 
     // Auto-refresh the grid when the tab regains focus (e.g. after an admin upload)
     document.addEventListener('visibilitychange', () => {
@@ -6966,6 +7122,145 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
     }
 
     // ================================================================
+    // FE-H2: DELEGATED EVENTS — no inline handlers anywhere.
+    // Clickables carry data-route="page" (with optional data-filter,
+    // data-close-menu, data-init-shop, data-load-account) or
+    // data-action="name" (with data-* params). A single document
+    // listener routes; closest() picks the innermost match, so a
+    // control nested inside another (e.g. a wishlist heart inside a
+    // product card) behaves exactly like its old stopPropagation().
+    // (data-nav is a different, older namespace: the active-link key.)
+    // ================================================================
+    function handleDelegatedNav(el) {
+      const filter = el.dataset.filter === '@current'
+        ? currentCollectionFilter
+        : (el.dataset.filter || undefined);
+      navigateTo(el.dataset.route, filter);
+      if (el.hasAttribute('data-close-menu')) closeMenu();
+      if (el.hasAttribute('data-init-shop')) initShop(el.dataset.initShop);
+      if (el.hasAttribute('data-load-account')) loadAccountPage();
+    }
+
+    // FE-H2 action table: static controls (batch B) and JS-rendered
+    // templates (batch C) share these names. Unknown names are ignored.
+    const DELEGATED_ACTIONS = {
+      'toggle-cart': () => toggleCart(),
+      'toggle-wishlist': () => toggleWishlistFilter(),
+      'open-filter': () => openFilterDrawer(),
+      'close-filter': () => closeFilterDrawer(),
+      'close-filter-render': () => { closeFilterDrawer(); renderCollectionGrid(); },
+      'reset-filters': () => resetFilters(),
+      'detail-add': () => detailAddToCart(),
+      'detail-qty': (el) => detailChangeQty(Number(el.dataset.delta || 1)),
+      'start-checkout': () => startCheckout(),
+      'place-order': () => placeOrder(),
+      'next-page': () => nextPage(),
+      'load-products': () => loadProductsFromAPI(),
+      'account': () => handleAccountClick(),
+      'go-track': () => goTrackOrder(),
+      'resend-verification': () => resendVerificationEmail(),
+      'request-pw-reset': () => requestCustomerPasswordReset(),
+      'cust-show-login': () => showCustLogin(),
+      'cust-show-signup': () => showCustSignup(),
+      'cust-login': () => submitCustLogin(),
+      'cust-signup': () => submitCustSignup(),
+      'save-profile': () => saveAccountProfile(),
+      'change-password': () => changeAccountPassword(),
+      'customer-logout': () => customerLogout(),
+      'cust-close': () => closeCustModal(),
+      'cust-backdrop': (el, e) => { if (e.target === el) closeCustModal(); },
+      'desktop-search': () => toggleDesktopSearch(),
+      'mobile-search-submit': (el, e) => submitMobileSearch(e),
+      'filter-section': (el) => toggleFilterSection(el),
+      'tab': (el) => switchTab(el),
+      'zoom-close': () => closeImageZoom(),
+      // JS-rendered templates (batch C).
+      'open-product': (el) => openProductDetail(Number(el.dataset.pid)),
+      'quick-add': (el) => quickAdd(Number(el.dataset.pid)),
+      'toggle-wish': (el) => toggleWishlist(Number(el.dataset.pid), el),
+      'wishlist-remove': (el) => { toggleWishlist(Number(el.dataset.pid)); renderWishlistDrawer(); },
+      'detail-angle': (el) => switchDetailAngle(Number(el.dataset.index)),
+      'cart-qty': (el) => changeCartQty(Number(el.dataset.index), Number(el.dataset.delta)),
+      'cart-remove': (el) => removeFromCart(Number(el.dataset.index)),
+    };
+
+    function handleDelegatedAction(el, e) {
+      const fn = DELEGATED_ACTIONS[el.dataset.action];
+      if (!fn) return;
+      if (el.tagName === 'A') e.preventDefault();
+      fn(el, e);
+    }
+
+    document.addEventListener('click', (e) => {
+      if (!e.target || typeof e.target.closest !== 'function') return;
+      const hit = e.target.closest('[data-route], [data-action]');
+      if (!hit) return;
+      if (hit.hasAttribute('data-route')) {
+        e.preventDefault();
+        handleDelegatedNav(hit);
+      } else {
+        handleDelegatedAction(hit, e);
+      }
+    });
+
+    // Forms carry data-form; submit bubbles, so one listener routes all five.
+    // Each handler calls preventDefault itself, as before.
+    const DELEGATED_FORMS = {
+      'newsletter': subscribeNewsletter,
+      'tracking': trackOrder,
+      'password-reset': submitPasswordReset,
+      'review': submitReview,
+      'notify': notifyMe,
+    };
+    document.addEventListener('submit', (e) => {
+      if (!e.target || typeof e.target.closest !== 'function') return;
+      const form = e.target.closest('[data-form]');
+      if (!form) return;
+      const fn = DELEGATED_FORMS[form.dataset.form];
+      if (fn) fn(e);
+    });
+
+    // Keyboard activation for non-native controls: elements with data-key
+    // fire their click path on Enter/Space, exactly like their old inline
+    // onkeydown handlers. Native controls are skipped (they fire click on
+    // their own), and role=link cards keep their Enter-only behavior via
+    // data-key="enter" so Space still scrolls the page.
+    document.addEventListener('keydown', (e) => {
+      const key = e.key === 'Enter' ? 'enter' : e.key === ' ' ? 'space' : null;
+      if (!key) return;
+      const t = e.target;
+      if (!t || typeof t.closest !== 'function') return;
+      if (t.closest('button, a, input, select, textarea')) return;
+      const hit = t.closest('[data-key]');
+      if (!hit) return;
+      if (key === 'space' && hit.dataset.key === 'enter') return;
+      e.preventDefault();
+      hit.click();
+    });
+
+    // Element events that do not delegate through bubbling (or predate the
+    // data-action scheme): search fields and the about-page hero fallback.
+    // This script runs after the markup, so the elements already exist.
+    const searchInputEl = document.getElementById('searchInput');
+    if (searchInputEl) {
+      searchInputEl.addEventListener('input', (e) => onSearchInput(e.target.value));
+      searchInputEl.addEventListener('keydown', searchKeydown);
+      searchInputEl.addEventListener('blur', searchBlur);
+    }
+    const mobileSearchEl = document.getElementById('mobileSearch');
+    if (mobileSearchEl) {
+      mobileSearchEl.addEventListener('input', (e) => onSearchInput(e.target.value));
+      mobileSearchEl.addEventListener('keydown', mobileSearchKeydown);
+    }
+    const aboutHeroImgEl = document.getElementById('aboutHeroImg');
+    if (aboutHeroImgEl) {
+      aboutHeroImgEl.addEventListener('error', () => {
+        aboutHeroImgEl.style.display = 'none';
+        document.getElementById('aboutHeroFallback').style.display = 'flex';
+      });
+    }
+
+    // ================================================================
     // INITIALIZE ALL ENHANCEMENTS
     // ================================================================
     requestAnimationFrame(() => {
@@ -6974,9 +7269,9 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
   </script>
 
   <!-- CUSTOMER LOGIN / SIGNUP MODAL -->
-  <div class="cust-overlay" id="custOverlay" onclick="if(event.target===this)closeCustModal()">
+  <div class="cust-overlay" id="custOverlay" data-action="cust-backdrop">
     <div class="cust-card" role="dialog" aria-modal="true">
-      <button type="button" class="cust-close" onclick="closeCustModal()" aria-label="Close"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+      <button type="button" class="cust-close" data-action="cust-close" aria-label="Close"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
       <div style="text-align:center;margin-bottom:0.3rem;"><span style="font-family:'Noto Serif JP',serif;font-size:1.8rem;font-weight:900;color:var(--accent);">影</span></div>
       <div id="custLoginView">
         <h3>Welcome Back</h3>
@@ -6986,9 +7281,9 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
         <input type="email" id="custLoginEmail" placeholder="you@email.com" autocomplete="email" />
         <label for="custLoginPassword">Password</label>
         <input type="password" id="custLoginPassword" placeholder="Enter password" autocomplete="current-password" />
-        <button class="cust-btn" id="custLoginBtn" onclick="submitCustLogin()">Sign In</button>
-        <p style="text-align:center;margin-top:0.5rem;font-size:0.72rem;"><a href="#" onclick="requestCustomerPasswordReset(); return false;" style="color:var(--accent);cursor:pointer;">Forgot password?</a></p>
-        <p class="cust-switch">Don't have an account? <a href="#" onclick="showCustSignup(); return false;">Create one</a></p>
+        <button class="cust-btn" id="custLoginBtn" data-action="cust-login">Sign In</button>
+        <p style="text-align:center;margin-top:0.5rem;font-size:0.72rem;"><a href="#" data-action="request-pw-reset" style="color:var(--accent);cursor:pointer;">Forgot password?</a></p>
+        <p class="cust-switch">Don't have an account? <a href="#" data-action="cust-show-signup">Create one</a></p>
       </div>
       <div id="custSignupView" style="display:none;">
         <h3>Create Account</h3>
@@ -7000,8 +7295,8 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
         <input type="email" id="custSignupEmail" placeholder="you@email.com" autocomplete="email" />
         <label for="custSignupPassword">Password</label>
         <input type="password" id="custSignupPassword" placeholder="Min. 6 characters" autocomplete="new-password" />
-        <button class="cust-btn" id="custSignupBtn" onclick="submitCustSignup()">Create Account</button>
-        <p class="cust-switch">Already have an account? <a href="#" onclick="showCustLogin(); return false;">Sign in</a></p>
+        <button class="cust-btn" id="custSignupBtn" data-action="cust-signup">Create Account</button>
+        <p class="cust-switch">Already have an account? <a href="#" data-action="cust-show-login">Sign in</a></p>
       </div>
     </div>
   </div>

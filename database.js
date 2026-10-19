@@ -587,6 +587,8 @@ async function createSchema(exec) {
     CREATE TABLE IF NOT EXISTS newsletter_subscribers (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       email TEXT UNIQUE NOT NULL,
+      unsubscribed INTEGER NOT NULL DEFAULT 0,
+      unsubscribe_token TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
@@ -682,7 +684,11 @@ const ADDITIVE_COLUMN_MIGRATIONS = [
   // customers: order history is gated on a verified email.
   ['customers', 'email_verified', 'INTEGER DEFAULT 0'],
   // reviews: per-device visibility of a reviewer's own pending review.
-  ['reviews', 'viewer_token', "TEXT NOT NULL DEFAULT ''"]
+  ['reviews', 'viewer_token', "TEXT NOT NULL DEFAULT ''"],
+  // newsletter_subscribers: one-click unsubscribe (token backfilled by a
+  // one-time bootstrap step in server.js, not here).
+  ['newsletter_subscribers', 'unsubscribed', 'INTEGER NOT NULL DEFAULT 0'],
+  ['newsletter_subscribers', 'unsubscribe_token', 'TEXT']
 ];
 
 function isDuplicateColumnError(error) {
@@ -731,7 +737,8 @@ const BASE_INDEXES = [
   'CREATE INDEX IF NOT EXISTS idx_rate_limits_reset_at ON rate_limits(reset_at)'
 ];
 const MIGRATED_COLUMN_INDEXES = [
-  'CREATE INDEX IF NOT EXISTS idx_orders_customer_id ON orders(customer_id)'
+  'CREATE INDEX IF NOT EXISTS idx_orders_customer_id ON orders(customer_id)',
+  'CREATE UNIQUE INDEX IF NOT EXISTS idx_newsletter_unsub_token ON newsletter_subscribers(unsubscribe_token)'
 ];
 
 async function createIndexes(exec) {

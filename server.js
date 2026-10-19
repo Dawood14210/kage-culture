@@ -4,6 +4,7 @@
 // Route logic lives in routes/*.js, middleware in middleware/*.js.
 // ================================================================
 const express = require('express');
+const crypto = require('crypto');
 const path = require('path');
 const fs = require('fs');
 const dbModule = require('./database');
@@ -753,7 +754,8 @@ const BOOTSTRAP_KEYS = {
   salePrices: 'sync_seed_sale_prices_v1',
   unitCosts: 'backfill_unit_costs_v1',
   emails: 'normalize_emails_v1',
-  removeOldCategories: 'remove_old_categories_v1'
+  removeOldCategories: 'remove_old_categories_v1',
+  newsletterTokens: 'backfill_newsletter_tokens_v1'
 };
 let _bootstrapDone = false;
 
@@ -835,6 +837,28 @@ async function normalizeEmailsOnce() {
   return JSON.stringify(stats);
 }
 
+// One-click newsletter unsubscribe needs a token on every row. Pre-token rows
+// (and rows merged away by normalizeEmailsOnce, which runs first) get one here.
+// Full scan + per-id UPDATE: the in-memory backend's WHERE shim only handles
+// `col = ?`, so `IS NULL` would match every row there. Idempotent: only
+// tokenless rows are touched, so re-running changes zero rows.
+async function backfillNewsletterTokensOnce() {
+  const rows = await db.prepare('SELECT id, unsubscribe_token FROM newsletter_subscribers').all();
+  let filled = 0;
+  for (const row of rows || []) {
+    if (row && !row.unsubscribe_token) {
+      await db.prepare('UPDATE newsletter_subscribers SET unsubscribe_token = ? WHERE id = ?')
+        .run(crypto.randomBytes(24).toString('hex'), row.id);
+      filled++;
+    }
+  }
+  if (filled) {
+    await db.save();
+    console.log(`🔗 Backfilled newsletter unsubscribe tokens for ${filled} subscriber(s)`);
+  }
+  return 'backfilled:' + filled;
+}
+
 // v2026-10: the only allowed product categories are graphic-tees, anime, pants.
 // Move any product not in one of those (including 'streetwear', 'goofy-wears'
 // and any other unknown value) into 'graphic-tees' so nothing disappears from
@@ -864,7 +888,8 @@ async function bootstrapData() {
     [BOOTSTRAP_KEYS.removeOldCategories, removeOldCategoriesOnce],
     [BOOTSTRAP_KEYS.salePrices, syncSeedSalePricesOnce],
     [BOOTSTRAP_KEYS.unitCosts, backfillUnitCostsOnce],
-    [BOOTSTRAP_KEYS.emails, normalizeEmailsOnce]
+    [BOOTSTRAP_KEYS.emails, normalizeEmailsOnce],
+    [BOOTSTRAP_KEYS.newsletterTokens, backfillNewsletterTokensOnce]
   ]) {
     try {
       await runOnce(key, step);

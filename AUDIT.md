@@ -1397,11 +1397,25 @@ Unchanged non-token text on solid surfaces was also checked:
   scenario 18 (57/57 API + 18/18 frontend) and a 36-check headless-Chromium run
   (1280px + 390px). Details in `PROJECT_LOG.md` §18.
 - **FE-M5.** ✅ native links/review buttons and Escape/focus trap for primary overlays;
-  ⬜ dynamic controls/remaining dialog semantics merit a full keyboard/browser pass.
+  ✅ dynamic controls/remaining dialog semantics closed 2026-10-18 (with A11Y-4):
+  zoom view + mobile menu joined the trapped set, zoom saves/restores focus,
+  menu Escape returns focus to the hamburger, and user-initiated route changes
+  move focus to `#mainContent` (boot routing excluded so the skip link stays
+  first). Verified in jsdom + real Chromium — see the 2026-10-18 entry.
 - **FE-M7.** ✅ catalog failures are visible and disable cart/checkout until retry.
 
 ### 🔵 Low
-- **FE-M6.** Micro-typography legibility (topbar/wordmark).
+- **FE-M6.** ✅ Micro-typography legibility (2026-10-18). The original complaint
+  (topbar 0.4rem, 7px text wordmark, 3.5px CULTURE) was already gone — topbar is
+  0.7rem since the marquee rework and the logo is a 44px image. Bumped the six
+  remaining sub-10px text rules to ≥10px: nav badge 8px→10px (16px circle→18px
+  pill so two-digit counts fit), discount badge / fit tag / payment pills /
+  sale flag 8–8.8px→10.4px, filter badge 9.6px→10px, size-stock status /
+  order-status pills 9.6px→10.4px, cart Remove + wishlist Add-to-Cart +
+  Quick View buttons 9.6px→11.2px. Only the decorative checkbox ✓ glyph stays
+  sub-10px (not readable text). Regression: frontend scenario 32 scans every
+  `font-size` in the shell and fails on any readable size <10px. `npm test`
+  passes all six suites (135/135 API, 32/32 frontend).
 - **FE-M8.** ✅ manifest background, formatted totals and confirmation popup fixed (2026-10-10).
 - **L2.** ~~Untracked product images/videos (9.3 MB of mp4s)~~ ✅ committed
   2026-09-23 (commit 663df0c) and pushed to `Dawood14210/kage-culture`. Residual:
@@ -1469,3 +1483,64 @@ Unchanged non-token text on solid surfaces was also checked:
   `PORT=3999 node tests/frontend.test.js` passes **31/31** scenarios; final
   `PORT=3999 npm test` passes all six scripts (E2E, rate-limit, storefront,
   migration, frontend/Chromium, and accessibility).
+
+## 2026-10-18 follow-up — remaining-queue sweep (FE-M6, A11Y-3, …)
+
+- **FE-M6 (done, see Remaining-work entry):** all readable storefront text is
+  now ≥10px; frontend scenario 32 scans every `font-size` in the shell.
+- **A11Y-3 (done):** added a visually-hidden `#srAnnounce` live region
+  (`aria-live="polite"`, new `.sr-only` clip rule) plus an `announce()` helper
+  that clears and settles on a 50ms timer so repeated messages re-announce.
+  Every `showToast()` call now mirrors into the region (covers quick-add,
+  stock errors, newsletter/notify/review/account/order feedback); wishlist
+  save/remove, cart add/quantity/remove, and order placement announce with
+  product names and the real order number. `#resultCount` is a polite live
+  status; `#checkoutError`/`#trkError` are `role="alert"`. Regression:
+  frontend scenario 33 checks the markup contracts and drives announce, toast,
+  wishlist, cart, filter and a real browserCookies checkout end to end.
+  `npm test` passes all six suites (135/135 API, 33/33 frontend).
+- **A11Y-4 + FE-M5 remainder (done):** audited first — cart/wishlist/filter
+  drawers, the customer modal and the admin password dialog already had
+  Tab-wrap traps, Escape and focus return. Gaps closed: the image zoom view
+  now saves/restores focus and is trapped (it already moved focus to its
+  Close button); the mobile menu is trapped and its Escape path returns focus
+  to the hamburger (kept via `closeMenuAndRefocus`); user-initiated
+  `navigateTo()` calls move focus to `#mainContent`, gated on a
+  `bootNavComplete` flag that flips only after the async deep-link restore
+  finishes (resolve and reject paths), so boot never steals the skip link.
+  Regression: frontend scenario 34 — jsdom asserts boot leaves focus on
+  `body`, route/modal/zoom focus in and back; real Chromium asserts drawer
+  Tab-wrap both ways, outside-focus pull-in, menu wrap + Escape-to-hamburger,
+  and zoom Tab containment + Escape-to-gallery. `npm test` passes all six
+  suites (135/135 API, 34/34 frontend).
+- **SEO-4 client part (done; server part was done 2026-10-15):** SPA
+  navigations now sync `description`, `og:title/description/image/image:alt`,
+  `og:type` and the `twitter:*` tags (previously only `canonical`, `og:url`
+  and `document.title` moved). Product routes mirror the server format
+  (`name | KAGE CULTURE`, ~155-char description, absolute front image,
+  `og:type=product`); collection routes mirror `COLLECTION_SEO` copy with a
+  newest-with-image pick approximating the server's; home/content routes
+  restore hardcoded homepage defaults (deliberately not boot-captured — a
+  deep-linked boot already carries route meta — with a parity test against
+  the `/` shell). Regression: frontend scenario 35 drives
+  product→collection→contact→home asserting every tag, plus a review-settle
+  wait that fixed a teardown race (closing the window with the review fetch
+  in flight threw on the dead jsdom global). `npm test` passes all six
+  suites (135/135 API, 35/35 frontend).
+- **CONTENT-2 unsubscribe (done; campaigns still need provider decision D3):**
+  every newsletter row now carries `unsubscribed` + a 192-bit
+  `unsubscribe_token` (fresh schema, additive migration, unique index, and a
+  one-time `backfill_newsletter_tokens_v1` bootstrap step that runs after the
+  email merge; full-scan + per-id UPDATE so the mem backend's `col = ?`-only
+  WHERE shim stays correct). `POST /api/newsletter` returns the private
+  manage link for new, already-subscribed and resubscribed addresses (lazy
+  token repair for stragglers); clan-join inserts include a token.
+  `GET /newsletter/unsubscribe?token=` renders a prefetch-safe confirm page
+  (masked address, no-store, full address never echoed) and
+  `POST /api/newsletter/unsubscribe` performs the idempotent removal —
+  deliberately CSRF-exempt since the token is the credential (documented in
+  code). Subscribe UI shows the private link once; Privacy policy updated.
+  Regression: 2 e2e checks (full flow incl. prefetch-safety, masking,
+  resubscribe; lazy repair + backfill idempotence), upgrade-suite token
+  checks on both SQL backends, frontend scenario 36 for the UI link.
+  `npm test` passes all six suites (137/137 API, 36/36 frontend).

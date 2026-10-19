@@ -2,6 +2,7 @@
 // KAGE Culture — Admin stats, upload, newsletter, clan, coming-soon routes
 // ================================================================
 const express = require('express');
+const crypto = require('crypto');
 const path = require('path');
 const multer = require('multer');
 const config = require('../config');
@@ -170,16 +171,109 @@ module.exports = function createAdminRoutes(db) {
   });
 
   // --- Newsletter ---
+  // One-click unsubscribe (CONTENT-2): every subscriber row carries a random
+  // token. The token IS the credential — possession of the link authorises the
+  // removal, so the unsubscribe endpoints intentionally skip CSRF (an attacker
+  // who cannot guess 192 bits of token gains nothing from a forged request,
+  // and email clients must reach the confirm page without a session).
+  function newUnsubscribeToken() {
+    return crypto.randomBytes(24).toString('hex');
+  }
+  async function subscriberToken(db, id, current) {
+    // Lazy repair for rows that predate the token backfill (or backends where
+    // the bootstrap step has not run yet): mint on demand, then reuse forever.
+    if (current) return current;
+    const token = newUnsubscribeToken();
+    await db.prepare('UPDATE newsletter_subscribers SET unsubscribe_token = ? WHERE id = ?').run(token, id);
+    return token;
+  }
+  function unsubscribePage({ heading, body, token }) {
+    const safe = String(body || '').replace(/&/g, '&amp;').replace(/</g, '&lt;');
+    return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8" />` +
+      `<meta name="viewport" content="width=device-width, initial-scale=1" />` +
+      `<meta name="robots" content="noindex, nofollow" />` +
+      `<title>${heading} — KAGE Culture</title>` +
+      `<style>body{font-family:Archivo,system-ui,sans-serif;background:#D9D4C8;color:#1A1815;` +
+      `display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;padding:24px;box-sizing:border-box}` +
+      `.card{background:#CFC9BA;border:1px solid #B9B2A1;border-radius:12px;padding:32px;max-width:440px;width:100%;text-align:center}` +
+      `h1{font-size:1.3rem;margin:0 0 12px}p{font-size:.9rem;line-height:1.6;color:#3D3931}` +
+      `.btn{display:inline-block;margin-top:16px;padding:.7rem 1.6rem;border-radius:8px;font-weight:700;font-size:.85rem;` +
+      `cursor:pointer;text-decoration:none;border:1px solid #1A1815}` +
+      `.btn-primary{background:#1A1815;color:#fff}.btn-ghost{background:transparent;color:#1A1815;margin-left:8px}</style></head>` +
+      `<body><div class="card"><h1>${heading}</h1><p>${safe}</p>` +
+      (token
+        ? `<form method="POST" action="/api/newsletter/unsubscribe">` +
+          `<input type="hidden" name="token" value="${String(token).replace(/[^a-f0-9]/g, '')}" />` +
+          `<button class="btn btn-primary" type="submit">Yes, unsubscribe me</button>` +
+          `<a class="btn btn-ghost" href="/">Keep me subscribed</a></form>`
+        : `<p><a class="btn btn-primary" href="/">Back to the shop</a></p>`) +
+      `</div></body></html>`;
+  }
+  function maskedEmail(email) {
+    const [user, domain] = String(email || '').split('@');
+    if (!user || !domain) return 'this address';
+    return user.slice(0, 2) + '•••@' + domain;
+  }
   router.post('/api/newsletter', requireCsrf, async (req, res) => {
     try {
-      const { email } = req.body;
+      const { email } = req.body || {};
       if (!email || typeof email !== 'string') return res.status(400).json({ error: 'Please provide a valid email address.' });
       const clean = email.trim().toLowerCase();
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean)) return res.status(400).json({ error: 'Please provide a valid email address.' });
-      const existing = await db.prepare('SELECT id FROM newsletter_subscribers WHERE LOWER(TRIM(email)) = ?').get(clean);
-      if (existing) return res.json({ success: true, message: 'You are already subscribed!' });
-      await db.prepare('INSERT INTO newsletter_subscribers (email) VALUES (?)').run(clean);
-      res.json({ success: true, message: 'Welcome to the clan!' });
+      const existing = await db.prepare('SELECT id, unsubscribed, unsubscribe_token FROM newsletter_subscribers WHERE LOWER(TRIM(email)) = ?').get(clean);
+      if (existing) {
+        const token = await subscriberToken(db, existing.id, existing.unsubscribe_token);
+        // NOTE: the manage link is returned to whoever posts the address. There
+        // is no mailer yet to deliver it privately; possession of the link only
+        // permits unsubscribing (reversible by resubscribing), and guessing a
+        // token is infeasible. Revisit once campaign email exists (CONTENT-2/D3).
+        const unsubscribe_url = '/newsletter/unsubscribe?token=' + token;
+        if (existing.unsubscribed) {
+          await db.prepare('UPDATE newsletter_subscribers SET unsubscribed = 0 WHERE id = ?').run(existing.id);
+          return res.json({ success: true, message: 'Welcome back to the clan!', unsubscribe_url });
+        }
+        return res.json({ success: true, message: 'You are already subscribed!', unsubscribe_url });
+      }
+      const token = newUnsubscribeToken();
+      await db.prepare('INSERT INTO newsletter_subscribers (email, unsubscribe_token) VALUES (?, ?)').run(clean, token);
+      res.json({ success: true, message: 'Welcome to the clan!', unsubscribe_url: '/newsletter/unsubscribe?token=' + token });
+    } catch (err) { res.status(500).json({ error: 'Something went wrong.' }); }
+  });
+
+  // Confirm page first: mail clients prefetch GET links, which would silently
+  // unsubscribe people if GET performed the removal. The POST below does it.
+  router.get('/newsletter/unsubscribe', async (req, res) => {
+    try {
+      res.setHeader('Cache-Control', 'no-store');
+      const token = String((req.query && req.query.token) || '');
+      if (!token) return res.status(400).type('html').send(unsubscribePage({ heading: 'Link incomplete', body: 'This unsubscribe link is missing its token. Please use the full link.' }));
+      const row = await db.prepare('SELECT id, email, unsubscribed FROM newsletter_subscribers WHERE unsubscribe_token = ?').get(token);
+      if (!row) return res.status(404).type('html').send(unsubscribePage({ heading: 'Link not recognised', body: 'This unsubscribe link is invalid or was already used for a removed address.' }));
+      if (row.unsubscribed) return res.status(200).type('html').send(unsubscribePage({ heading: 'Already unsubscribed', body: `${maskedEmail(row.email)} is not on the newsletter list.` }));
+      return res.status(200).type('html').send(unsubscribePage({
+        heading: 'Unsubscribe?',
+        body: `Stop newsletter email to ${maskedEmail(row.email)}? You can resubscribe anytime.`,
+        token
+      }));
+    } catch (err) { res.status(500).json({ error: 'Something went wrong.' }); }
+  });
+
+  // Accepts both JSON (fetch) and urlencoded (the confirm-page form above).
+  router.post('/api/newsletter/unsubscribe', express.urlencoded({ extended: false }), async (req, res) => {
+    try {
+      const token = String((req.body && req.body.token) || '');
+      if (!token) return res.status(400).json({ error: 'This unsubscribe link is missing its token.' });
+      const row = await db.prepare('SELECT id, unsubscribed FROM newsletter_subscribers WHERE unsubscribe_token = ?').get(token);
+      if (!row) return res.status(404).json({ error: 'This unsubscribe link is invalid.' });
+      if (!row.unsubscribed) {
+        await db.prepare('UPDATE newsletter_subscribers SET unsubscribed = 1 WHERE id = ?').run(row.id);
+      }
+      const wantsHtml = String(req.headers.accept || '').includes('text/html');
+      if (wantsHtml) {
+        res.setHeader('Cache-Control', 'no-store');
+        return res.status(200).type('html').send(unsubscribePage({ heading: 'Unsubscribed', body: 'You are off the newsletter list. Sorry to see you go — the door stays open.' }));
+      }
+      res.json({ success: true, message: 'You have been unsubscribed.' });
     } catch (err) { res.status(500).json({ error: 'Something went wrong.' }); }
   });
 
@@ -195,7 +289,7 @@ module.exports = function createAdminRoutes(db) {
       for (const o of allOrders) { const items = JSON.parse(o.items_json || '[]'); for (const it of items) { totalShirts += (it.qty || 0); } }
       if (totalShirts < config.CLAN_THRESHOLD) return res.status(403).json({ error: `You need to order at least ${config.CLAN_THRESHOLD} shirts to join the KAGE Clan.` });
       const existing = await db.prepare('SELECT id FROM newsletter_subscribers WHERE LOWER(TRIM(email)) = ?').get(clean);
-      if (!existing) await db.prepare('INSERT INTO newsletter_subscribers (email) VALUES (?)').run(clean);
+      if (!existing) await db.prepare('INSERT INTO newsletter_subscribers (email, unsubscribe_token) VALUES (?, ?)').run(clean, newUnsubscribeToken());
       res.json({ success: true, message: 'Welcome to the KAGE Clan!', total_shirts: totalShirts });
     } catch (err) { res.status(500).json({ error: 'Something went wrong.' }); }
   });
