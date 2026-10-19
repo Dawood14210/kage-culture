@@ -139,9 +139,10 @@ async function sendOrderConfirmation(order) {
   const itemsList = (order.items || []).map(i => `<tr><td style="padding:6px 12px;border:1px solid #D9D4C8;">${escapeHtml(i.name)}</td><td style="padding:6px 12px;border:1px solid #D9D4C8;">${escapeHtml(i.size)}</td><td style="padding:6px 12px;border:1px solid #D9D4C8;text-align:center;">${escapeHtml(i.qty)}</td><td style="padding:6px 12px;border:1px solid #D9D4C8;text-align:right;">Rs. ${escapeHtml(i.total)}</td></tr>`).join('');
   const payLabel = order.payment_method === 'bank' ? 'Bank Transfer' : order.payment_method === 'jazzcash' ? 'JazzCash' : 'Cash on Delivery';
   const payRef = order.payment_ref ? `<p style="color:#504C47;font-size:14px;">Payment Reference: <strong>${escapeHtml(order.payment_ref)}</strong></p>` : '';
-  const shippingLabel = order.shipping_pending ? 'To be confirmed' : `Rs. ${escapeHtml(order.shipping)}`;
+  // D1 (CONV-1): the published Rs. 250–450 band; the exact fee is confirmed by phone before dispatch.
+  const shippingLabel = order.shipping_pending ? 'Rs. 250 – Rs. 450' : `Rs. ${escapeHtml(order.shipping)}`;
   const totalLabel = order.shipping_pending ? 'Items subtotal (delivery charge pending)' : 'Total';
-  const deliveryContactNote = order.shipping_pending ? '<p style="font-size:13px;color:#504C47;margin-top:16px;">We will contact you about the delivery charges and confirm the final amount.</p>' : '';
+  const deliveryContactNote = order.shipping_pending ? '<p style="font-size:13px;color:#504C47;margin-top:16px;">Delivery is Rs. 250 – Rs. 450 depending on your city. We will contact you to confirm the final amount before dispatch.</p>' : '';
   const html = `
   <div style="font-family:'Archivo',Arial,sans-serif;background:#D9D4C8;padding:32px;color:#1A1815;">
     <div style="max-width:560px;margin:0 auto;background:#FFF;border-radius:12px;padding:32px;border:1px solid #BDB6A6;">

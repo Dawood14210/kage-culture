@@ -117,6 +117,8 @@ async function snapshot() {
     reviews: rowsOf(await db.prepare('SELECT id, product_id, order_number, customer_name, rating, comment, status, viewer_token FROM reviews ORDER BY id').all(),
       ['id', 'product_id', 'order_number', 'customer_name', 'rating', 'comment', 'status', 'viewer_token']),
     newsletter: rowsOf(await db.prepare('SELECT id, email FROM newsletter_subscribers ORDER BY id').all(), ['id', 'email']),
+    newsletterTokens: (await db.prepare('SELECT unsubscribe_token AS t, unsubscribed AS u FROM newsletter_subscribers ORDER BY id').all())
+      .map((r) => ({ valid: /^[0-9a-f]{48}$/.test(String((r && r.t) || '')), unsubscribed: Number(r && r.u) || 0 })),
     sizeStock: rowsOf(await db.prepare('SELECT product_id, size, stock_qty FROM product_size_stock ORDER BY product_id, size').all(), ['product_id', 'size', 'stock_qty']),
     passwordResetTokens: rowsOf(await db.prepare('SELECT id, user_type, user_id, token_hash, used FROM password_reset_tokens ORDER BY id').all(), ['id', 'user_type', 'user_id', 'token_hash', 'used'])
   };

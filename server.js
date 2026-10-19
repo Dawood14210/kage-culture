@@ -4,6 +4,7 @@
 // Route logic lives in routes/*.js, middleware in middleware/*.js.
 // ================================================================
 const express = require('express');
+const crypto = require('crypto');
 const path = require('path');
 const fs = require('fs');
 const dbModule = require('./database');
@@ -38,6 +39,37 @@ const PORT = process.env.PORT || 3000;
 app.set('trust proxy', 1);
 
 const STOREFRONT_HTML_TEMPLATE = fs.readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf8');
+const ADMIN_HTML_TEMPLATE = fs.readFileSync(path.join(__dirname, 'public', 'admin.html'), 'utf8');
+// PERF-1: the split CSS/JS bundles are cache-busted by content hash. Hashes
+// are computed once at boot; every deploy produces new URLs, so the hashed
+// copies can be served immutable for a year (see the routes below).
+const ASSET_HASH = {};
+for (const [token, file] of Object.entries({
+  STORE_CSS: 'storefront.css',
+  STORE_JS: 'storefront.js',
+  ADMIN_CSS: 'admin.css',
+  ADMIN_JS: 'admin.js'
+})) {
+  const bytes = fs.readFileSync(path.join(__dirname, 'public', file));
+  ASSET_HASH[token] = crypto.createHash('sha256').update(bytes).digest('hex').slice(0, 10);
+}
+function substituteAssetHashes(html) {
+  return html
+    .replaceAll('__STORE_CSS_HASH__', ASSET_HASH.STORE_CSS)
+    .replaceAll('__STORE_JS_HASH__', ASSET_HASH.STORE_JS)
+    .replaceAll('__ADMIN_CSS_HASH__', ASSET_HASH.ADMIN_CSS)
+    .replaceAll('__ADMIN_JS_HASH__', ASSET_HASH.ADMIN_JS);
+}
+// D2 (ANALYTICS-1): Umami Cloud tracker tag. The website id comes from the
+// owner's Umami Cloud dashboard after adding the site; when unset (or not a
+// plausible id) no tag is rendered and no tracking happens. Read per request
+// so tests can flip it without rebooting. Storefront only — the admin panel
+// carries no analytics.
+function umamiTag() {
+  const id = String(process.env.UMAMI_WEBSITE_ID || '').trim();
+  if (!/^[0-9a-f-]{8,64}$/i.test(id)) return '';
+  return `<script defer src="https://cloud.umami.is/script.js" data-website-id="${id}"></script>`;
+}
 function setHtmlNoStore(res) {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.setHeader('Pragma', 'no-cache');
@@ -540,9 +572,10 @@ async function renderStorefrontHtml(req) {
   const siteUrl = getSiteUrlForRequest(req);
   const pagePath = req.path === '/index.html' ? '/' : req.path;
   const pageUrl = new URL(pagePath || '/', `${siteUrl}/`).href;
-  let html = STOREFRONT_HTML_TEMPLATE
+  let html = substituteAssetHashes(STOREFRONT_HTML_TEMPLATE)
     .replaceAll('__SITE_URL__', siteUrl)
-    .replaceAll('__PAGE_URL__', pageUrl);
+    .replaceAll('__PAGE_URL__', pageUrl)
+    .replaceAll('<!--__UMAMI_TAG__-->', umamiTag());
   const resolved = await resolveSeoPage(req, siteUrl);
   if (resolved.seo) {
     html = applySeoMetadata(html, resolved.seo);
@@ -575,16 +608,20 @@ app.use(loadHelmet()({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-      // REQUIRED: the storefront/admin are built on inline onclick/onkeydown
-      // handlers — omitting this lets helmet default to script-src-attr 'none',
-      // which silently blocks every click (prod incident 2026-09-23).
-      // Long-term removal tracked in AUDIT.md as FE-H2 (event delegation).
-      scriptSrcAttr: ["'unsafe-inline'"],
+      // PERF-1 done: all first-party scripts are same-origin bundles, so no
+      // inline script — injected or otherwise — can run. Umami Cloud (D2) is
+      // the single allowed third-party script for privacy-friendly analytics.
+      scriptSrc: ["'self'", "https://cloud.umami.is"],
+      // FE-H2 done: every click/key/submit/change handler is delegated
+      // (data-route/data-action + addEventListener), so inline handlers are
+      // explicitly forbidden — injected onclick= attributes cannot execute.
+      // (History: omitting this defaulted to 'none' while inline handlers
+      // still existed and silently blocked every click, 2026-09-23.)
+      scriptSrcAttr: ["'none'"],
       styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://cdn.jsdelivr.net"],
       fontSrc: ["'self'", "https://fonts.gstatic.com", "https://cdn.jsdelivr.net"],
       imgSrc: ["'self'", "data:", "https:", "blob:"],
-      connectSrc: ["'self'", "https://*.blob.vercel-storage.com"],
+      connectSrc: ["'self'", "https://*.blob.vercel-storage.com", "https://cloud.umami.is"],
       frameSrc: ["'none'"]
     }
   },
@@ -671,6 +708,16 @@ app.get(['/', '/index.html'], (req, res, next) => {
   sendStorefrontHtml(req, res).catch(next);
 });
 
+// Hashed bundle URLs (?v=<content hash>) are immutable for a year: the hash
+// changes on every deploy, so a cached copy can never go stale. Unhashed
+// requests fall through to the one-day static handler below.
+const HASHED_ASSETS = new Set(['/storefront.css', '/storefront.js', '/admin.css', '/admin.js']);
+app.get([...HASHED_ASSETS], (req, res, next) => {
+  if (!req.query.v) return next();
+  res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+  res.sendFile(path.join(__dirname, 'public', req.path.slice(1)));
+});
+
 app.use(express.static(path.join(__dirname, 'public'), {
   // HTML stays uncacheable so deployments take effect immediately. Replaceable
   // static files get one day of public caching and must revalidate with ETag or
@@ -753,7 +800,8 @@ const BOOTSTRAP_KEYS = {
   salePrices: 'sync_seed_sale_prices_v1',
   unitCosts: 'backfill_unit_costs_v1',
   emails: 'normalize_emails_v1',
-  removeOldCategories: 'remove_old_categories_v1'
+  removeOldCategories: 'remove_old_categories_v1',
+  newsletterTokens: 'backfill_newsletter_tokens_v1'
 };
 let _bootstrapDone = false;
 
@@ -835,6 +883,28 @@ async function normalizeEmailsOnce() {
   return JSON.stringify(stats);
 }
 
+// One-click newsletter unsubscribe needs a token on every row. Pre-token rows
+// (and rows merged away by normalizeEmailsOnce, which runs first) get one here.
+// Full scan + per-id UPDATE: the in-memory backend's WHERE shim only handles
+// `col = ?`, so `IS NULL` would match every row there. Idempotent: only
+// tokenless rows are touched, so re-running changes zero rows.
+async function backfillNewsletterTokensOnce() {
+  const rows = await db.prepare('SELECT id, unsubscribe_token FROM newsletter_subscribers').all();
+  let filled = 0;
+  for (const row of rows || []) {
+    if (row && !row.unsubscribe_token) {
+      await db.prepare('UPDATE newsletter_subscribers SET unsubscribe_token = ? WHERE id = ?')
+        .run(crypto.randomBytes(24).toString('hex'), row.id);
+      filled++;
+    }
+  }
+  if (filled) {
+    await db.save();
+    console.log(`🔗 Backfilled newsletter unsubscribe tokens for ${filled} subscriber(s)`);
+  }
+  return 'backfilled:' + filled;
+}
+
 // v2026-10: the only allowed product categories are graphic-tees, anime, pants.
 // Move any product not in one of those (including 'streetwear', 'goofy-wears'
 // and any other unknown value) into 'graphic-tees' so nothing disappears from
@@ -864,7 +934,8 @@ async function bootstrapData() {
     [BOOTSTRAP_KEYS.removeOldCategories, removeOldCategoriesOnce],
     [BOOTSTRAP_KEYS.salePrices, syncSeedSalePricesOnce],
     [BOOTSTRAP_KEYS.unitCosts, backfillUnitCostsOnce],
-    [BOOTSTRAP_KEYS.emails, normalizeEmailsOnce]
+    [BOOTSTRAP_KEYS.emails, normalizeEmailsOnce],
+    [BOOTSTRAP_KEYS.newsletterTokens, backfillNewsletterTokensOnce]
   ]) {
     try {
       await runOnce(key, step);
@@ -904,7 +975,7 @@ async function ensureReady() {
     // redirects to /admin above (before static), giving one canonical entry.
     app.get('/admin', (req, res) => {
       setHtmlNoStore(res);
-      res.sendFile(path.join(__dirname, 'public', 'admin.html'));
+      res.type('html').send(substituteAssetHashes(ADMIN_HTML_TEMPLATE));
     });
     const spaPages = new Set(['/', '/about', '/contact', '/tracking', '/shipping', '/returns', '/privacy', '/terms', '/account', '/checkout', '/confirmation', '/reset-password', '/verify-email', '/custom-stickers', '/coming-soon']);
     app.get('*', (req, res, next) => {

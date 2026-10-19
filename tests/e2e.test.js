@@ -61,6 +61,14 @@ function request(port, method, path, { body, headers } = {}) {
   });
 }
 
+// Fetch a PERF-1 bundle body (the split CSS/JS live outside the shell now,
+// so content assertions against them fetch the asset instead of the page).
+async function asset(port, path) {
+  const r = await request(port, 'GET', path);
+  assert.strictEqual(r.status, 200, `${path} must be served`);
+  return r.text;
+}
+
 // Pull the Set-Cookie pairs out of a login response
 function cookieHeader(res) {
   const sc = res.headers['set-cookie'] || [];
@@ -936,7 +944,7 @@ async function main() {
     const r = await request(PORT, 'GET', '/reset-password?token=abc&type=customer');
     assert.strictEqual(r.status, 200);
     assert.ok(r.text.includes('page-reset'), 'shell must contain the reset view');
-    assert.ok(r.text.includes('initPasswordReset'), 'shell must contain the reset JS');
+    assert.ok((await asset(PORT, '/storefront.js')).includes('initPasswordReset'), 'the JS bundle must contain the reset code');
   });
 
   // ---------------------------------------------------------------
@@ -964,7 +972,88 @@ async function main() {
     const r = await request(PORT, 'GET', '/');
     assert.strictEqual(r.status, 200);
     assert.ok(!r.text.includes("onclick=\"navigateTo('product', "), 'stale navigateTo(product) wiring must be gone');
-    assert.ok(r.text.includes('openProductDetail(${p.id})'), 'cards must call openProductDetail');
+    const storeJs = await asset(PORT, '/storefront.js');
+    assert.ok(storeJs.includes('data-action="open-product" data-pid="${p.id}"'), 'cards carry the delegated open-product action');
+    assert.ok(storeJs.includes("'open-product': (el) => openProductDetail(Number(el.dataset.pid))"), 'the action table routes to openProductDetail');
+  });
+
+  // ---------------------------------------------------------------
+  // FE-H2 — delegated events: zero inline handlers, CSP forbids them
+  // ---------------------------------------------------------------
+  console.log('\nDelegated events (FE-H2):');
+  await check('served pages carry zero inline event handlers', async () => {
+    for (const path of ['/', '/admin']) {
+      const r = await request(PORT, 'GET', path);
+      assert.strictEqual(r.status, 200, path);
+      // Whitespace-prefixed so meta content="..." never matches.
+      const hits = r.text.match(/\son[a-z]+="[^"]{0,40}/g) || [];
+      assert.deepStrictEqual(hits, [], `${path} must have no on*= attributes, found: ${hits.slice(0, 3).join(' | ')}`);
+    }
+  });
+
+  await check("CSP forbids inline scripts and handlers; only same-origin bundles run", async () => {
+    for (const path of ['/', '/admin']) {
+      const r = await request(PORT, 'GET', path);
+      assert.strictEqual(r.status, 200, path);
+      const csp = r.headers['content-security-policy'] || '';
+      const scriptSrc = /script-src[^;]*/.exec(csp)?.[0] || '';
+      assert.equal(scriptSrc, "script-src 'self' https://cloud.umami.is", `${path}: scripts load only from same-origin bundles + Umami, got: ${scriptSrc}`);
+      assert.match(csp, /script-src-attr 'none'/, 'injected inline handlers cannot execute');
+    }
+  });
+
+  // ---------------------------------------------------------------
+  // PERF-1 — split bundles: hashed, immutable, shell stays small
+  // ---------------------------------------------------------------
+  console.log('\nSplit bundles (PERF-1):');
+  await check('pages reference hashed CSS/JS bundles and stay small', async () => {
+    const pages = { '/': ['storefront.css', 'storefront.js'], '/admin': ['admin.css', 'admin.js'] };
+    for (const [path, bundles] of Object.entries(pages)) {
+      const r = await request(PORT, 'GET', path);
+      assert.strictEqual(r.status, 200, path);
+      assert.ok(Buffer.byteLength(r.text, 'utf8') < 120000, `${path} shell must stay under 120KB, got ${Buffer.byteLength(r.text, 'utf8')}`);
+      assert.ok(!r.text.includes('__STORE_') && !r.text.includes('__ADMIN_'), `${path} must substitute every asset hash token`);
+      for (const bundle of bundles) {
+        const m = new RegExp(`/${bundle}\\?v=([0-9a-f]{10})`).exec(r.text);
+        assert.ok(m, `${path} must reference /${bundle} with a 10-hex content hash`);
+      }
+    }
+  });
+
+  await check('Umami tag renders only when UMAMI_WEBSITE_ID is set (storefront only)', async () => {
+    const prev = process.env.UMAMI_WEBSITE_ID;
+    try {
+      delete process.env.UMAMI_WEBSITE_ID;
+      const off = await request(PORT, 'GET', '/');
+      assert.ok(!off.text.includes('cloud.umami.is'), 'no tag and no tracking without an id');
+      assert.ok(!off.text.includes('__UMAMI_TAG__'), 'the placeholder never leaks to visitors');
+      process.env.UMAMI_WEBSITE_ID = '12ab34cd-56ef-78ab-90cd-ef1234567890';
+      const on = await request(PORT, 'GET', '/');
+      assert.ok(on.text.includes('<script defer src="https://cloud.umami.is/script.js" data-website-id="12ab34cd-56ef-78ab-90cd-ef1234567890"></script>'),
+        'the tag renders with the configured id');
+      const csp = on.headers['content-security-policy'] || '';
+      assert.match(csp, /connect-src[^;]*https:\/\/cloud\.umami\.is/, 'beacons are allowed to Umami Cloud');
+      process.env.UMAMI_WEBSITE_ID = '"><script>alert(1)</script>';
+      const hostile = await request(PORT, 'GET', '/');
+      assert.ok(!hostile.text.includes('cloud.umami.is/script.js'), 'a hostile id renders no tag');
+      const admin = await request(PORT, 'GET', '/admin');
+      assert.ok(!admin.text.includes('cloud.umami.is'), 'the admin panel carries no analytics');
+    } finally {
+      if (prev === undefined) delete process.env.UMAMI_WEBSITE_ID;
+      else process.env.UMAMI_WEBSITE_ID = prev;
+    }
+  });
+
+  await check('hashed bundles are immutable for a year, unhashed revalidate daily', async () => {
+    for (const bundle of ['/storefront.css', '/storefront.js', '/admin.css', '/admin.js']) {
+      const bare = await request(PORT, 'GET', bundle);
+      assert.strictEqual(bare.status, 200, bundle);
+      assert.strictEqual(bare.headers['cache-control'], 'public, max-age=86400, must-revalidate', `${bundle} without a hash revalidates daily`);
+      const hashed = await request(PORT, 'GET', `${bundle}?v=0123456789`);
+      assert.strictEqual(hashed.status, 200, bundle);
+      assert.strictEqual(hashed.headers['cache-control'], 'public, max-age=31536000, immutable', `${bundle}?v= is immutable`);
+      assert.strictEqual(hashed.text, bare.text, 'the hash only affects caching, never the bytes');
+    }
   });
 
   await check('collection grid and Best Sellers share ONE card template (no second renderer, no Add to Cart card)', async () => {
@@ -972,11 +1061,12 @@ async function main() {
     assert.strictEqual(r.status, 200);
     assert.ok(/<div class="product-grid collection-grid" id="collectionGrid"><\/div>/.test(r.text),
       '#collectionGrid is a .product-grid, so it picks up the Best Sellers card CSS');
-    assert.strictEqual((r.text.match(/<div class="product-card"/g) || []).length, 1, 'exactly one product-card template may exist');
-    assert.strictEqual((r.text.match(/function renderProductCard\(/g) || []).length, 1, 'exactly one card renderer may exist');
-    assert.ok(/pageItems\.map\(renderProductCard\)/.test(r.text), 'renderCollectionGrid renders through renderProductCard');
-    assert.ok(/sorted\.map\(renderProductCard\)/.test(r.text), 'Best Sellers renders through renderProductCard');
-    assert.ok(!r.text.includes('class="quick-add"') && !r.text.includes('class="wishlist-icon ${'),
+    const storeJs = await asset(PORT, '/storefront.js');
+    assert.strictEqual((storeJs.match(/<div class="product-card"/g) || []).length, 1, 'exactly one product-card template may exist');
+    assert.strictEqual((storeJs.match(/function renderProductCard\(/g) || []).length, 1, 'exactly one card renderer may exist');
+    assert.ok(/pageItems\.map\(renderProductCard\)/.test(storeJs), 'renderCollectionGrid renders through renderProductCard');
+    assert.ok(/sorted\.map\(renderProductCard\)/.test(storeJs), 'Best Sellers renders through renderProductCard');
+    assert.ok(!storeJs.includes('class="quick-add"') && !storeJs.includes('class="wishlist-icon ${'),
       'the old collection-only card markup (Add to Cart / wishlist-icon) is gone');
   });
 
@@ -989,9 +1079,8 @@ async function main() {
   // ---------------------------------------------------------------
   console.log('\nNav search layout:');
   await check('single .nav-search positioning rule, centred + width-guarded', async () => {
-    const r = await request(PORT, 'GET', '/');
-    assert.strictEqual(r.status, 200);
-    const positional = (r.text.match(/\.nav-search\s*\{[^}]*\}/g) || [])
+    const storeCss = await asset(PORT, '/storefront.css');
+    const positional = (storeCss.match(/\.nav-search\s*\{[^}]*\}/g) || [])
       .filter((rule) => /position\s*:/.test(rule));
     assert.strictEqual(positional.length, 1, `expected one .nav-search positioning rule, found ${positional.length}`);
     const rule = positional[0];
@@ -1017,13 +1106,15 @@ async function main() {
       const start = r.text.indexOf('<svg', r.text.indexOf(marker));
       return norm(r.text.slice(start, r.text.indexOf('</svg>', start) + 6));
     };
-    const constant = r.text.match(/const HEART_SVG = .(<svg[\s\S]*?<\/svg>).;/);
+    const storeJs = await asset(PORT, '/storefront.js');
+    const storeCss = await asset(PORT, '/storefront.css');
+    const constant = storeJs.match(/const HEART_SVG = .(<svg[\s\S]*?<\/svg>).;/);
     assert.ok(constant, 'HEART_SVG constant must be defined');
     assert.strictEqual(norm(constant[1]), svgAfter('id="wishlistNav"'), 'card heart must match the navbar icon exactly');
-    assert.ok((r.text.match(/\$\{HEART_SVG\}/g) || []).length >= 1, 'the shared card renderer must use HEART_SVG');
-    assert.ok(!r.text.includes('&#9825;') && !r.text.includes('&#9829;'), 'text-glyph hearts must be gone');
-    assert.ok(!/toggleWishlist\(\$\{p\.id\}\)"/.test(r.text), 'card buttons must pass their element so the heart updates on click');
-    assert.ok(/\.wishlist-icon\.active svg,/.test(r.text) && /\.product-wishlist\.active svg \{ fill: currentColor/.test(r.text), 'saved items must fill the heart');
+    assert.ok((storeJs.match(/\$\{HEART_SVG\}/g) || []).length >= 1, 'the shared card renderer must use HEART_SVG');
+    assert.ok(!storeJs.includes('&#9825;') && !storeJs.includes('&#9829;'), 'text-glyph hearts must be gone');
+    assert.ok(!/toggleWishlist\(\$\{p\.id\}\)"/.test(storeJs), 'card buttons must pass their element so the heart updates on click');
+    assert.ok(/\.wishlist-icon\.active svg,/.test(storeCss) && /\.product-wishlist\.active svg \{ fill: currentColor/.test(storeCss), 'saved items must fill the heart');
   });
 
   // 12. Heart pop animation — saving a product pops the heart once.
@@ -1032,11 +1123,11 @@ async function main() {
   // ---------------------------------------------------------------
   console.log('\nHeart pop animation:');
   await check('heart-pop keyframe on svg, .pop-gated, added only when saving', async () => {
-    const r = await request(PORT, 'GET', '/');
-    assert.strictEqual(r.status, 200);
-    assert.ok(/@keyframes heart-pop[\s\S]*?\.wishlist-icon\.pop svg,\s*\.product-wishlist\.pop svg\s*\{\s*animation:\s*heart-pop/.test(r.text),
+    const storeJs = await asset(PORT, '/storefront.js');
+    const storeCss = await asset(PORT, '/storefront.css');
+    assert.ok(/@keyframes heart-pop[\s\S]*?\.wishlist-icon\.pop svg,\s*\.product-wishlist\.pop svg\s*\{\s*animation:\s*heart-pop/.test(storeCss),
       'keyframe must animate the svg via .pop, not the button');
-    const fn = r.text.match(/function toggleWishlist\([\s\S]*?\n    \}/);
+    const fn = storeJs.match(/function toggleWishlist\([\s\S]*?\n    \}/);
     assert.ok(fn, 'toggleWishlist must be defined');
     assert.ok(/classList\.add\('pop'\)/.test(fn[0]) && /classList\.remove\('pop'\)/.test(fn[0]),
       'toggleWishlist must toggle the .pop class');
@@ -1053,19 +1144,18 @@ async function main() {
   // ---------------------------------------------------------------
   console.log('\nTrack order page:');
   await check('trackOrder re-enables button + cancelled/awaiting_verification handled', async () => {
-    const r = await request(PORT, 'GET', '/');
-    assert.strictEqual(r.status, 200);
-    const track = r.text.match(/async function trackOrder\([\s\S]*?\n    \}/);
+    const storeJs = await asset(PORT, '/storefront.js');
+    const track = storeJs.match(/async function trackOrder\([\s\S]*?\n    \}/);
     assert.ok(track, 'trackOrder must be defined');
     assert.ok(/finally\s*\{[\s\S]*?btn\.disabled\s*=\s*false/.test(track[0]),
       'submit button must be re-enabled in finally (no dead button after an error)');
-    const render = r.text.match(/function renderTracking\([\s\S]*?\n    \}/);
+    const render = storeJs.match(/function renderTracking\([\s\S]*?\n    \}/);
     assert.ok(render, 'renderTracking must be defined');
-    assert.ok(/status === 'cancelled'/.test(render[0]) && /track-status-cancelled/.test(r.text),
+    assert.ok(/status === 'cancelled'/.test(render[0]) && /track-status-cancelled/.test(storeJs),
       'cancelled orders must render the terminal state, not a live timeline');
     assert.ok(/awaiting_verification.*\? 1 :/.test(render[0]),
       'awaiting_verification must map to the confirmed step, not clamp to pending');
-    assert.ok(/TRACK_STATUS_LABELS/.test(r.text) && /formatTrackDate/.test(r.text),
+    assert.ok(/TRACK_STATUS_LABELS/.test(storeJs) && /formatTrackDate/.test(storeJs),
       'statuses must be humanized and the placed date formatted');
   });
 
@@ -1077,27 +1167,27 @@ async function main() {
   // ---------------------------------------------------------------
   console.log('\nResponsive layout guards:');
   await check('storefront ≤540px + ≤360px blocks present, checkout stacks', async () => {
-    const r = await request(PORT, 'GET', '/');
-    assert.strictEqual(r.status, 200);
-    assert.ok(/@media \(max-width: 540px\)[\s\S]*?\.track-timeline \{\s*flex-direction: column/.test(r.text),
+    const storeCss = await asset(PORT, '/storefront.css');
+    assert.ok(/@media \(max-width: 540px\)[\s\S]*?\.track-timeline \{\s*flex-direction: column/.test(storeCss),
       'track timeline must stack vertically on phones (4 labels across overflow)');
-    assert.ok(/\.nav-links li \{\s*min-height: 0;/.test(r.text) && /\.nav-links li:has\(\.nav-icon\) \{\s*min-height: 44px;/.test(r.text),
+    assert.ok(/\.nav-links li \{\s*min-height: 0;/.test(storeCss) && /\.nav-links li:has\(\.nav-icon\) \{\s*min-height: 44px;/.test(storeCss),
       'nav dropdown rows must not inherit the 44px min-height as full-width rows');
-    assert.ok(/@media \(max-width: 360px\)[\s\S]*?\.nav-inner \{\s*flex-wrap: wrap/.test(r.text),
+    assert.ok(/@media \(max-width: 360px\)[\s\S]*?\.nav-inner \{\s*flex-wrap: wrap/.test(storeCss),
       'header must wrap instead of overflowing on ultra-narrow phones');
-    assert.ok(/\.co-row \{\s*grid-template-columns: 1fr;\s*\}/.test(r.text),
+    assert.ok(/\.co-row \{\s*grid-template-columns: 1fr;\s*\}/.test(storeCss),
       'checkout form rows must collapse to one column on phones');
   });
 
   await check('admin ≤768px wrap-cards, legend hidden, no zoom lock', async () => {
     const r = await request(PORT, 'GET', '/admin');
     assert.strictEqual(r.status, 200);
+    const adminCss = await asset(PORT, '/admin.css');
     // The media block now includes top-bar/main-wrapper fixes BEFORE product-row
-    assert.ok(/@media\(max-width:768px\)[\s\S]*?\.product-row\{display:flex;flex-wrap:wrap/.test(r.text),
+    assert.ok(/@media\(max-width:768px\)[\s\S]*?\.product-row\{display:flex;flex-wrap:wrap/.test(adminCss),
       'admin product/order rows must become wrap cards on phones');
-    assert.ok(/\.product-row\.header-row\{display:none;\}/.test(r.text),
+    assert.ok(/\.product-row\.header-row\{display:none;\}/.test(adminCss),
       'admin column-label legend must hide once rows wrap');
-    assert.ok(/\.pnl-summary\{grid-template-columns:1fr;\}/.test(r.text),
+    assert.ok(/\.pnl-summary\{grid-template-columns:1fr;\}/.test(adminCss),
       'PnL summary must go single-column on phones');
     assert.ok(!r.text.includes('user-scalable=no'),
       'admin must not disable pinch-zoom (accessibility)');
@@ -1109,34 +1199,33 @@ async function main() {
   // the data they name), orders crushed six columns into the products
   // template, and the products table overflowed the page between 901-1024px.
   await check('admin tables keep one column template per table and collapse safely', async () => {
-    const r = await request(PORT, 'GET', '/admin');
-    assert.strictEqual(r.status, 200);
+    const adminCss = await asset(PORT, '/admin.css');
     // Every track must be fixed or minmax-bounded: a trailing `auto` track
     // sized the legend's "Actions" (≈56px) and the row buttons (≈108px)
     // differently, which made the shared 1fr name track differ between them.
-    const products = /#tab-products \.product-row \{ grid-template-columns:[^}]+\}/.exec(r.text);
+    const products = /#tab-products \.product-row \{ grid-template-columns:[^}]+\}/.exec(adminCss);
     assert.ok(products, 'the products table must own its column template');
     assert.match(products[0], / 108px; \}$/,
       'products legend/actions track must be a fixed width, never auto');
     // Orders (six columns) and recent orders (five) must not inherit the
     // seven-column products template.
-    assert.match(r.text, /#tab-orders \.product-row \{ grid-template-columns:minmax\(0, max-content\)/,
+    assert.match(adminCss, /#tab-orders \.product-row \{ grid-template-columns:minmax\(0, max-content\)/,
       'order rows must define their own six-column template');
-    assert.match(r.text, /\.recent-orders \.product-row \{ grid-template-columns:/,
+    assert.match(adminCss, /\.recent-orders \.product-row \{ grid-template-columns:/,
       'dashboard recent-order rows must define their own five-column template');
     // Wrap-card tiers. Orders' status menus are position:absolute, so those
     // rows wrap at 1060px rather than living inside an overflow container.
-    assert.ok(/@media\(max-width:1060px\)[\s\S]*?#tab-orders \.product-row[\s\S]*?display:flex;flex-wrap:wrap/.test(r.text),
+    assert.ok(/@media\(max-width:1060px\)[\s\S]*?#tab-orders \.product-row[\s\S]*?display:flex;flex-wrap:wrap/.test(adminCss),
       'order rows must become wrap cards before their columns collide');
-    assert.ok(/#tab-orders \.product-row\.header-row[\s\S]*?display:none;/.test(r.text),
+    assert.ok(/#tab-orders \.product-row\.header-row[\s\S]*?display:none;/.test(adminCss),
       'the orders legend must hide at the wrap-card breakpoint (id-scoped, so it outranks the flex rule)');
-    assert.ok(/@media\(max-width:900px\)[\s\S]*?\.product-row\{display:flex;flex-wrap:wrap/.test(r.text),
+    assert.ok(/@media\(max-width:900px\)[\s\S]*?\.product-row\{display:flex;flex-wrap:wrap/.test(adminCss),
       'the products table must become wrap cards before its columns collide');
     // Only the products list may scroll sideways — anything inside the orders
     // rows would be clipped by such a container.
-    assert.ok(/#tab-products \.product-list \{ overflow-x:auto; \}/.test(r.text),
+    assert.ok(/#tab-products \.product-list \{ overflow-x:auto; \}/.test(adminCss),
       'the products table gets its own horizontal scroll at tablet widths');
-    assert.ok(!/#tab-orders[^{]*\.product-list[^{]*\{[^}]*overflow-x/.test(r.text),
+    assert.ok(!/#tab-orders[^{]*\.product-list[^{]*\{[^}]*overflow-x/.test(adminCss),
       'the orders list must never become a scroll container');
   });
 
@@ -2094,6 +2183,7 @@ async function main() {
     assert.ok(!html.includes('<script>'), 'no script tag may appear in the email');
     assert.ok(!/<a\s/i.test(html), 'the confirmation template carries no links at all');
     assert.ok(html.includes(order.json.order_number), 'the real order number is still present');
+    assert.ok(html.includes('Rs. 250 – Rs. 450'), 'the pending email shows the published delivery band (D1)');
   });
 
   await check('the status update email escapes the stored customer name', async () => {
@@ -2635,7 +2725,7 @@ async function main() {
     const file = tempDb('fresh');
     const out = runBootstrap('seed-fresh', file);
     assert.strictEqual(out.products, demoProducts.DEMO_PRODUCTS.length, JSON.stringify(out));
-    assert.deepStrictEqual(Object.keys(out.keys).sort(), ['backfill_unit_costs_v1', 'normalize_demo_categories_v1', 'normalize_emails_v1', 'remove_old_categories_v1', 'seed_products_v1', 'sync_seed_sale_prices_v1']);
+    assert.deepStrictEqual(Object.keys(out.keys).sort(), ['backfill_newsletter_tokens_v1', 'backfill_unit_costs_v1', 'normalize_demo_categories_v1', 'normalize_emails_v1', 'remove_old_categories_v1', 'seed_products_v1', 'sync_seed_sale_prices_v1']);
     assert.strictEqual(out.keys.seed_products_v1, 'seeded');
     assert.strictEqual(out.keys.normalize_demo_categories_v1, 'normalized:0', 'fresh products already use their route collection keys');
     const seededGraphics = demoProducts.DEMO_PRODUCTS.filter(product => product.category === 'graphic-tees').map(product => product.name);
@@ -2711,9 +2801,10 @@ async function main() {
   await check('a failed seed does not record its key and is retried next time', async () => {
     const file = tempDb('retry');
     const broken = runBootstrap('break-seed', file);
-    // The email normalisation does not touch `products`, so it may record its own
-    // marker; the product-dependent steps must not be marked done.
-    assert.deepStrictEqual(Object.keys(broken.keysAfterFailure), ['normalize_emails_v1'],
+    // The email normalisation and the newsletter token backfill do not touch
+    // `products`, so they may record their own markers; the product-dependent
+    // steps must not be marked done.
+    assert.deepStrictEqual(Object.keys(broken.keysAfterFailure), ['backfill_newsletter_tokens_v1', 'normalize_emails_v1'],
       `a failed bootstrap must not record the failed steps' markers: ${JSON.stringify(broken)}`);
     assert.strictEqual(broken.products, 0, 'nothing should have been inserted by the failed attempt');
 
@@ -2753,7 +2844,7 @@ async function main() {
     assert.ok(products.some(product => product.category === 'graphic-tees'), 'restored Graphic Tees retain the storefront category key');
     // The bootstrap markers are untouched by a deliberate re-seed.
     const markers = await dbModule.prepare('SELECT key FROM app_settings').all();
-    assert.strictEqual(markers.length, 6, JSON.stringify(markers));
+    assert.strictEqual(markers.length, 7, JSON.stringify(markers));
   });
 
   // ---------------------------------------------------------------
@@ -3025,6 +3116,94 @@ async function main() {
     const reopen = await request(PORT, 'PATCH', `/api/orders/${lastRow.id}/status`, { body: { status: 'pending' }, headers: await adminHeaders() });
     assert.strictEqual(reopen.status, 200, JSON.stringify(reopen.json));
     assert.strictEqual((await request(PORT, 'GET', `/api/products/${plenty.id}`)).json.size_stock['One Size'], 4, 'reactivation must retake the units');
+  });
+
+  // ---------------------------------------------------------------
+  // Newsletter one-click unsubscribe (CONTENT-2)
+  // ---------------------------------------------------------------
+  console.log('\nNewsletter unsubscribe:');
+  await check('subscribe mints a token link; confirm page + POST unsubscribe; resubscribe restores', async () => {
+    const csrf = await getCsrf();
+    const post = (body) => request(PORT, 'POST', '/api/newsletter', {
+      body, headers: { 'X-CSRF-Token': csrf.token, Cookie: csrf.cookie }
+    });
+    const sub = await post({ email: 'Unsub.Probe@Kage.Test' });
+    assert.strictEqual(sub.status, 200, JSON.stringify(sub.json));
+    assert.match(sub.json.message, /welcome to the clan/i);
+    assert.match(sub.json.unsubscribe_url, /^\/newsletter\/unsubscribe\?token=[0-9a-f]{48}$/);
+    const token = sub.json.unsubscribe_url.split('token=')[1];
+    const row = await dbModule.prepare('SELECT * FROM newsletter_subscribers WHERE LOWER(email) = ?').get('unsub.probe@kage.test');
+    assert.strictEqual(row.unsubscribe_token, token);
+    assert.ok(!row.unsubscribed, 'a new subscriber is active');
+
+    // Already-subscribed returns the SAME link (self-service recovery).
+    const again = await post({ email: 'unsub.probe@kage.test' });
+    assert.match(again.json.message, /already subscribed/i);
+    assert.strictEqual(again.json.unsubscribe_url, sub.json.unsubscribe_url);
+
+    // Confirm page: missing / unknown / valid tokens.
+    const missing = await request(PORT, 'GET', '/newsletter/unsubscribe');
+    assert.strictEqual(missing.status, 400);
+    assert.match(missing.headers['content-type'], /html/);
+    const unknown = await request(PORT, 'GET', '/newsletter/unsubscribe?token=' + '0'.repeat(48));
+    assert.strictEqual(unknown.status, 404);
+    const confirm = await request(PORT, 'GET', '/newsletter/unsubscribe?token=' + token);
+    assert.strictEqual(confirm.status, 200);
+    assert.match(confirm.text, /Unsubscribe\?/);
+    assert.ok(confirm.text.includes(token), 'the confirm form carries the token');
+    assert.match(confirm.text, /un•••@kage\.test/, 'the address is masked');
+    assert.doesNotMatch(confirm.text, /unsub\.probe@kage\.test/, 'the full address is not echoed');
+    assert.strictEqual(confirm.headers['cache-control'], 'no-store');
+    assert.ok(!(await dbModule.prepare('SELECT unsubscribed FROM newsletter_subscribers WHERE id = ?').get(row.id)).unsubscribed,
+      'GET must not unsubscribe (mail-client prefetch safety)');
+
+    // POST performs it; idempotent; validates the token.
+    const doUnsub = await request(PORT, 'POST', '/api/newsletter/unsubscribe', { body: { token } });
+    assert.strictEqual(doUnsub.status, 200, JSON.stringify(doUnsub.json));
+    assert.ok((await dbModule.prepare('SELECT unsubscribed FROM newsletter_subscribers WHERE id = ?').get(row.id)).unsubscribed);
+    const doUnsubAgain = await request(PORT, 'POST', '/api/newsletter/unsubscribe', { body: { token } });
+    assert.strictEqual(doUnsubAgain.status, 200);
+    const badToken = await request(PORT, 'POST', '/api/newsletter/unsubscribe', { body: { token: 'nope' } });
+    assert.strictEqual(badToken.status, 404);
+    const noToken = await request(PORT, 'POST', '/api/newsletter/unsubscribe', { body: {} });
+    assert.strictEqual(noToken.status, 400);
+
+    // The confirm page now reports the settled state.
+    const settled = await request(PORT, 'GET', '/newsletter/unsubscribe?token=' + token);
+    assert.strictEqual(settled.status, 200);
+    assert.match(settled.text, /Already unsubscribed/);
+
+    // Resubscribing clears the flag and keeps the same token.
+    const back = await post({ email: 'unsub.probe@kage.test' });
+    assert.match(back.json.message, /welcome back/i);
+    assert.strictEqual(back.json.unsubscribe_url, sub.json.unsubscribe_url);
+    assert.ok(!(await dbModule.prepare('SELECT unsubscribed FROM newsletter_subscribers WHERE id = ?').get(row.id)).unsubscribed);
+  });
+
+  await check('legacy tokenless rows are repaired on subscribe and by the bootstrap backfill', async () => {
+    await dbModule.prepare('INSERT INTO newsletter_subscribers (email) VALUES (?)').run('legacy.tokenless@kage.test');
+    const csrf = await getCsrf();
+    const repair = await request(PORT, 'POST', '/api/newsletter', {
+      body: { email: 'legacy.tokenless@kage.test' },
+      headers: { 'X-CSRF-Token': csrf.token, Cookie: csrf.cookie }
+    });
+    assert.strictEqual(repair.status, 200);
+    assert.match(repair.json.unsubscribe_url, /token=[0-9a-f]{48}$/);
+    const repaired = await dbModule.prepare('SELECT unsubscribe_token FROM newsletter_subscribers WHERE email = ?').get('legacy.tokenless@kage.test');
+    assert.match(repaired.unsubscribe_token, /^[0-9a-f]{48}$/, 'lazy repair persists the token');
+
+    // Bootstrap backfill: drop the marker, add another legacy row, re-run.
+    await dbModule.prepare('INSERT INTO newsletter_subscribers (email) VALUES (?)').run('legacy.backfill@kage.test');
+    await dbModule.prepare('DELETE FROM app_settings WHERE key = ?').run('backfill_newsletter_tokens_v1');
+    assert.strictEqual(await serverModule.bootstrapData(), true);
+    const filled = await dbModule.prepare('SELECT unsubscribe_token FROM newsletter_subscribers WHERE email = ?').get('legacy.backfill@kage.test');
+    assert.match(filled.unsubscribe_token, /^[0-9a-f]{48}$/, 'boot backfill fills tokenless rows');
+    assert.ok(await dbModule.getSetting('backfill_newsletter_tokens_v1'), 'the step records its marker');
+    // Idempotent: the minted token survives a second run.
+    await dbModule.prepare('DELETE FROM app_settings WHERE key = ?').run('backfill_newsletter_tokens_v1');
+    assert.strictEqual(await serverModule.bootstrapData(), true);
+    const kept = await dbModule.prepare('SELECT unsubscribe_token FROM newsletter_subscribers WHERE email = ?').get('legacy.backfill@kage.test');
+    assert.strictEqual(kept.unsubscribe_token, filled.unsubscribe_token);
   });
 
   // ---------------------------------------------------------------

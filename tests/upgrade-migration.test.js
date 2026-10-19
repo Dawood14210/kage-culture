@@ -51,6 +51,7 @@ const SITE_URL = 'https://shop.kage.test';
 const EXPECTED_INDEXES = [
   'idx_customer_verification_tokens_hash',
   'idx_customers_email',
+  'idx_newsletter_unsub_token',
   'idx_orders_customer_id',
   'idx_orders_email',
   'idx_orders_order_number',
@@ -67,7 +68,8 @@ const EXPECTED_COLUMNS = {
   products: ['unit_cost', 'drop'],
   orders: ['payment_ref', 'payment_verified', 'cod_confirmed', 'shipping_pending', 'customer_id'],
   customers: ['email_verified'],
-  reviews: ['viewer_token']
+  reviews: ['viewer_token'],
+  newsletter_subscribers: ['unsubscribed', 'unsubscribe_token']
 };
 
 const failures = [];
@@ -213,6 +215,10 @@ const CASES = [
         { id: 1, email: 'fan@kage.test' },
         { id: 3, email: 'solo-sub@kage.test' }
       ], 'duplicate newsletter rows must merge into the oldest row');
+      assert.deepEqual(before.newsletterTokens, [
+        { valid: true, unsubscribed: 0 },
+        { valid: true, unsubscribed: 0 }
+      ], 'legacy subscribers gain a valid unsubscribe token and stay active');
 
       assert.deepEqual(before.passwordResetTokens, [
         { id: 1, user_type: 'customer', user_id: 3, token_hash: 'fixture-reset-token-hash', used: 0 }
@@ -286,7 +292,7 @@ const CASES = [
       assert.equal(state.second.command, 'snapshot');
       assert.equal(state.second.flow, null);
       assert.deepEqual(state.second.before.settings.map((s) => s.key).sort(),
-        ['backfill_unit_costs_v1', 'normalize_demo_categories_v1', 'normalize_emails_v1', 'remove_old_categories_v1', 'seed_products_v1', 'sync_seed_sale_prices_v1'],
+        ['backfill_newsletter_tokens_v1', 'backfill_unit_costs_v1', 'normalize_demo_categories_v1', 'normalize_emails_v1', 'remove_old_categories_v1', 'seed_products_v1', 'sync_seed_sale_prices_v1'],
         'the one-time bootstrap markers must be recorded exactly once');
     });
   }

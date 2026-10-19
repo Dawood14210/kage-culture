@@ -423,6 +423,12 @@ only the CSP allowance breaks all clicks), remaining keyboard polish for dynamic
 rendered non-native controls, and L2 video cold-start optimization. Do not mark these
 done without a browser/CSP migration.
 
+> Update 2026-10-19: FE-H2's handler migration is done including the
+> browser/CSP proof (scenario 37, `script-src-attr 'none'` live) — only the
+> `script-src` remainder (inline `<script>` blocks) still waits on PERF-1.
+> Keyboard polish for dynamic controls shipped with it (`data-key`
+> delegation). L2 still open, re-scoped below.
+
 ---
 
 ### ✅ Review star-picker regression — 2026-10-11
@@ -1397,11 +1403,25 @@ Unchanged non-token text on solid surfaces was also checked:
   scenario 18 (57/57 API + 18/18 frontend) and a 36-check headless-Chromium run
   (1280px + 390px). Details in `PROJECT_LOG.md` §18.
 - **FE-M5.** ✅ native links/review buttons and Escape/focus trap for primary overlays;
-  ⬜ dynamic controls/remaining dialog semantics merit a full keyboard/browser pass.
+  ✅ dynamic controls/remaining dialog semantics closed 2026-10-18 (with A11Y-4):
+  zoom view + mobile menu joined the trapped set, zoom saves/restores focus,
+  menu Escape returns focus to the hamburger, and user-initiated route changes
+  move focus to `#mainContent` (boot routing excluded so the skip link stays
+  first). Verified in jsdom + real Chromium — see the 2026-10-18 entry.
 - **FE-M7.** ✅ catalog failures are visible and disable cart/checkout until retry.
 
 ### 🔵 Low
-- **FE-M6.** Micro-typography legibility (topbar/wordmark).
+- **FE-M6.** ✅ Micro-typography legibility (2026-10-18). The original complaint
+  (topbar 0.4rem, 7px text wordmark, 3.5px CULTURE) was already gone — topbar is
+  0.7rem since the marquee rework and the logo is a 44px image. Bumped the six
+  remaining sub-10px text rules to ≥10px: nav badge 8px→10px (16px circle→18px
+  pill so two-digit counts fit), discount badge / fit tag / payment pills /
+  sale flag 8–8.8px→10.4px, filter badge 9.6px→10px, size-stock status /
+  order-status pills 9.6px→10.4px, cart Remove + wishlist Add-to-Cart +
+  Quick View buttons 9.6px→11.2px. Only the decorative checkbox ✓ glyph stays
+  sub-10px (not readable text). Regression: frontend scenario 32 scans every
+  `font-size` in the shell and fails on any readable size <10px. `npm test`
+  passes all six suites (135/135 API, 32/32 frontend).
 - **FE-M8.** ✅ manifest background, formatted totals and confirmation popup fixed (2026-10-10).
 - **L2.** ~~Untracked product images/videos (9.3 MB of mp4s)~~ ✅ committed
   2026-09-23 (commit 663df0c) and pushed to `Dawood14210/kage-culture`. Residual:
@@ -1422,7 +1442,7 @@ Unchanged non-token text on solid surfaces was also checked:
 8. ~~FE-C3 + FE-C4 — CSP-blocked admin chart; reachable-but-dead password reset~~ ✅ done
 9. ~~FE-H1 (esc the grid attrs)~~ ✅ done; FE-H2 long-term alongside event delegation
 10. ~~FE-M1 + FE-M2 — routing and cart persistence~~ ✅ done (2026-10-10)
-11. FE-H2 CSP migration, remaining a11y/visual checks, then L2 (deployment decision)
+11. ~~FE-H2 CSP migration, remaining a11y/visual checks, then L2 (deployment decision)~~ ✅ done 2026-10-19 (FE-H2 delegation + PERF-1 split + strict CSP; L2 assessed — no action, see PERF-4/L2 entry)
 12. ~~SEO-2 — dynamic product/category sitemap with caching and crawler fallbacks~~ ✅ 2026-10-14
 13. ~~SEO-1 / SEO-4 — server-rendered product/collection metadata; SEO-3 — structured data~~ ✅ 2026-10-15
 
@@ -1469,3 +1489,160 @@ Unchanged non-token text on solid surfaces was also checked:
   `PORT=3999 node tests/frontend.test.js` passes **31/31** scenarios; final
   `PORT=3999 npm test` passes all six scripts (E2E, rate-limit, storefront,
   migration, frontend/Chromium, and accessibility).
+
+## 2026-10-18 follow-up — remaining-queue sweep (FE-M6, A11Y-3, …)
+
+- **FE-M6 (done, see Remaining-work entry):** all readable storefront text is
+  now ≥10px; frontend scenario 32 scans every `font-size` in the shell.
+- **A11Y-3 (done):** added a visually-hidden `#srAnnounce` live region
+  (`aria-live="polite"`, new `.sr-only` clip rule) plus an `announce()` helper
+  that clears and settles on a 50ms timer so repeated messages re-announce.
+  Every `showToast()` call now mirrors into the region (covers quick-add,
+  stock errors, newsletter/notify/review/account/order feedback); wishlist
+  save/remove, cart add/quantity/remove, and order placement announce with
+  product names and the real order number. `#resultCount` is a polite live
+  status; `#checkoutError`/`#trkError` are `role="alert"`. Regression:
+  frontend scenario 33 checks the markup contracts and drives announce, toast,
+  wishlist, cart, filter and a real browserCookies checkout end to end.
+  `npm test` passes all six suites (135/135 API, 33/33 frontend).
+- **A11Y-4 + FE-M5 remainder (done):** audited first — cart/wishlist/filter
+  drawers, the customer modal and the admin password dialog already had
+  Tab-wrap traps, Escape and focus return. Gaps closed: the image zoom view
+  now saves/restores focus and is trapped (it already moved focus to its
+  Close button); the mobile menu is trapped and its Escape path returns focus
+  to the hamburger (kept via `closeMenuAndRefocus`); user-initiated
+  `navigateTo()` calls move focus to `#mainContent`, gated on a
+  `bootNavComplete` flag that flips only after the async deep-link restore
+  finishes (resolve and reject paths), so boot never steals the skip link.
+  Regression: frontend scenario 34 — jsdom asserts boot leaves focus on
+  `body`, route/modal/zoom focus in and back; real Chromium asserts drawer
+  Tab-wrap both ways, outside-focus pull-in, menu wrap + Escape-to-hamburger,
+  and zoom Tab containment + Escape-to-gallery. `npm test` passes all six
+  suites (135/135 API, 34/34 frontend).
+- **SEO-4 client part (done; server part was done 2026-10-15):** SPA
+  navigations now sync `description`, `og:title/description/image/image:alt`,
+  `og:type` and the `twitter:*` tags (previously only `canonical`, `og:url`
+  and `document.title` moved). Product routes mirror the server format
+  (`name | KAGE CULTURE`, ~155-char description, absolute front image,
+  `og:type=product`); collection routes mirror `COLLECTION_SEO` copy with a
+  newest-with-image pick approximating the server's; home/content routes
+  restore hardcoded homepage defaults (deliberately not boot-captured — a
+  deep-linked boot already carries route meta — with a parity test against
+  the `/` shell). Regression: frontend scenario 35 drives
+  product→collection→contact→home asserting every tag, plus a review-settle
+  wait that fixed a teardown race (closing the window with the review fetch
+  in flight threw on the dead jsdom global). `npm test` passes all six
+  suites (135/135 API, 35/35 frontend).
+- **CONTENT-2 unsubscribe (done; campaigns still need provider decision D3):**
+  every newsletter row now carries `unsubscribed` + a 192-bit
+  `unsubscribe_token` (fresh schema, additive migration, unique index, and a
+  one-time `backfill_newsletter_tokens_v1` bootstrap step that runs after the
+  email merge; full-scan + per-id UPDATE so the mem backend's `col = ?`-only
+  WHERE shim stays correct). `POST /api/newsletter` returns the private
+  manage link for new, already-subscribed and resubscribed addresses (lazy
+  token repair for stragglers); clan-join inserts include a token.
+  `GET /newsletter/unsubscribe?token=` renders a prefetch-safe confirm page
+  (masked address, no-store, full address never echoed) and
+  `POST /api/newsletter/unsubscribe` performs the idempotent removal —
+  deliberately CSRF-exempt since the token is the credential (documented in
+  code). Subscribe UI shows the private link once; Privacy policy updated.
+  Regression: 2 e2e checks (full flow incl. prefetch-safety, masking,
+  resubscribe; lazy repair + backfill idempotence), upgrade-suite token
+  checks on both SQL backends, frontend scenario 36 for the UI link.
+  `npm test` passes all six suites (137/137 API, 36/36 frontend).
+- **FE-H2 event delegation (done; full `script-src` cleanup waits on PERF-1):**
+  all 168 inline handlers are gone — 109 in `index.html` (93 click, 8 key,
+  5 submit, 2 input, 1 blur, 1 image-error) and 59 in `admin.html` (50
+  click, 5 change, 2 input, 1 key, 1 submit). Clickables carry
+  `data-route` (nav; named to avoid the older `data-nav` active-link key)
+  or `data-action` with params; one document click listener routes via
+  `closest()`, so nested controls keep their old `stopPropagation`
+  semantics. Keyboard activation for non-native controls goes through one
+  keydown listener (`data-key`, with `data-key="enter"` preserving the
+  product cards' Enter-only `role=link` behavior); forms route through one
+  submit listener (`data-form`); admin selects/checkboxes/filters/stock
+  input use strictly-separated `data-change`/`data-input`/`data-keys`
+  listeners (checkboxes fire both `input` and `change`), with ids
+  `Number()`ed for the strict-equality lookups. Two traps found by the
+  suite: the old `navLinks` bubble listener fired before the document
+  router, inverting the navigate-then-close order that `closeFilterDrawer`'s
+  unconditional overflow reset depends on (removed; `data-close-menu`
+  closes after navigating), and `toggleCart`'s close-button selector
+  queried `[onclick*=]` (now `[data-action=]`). `script-src-attr` is now
+  explicitly `'none'` — injected `onclick=` attributes cannot execute —
+  while `script-src` keeps `'unsafe-inline'` only for the `<script>` blocks
+  themselves until PERF-1 externalises them. Regression: e2e zero-handler
+  scan of `/` and `/admin` plus CSP header assertions, and frontend
+  scenario 37 proving delegated nav/card clicks work in real Chromium
+  under the locked policy. `npm test` passes all six suites (139/139 API,
+  37/37 frontend).
+- **PERF-1 shell split (done; completes the FE-H2/SEC-1 end goal):**
+  `index.html` 346KB → 71KB and `admin.html` 181KB → 30KB — CSS/JS now
+  live in `storefront.css/js` and `admin.css/js`, extracted byte-exact
+  (the mid-page marquee block merged at bundle head; its seamless-loop
+  guarantee only measures the topbar above it, so end-of-body timing is
+  equivalent). Only `application/ld+json` data blocks stay inline
+  (CSP-exempt). The server hashes all four bundles at boot, substitutes
+  `?v=` tokens into both pages (`/admin` now renders from a template
+  with the same no-store headers), and serves hashed URLs immutable for
+  a year (unhashed fall through to the daily static handler). Tests: a
+  shared `stitch` fixture reassembles both pages byte-identically for
+  jsdom (used by the frontend, storefront-regression and a11y suites);
+  e2e JS/CSS assertions fetch the bundles; new checks pin the hashed
+  references, immutability semantics, and a 120KB shell cap. With every
+  executable script same-origin, `script-src` dropped `'unsafe-inline'`
+  (and the dead `fonts.googleapis` entry) to plain `'self'` —
+  `script-src-attr` stays `'none'`, and the e2e CSP check pins both on
+  `/` and `/admin`. All real-Chromium scenarios pass under the strict
+  policy. `style-src 'unsafe-inline'` remains (inline `style=`
+  attributes throughout the markup — a separate, much larger
+  migration). `npm test` passes all six suites (141/141 API, 37/37
+  frontend).
+- **PERF-4/L2 lambda bundle (assessed 2026-10-19 — no action):** the
+  report's 9.3MB premise is stale: `public/` is 1.86MB total with zero
+  mp4s (L2's videos are gone from the repo), and the PERF-1 split added
+  only ~2KB net (bundle banners). The only remaining lever is replacing
+  the catch-all `routes` entry with `rewrites` + relocating `server.js`
+  so Vercel serves static files without invoking the lambda — but that
+  cannot be verified without a Vercel deploy, a mistake there is a total
+  outage (same class as the 2026-09-23 incident), and the payoff is ~200ms
+  of occasional cold-start latency on an already-small bundle. No safe
+  partial step exists either: with the catch-all in place, excluding any
+  file from `includeFiles` 404s it (the lambda serves all static via
+  `express.static` and reads the templates + bundles at boot). Revisit
+  only with preview-deploy verification; if done, keep the HTML
+  templates and the four hashed bundles in `includeFiles`.
+- **D1/CONV-1 delivery band (done 2026-10-19):** owner set Rs. 250–450.
+  Checkout, confirmation, tracking, the Shipping policy and the order
+  email show the band through one `DELIVERY_FEE_BAND` const instead of
+  "To be confirmed"; the exact fee depends on the city and is confirmed
+  by phone before dispatch. The API still stores `shipping = 0` with
+  `shipping_pending` until the admin confirms the real fee, and the
+  admin "Delivery charge pending" badge is unchanged. Regression:
+  frontend delivery-copy assertions updated to the band, e2e asserts the
+  pending email carries it.
+- **D2/ANALYTICS-1 Umami Cloud (done 2026-10-19):** the deferred tracker
+  tag renders on the storefront only when `UMAMI_WEBSITE_ID` is set (id
+  shape validated; unset or hostile values render nothing). CSP allows
+  `cloud.umami.is` for scripts and beacons; the admin panel carries no
+  analytics; the Privacy policy discloses the cookieless tracking.
+  Regression: e2e pins `script-src 'self' https://cloud.umami.is` and
+  covers set/unset/hostile-id/admin-exclusion; frontend asserts the
+  disclosure. Operator step: add the site in the Umami Cloud dashboard
+  and set `UMAMI_WEBSITE_ID` on Vercel (documented in `.env.example`).
+- **D3/CONTENT-2 campaigns (closed 2026-10-19 — decided SMTP-only):**
+  owner chose no bulk sending; the newsletter stays notify-only and no
+  campaign code was added. The manage-link-in-response design stands
+  (possession only permits unsubscribing, reversible by resubscribing).
+- **Contact details (done 2026-10-19):** Instagram verified as
+  `@kage_culture` (single underscore — fixed in the contact card, footer
+  icon and JSON-LD `sameAs`); working hours published as "Monday to
+  Saturday, 11am to 8pm (Pakistan time). Sunday closed." with a
+  `.contact-working-hours` rule; JazzCash confirmed identical to the
+  WhatsApp number (+92 322 804 2633), no code change (no account number
+  is displayed anywhere — recorded here for future payment UI).
+- **SEC-2 HSTS preload (assessed 2026-10-19 — no action):** optional and
+  informational; preload is effectively irreversible and the audit
+  requires confirmed subdomains first. Helmet's default HSTS stays.
+  Revisit only if the brand commits to HTTPS-everywhere including all
+  subdomains.

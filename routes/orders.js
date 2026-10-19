@@ -112,8 +112,8 @@ module.exports = function createOrderRoutes(db) {
       if (skipped.length > 0) return res.status(400).json({ error: 'Some items in your cart are unavailable or out of stock. Please review your cart.' });
       if (lineItems.length === 0) return res.status(400).json({ error: 'Your cart is empty.' });
 
-      // Delivery charges are confirmed with the customer after placement; do not
-      // add an unconfirmed flat fee to the checkout/API total.
+      // D1: customers see the published Rs. 250–450 band; the exact fee is
+      // confirmed by phone before dispatch, so no flat fee enters the total.
       const shipping = 0; const shippingPending = 1; const total = Math.round(subtotal);
       let orderNumber;
       do { orderNumber = 'KAGE-' + Math.random().toString(36).replace(/[^a-z0-9]/g, '').slice(2, 10).toUpperCase().padEnd(8, 'Z'); } while (await db.prepare('SELECT id FROM orders WHERE order_number = ?').get(orderNumber));
