@@ -2159,6 +2159,7 @@ async function main() {
     assert.ok(!html.includes('<script>'), 'no script tag may appear in the email');
     assert.ok(!/<a\s/i.test(html), 'the confirmation template carries no links at all');
     assert.ok(html.includes(order.json.order_number), 'the real order number is still present');
+    assert.ok(html.includes('Rs. 250 – Rs. 450'), 'the pending email shows the published delivery band (D1)');
   });
 
   await check('the status update email escapes the stored customer name', async () => {

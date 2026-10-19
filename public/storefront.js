@@ -281,6 +281,10 @@
     // removed themed pages — is treated like any unknown slug and lands on
     // the full catalog at /collection/all.
     const COLLECTION_FILTERS = ['all', 'new', 'sale', 'anime', 'graphic-tees', 'pants', 'compression', 'oversized'];
+    // D1 (CONV-1): published delivery band — the exact fee depends on the
+    // city and is confirmed by phone before dispatch, but the customer
+    // always sees the bounded range up front instead of "to be confirmed".
+    const DELIVERY_FEE_BAND = 'Rs. 250 – Rs. 450';
     // Mirrors config.js / admin CATEGORY_OPTIONS for test inspection.
     const CATEGORY_OPTIONS = [
       { value: 'graphic-tees', label: 'Graphic Tees' },
@@ -619,7 +623,7 @@
         </div>`;
       }).join('');
       document.getElementById('coSubtotal').textContent = 'Rs. ' + fmt(sub);
-      document.getElementById('coShipping').textContent = 'To be confirmed';
+      document.getElementById('coShipping').textContent = DELIVERY_FEE_BAND;
       document.getElementById('coTotal').textContent = 'Rs. ' + fmt(sub);
       document.getElementById('coPlaceBtn').disabled = !cart.length || cartHasUnavailableItems();
     }
@@ -689,7 +693,7 @@
       const payLabel = order.payment_method === 'bank' ? 'Bank Transfer' : order.payment_method === 'jazzcash' ? 'JazzCash' : 'Cash on Delivery';
       document.getElementById('confPayment').textContent = order.payment_ref ? `${payLabel} (Ref: ${order.payment_ref})` : payLabel;
       document.getElementById('confAddress').textContent = order.address + ', ' + order.city;
-      document.getElementById('confShipping').textContent = order.shipping_pending ? 'To be confirmed' : 'Rs. ' + fmt(order.shipping);
+      document.getElementById('confShipping').textContent = order.shipping_pending ? DELIVERY_FEE_BAND : 'Rs. ' + fmt(order.shipping);
       document.getElementById('confTotal').textContent = 'Rs. ' + fmt(order.total);
       document.getElementById('confItems').innerHTML = (order.items || []).map(it => `
         <div class="conf-item">
@@ -1798,7 +1802,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
             </div>
             <div class="track-details">
               <div><span>Placed</span><span>${esc(formatTrackDate(o.created_at))}</span></div>
-              <div><span>Delivery charge</span><span>${o.status === 'cancelled' ? 'Not charged' : o.shipping_pending ? 'To be confirmed' : 'Rs. ' + fmt(o.shipping)}</span></div>
+              <div><span>Delivery charge</span><span>${o.status === 'cancelled' ? 'Not charged' : o.shipping_pending ? DELIVERY_FEE_BAND : 'Rs. ' + fmt(o.shipping)}</span></div>
               <div><span>${o.shipping_pending || o.status === 'cancelled' ? 'Items subtotal' : 'Total'}</span><span>Rs. ${o.total}</span></div>
             </div>
             <div class="track-items">${(o.items || []).map(it => `
@@ -1838,11 +1842,11 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
           <div class="track-details">
             <div><span>Placed</span><span>${esc(formatTrackDate(o.created_at))}</span></div>
             <div><span>Payment</span><span>${o.payment_method === 'bank' ? 'Bank Transfer' : o.payment_method === 'jazzcash' ? 'JazzCash' : 'Cash on Delivery'}</span></div>
-            <div><span>Delivery charge</span><span>${o.status === 'cancelled' ? 'Not charged' : o.shipping_pending ? 'To be confirmed' : 'Rs. ' + fmt(o.shipping)}</span></div>
+            <div><span>Delivery charge</span><span>${o.status === 'cancelled' ? 'Not charged' : o.shipping_pending ? DELIVERY_FEE_BAND : 'Rs. ' + fmt(o.shipping)}</span></div>
               <div><span>${o.shipping_pending || o.status === 'cancelled' ? 'Items subtotal' : 'Total'}</span><span>Rs. ${o.total}</span></div>
           </div>
           <div class="track-items">${items}</div>
-          <p class="track-help">${o.shipping_pending ? 'We will contact you about the delivery charges. ' : ''}Questions about your order? WhatsApp us at +92 322 804 2633 with your order number.</p>
+          <p class="track-help">${o.shipping_pending ? 'Delivery is ' + DELIVERY_FEE_BAND + ' depending on your city; we confirm the exact fee by phone before dispatch. ' : ''}Questions about your order? WhatsApp us at +92 322 804 2633 with your order number.</p>
         </div>`;
       document.getElementById('trkResult').style.display = 'block';
     }
