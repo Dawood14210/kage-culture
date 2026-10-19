@@ -423,6 +423,12 @@ only the CSP allowance breaks all clicks), remaining keyboard polish for dynamic
 rendered non-native controls, and L2 video cold-start optimization. Do not mark these
 done without a browser/CSP migration.
 
+> Update 2026-10-19: FE-H2's handler migration is done including the
+> browser/CSP proof (scenario 37, `script-src-attr 'none'` live) — only the
+> `script-src` remainder (inline `<script>` blocks) still waits on PERF-1.
+> Keyboard polish for dynamic controls shipped with it (`data-key`
+> delegation). L2 still open, re-scoped below.
+
 ---
 
 ### ✅ Review star-picker regression — 2026-10-11
@@ -1544,3 +1550,29 @@ Unchanged non-token text on solid surfaces was also checked:
   resubscribe; lazy repair + backfill idempotence), upgrade-suite token
   checks on both SQL backends, frontend scenario 36 for the UI link.
   `npm test` passes all six suites (137/137 API, 36/36 frontend).
+- **FE-H2 event delegation (done; full `script-src` cleanup waits on PERF-1):**
+  all 168 inline handlers are gone — 109 in `index.html` (93 click, 8 key,
+  5 submit, 2 input, 1 blur, 1 image-error) and 59 in `admin.html` (50
+  click, 5 change, 2 input, 1 key, 1 submit). Clickables carry
+  `data-route` (nav; named to avoid the older `data-nav` active-link key)
+  or `data-action` with params; one document click listener routes via
+  `closest()`, so nested controls keep their old `stopPropagation`
+  semantics. Keyboard activation for non-native controls goes through one
+  keydown listener (`data-key`, with `data-key="enter"` preserving the
+  product cards' Enter-only `role=link` behavior); forms route through one
+  submit listener (`data-form`); admin selects/checkboxes/filters/stock
+  input use strictly-separated `data-change`/`data-input`/`data-keys`
+  listeners (checkboxes fire both `input` and `change`), with ids
+  `Number()`ed for the strict-equality lookups. Two traps found by the
+  suite: the old `navLinks` bubble listener fired before the document
+  router, inverting the navigate-then-close order that `closeFilterDrawer`'s
+  unconditional overflow reset depends on (removed; `data-close-menu`
+  closes after navigating), and `toggleCart`'s close-button selector
+  queried `[onclick*=]` (now `[data-action=]`). `script-src-attr` is now
+  explicitly `'none'` — injected `onclick=` attributes cannot execute —
+  while `script-src` keeps `'unsafe-inline'` only for the `<script>` blocks
+  themselves until PERF-1 externalises them. Regression: e2e zero-handler
+  scan of `/` and `/admin` plus CSP header assertions, and frontend
+  scenario 37 proving delegated nav/card clicks work in real Chromium
+  under the locked policy. `npm test` passes all six suites (139/139 API,
+  37/37 frontend).
