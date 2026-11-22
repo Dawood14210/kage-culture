@@ -1408,6 +1408,109 @@ async function main() {
     }
   });
 
+  await check('Fabric & Care and Fit Guide are editable per product and clear to null', async () => {
+    // These two feed the storefront detail tabs. They are ordinary public copy
+    // (not admin-only), so they must ship in the allow-listed payload, survive
+    // an edit that omits them, and clear to NULL when explicitly emptied.
+    const oldVercel = process.env.VERCEL;
+    const oldBlobToken = process.env.BLOB_READ_WRITE_TOKEN;
+    const oldKageBlobToken = process.env.kage_READ_WRITE_TOKEN;
+    delete process.env.VERCEL;
+    delete process.env.BLOB_READ_WRITE_TOKEN;
+    delete process.env.kage_READ_WRITE_TOKEN; // exercise local upload storage deterministically
+    let productId = null;
+    try {
+      const csrf = await getCsrf();
+      const form = new FormData();
+      form.append('name', 'Detail Tabs Regression Product');
+      form.append('category', 'graphic-tees');
+      form.append('fit', 'Oversized');
+      form.append('price', '450');
+      form.append('sizes', JSON.stringify(['M']));
+      form.append('fabric_care', '100% combed cotton, 240 GSM\nWash cold, inside out');
+      form.append('fit_guide', 'Drop-shoulder, boxy body\nSize down for a regular fit');
+      let response = await fetch(`http://127.0.0.1:${PORT}/api/products`, {
+        method: 'POST',
+        headers: { Cookie: `${adminCookie}; ${csrf.cookie}`, 'X-CSRF-Token': csrf.token },
+        body: form
+      });
+      const created = await response.json();
+      assert.strictEqual(response.status, 201, JSON.stringify(created));
+      productId = created.id;
+      // Multipart serialises Enter as CRLF; storage normalises back to \n so the
+      // value the admin typed is what the API reports.
+      assert.strictEqual(created.fabric_care, '100% combed cotton, 240 GSM\nWash cold, inside out');
+      assert.strictEqual(created.fit_guide, 'Drop-shoulder, boxy body\nSize down for a regular fit');
+      assert.ok(!String(created.fabric_care).includes('\r'), 'stored copy must not carry CRLF');
+
+      // Both fields are public: the storefront cannot render what it cannot read.
+      const pub = await request(PORT, 'GET', '/api/products');
+      const shipped = pub.json.find((p) => p.id === productId);
+      assert.ok(shipped, 'the new product must be in the public list');
+      assert.strictEqual(shipped.fabric_care, created.fabric_care, 'fabric_care must be in the allow-listed payload');
+      assert.strictEqual(shipped.fit_guide, created.fit_guide, 'fit_guide must be in the allow-listed payload');
+
+      // Editing one field must not blank the other: an omitted key means "keep".
+      const editCsrf = await getCsrf();
+      const editForm = new FormData();
+      editForm.append('fit_guide', 'Relaxed through the body\nTrue to size');
+      response = await fetch(`http://127.0.0.1:${PORT}/api/products/${productId}`, {
+        method: 'PUT',
+        headers: { Cookie: `${adminCookie}; ${editCsrf.cookie}`, 'X-CSRF-Token': editCsrf.token },
+        body: editForm
+      });
+      const edited = await response.json();
+      assert.strictEqual(response.status, 200, JSON.stringify(edited));
+      assert.strictEqual(edited.fit_guide, 'Relaxed through the body\nTrue to size', 'the edited field must change');
+      assert.strictEqual(edited.fabric_care, created.fabric_care, 'an omitted field must keep its stored value');
+
+      // Clearing: an explicit empty value stores NULL so the storefront falls
+      // back to the site's generic tab copy.
+      const clearCsrf = await getCsrf();
+      const clearForm = new FormData();
+      clearForm.append('fabric_care', '   '); // whitespace only counts as empty
+      response = await fetch(`http://127.0.0.1:${PORT}/api/products/${productId}`, {
+        method: 'PUT',
+        headers: { Cookie: `${adminCookie}; ${clearCsrf.cookie}`, 'X-CSRF-Token': clearCsrf.token },
+        body: clearForm
+      });
+      const cleared = await response.json();
+      assert.strictEqual(response.status, 200, JSON.stringify(cleared));
+      assert.strictEqual(cleared.fabric_care, null, 'an emptied field must clear to NULL');
+      assert.strictEqual(cleared.fit_guide, 'Relaxed through the body\nTrue to size', 'clearing one field must not touch the other');
+
+      // Runaway input is capped rather than rejected.
+      const capCsrf = await getCsrf();
+      const capForm = new FormData();
+      capForm.append('fabric_care', 'x'.repeat(5000));
+      response = await fetch(`http://127.0.0.1:${PORT}/api/products/${productId}`, {
+        method: 'PUT',
+        headers: { Cookie: `${adminCookie}; ${capCsrf.cookie}`, 'X-CSRF-Token': capCsrf.token },
+        body: capForm
+      });
+      const capped = await response.json();
+      assert.strictEqual(response.status, 200, JSON.stringify(capped));
+      assert.strictEqual(capped.fabric_care.length, 2000, 'long copy must be truncated to the 2000-character limit');
+    } finally {
+      try {
+        if (productId != null) {
+          const csrf = await getCsrf();
+          const removed = await request(PORT, 'DELETE', `/api/products/${productId}`, {
+            headers: { Cookie: `${adminCookie}; ${csrf.cookie}`, 'X-CSRF-Token': csrf.token }
+          });
+          assert.strictEqual(removed.status, 200, JSON.stringify(removed.json));
+        }
+      } finally {
+        if (oldVercel === undefined) delete process.env.VERCEL;
+        else process.env.VERCEL = oldVercel;
+        if (oldBlobToken === undefined) delete process.env.BLOB_READ_WRITE_TOKEN;
+        else process.env.BLOB_READ_WRITE_TOKEN = oldBlobToken;
+        if (oldKageBlobToken === undefined) delete process.env.kage_READ_WRITE_TOKEN;
+        else process.env.kage_READ_WRITE_TOKEN = oldKageBlobToken;
+      }
+    }
+  });
+
   await check('product create accepts front + back + multiple extra images', async () => {
     const oldVercel = process.env.VERCEL;
     const oldBlobToken = process.env.BLOB_READ_WRITE_TOKEN;

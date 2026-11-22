@@ -367,6 +367,63 @@ async function ready(win) {
     }
     console.log('✅ Per-size product page: sold-out sizes disabled, quantity capped per size');
 
+    // ---- Detail tabs: Fabric & Care / Fit Guide are per product ----
+    // The shipped markup IS the generic copy, so a product without saved text
+    // must keep it verbatim, and browsing a customised product in between must
+    // not leak its copy into the next one.
+    {
+      const tabsW = w, tabsD = d;
+      const fabricPane = () => tabsD.getElementById('tab-fabric');
+      const fitPane = () => tabsD.getElementById('tab-fit');
+      const genericFabric = fabricPane().innerHTML;
+      const genericFit = fitPane().innerHTML;
+      // The fixture must really be the generic list, or the fallback proves nothing.
+      assert.ok(tabsD.querySelectorAll('#tab-fabric li').length > 0, 'shipped markup must carry the generic fabric list');
+      assert.ok(tabsD.querySelectorAll('#tab-fit li').length > 0, 'shipped markup must carry the generic fit list');
+
+      const tabTee = await db.prepare('SELECT id FROM products ORDER BY id LIMIT 1').get();
+      const pid = tabTee.id;
+      try {
+        // 1. No saved copy -> the generic lists survive untouched.
+        await db.prepare('UPDATE products SET fabric_care = NULL, fit_guide = NULL WHERE id = ?').run(pid);
+        await tabsW.loadProductsFromAPI();
+        tabsW.openProductDetail(pid);
+        assert.equal(fabricPane().innerHTML, genericFabric, 'a product with no saved fabric copy keeps the generic list');
+        assert.equal(fitPane().innerHTML, genericFit, 'a product with no saved fit copy keeps the generic list');
+
+        // 2. Saved copy renders one <li> per line, with typed bullets stripped.
+        await db.prepare('UPDATE products SET fabric_care = ?, fit_guide = ? WHERE id = ?')
+          .run('- 100% cotton, 240 GSM\n• Wash cold\n\n  Tumble dry low  ', 'Boxy oversized body\nSize down for regular', pid);
+        await tabsW.loadProductsFromAPI();
+        tabsW.openProductDetail(pid);
+        const fabricItems = [...tabsD.querySelectorAll('#tab-fabric li')].map(li => li.textContent.trim());
+        const fitItems = [...tabsD.querySelectorAll('#tab-fit li')].map(li => li.textContent.trim());
+        assert.deepEqual(fabricItems, ['100% cotton, 240 GSM', 'Wash cold', 'Tumble dry low'],
+          'one bullet per line, typed -/• prefixes stripped, blank lines dropped');
+        assert.deepEqual(fitItems, ['Boxy oversized body', 'Size down for regular'], 'the fit guide renders one <li> per line');
+
+        // 3. Back to a product with no copy: the generic lists return, not the last product's text.
+        const plain = await db.prepare('SELECT id FROM products WHERE id != ? ORDER BY id LIMIT 1').get(pid);
+        await db.prepare('UPDATE products SET fabric_care = NULL, fit_guide = NULL WHERE id = ?').run(plain.id);
+        await tabsW.loadProductsFromAPI();
+        tabsW.openProductDetail(plain.id);
+        assert.equal(fabricPane().innerHTML, genericFabric, 'browsing an un-customised product afterwards restores the generic fabric list');
+        assert.equal(fitPane().innerHTML, genericFit, 'browsing an un-customised product afterwards restores the generic fit list');
+
+        // 4. Rows are escaped: admin copy is text, never markup.
+        await db.prepare('UPDATE products SET fabric_care = ? WHERE id = ?')
+          .run('<img src=x onerror=alert(1)>', pid);
+        await tabsW.loadProductsFromAPI();
+        tabsW.openProductDetail(pid);
+        assert.equal(tabsD.querySelectorAll('#tab-fabric img').length, 0, 'markup in saved copy must not become an element');
+        assert.equal(tabsD.querySelector('#tab-fabric li').textContent, '<img src=x onerror=alert(1)>', 'the payload shows as literal text');
+      } finally {
+        await db.prepare('UPDATE products SET fabric_care = NULL, fit_guide = NULL WHERE id = ?').run(pid);
+        await tabsW.loadProductsFromAPI();
+      }
+      console.log('✅ Detail tabs: per-product Fabric & Care / Fit Guide, generic copy preserved as the fallback');
+    }
+
     const bad = await fetch(origin + '/does-not-exist');
     assert.equal(bad.status, 404);
     const offline = page(storeHtml, '/', { offline: true }); windows.push(offline);
