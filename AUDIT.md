@@ -1669,3 +1669,28 @@ Unchanged non-token text on solid surfaces was also checked:
   bar and above the hero, 44×44 targets, `--header-h` matching the real
   height, and no horizontal scroll; e2e/frontend CSS contracts updated to the
   new rules.
+- **Menu highlight inset + submit-only search (done 2026-11-22):** two
+  storefront UX fixes reported together.
+  *(a) Menu highlight touching the label.* On phones the dropdown row tint
+  (`background: var(--bg-secondary)` on hover) began exactly at the text: the
+  ≤768px rule set `.nav-links a { padding: 10px 0 }`, zeroing the horizontal
+  padding the base rule gives (12px). The pill therefore clipped "HOME" on its
+  left edge and the labels did not line up with each other. Now `padding: 10px
+  16px`, matching the menu panel's own 16px so every label shares one left
+  edge with 16px of tint on either side. Desktop is untouched (the ≥1024px
+  rule sets its own `padding: 8px 0` for the centred underline links).
+  *(b) Search ran on every keystroke.* Both fields had an `input` listener
+  wired straight to `onSearchInput()`, so each character re-rendered the grid —
+  and from the plain homepage it swapped the marketing sections for the shop
+  mid-word. The `input` listeners are gone; search now commits only on Enter,
+  the in-field magnifier, or the header search button. One shared
+  `submitDesktopSearch()` serves all three desktop paths (commit, close the
+  open field, blur, scroll to top) so they cannot drift, and the desktop
+  magnifier changed from a decorative `pointer-events: none` `<span>` into a
+  real `<button id="searchSubmit">` (36px hit area, `aria-label`), matching the
+  mobile field's existing button. Clearing the box still restores the
+  homepage, because `onSearchInput('')` remains the reset path.
+  Regression: frontend scenario asserts typing leaves `searchQuery` empty and
+  the grid hidden while Enter/the magnifier commit and render results, plus
+  real-Chromium checks that menu labels are inset ≥12px and both submit paths
+  work end to end.

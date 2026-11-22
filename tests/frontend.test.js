@@ -1120,6 +1120,69 @@ async function ready(win) {
       }
       console.log('✅ Real Chromium — mobile header keeps one row, 44px targets and its 95px bar at 280–640px');
 
+      // ---- Mobile menu rows: the active/hover tint must not touch the label.
+      // ---- The row used to have `padding: 10px 0`, so the pill's left edge
+      // ---- sat exactly on the text (reported from the live site).
+      {
+        const mp = await browser.newPage();
+        await mp.setViewport({ width: 412, height: 900, isMobile: true, hasTouch: true });
+        await mp.goto(origin + '/', { waitUntil: 'domcontentloaded' });
+        await waitForCatalog(mp);
+        await mp.click('#hamburger');
+        await mp.waitForSelector('#navLinks.open');
+        await settleLayout(mp);
+        const row = await mp.evaluate(() => {
+          const rowEl = document.querySelector('#navLinks a.active') || document.querySelector('#navLinks a');
+          const r = rowEl.getBoundingClientRect();
+          const range = document.createRange();
+          range.selectNodeContents(rowEl);
+          const text = range.getBoundingClientRect();
+          return { rowLeft: r.left, textLeft: text.left, inset: text.left - r.left, pad: getComputedStyle(rowEl).paddingLeft };
+        });
+        assert.ok(row.inset >= 12, `mobile menu label is inset from the row tint (${row.inset.toFixed(1)}px)`);
+        assert.equal(row.pad, '16px', 'mobile menu rows keep their 16px horizontal padding');
+        await mp.close();
+        console.log('✅ Real Chromium — mobile menu labels sit inside the row highlight, not on its edge');
+      }
+
+      // ---- Search commits on Enter / the magnifier, never while typing.
+      {
+        const sp = await browser.newPage();
+        await sp.setViewport({ width: 1280, height: 900 });
+        await sp.goto(origin + '/', { waitUntil: 'domcontentloaded' });
+        await waitForCatalog(sp);
+        await sp.click('#searchToggle');
+        await sp.waitForFunction(() => document.getElementById('siteHeader').classList.contains('search-open'));
+        await sp.type('#searchInput', 'wolf', { delay: 20 });
+        await settleLayout(sp);
+        const typed = await sp.evaluate(() => ({
+          query: eval('searchQuery'),
+          shop: document.getElementById('shopSection').classList.contains('shop-visible')
+        }));
+        assert.equal(typed.query, '', 'typing alone does not search');
+        assert.equal(typed.shop, false, 'typing alone does not reveal the shop grid');
+        await sp.keyboard.press('Enter');
+        await sp.waitForFunction(() => document.getElementById('shopSection').classList.contains('shop-visible'));
+        await settleLayout(sp);
+        const committed = await sp.evaluate(() => ({
+          query: eval('searchQuery'),
+          cards: document.querySelectorAll('#collectionGrid .product-card').length,
+          headerClosed: !document.getElementById('siteHeader').classList.contains('search-open')
+        }));
+        assert.equal(committed.query, 'wolf', 'Enter commits the search');
+        assert.ok(committed.cards >= 1, 'Enter renders the matching results');
+        assert.equal(committed.headerClosed, true, 'committing closes the open search field');
+        // ...and the in-field magnifier commits too.
+        await sp.evaluate(() => onSearchInput(''));
+        await sp.click('#searchToggle');
+        await sp.type('#searchInput', 'wolf', { delay: 20 });
+        await sp.click('#searchSubmit');
+        await sp.waitForFunction(() => eval('searchQuery') === 'wolf');
+        assert.ok((await sp.$$('#collectionGrid .product-card')).length >= 1, 'the magnifier runs the search');
+        await sp.close();
+        console.log('✅ Real Chromium — search runs on Enter and the magnifier, not on every keystroke');
+      }
+
       // ---- Desktop header: alignment, one-line navigation, and spacing at
       // ---- the requested widths, with the inventory-controlled Pants link
       // ---- both hidden and visible (eight links total).
@@ -2176,6 +2239,40 @@ async function ready(win) {
     Object.defineProperty(w, 'innerWidth', { configurable: true, value: 1440 });
     assert.equal(navList.classList.contains('open'), false, 'desktop menu remains in its closed horizontal-nav state');
     d.body.style.overflow = '';
+
+    // Search submits on Enter or the magnifier — never while typing. Typing
+    // used to re-render the grid on every keystroke (and on the plain homepage
+    // it swapped the marketing sections for the shop mid-word).
+    {
+      w.resetFilters();
+      Object.defineProperty(w, 'innerWidth', { configurable: true, value: 1440 });
+      const dInput = d.getElementById('searchInput');
+      dInput.value = 'wolf';
+      dInput.dispatchEvent(new w.Event('input', { bubbles: true }));
+      assert.equal(w.eval('searchQuery'), '', 'typing does not search yet');
+      assert.equal(shopVisible(), false, 'typing does not reveal the shop grid');
+      dInput.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+      assert.equal(w.eval('searchQuery'), 'wolf', 'Enter commits the search');
+      assert.equal(shopVisible(), true, 'committing the search reveals the shop grid');
+      assert.equal(d.querySelectorAll('#collectionGrid .product-card h3').length, 1, 'Enter runs the search');
+      // The in-field magnifier is a real submit button for its own field.
+      w.onSearchInput('');
+      const submitIcon = d.getElementById('searchSubmit');
+      assert.equal(submitIcon.tagName, 'BUTTON', 'the desktop search magnifier is a button');
+      dInput.value = 'wolf';
+      submitIcon.dispatchEvent(new w.MouseEvent('click', { bubbles: true, cancelable: true }));
+      assert.equal(w.eval('searchQuery'), 'wolf', 'the magnifier commits the search');
+      assert.equal(d.querySelectorAll('#collectionGrid .product-card h3').length, 1, 'the magnifier runs the search');
+      w.onSearchInput('');
+    }
+
+    // The dropdown row's tint must not touch the label: the row carries real
+    // horizontal padding, so the text sits inside the pill instead of flush
+    // against its left edge (the reported "highlight touching the word").
+    assert.match(storeHtml, /@media \(max-width: 768px\) \{[\s\S]*?\.nav-links a \{ padding: 10px 16px;/,
+      'mobile menu rows inset their label from the row tint');
+    assert.doesNotMatch(storeHtml, /@media \(max-width: 768px\) \{[\s\S]*?\.nav-links a \{ padding: 10px 0;/,
+      'mobile menu rows no longer zero their horizontal padding');
 
     // Hidden admin tabs must stay inside the main column (not become siblings
     // in the dashboard flex row).

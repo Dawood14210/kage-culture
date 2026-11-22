@@ -1740,15 +1740,21 @@
       transition: border-color var(--transition-fast);
     }
     .nav-search input:focus { border-color: var(--accent); }
+    /* The in-field magnifier is the desktop search's submit button. */
     .nav-search-icon {
       position: absolute;
-      right: 12px;
+      right: 4px;
       top: 50%;
       transform: translateY(-50%);
-      font-size: 0.9rem;
+      display: flex; align-items: center; justify-content: center;
+      width: 36px; height: 36px;
+      padding: 0; border: 0; background: none;
+      border-radius: 50%;
       color: var(--text-gray);
-      pointer-events: none;
+      cursor: pointer;
+      transition: color var(--transition-fast);
     }
+    .nav-search-icon:hover { color: var(--accent); }
     .mobile-search { display: none; position: relative; }
     .mobile-search input {
       width: 100%;
@@ -2426,7 +2432,9 @@
         border-radius: 0;
         box-shadow: none;
       }
-      .nav-links a { padding: 10px 0; min-height: 44px; width: 100%; display: flex; align-items: center; font-size: 0.85rem; }
+      /* 16px keeps the label clear of the row's own tint (and matches the
+         menu panel's padding, so labels line up with each other). */
+      .nav-links a { padding: 10px 16px; min-height: 44px; width: 100%; display: flex; align-items: center; font-size: 0.85rem; }
       .hamburger { margin: 0; padding: 8px; border-right: none; order: 2; }
       .nav-search { display: none; }
       /* Keep primary actions reachable in the header; the menu toggle is inside .nav-icons. */
