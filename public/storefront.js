@@ -294,12 +294,16 @@
     window.CATEGORY_OPTIONS = CATEGORY_OPTIONS;
     window.CATEGORY_NAMES = CATEGORY_NAMES;
     window.COMING_SOON_CATS = COMING_SOON_CATS;
-    // Promote these collections only when the loaded catalog has buyable stock.
-    // Keep their links/nodes intact so direct routes and later restocks still work.
+    // Every category is permanent: Graphic Tees and Pants show in the nav,
+    // the home strip and the footer whether or not they have stock right now.
+    // A category that sells out keeps its card and simply opens the normal
+    // "No … available right now" empty state, so nothing appears and then
+    // vanishes on a later visit.
+    // The nodes still carry data-stock-category so a catalog refresh can
+    // force them back on if anything ever hides one.
     function syncCollectionVisibility() {
       document.querySelectorAll('[data-stock-category]').forEach(item => {
-        const live = productsLoadedFromApi && categoryHasLiveProducts(item.dataset.stockCategory);
-        item.style.display = live ? '' : 'none';
+        if (item.style.display === 'none') item.style.display = '';
       });
     }
     window.syncCollectionVisibility = syncCollectionVisibility;
@@ -312,16 +316,6 @@
       return allProducts.some(p => filter === 'sale'
         ? p.on_sale || (p.sale_price && p.sale_price < p.original_price)
         : p.collection === filter);
-    }
-    function categoryHasLiveProducts(filter) {
-      // Before real data arrives, allProducts is the hardcoded fallback catalog
-      // (which has products in every category) — defer to the grid then.
-      if (!productsLoadedFromApi) return true;
-      return allProducts.some(p => {
-        const stocked = anySizeAvailable(p);
-        if (filter === 'sale') return stocked && (p.on_sale || (p.sale_price && p.sale_price < p.original_price));
-        return stocked && p.collection === filter;
-      });
     }
     function setupComingSoon(filter) {
       const name = CATEGORY_NAMES[filter] || (filter || '').replace(/-/g, ' ').toUpperCase();

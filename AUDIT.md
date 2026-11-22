@@ -1772,3 +1772,43 @@ Unchanged non-token text on solid surfaces was also checked:
   5,000 characters truncate to 2,000). `npm test` 142/143 — the only failure is
   the known pre-existing `seed-demo` storage one that needs
   `BLOB_READ_WRITE_TOKEN`; frontend 37/37.
+- **All four categories are permanent (done 2026-11-23):** the homepage strip was
+  showing only three cards because Graphic Tees and Pants were stock-gated —
+  each hid its nav link, home card and footer link whenever the loaded catalog
+  had no buyable stock in that category.
+  *Why it looked like a bug.* The gate fired on **stock**, not on existence, and
+  stock decrements with every order. As each demo tee sold down to zero the
+  Graphic Tees card quietly disappeared — so the live site showed Pants (which
+  still had units) and hid Graphic Tees, the inverse of a fresh catalogue. Since
+  the two gated cards sat in slots 1 and 3 of a 2×2 mobile grid, their absence
+  also shifted the remaining cards around between visits.
+  *Fix.* All four are unconditional now.
+  - `index.html`: the `style="display:none;"` that shipped on the two nav links,
+    the two home cards and the Pants footer link is gone, so the markup is valid
+    HTML and correct before a single byte of JS runs.
+  - `storefront.js`: `syncCollectionVisibility()` no longer hides anything; it
+    only clears a leftover `display:none` on a catalog refresh, so the cards
+    cannot go missing even if something sets one. The now-unused
+    `categoryHasLiveProducts()` helper was deleted rather than left as dead
+    gating.
+  - The nodes keep `data-stock-category`, which costs nothing and keeps the
+    guard working.
+  *Behaviour with no stock.* The card still shows and still links to a real
+  route: a sold-out category lists its products flagged SOLD OUT, and a category
+  with no products at all lands on the grid's existing "No pants available right
+  now" empty state with a Browse-all link. Nothing routes to Coming Soon —
+  `graphic-tees` was already excluded from `COMING_SOON_CATEGORIES` and `pants`
+  never qualified.
+  *A real failure the old gate hid.* With the catalog request failing, the old
+  code hid both cards; now they stay put and only the product grid shows the
+  load error, which is the honest signal.
+  *Verification.* Real Chromium at 390px and 1440px: four cards, 2×2 on mobile
+  and one four-across row on desktop, equal widths, no horizontal scroll. Also
+  probed a catalog containing only anime products (all four still shown) and an
+  outright fetch failure (all four still shown), plus the empty-Pants deep link
+  (empty state, not Coming Soon). Seven assertions across
+  `tests/storefront-regressions.test.js` and `tests/frontend.test.js` were
+  rewritten from "hidden when empty" to "always shown", and the header test no
+  longer toggles the Pants link — it now measures the real eight-link row.
+  `npm test` **143/143** (the previously flaky `seed-demo` storage check passed
+  this run too), frontend 37/37.
