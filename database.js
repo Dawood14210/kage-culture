@@ -1016,6 +1016,13 @@ async function setSetting(key, value) {
   await save();
 }
 
+// Removing a key restores the shipped default for anything that treats a
+// missing setting as "not configured" (e.g. a custom category card photo).
+async function deleteSetting(key) {
+  await prepare('DELETE FROM app_settings WHERE key = ?').run(key);
+  await save();
+}
+
 // ----------------------------------------------------------------
 // UNIFIED INTERFACE
 // ----------------------------------------------------------------
@@ -1249,7 +1256,7 @@ async function resetRateLimits(prefix) {
   memStore.rate_limits = (memStore.rate_limits || []).filter(item => !String(item.key).startsWith(literalPrefix));
 }
 
-module.exports = { init, prepare, get, all, exec, save, getSetting, setSetting, USE_TURSO, normalizeEmails, normalizeEmailsMigration, backfillOrderCustomerIds, incrementRateLimit, getRateLimit, decrementRateLimit, resetRateLimit, resetRateLimits, get activeBackend() { return activeBackend; } };
+module.exports = { init, prepare, get, all, exec, save, getSetting, setSetting, deleteSetting, USE_TURSO, normalizeEmails, normalizeEmailsMigration, backfillOrderCustomerIds, incrementRateLimit, getRateLimit, decrementRateLimit, resetRateLimit, resetRateLimits, get activeBackend() { return activeBackend; } };
 
 // Expose a flag so server.js can skip re-init. It is set by doInit() only after
 // a backend finished schema + migrations (never optimistically up front).

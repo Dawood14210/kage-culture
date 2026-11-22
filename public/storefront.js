@@ -307,6 +307,58 @@
       });
     }
     window.syncCollectionVisibility = syncCollectionVisibility;
+
+    // Home page category cards: an admin can replace any of the four photos.
+    // The markup ships the bundled file, so a failed request or a card with no
+    // override simply keeps what is already on screen.
+    // The shipped <picture> markup is the default and is captured once, before
+    // any override can replace it, so "reset to default" can put it back
+    // exactly — including the WebP sources a custom photo has no crops for.
+    const categoryThumbDefaults = {};
+    function applyCategoryCardPhotos(cards) {
+      if (!Array.isArray(cards)) return;
+      const byId = {};
+      for (const card of cards) byId[card.id] = card;
+      document.querySelectorAll('#categoryStrip .cat-tile').forEach(tile => {
+        const cardId = tile.dataset.cat;
+        const card = byId[cardId];
+        const thumb = tile.querySelector('.cat-thumb');
+        if (!card || !thumb) return;
+        if (!(cardId in categoryThumbDefaults)) categoryThumbDefaults[cardId] = thumb.innerHTML;
+
+        if (!card.isCustom) {
+          if (!thumb.querySelector('picture')) thumb.innerHTML = categoryThumbDefaults[cardId];
+          return;
+        }
+        // A custom photo replaces the whole element: leaving the <picture> in
+        // place would keep the bundled WebP crops on screen instead.
+        const source = thumb.querySelector('[data-cat-photo]');
+        const img = document.createElement('img');
+        img.src = card.image;
+        img.alt = card.alt || (source ? source.alt : '');
+        img.width = 600;
+        img.height = 600;
+        img.setAttribute('data-cat-photo', '');
+        img.setAttribute('sizes', '116px');
+        img.setAttribute('loading', 'lazy');
+        img.setAttribute('decoding', 'async');
+        thumb.innerHTML = '';
+        thumb.appendChild(img);
+      });
+    }
+    window.applyCategoryCardPhotos = applyCategoryCardPhotos;
+
+    // Fired alongside each catalog refresh. Any failure leaves the bundled
+    // photos already in the markup untouched — a missing photo is not an error
+    // worth telling the shopper about.
+    async function syncCategoryCardPhotos() {
+      try {
+        const res = await fetch('/api/category-cards');
+        if (!res.ok) return;
+        applyCategoryCardPhotos(await res.json());
+      } catch (e) { /* keep the bundled photos */ }
+    }
+    window.syncCategoryCardPhotos = syncCategoryCardPhotos;
     document.querySelector('.skip-link').addEventListener('click', () => {
       document.getElementById('mainContent').focus({ preventScroll: true });
     });
@@ -2070,6 +2122,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
         renderCollectionGrid();
         initHomePageSections();
         syncCollectionVisibility();
+        syncCategoryCardPhotos();
       } catch(e) {
         console.error('Could not load catalog:', e);
         productsLoadedFromApi = false;

@@ -1812,3 +1812,46 @@ Unchanged non-token text on solid surfaces was also checked:
   longer toggles the Pants link — it now measures the real eight-link row.
   `npm test` **143/143** (the previously flaky `seed-demo` storage check passed
   this run too), frontend 37/37.
+- **Homepage category photos are editable (done 2026-11-23):** the four photos in
+  the home page's category strip were hard-coded `<picture>` elements with
+  bundled WebP crops, so changing one needed a deploy.
+  *Admin panel.* A new **Homepage Cards** section (sidebar entry + option in the
+  mobile section picker) lists all four cards with their current photo and a
+  **Change photo** button. Uploading a replacement shows a "Custom photo" badge
+  and switches the button to **Replace photo**; **Reset to default** appears
+  only while an override is in place, so the state is visible at a glance.
+  *Storage.* Each override is one `app_settings` key
+  (`category_card.<id>.image`), reusing the existing key/value store rather than
+  a new table. Uploads go through the same `persistImage` path as product
+  photos, so they land in Vercel Blob in production and `/uploads` locally.
+  Reset **deletes the key** and the old object, which is why the bundled file is
+  never overwritten: `del` on Blob is one-way, so treating `public/images` as an
+  immutable default makes reset deterministic instead of destructive.
+  *Storefront.* `syncCategoryCardPhotos()` reads `/api/category-cards` alongside
+  each catalog refresh and swaps the image. A custom photo replaces the whole
+  `<picture>` element — leaving it in place would keep the bundled WebP crops on
+  screen, since `<picture>` wins over the `<img>` fallback. Reset restores the
+  captured original markup verbatim, crops and all. Any failure (non-OK, network)
+  leaves the bundled photos untouched; a missing photo is not worth an error
+  banner to a shopper.
+  *Security.* The stored value ends up in an `<img src>`, so `isAcceptableImageUrl`
+  accepts only a same-origin `/uploads/…` path (no `..`) or an absolute `https:`
+  URL and rejects everything else — `javascript:`, `data:`, protocol-relative
+  `//host`, plain `http:`, and any quote that could break out of the attribute.
+  An unusable stored value resolves to the bundled photo, so a corrupted or
+  tampered row degrades to a correct card instead of broken markup. Uploads
+  reuse the existing raster-only filter (SVG refused) and `requireAuth` +
+  `requireCsrf`; an unknown card id is a 404.
+  *Verification.* New e2e check covers the four defaults, upload → public
+  endpoint agrees → the file is really served → unknown id 404 → SVG 400 →
+  unauthenticated 401 → reset restores `/images/pants.jpg`, plus a unit check
+  that 15 hostile URL shapes are refused and fall back. New frontend scenario
+  covers custom swap (dropping `<picture>`), alt text, the route still working,
+  other cards untouched, reset restoring the captured markup byte-for-byte,
+  malformed payloads being ignored, and a non-OK response keeping the bundled
+  art. Real Chromium at 360/768/1440px: single column, two columns, then four,
+  no horizontal scroll, 44px touch targets. `npm test` **145/145**, frontend
+  **79/79**.
+  *Also fixed:* the frontend suite's closing line hard-coded "37/37" while 79
+  scenarios actually ran. It now counts the `✅` lines it prints, so the summary
+  cannot drift again.

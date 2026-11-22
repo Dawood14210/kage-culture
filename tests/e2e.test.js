@@ -1355,6 +1355,142 @@ async function main() {
     assert.ok(accepts.every(value => !value.includes('*') && !/svg/i.test(value)), JSON.stringify(accepts));
   });
 
+  await check('a category card photo URL can never become markup', async () => {
+    // The stored photo URL ends up in an <img src>. Only a same-origin
+    // /uploads path or an absolute https URL is ever accepted; everything else
+    // falls back to the bundled file rather than rendering attacker-chosen HTML.
+    const cards = require('../utils/categoryCards');
+    const ok = [
+      '/uploads/abc-123.png',
+      'https://abc.public.blob.vercel-storage.com/kage/1.png'
+    ];
+    const bad = [
+      'javascript:alert(1)',
+      'JavaScript:alert(1)',
+      'data:image/svg+xml;base64,PHN2Zz4=',
+      '//evil.example/x.png',
+      'http://insecure.example/x.png',          // https only
+      '/uploads/../../etc/passwd',
+      'https://x/a.png"onerror="alert(1)',
+      "https://x/a.png' onerror='alert(1)",
+      '  ',
+      '',
+      null,
+      undefined,
+      42,
+      {},
+      'x'.repeat(3000)
+    ];
+    for (const value of ok) assert.strictEqual(cards.isAcceptableImageUrl(value), true, `${value} should be accepted`);
+    for (const value of bad) assert.strictEqual(cards.isAcceptableImageUrl(value), false, `${String(value)} must be refused`);
+
+    // resolveCategoryCards is the only path from stored value to rendered src,
+    // so an unusable stored value must yield the bundled photo.
+    const resolved = cards.resolveCategoryCards({
+      pants: { image: 'javascript:alert(1)', alt: '<b>Pants</b>' },
+      anime: { image: '/uploads/ok.png' }
+    });
+    const pants = resolved.find(c => c.id === 'pants');
+    assert.strictEqual(pants.image, '/images/pants.jpg', 'a hostile stored value falls back to the bundled photo');
+    assert.strictEqual(pants.isCustom, false);
+    assert.strictEqual(resolved.find(c => c.id === 'anime').image, '/uploads/ok.png', 'a good override is used as-is');
+    assert.strictEqual(resolved.find(c => c.id === 'custom-stickers').image, '/images/custom-stickers.jpg', 'unset cards use the bundled photo');
+  });
+
+  await check('homepage category card photos can be replaced and reset to default', async () => {
+    // The four home strip photos were deploy-only assets. They are now editable
+    // from the admin panel, with the bundled file as the permanent fallback.
+    const oldVercel = process.env.VERCEL;
+    const oldBlobToken = process.env.BLOB_READ_WRITE_TOKEN;
+    const oldKageBlobToken = process.env.kage_READ_WRITE_TOKEN;
+    delete process.env.VERCEL;
+    delete process.env.BLOB_READ_WRITE_TOKEN;
+    delete process.env.kage_READ_WRITE_TOKEN; // exercise local upload storage deterministically
+    const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
+    try {
+      // Every card starts on its bundled photo.
+      const initial = await request(PORT, 'GET', '/api/category-cards');
+      assert.strictEqual(initial.status, 200, JSON.stringify(initial.json));
+      assert.deepStrictEqual(initial.json.map(c => c.id), ['graphic-tees', 'anime', 'pants', 'custom-stickers'], 'the four cards, in strip order');
+      for (const card of initial.json) {
+        assert.strictEqual(card.isCustom, false, `${card.id} must start on the bundled photo`);
+        assert.match(card.image, /^\/images\//, `${card.id} must point at a bundled file`);
+        assert.ok(card.alt, `${card.id} needs alt text`);
+      }
+
+      // Replace the Pants photo.
+      const csrf = await getCsrf();
+      const form = new FormData();
+      form.append('image', new Blob([PNG], { type: 'image/png' }), 'pants-new.png');
+      const uploaded = await fetch(`http://127.0.0.1:${PORT}/api/admin/category-cards/pants/image`, {
+        method: 'POST',
+        headers: { Cookie: `${adminCookie}; ${csrf.cookie}`, 'X-CSRF-Token': csrf.token },
+        body: form
+      });
+      const uploadBody = await uploaded.json();
+      assert.strictEqual(uploaded.status, 200, JSON.stringify(uploadBody));
+      const pantsAfter = uploadBody.cards.find(c => c.id === 'pants');
+      assert.strictEqual(pantsAfter.isCustom, true);
+      assert.match(pantsAfter.image, /^\/uploads\//, 'local storage returns a /uploads path');
+      assert.strictEqual(pantsAfter.alt, 'Pants', 'alt text survives a photo swap');
+
+      // The public endpoint — what the storefront reads — agrees.
+      const pub = await request(PORT, 'GET', '/api/category-cards');
+      assert.strictEqual(pub.json.find(c => c.id === 'pants').image, pantsAfter.image);
+      assert.strictEqual(pub.json.find(c => c.id === 'anime').isCustom, false, 'one swap must not touch the other cards');
+
+      // The uploaded file is really served, and only the replaced card changed.
+      const file = await fetch(`http://127.0.0.1:${PORT}${pantsAfter.image}`);
+      assert.strictEqual(file.status, 200, 'the uploaded card photo must be fetchable');
+
+      // Rejections: an unknown card, a non-image, and no session.
+      const badCsrf = await getCsrf();
+      const unknown = await fetch(`http://127.0.0.1:${PORT}/api/admin/category-cards/not-a-card/image`, {
+        method: 'POST',
+        headers: { Cookie: `${adminCookie}; ${badCsrf.cookie}`, 'X-CSRF-Token': badCsrf.token },
+        body: (() => { const f = new FormData(); f.append('image', new Blob([PNG], { type: 'image/png' }), 'x.png'); return f; })()
+      });
+      assert.strictEqual(unknown.status, 404, 'an unknown card id is a 404');
+
+      const svgCsrf = await getCsrf();
+      const svgForm = new FormData();
+      svgForm.append('image', new Blob(['<svg onload="alert(1)"/>'], { type: 'image/svg+xml' }), 'evil.svg');
+      const svgUpload = await fetch(`http://127.0.0.1:${PORT}/api/admin/category-cards/anime/image`, {
+        method: 'POST',
+        headers: { Cookie: `${adminCookie}; ${svgCsrf.cookie}`, 'X-CSRF-Token': svgCsrf.token },
+        body: svgForm
+      });
+      assert.strictEqual(svgUpload.status, 400, 'SVG must never be accepted as a card photo');
+
+      const anon = await request(PORT, 'GET', '/api/admin/category-cards');
+      assert.strictEqual(anon.status, 401, 'the admin list requires a session');
+
+      // Reset restores the bundled photo and reports isCustom false.
+      const resetCsrf = await getCsrf();
+      const reset = await fetch(`http://127.0.0.1:${PORT}/api/admin/category-cards/pants/image`, {
+        method: 'DELETE',
+        headers: { Cookie: `${adminCookie}; ${resetCsrf.cookie}`, 'X-CSRF-Token': resetCsrf.token }
+      });
+      const resetBody = await reset.json();
+      assert.strictEqual(reset.status, 200, JSON.stringify(resetBody));
+      const restored = resetBody.cards.find(c => c.id === 'pants');
+      assert.strictEqual(restored.isCustom, false);
+      assert.strictEqual(restored.image, '/images/pants.jpg', 'reset restores the bundled file');
+    } finally {
+      // Always leave the card on its default, even if an assertion above threw.
+      try {
+        const csrf = await getCsrf();
+        await fetch(`http://127.0.0.1:${PORT}/api/admin/category-cards/pants/image`, {
+          method: 'DELETE',
+          headers: { Cookie: `${adminCookie}; ${csrf.cookie}`, 'X-CSRF-Token': csrf.token }
+        });
+      } catch (e) { /* best effort */ }
+      if (oldVercel === undefined) delete process.env.VERCEL; else process.env.VERCEL = oldVercel;
+      if (oldBlobToken === undefined) delete process.env.BLOB_READ_WRITE_TOKEN; else process.env.BLOB_READ_WRITE_TOKEN = oldBlobToken;
+      if (oldKageBlobToken === undefined) delete process.env.kage_READ_WRITE_TOKEN; else process.env.kage_READ_WRITE_TOKEN = oldKageBlobToken;
+    }
+  });
+
   await check('admin can create a product with an image, unit cost and stock', async () => {
     const oldVercel = process.env.VERCEL;
     const oldBlobToken = process.env.BLOB_READ_WRITE_TOKEN;
