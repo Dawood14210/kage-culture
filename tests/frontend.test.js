@@ -1060,6 +1060,66 @@ async function ready(win) {
       await overlapPage.close();
       console.log('✅ Real Chromium — WhatsApp float stays clear of product, cart and checkout actions at 320–1440px');
 
+      // ---- Mobile header: the logo row must stay on ONE line and inside the
+      // ---- fixed 95px bar. Reported from Firefox on an Android phone that
+      // ---- exposes a 343.6px CSS viewport: the full-size 128.75px logo plus
+      // ---- four 44px tap targets needed 344.75px, so the row wrapped — and
+      // ---- the wrapped second row did not fit the fixed-height header, so the
+      // ---- icons were painted over the hero. Chrome never showed it because
+      // ---- it laid that phone out at 360px, where the row still fit.
+      for (const vw of [280, 300, 320, 344, 360, 375, 412, 640]) {
+        const mhp = await browser.newPage();
+        await mhp.setViewport({ width: vw, height: 800, isMobile: true, hasTouch: true });
+        await mhp.goto(origin + '/', { waitUntil: 'domcontentloaded' });
+        await waitForCatalog(mhp);
+        await settleLayout(mhp);
+        const hm = await mhp.evaluate(() => {
+          const rect = (sel) => {
+            const r = document.querySelector(sel).getBoundingClientRect();
+            return { left: r.left, right: r.right, top: r.top, bottom: r.bottom, width: r.width, height: r.height };
+          };
+          const header = rect('.site-header');
+          const logo = rect('.kage-logo img');
+          const icons = rect('.nav-icons');
+          const targets = [...document.querySelectorAll('.nav-icons > .nav-icon, .nav-icons > .hamburger')]
+            .filter((el) => getComputedStyle(el).display !== 'none')
+            .map((el) => el.getBoundingClientRect().width + 'x' + el.getBoundingClientRect().height);
+          const hero = document.querySelector('.hero-media img').getBoundingClientRect();
+          return {
+            header,
+            logo,
+            icons,
+            targets: [...new Set(targets)],
+            heroTop: hero.top,
+            headerVar: getComputedStyle(document.documentElement).getPropertyValue('--header-h').trim(),
+            docW: document.documentElement.scrollWidth,
+            innerW: window.innerWidth
+          };
+        });
+        const label = `${vw}px mobile header`;
+        // A wrapped bar must grow, not overflow: below ~304px the row
+        // legitimately stacks, and height:auto is what keeps the second row
+        // inside it. Everywhere else the row stays on one line.
+        if (vw <= 280) {
+          assert.ok(hm.header.height > 96, `${label}: a wrapped bar grows with its content`);
+          assert.ok(hm.icons.bottom <= hm.header.bottom + 0.5, `${label}: wrapped icons stay inside the grown header`);
+        } else {
+          assert.ok(Math.abs(hm.logo.top - hm.icons.top) < 3, `${label}: logo and icons stay on one row`);
+          assert.equal(Math.round(hm.header.height), 95, `${label}: the single-row bar keeps its 95px height`);
+        }
+        // Inside the bar: the icons never spill out over the hero.
+        assert.ok(hm.icons.bottom <= hm.header.bottom + 0.5, `${label}: icons stay inside the header (${hm.icons.bottom} > ${hm.header.bottom})`);
+        assert.ok(hm.icons.bottom <= hm.heroTop + 0.5, `${label}: icons never paint over the hero`);
+        // The tap targets are the thing that must not be sacrificed.
+        assert.deepEqual(hm.targets, ['44x44'], `${label}: header tap targets stay 44x44`);
+        // The measured header height keeps the hero clear of the fixed bar.
+        assert.ok(Math.abs(parseFloat(hm.headerVar) - hm.header.height) < 1.5, `${label}: --header-h tracks the real header height`);
+        assert.ok(hm.heroTop >= hm.header.bottom, `${label}: hero starts below the fixed header`);
+        assert.equal(hm.docW, hm.innerW, `${label}: no horizontal page scroll`);
+        await mhp.close();
+      }
+      console.log('✅ Real Chromium — mobile header keeps one row, 44px targets and its 95px bar at 280–640px');
+
       // ---- Desktop header: alignment, one-line navigation, and spacing at
       // ---- the requested widths, with the inventory-controlled Pants link
       // ---- both hidden and visible (eight links total).
@@ -2067,7 +2127,9 @@ async function ready(win) {
     // at the requested widths and exercise open/close behavior at phone/tablet widths.
     assert.match(storeHtml, /@media \(max-width: 1023px\) \{\s*\.nav-links\.open \{[\s\S]*?display: flex;[\s\S]*?max-height: calc\(100dvh - 95px\);[\s\S]*?overflow-y: auto;[\s\S]*?background-color: var\(--bg-primary\);[\s\S]*?z-index: 1001;/, 'open menu is an opaque, bounded panel below the header');
     assert.match(storeHtml, /@media \(max-width: 768px\) \{\s*\.nav-links \{\s*position: absolute; top: 100%; left: 0; right: 0; width: 100%;\s*background: var\(--bg-primary\);/, 'phone/tablet menu spans the viewport with a solid background');
-    assert.match(storeHtml, /@media \(max-width: 360px\) \{\s*\.nav-inner \{ flex-wrap: wrap; \}/, 'the 360px header keeps its wrapping guard');
+    assert.match(storeHtml, /@media \(max-width: 360px\) \{\s*\.site-header \{ height: auto; \}\s*\.site-header \.nav-inner \{ height: auto; min-height: 67px; flex-wrap: wrap; \}/, 'the 360px header lets its bar grow when the row wraps');
+    assert.match(storeHtml, /@media \(max-width: 640px\) \{[\s\S]*?\.kage-logo \{[^}]*max-width: max\(80px, calc\(100vw - 224px\)\);/, 'the mobile logo shrinks so the row never wraps on normal phones');
+    assert.match(storeHtml, /@media \(max-width: 640px\) \{[\s\S]*?\.kage-logo img \{[^}]*object-fit: contain;/, 'the shrunk logo scales instead of distorting');
     assert.match(storeHtml, /\.hamburger\.active svg line:nth-child\(2\) \{ transform: translateY\(6px\) rotate\(45deg\); \}/, 'the SVG hamburger animates into an X');
     assert.doesNotMatch(storeHtml, /\.hamburger\.active span:nth-child/, 'hamburger state does not target nonexistent spans');
     assert.match(storeHtml, /@media \(min-width: 1024px\) \{[\s\S]*?\.nav-links \{[\s\S]*?display: flex !important;[\s\S]*?position: static;[\s\S]*?flex-direction: row;[\s\S]*?\.hamburger \{ display: none; \}/, 'desktop nav stays horizontal and hides the hamburger');

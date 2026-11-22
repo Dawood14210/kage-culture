@@ -2482,10 +2482,38 @@
       .kage-logo { padding: 0 4px; }
     }
 
-    /* Ultra-narrow phones (≤360px): stop the header from overflowing —
-       the logo/nav shrink is intentional branding, not a bug. */
+    /* Keep the logo row on ONE line instead of wrapping it.
+       The row is [logo][wishlist · account · cart · hamburger]. The four 44×44
+       tap targets are 176px of fixed furniture, the gutters take 32px, and the
+       logo adds 8px of padding + an 8px gap — 224px that must never shrink.
+       With its full-size 128.75px artwork the row therefore needed 344.75px,
+       so anything narrower wrapped. The wrapped second row did not fit the
+       header's fixed 95px box, so the icons spilled out of the header and were
+       painted over the hero — exactly what the Firefox screenshot shows.
+
+       Capping the logo at "whatever is left after the furniture" makes the row
+       fit by construction. Nothing changes until the viewport drops below
+       ~353px (where 128.75px stops fitting); from there the logo shrinks by
+       the exact deficit, so 360px phones keep today's full-size logo and
+       Firefox's ~343px layout gets one tidy row instead of a wrapped one.
+       The image keeps its 44px box and its own 1030/352 ratio — `object-fit:
+       contain` scales the art inside the box instead of distorting it. The
+       80px floor stops the wordmark from becoming unreadable; below ~304px the
+       ≤360px block lets the bar grow and wrap instead. */
+    @media (max-width: 640px) {
+      .kage-logo { flex: 0 1 auto; min-width: 0; max-width: max(80px, calc(100vw - 224px)); }
+      .kage-logo img { max-width: 100%; object-fit: contain; object-position: left center; }
+      .nav-icons { flex: 0 0 auto; margin-left: 8px; }
+    }
+
+    /* Ultra-narrow phones (≤360px): if even the shrunk logo row cannot fit,
+       wrapping is the last resort. Let the bar grow with it — the old fixed
+       95px box left the second row outside the header, over the hero.
+       --header-h is measured from the header itself, so the hero keeps
+       clearing a taller bar. */
     @media (max-width: 360px) {
-      .nav-inner { flex-wrap: wrap; }
+      .site-header { height: auto; }
+      .site-header .nav-inner { height: auto; min-height: 67px; flex-wrap: wrap; }
     }
 
     /* ================================================================

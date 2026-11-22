@@ -1646,3 +1646,26 @@ Unchanged non-token text on solid surfaces was also checked:
   requires confirmed subdomains first. Helmet's default HSTS stays.
   Revisit only if the brand commits to HTTPS-everywhere including all
   subdomains.
+- **Mobile header wrap (done 2026-11-22 — reported from Firefox on Android):**
+  the storefront header wrapped on Firefox but not Chrome, and the wrapped
+  second row was painted over the hero. Root cause was not browser-specific:
+  the row is `[logo][wishlist · account · cart · hamburger]`, the four tap
+  targets are a fixed 176px, the gutters 32px and the logo 8px of padding +
+  an 8px gap — 224px of furniture. With its 128.75px artwork the row needed
+  **344.75px**, so it wrapped on any viewport narrower than that. Chrome laid
+  the phone out at 360px (row fit, looked fine); Firefox exposed a **343.6px
+  CSS viewport** (1080 device px ÷ DPR 3 minus a classic scrollbar), which is
+  1.15px short — hence the wrap. The second half of the bug was the fixed
+  `height: 95px` bar: the wrapped row is ~127px tall, so the icons overflowed
+  the header's box and painted over the hero (the `--header-h` script measured
+  the box, not the overflowing content). Fixed in `public/storefront.css`:
+  ≤640px caps the logo at `max(80px, calc(100vw - 224px))` with
+  `object-fit: contain`, so only the logo gives way and only by the exact
+  deficit (no change at ≥360px, one tidy row below that); ≤360px sets
+  `height: auto` on the bar and `min-height: 67px` on the row so a genuinely
+  wrapped bar (~304px and below) grows and keeps its icons inside it. The
+  44×44 tap targets are untouched. Regression: frontend real-Chromium scenario
+  walks 280/300/320/344/360/375/412/640px asserting one row, icons inside the
+  bar and above the hero, 44×44 targets, `--header-h` matching the real
+  height, and no horizontal scroll; e2e/frontend CSS contracts updated to the
+  new rules.
