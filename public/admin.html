@@ -66,6 +66,7 @@
         <button class="sidebar-item" data-section="products" data-action="section" data-section="products"><span class="si-icon"><svg class="icon"><use href="#i-box"/></svg></span><span class="si-label">Products</span></button>
         <button class="sidebar-item" data-section="upload" data-action="section" data-section="upload"><span class="si-icon"><svg class="icon"><use href="#i-zap"/></svg></span><span class="si-label">Quick Upload</span></button>
         <button class="sidebar-item" data-section="add" data-action="section" data-section="add"><span class="si-icon"><svg class="icon"><use href="#i-plus"/></svg></span><span class="si-label">Add Product</span></button>
+        <button class="sidebar-item" data-section="homepage" data-action="section" data-section="homepage"><span class="si-icon"><svg class="icon"><use href="#i-box"/></svg></span><span class="si-label">Homepage Cards</span></button>
         <button class="sidebar-item" data-section="orders" data-action="section" data-section="orders"><span class="si-icon"><svg class="icon"><use href="#i-cart"/></svg></span><span class="si-label">Orders</span></button>
         <button class="sidebar-item" data-section="reviews" data-action="section" data-section="reviews"><span class="si-icon"><svg class="icon"><use href="#i-star"/></svg></span><span class="si-label">Reviews</span></button>
         <button class="sidebar-item" data-section="reports" data-action="section" data-section="reports"><span class="si-icon"><svg class="icon"><use href="#i-trending-up"/></svg></span><span class="si-label">Reports</span></button>
@@ -94,6 +95,7 @@
             <option value="products">Products</option>
             <option value="upload">Quick Upload</option>
             <option value="add">Add Product</option>
+            <option value="homepage">Homepage Cards</option>
             <option value="orders">Orders</option>
             <option value="reviews">Reviews</option>
             <option value="reports">Reports</option>
@@ -220,6 +222,16 @@
               <span class="lc-check"><svg class="icon"><use href="#i-check"/></svg></span>
             </div>
           </div>
+        </div>
+      </div>
+
+      <!-- Homepage Cards tab — the four photos in the home category strip -->
+      <div class="tab-content" id="tab-homepage">
+        <p class="section-hint">These are the four cards in the home page's category strip. Replace a photo and it goes live on the shop the next time the page is loaded. Leave a card alone to keep the photo that ships with the site.</p>
+        <div class="card-photo-error" id="cardPhotoError"></div>
+        <div class="card-photo-toast" id="cardPhotoToast"></div>
+        <div class="card-photo-grid" id="cardPhotoGrid">
+          <div class="empty-state">Loading photos...</div>
         </div>
       </div>
 

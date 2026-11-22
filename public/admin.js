@@ -1773,7 +1773,7 @@
     // ================================================================
     // TABS
     // ================================================================
-    const sectionTitles = {dashboard:'Dashboard',products:'Products',upload:'Quick Upload',add:'Add Product',orders:'Orders',reviews:'Reviews',reports:'Reports'};
+    const sectionTitles = {dashboard:'Dashboard',products:'Products',upload:'Quick Upload',add:'Add Product',homepage:'Homepage Cards',orders:'Orders',reviews:'Reviews',reports:'Reports'};
     function switchSection(name) {
       document.querySelectorAll('.sidebar-item').forEach(item => {
         item.classList.toggle('active', item.dataset.section === name);
@@ -1791,6 +1791,183 @@
       if (name === 'orders') loadOrders();
       if (name === 'reports') { loadPnlStats(); loadSalesSummary(); }
       if (name === 'reviews') loadReviews();
+      if (name === 'homepage') loadCategoryCards();
+    }
+
+    // ================================================================
+    // HOMEPAGE CATEGORY CARDS
+    // ================================================================
+    // The four photos in the home page strip. Each is replaceable without a
+    // deploy; "Reset" deletes the override so the bundled file comes back.
+    let categoryCardsBusy = false;
+
+    function showCardError(message) {
+      const el = document.getElementById('cardPhotoError');
+      if (!el) return;
+      el.textContent = message || '';
+      el.classList.toggle('show', Boolean(message));
+    }
+
+    function showCardToast(message) {
+      const el = document.getElementById('cardPhotoToast');
+      if (!el) return;
+      el.textContent = message || '';
+      el.classList.toggle('show', Boolean(message));
+      if (message) setTimeout(() => { el.classList.remove('show'); }, 4000);
+    }
+
+    function renderCategoryCards(cards) {
+      const grid = document.getElementById('cardPhotoGrid');
+      if (!grid) return;
+      grid.innerHTML = '';
+      cards.forEach(card => {
+        const wrap = document.createElement('div');
+        wrap.className = 'card-photo';
+        wrap.dataset.cardId = card.id;
+
+        const frame = document.createElement('div');
+        frame.className = 'card-photo-frame';
+        const img = document.createElement('img');
+        img.src = card.image;
+        img.alt = card.alt || card.label;
+        img.loading = 'lazy';
+        img.width = 600;
+        img.height = 600;
+        frame.appendChild(img);
+        if (card.isCustom) {
+          const badge = document.createElement('span');
+          badge.className = 'card-photo-badge';
+          badge.textContent = 'Custom photo';
+          frame.appendChild(badge);
+        }
+
+        const body = document.createElement('div');
+        body.className = 'card-photo-body';
+        const name = document.createElement('div');
+        name.className = 'card-photo-name';
+        name.textContent = card.label;
+        const status = document.createElement('div');
+        status.className = 'card-photo-status';
+        status.textContent = '';
+        const actions = document.createElement('div');
+        actions.className = 'card-photo-actions';
+
+        const uploadBtn = document.createElement('button');
+        uploadBtn.type = 'button';
+        uploadBtn.className = 'card-photo-upload';
+        uploadBtn.textContent = card.isCustom ? 'Replace photo' : 'Change photo';
+        uploadBtn.dataset.action = 'pick-card-photo';
+        uploadBtn.dataset.cardId = card.id;
+
+        const resetBtn = document.createElement('button');
+        resetBtn.type = 'button';
+        resetBtn.className = 'card-photo-reset';
+        resetBtn.textContent = 'Reset to default';
+        resetBtn.dataset.action = 'reset-card-photo';
+        resetBtn.dataset.cardId = card.id;
+        // Nothing to reset while the bundled photo is in use.
+        resetBtn.hidden = !card.isCustom;
+        if (!card.isCustom) resetBtn.disabled = true;
+
+        actions.appendChild(uploadBtn);
+        actions.appendChild(resetBtn);
+        body.appendChild(name);
+        body.appendChild(status);
+        body.appendChild(actions);
+        wrap.appendChild(frame);
+        wrap.appendChild(body);
+        grid.appendChild(wrap);
+      });
+    }
+
+    function setCardBusy(disabled) {
+      categoryCardsBusy = disabled;
+      document.querySelectorAll('#cardPhotoGrid button').forEach(btn => { btn.disabled = disabled; });
+    }
+
+    async function loadCategoryCards() {
+      const grid = document.getElementById('cardPhotoGrid');
+      if (!grid) return;
+      try {
+        const res = await fetch('/api/admin/category-cards?_=' + Date.now(), { cache: 'no-store' });
+        if (!res.ok) throw new Error('Could not load the home page photos.');
+        const cards = await res.json();
+        if (!Array.isArray(cards)) throw new Error('Unexpected response.');
+        showCardError('');
+        renderCategoryCards(cards);
+      } catch (err) {
+        showCardError(err.message || 'Could not load the home page photos.');
+      }
+    }
+
+    async function uploadCategoryCardPhoto(cardId, file) {
+      if (!file || categoryCardsBusy) return;
+      showCardError('');
+      setCardBusy(true);
+      try {
+        const body = new FormData();
+        body.append('image', file);
+        const res = await fetch('/api/admin/category-cards/' + encodeURIComponent(cardId) + '/image', {
+          method: 'POST',
+          body
+        });
+        if (!res.ok) {
+          let msg = 'Upload failed. Please try another photo.';
+          try { const d = await res.json(); if (d.error) msg = d.error; } catch (e) {}
+          throw new Error(msg);
+        }
+        const data = await res.json();
+        if (Array.isArray(data.cards)) renderCategoryCards(data.cards);
+        showCardToast('Photo updated — it is live in the shop now.');
+      } catch (err) {
+        showCardError(err.message || 'Upload failed. Please try another photo.');
+      } finally {
+        setCardBusy(false);
+      }
+    }
+
+    async function resetCategoryCardPhoto(cardId) {
+      if (categoryCardsBusy) return;
+      showCardError('');
+      setCardBusy(true);
+      try {
+        const res = await fetch('/api/admin/category-cards/' + encodeURIComponent(cardId) + '/image', { method: 'DELETE' });
+        if (!res.ok) {
+          let msg = 'Could not reset that photo.';
+          try { const d = await res.json(); if (d.error) msg = d.error; } catch (e) {}
+          throw new Error(msg);
+        }
+        const data = await res.json();
+        if (Array.isArray(data.cards)) renderCategoryCards(data.cards);
+        showCardToast('Reset to the original photo.');
+      } catch (err) {
+        showCardError(err.message || 'Could not reset that photo.');
+      } finally {
+        setCardBusy(false);
+      }
+    }
+
+    // One hidden input is reused for every card. The file input carries the
+    // card id it was opened for, so a click can never upload to the wrong card.
+    function pickCategoryCardPhoto(cardId) {
+      if (categoryCardsBusy) return;
+      let input = document.getElementById('cardPhotoInput');
+      if (!input) {
+        input = document.createElement('input');
+        input.type = 'file';
+        input.id = 'cardPhotoInput';
+        input.accept = 'image/jpeg,image/png,image/gif,image/webp';
+        input.style.display = 'none';
+        input.addEventListener('change', () => {
+          const target = input.dataset.cardId;
+          const file = input.files && input.files[0];
+          input.value = '';
+          if (target && file) uploadCategoryCardPhoto(target, file);
+        });
+        document.body.appendChild(input);
+      }
+      input.dataset.cardId = cardId;
+      input.click();
     }
 
     // ================================================================
@@ -1835,6 +2012,8 @@
       'theme': () => toggleTheme(),
       'clear-images': () => clearImageSelection(),
       'quick-upload': () => handleQuickUpload(),
+      'pick-card-photo': (el) => pickCategoryCardPhoto(el.dataset.cardId),
+      'reset-card-photo': (el) => resetCategoryCardPhoto(el.dataset.cardId),
       'clear-product-filters': () => clearProductFilters(),
       'delete-selected': () => deleteSelectedProducts(),
       'front-input': () => document.getElementById('frontInput').click(),

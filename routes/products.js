@@ -9,6 +9,7 @@ const config = require('../config');
 const { requireCsrf } = require('../middleware/csrf');
 const { requireAuth } = require('../middleware/auth');
 const { persistImage, removeImage } = require('../utils/helpers');
+const categoryCards = require('../utils/categoryCards');
 const sizeStock = require('../utils/sizes');
 const productShape = require('../utils/productShape');
 
@@ -57,6 +58,19 @@ const upload = multer({
 module.exports = function createProductRoutes(db) {
   const router = express.Router();
   const { PRODUCT_CATEGORY_VALUES } = config;
+
+  // Public: the four homepage category card photos. Reads are cheap (four
+  // primary-key lookups) and the response is cached like the catalog, so a
+  // photo swap appears within the same window as a product edit.
+  router.get('/api/category-cards', async (req, res) => {
+    try {
+      res.setHeader('Cache-Control', 'public, max-age=0, s-maxage=10, stale-while-revalidate=30, must-revalidate');
+      res.json(await categoryCards.loadCategoryCards(db));
+    } catch (err) {
+      console.error('category cards route failed:', err && err.message ? err.message : err);
+      res.status(500).json({ error: 'Something went wrong. Please try again.' });
+    }
+  });
 
   // GET all products (public)
   // Payload is built from the public allow-list in utils/productShape.js —

@@ -19,6 +19,14 @@ const { app, ensureReady } = require('../server');
 
 const { stitched } = require('./fixtures/stitch');
 const storeHtml = stitched('storefront');
+// Bumped by every console.log('✅ …') so the summary can never drift from the
+// number of scenarios that actually ran. Must be installed before main() runs.
+let scenarioCount = 0;
+const realConsoleLog = console.log.bind(console);
+console.log = (...args) => {
+  if (typeof args[0] === 'string' && args[0].startsWith('✅')) scenarioCount++;
+  realConsoleLog(...args);
+};
 const adminHtml = stitched('admin');
 const errors = [];
 const virtualConsole = new VirtualConsole();
@@ -422,6 +430,48 @@ async function ready(win) {
         await tabsW.loadProductsFromAPI();
       }
       console.log('✅ Detail tabs: per-product Fabric & Care / Fit Guide, generic copy preserved as the fallback');
+    }
+
+    // ---- Home category card photos: custom swaps out the bundled <picture> ----
+    {
+      const cw = w, cd = d;
+      const thumbOf = (cat) => cd.querySelector(`#categoryStrip .cat-tile[data-cat="${cat}"] .cat-thumb`);
+      // The bundled markup is the default; capture it before any swap.
+      const defaultThumb = thumbOf('pants').innerHTML;
+      assert.ok(/<picture>/.test(defaultThumb), 'the fixture ships a <picture> with WebP crops');
+
+      cw.applyCategoryCardPhotos([{ id: 'pants', label: 'Pants', image: '/uploads/pants-custom.png', alt: 'Custom pants art', isCustom: true }]);
+      assert.equal(/<picture>/.test(thumbOf('pants').innerHTML), false, 'a custom photo drops the bundled <picture> so its crops cannot win');
+      assert.equal(thumbOf('pants').querySelector('img').getAttribute('src'), '/uploads/pants-custom.png');
+      assert.equal(thumbOf('pants').querySelector('img').getAttribute('alt'), 'Custom pants art');
+      // The card still links to the real collection route.
+      assert.equal(cd.querySelector('#categoryStrip .cat-tile[data-cat="pants"]').getAttribute('href'), '/collection/pants');
+
+      // Other cards are untouched by one card's override.
+      assert.equal(/<picture>/.test(thumbOf('anime').innerHTML), true, 'other cards keep their bundled photo');
+
+      // Resetting restores the shipped <picture> markup verbatim.
+      cw.applyCategoryCardPhotos([{ id: 'pants', label: 'Pants', image: '/images/pants.jpg', alt: 'Pants', isCustom: false }]);
+      assert.equal(thumbOf('pants').innerHTML, defaultThumb, 'reset restores the bundled markup exactly');
+
+      // A malformed payload must never replace a photo or throw.
+      const before = thumbOf('anime').innerHTML;
+      cw.applyCategoryCardPhotos(null);
+      cw.applyCategoryCardPhotos([{ id: 'anime' }, { id: 'nope', image: 'x' }]);
+      assert.equal(thumbOf('anime').innerHTML, before, 'a malformed payload leaves the photos alone');
+
+      // A non-OK response keeps the bundled photos and surfaces no error. Kept
+      // synchronous: this suite closes each jsdom window aggressively, so a
+      // pending promise from an earlier window is not a safe place to assert.
+      const realFetch = cw.fetch;
+      let requested = 0;
+      cw.fetch = () => { requested++; return Promise.resolve({ ok: false, json: async () => [] }); };
+      cw.syncCategoryCardPhotos();
+      cw.syncCategoryCardPhotos();
+      assert.equal(requested, 2, 'each refresh asks for the current photos once');
+      cw.fetch = realFetch;
+      assert.equal(/<picture>/.test(thumbOf('anime').innerHTML), true, 'a failed photo request keeps the bundled image');
+      console.log('✅ Home category photos: custom swaps, reset restores, failures keep the bundled art');
     }
 
     const bad = await fetch(origin + '/does-not-exist');
@@ -2845,7 +2895,8 @@ async function ready(win) {
     console.log('✅ FE-H2 delegation: nav + card clicks work in real Chromium under the locked CSP');
 
     assert.deepEqual(errors, []);
-    console.log('\n37/37 frontend scenarios passed');
+    // console.log('✅') packets were counted by the wrapper installed above.
+    console.log(`\n${scenarioCount} frontend scenarios passed`);
   } finally {
     windows.forEach(win => win.window.close());
     await new Promise(resolve => server.close(resolve));

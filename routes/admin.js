@@ -8,7 +8,8 @@ const multer = require('multer');
 const config = require('../config');
 const { requireCsrf } = require('../middleware/csrf');
 const { requireAuth } = require('../middleware/auth');
-const { persistImage } = require('../utils/helpers');
+const { persistImage, removeImage } = require('../utils/helpers');
+const categoryCards = require('../utils/categoryCards');
 const productShape = require('../utils/productShape');
 const sizeStock = require('../utils/sizes');
 
@@ -166,6 +167,62 @@ module.exports = function createAdminRoutes(db) {
     } catch (err) {
       console.error('upload failed:', err && err.message ? err.message : err);
       if (err && err.publicMessage) return res.status(err.status || 500).json({ error: err.publicMessage, code: err.code });
+      res.status(500).json({ error: 'Something went wrong. Please try again.' });
+    }
+  });
+
+  // --- Homepage category card photos ---
+  // The home strip's four photos are replaceable without a deploy. Each card's
+  // chosen photo lives in app_settings as `category_card.<id>.image`; with no
+  // override the storefront renders the bundled file, so "reset" is a delete.
+  const readCategoryCardState = () => categoryCards.loadCategoryCards(db);
+
+  router.get('/api/admin/category-cards', requireAuth, async (req, res) => {
+    try {
+      res.setHeader('Cache-Control', 'no-store');
+      res.json(await readCategoryCardState());
+    } catch (err) {
+      console.error('category card read failed:', err && err.message ? err.message : err);
+      res.status(500).json({ error: 'Something went wrong. Please try again.' });
+    }
+  });
+
+  // Upload replacement photo for one card. The previous photo is deleted only
+  // after the new URL is safely stored, so a failed write never leaves the card
+  // pointing at a deleted object.
+  router.post('/api/admin/category-cards/:id/image', requireCsrf, requireAuth, upload.single('image'), async (req, res) => {
+    try {
+      const cardId = String(req.params.id || '');
+      if (!categoryCards.CATEGORY_CARD_IDS.includes(cardId)) return res.status(404).json({ error: 'Unknown category card.' });
+      if (!req.file) return res.status(400).json({ error: 'Choose a photo to upload.' });
+      const url = await persistImage(req.file.buffer, req.file.originalname);
+      const previous = await db.getSetting(categoryCards.settingKeyFor(cardId));
+      await db.setSetting(categoryCards.settingKeyFor(cardId), url);
+      // Only delete an override we replaced — never the bundled file.
+      if (previous && previous !== url && categoryCards.isAcceptableImageUrl(previous)) {
+        try { await removeImage(previous); } catch (err) { console.error('old card photo cleanup failed:', err && err.message ? err.message : err); }
+      }
+      res.json({ ok: true, cards: await readCategoryCardState() });
+    } catch (err) {
+      console.error('category card upload failed:', err && err.message ? err.message : err);
+      if (err && err.publicMessage) return res.status(err.status || 500).json({ error: err.publicMessage, code: err.code });
+      res.status(500).json({ error: 'Something went wrong. Please try again.' });
+    }
+  });
+
+  // Reset one card back to the bundled photo.
+  router.delete('/api/admin/category-cards/:id/image', requireCsrf, requireAuth, async (req, res) => {
+    try {
+      const cardId = String(req.params.id || '');
+      if (!categoryCards.CATEGORY_CARD_IDS.includes(cardId)) return res.status(404).json({ error: 'Unknown category card.' });
+      const previous = await db.getSetting(categoryCards.settingKeyFor(cardId));
+      await db.deleteSetting(categoryCards.settingKeyFor(cardId));
+      if (previous && categoryCards.isAcceptableImageUrl(previous)) {
+        try { await removeImage(previous); } catch (err) { console.error('card photo cleanup failed:', err && err.message ? err.message : err); }
+      }
+      res.json({ ok: true, cards: await readCategoryCardState() });
+    } catch (err) {
+      console.error('category card reset failed:', err && err.message ? err.message : err);
       res.status(500).json({ error: 'Something went wrong. Please try again.' });
     }
   });
