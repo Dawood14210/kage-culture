@@ -1241,17 +1241,16 @@ async function ready(win) {
       }
 
       // ---- Desktop header: alignment, one-line navigation, and spacing at
-      // ---- the requested widths, with the inventory-controlled Pants link
-      // ---- both hidden and visible (eight links total).
+      // ---- the requested widths. Every category is permanent now, so all
+      // ---- eight links are always present.
       for (const vw of [1024, 1025, 1100, 1148, 1279, 1280, 1366, 1536, 1920]) {
         const hp = await browser.newPage();
         await hp.setViewport({ width: vw, height: 900 });
         await hp.goto(origin + '/', { waitUntil: 'domcontentloaded' });
         await waitForCatalog(hp);
         await settleLayout(hp);
-        for (const pantsVisible of [false, true]) {
-          await hp.evaluate((visible) => {
-            document.getElementById('navPantsItem').style.display = visible ? 'list-item' : 'none';
+        {
+          await hp.evaluate(() => {
             document.querySelectorAll('#navLinks a').forEach((link) => {
               link.classList.toggle('active', link.dataset.nav === 'all');
             });
@@ -1259,7 +1258,7 @@ async function ready(win) {
               badge.textContent = '99';
               badge.classList.add('bump');
             });
-          }, pantsVisible);
+          });
           await settleLayout(hp);
           const m = await hp.evaluate(() => {
             const rect = (el) => {
@@ -1302,9 +1301,9 @@ async function ready(win) {
               iconOverflow: getComputedStyle(document.querySelector('.nav-icons')).overflow
             };
           });
-          const label = `${vw}px Pants ${pantsVisible ? 'visible' : 'hidden'}`;
-          const expectedLinkCount = pantsVisible ? 8 : 7;
-          assert.equal(m.links.length, expectedLinkCount, `${label}: visible navigation link count`);
+          const label = `${vw}px`;
+          // Every category is permanent: Shop All + 4 categories + Sale + 2 = 8.
+          assert.equal(m.links.length, 8, `${label}: visible navigation link count`);
           assert.ok(m.links.every((link) => link.whiteSpace === 'nowrap'), `${label}: each nav label stays on one line`);
           assert.ok(m.links.every((link) => Math.abs(link.rect.top - m.links[0].rect.top) < 0.5), `${label}: links share one top coordinate`);
           const minGap = vw === 1024 ? 16 : vw < 1280 ? 18 : 24;
@@ -1356,7 +1355,7 @@ async function ready(win) {
           assert.ok(underline.activeWidth >= underline.activeLinkWidth - 1, 'active link keeps its full underline');
           console.log('✅ Real Chromium — desktop hover and active links show the 2px offset underline');
         }
-        console.log(`✅ ${vw}px real Chromium — desktop header lines up; ${vw === 1024 ? 16 : vw < 1280 ? 18 : 28}px link gap; Pants hidden/visible both fit`);
+        console.log(`✅ ${vw}px real Chromium — desktop header lines up; ${vw === 1024 ? 16 : vw < 1280 ? 18 : 28}px link gap; all eight links fit one row`);
         await hp.close();
       }
 
@@ -1562,9 +1561,10 @@ async function ready(win) {
           assert.equal(card.label, 'Explore');
           assert.notEqual(card.labelDisplay, 'none');
           assert.equal(card.comingSoon, false);
-          assert.equal(card.navVisible, stocked);
-          assert.equal(card.visible, stocked, 'Pants tile follows the same loaded stock as navigation');
-          assert.equal(beforeScroll.filter(tile => tile.visible).length, stocked ? 3 : 2, 'empty Graphic Tees is hidden too');
+          assert.equal(card.navVisible, true, `${vw}px ${state}: Pants keeps its nav link regardless of stock`);
+          assert.equal(card.visible, true, `${vw}px ${state}: the Pants card never disappears`);
+          // All four categories are permanent, so the strip always shows four.
+          assert.equal(beforeScroll.filter(tile => tile.visible).length, 4, `${vw}px ${state}: all four category cards render`);
           if (stocked) {
             await pp.click('#catTilePants');
           } else {
@@ -1584,7 +1584,7 @@ async function ready(win) {
           }
           await pp.evaluate(() => navigateTo('home'));
         }
-        console.log(`✅ ${vw}px real Chromium — category cards render without scroll animation; Pants promotions follow stock; direct routes survive all stock changes`);
+        console.log(`✅ ${vw}px real Chromium — all four category cards render without scroll animation and survive every stock change`);
         await pp.close();
       }
 
@@ -2198,28 +2198,30 @@ async function ready(win) {
       'Home', 'Anime Shirts', 'Graphic Tees', 'Custom Stickers', 'About', 'Contact', 'Track Order'
     ], 'Pants link stays hidden until pants are live');
     const visibleNavLinks = navLinks.filter(a => a.closest('li').style.display !== 'none');
+    // Every category is permanent, so Pants sits in the nav in its canonical
+    // order (between Anime Shirts and Custom Stickers) at all times.
     assert.deepEqual(visibleNavLinks.map(a => a.getAttribute('href')), [
-      '/', '/collection/anime', '/collection/graphic-tees',
+      '/', '/collection/anime', '/collection/graphic-tees', '/collection/pants',
       '/custom-stickers', '/about', '/contact', '/tracking'
     ]);
     const pantsNavItem = navLinks.find(a => a.textContent.trim() === 'Pants');
-    assert.ok(pantsNavItem, 'Pants nav link is in markup (hidden until live)');
-    assert.equal(pantsNavItem.closest('li').style.display, 'none', 'Pants nav hidden while no pants are stocked');
+    assert.ok(pantsNavItem, 'Pants nav link is in markup');
+    assert.notEqual(pantsNavItem.closest('li').style.display, 'none', 'Pants nav is always shown');
     const cardTiles = [...d.querySelectorAll('#page-home .cat-tile')];
     assert.deepEqual(cardTiles.map(t => t.querySelector('.cat-name').textContent.trim()), ['Graphic Tees', 'Anime Shirts', 'Pants', 'Custom Stickers']);
     const cardRoutes = Object.fromEntries(cardTiles.filter(t => t.tagName === 'A').map(tile => [
       tile.querySelector('.cat-name').textContent.trim(), tile.getAttribute('href')
     ]));
-    for (const name of ['Anime Shirts', 'Graphic Tees', 'Custom Stickers']) {
+    for (const name of ['Anime Shirts', 'Graphic Tees', 'Pants', 'Custom Stickers']) {
       assert.equal(visibleNavLinks.find(a => a.textContent.trim() === name).getAttribute('href'), cardRoutes[name], `${name} nav link matches its homepage card`);
     }
     const pantsTileNavCheck = d.getElementById('catTilePants');
-    assert.ok(pantsTileNavCheck && pantsTileNavCheck.tagName === 'A' && !pantsTileNavCheck.hasAttribute('aria-disabled'), 'Pants tile keeps its route while hidden before stock arrives');
+    assert.ok(pantsTileNavCheck && pantsTileNavCheck.tagName === 'A' && !pantsTileNavCheck.hasAttribute('aria-disabled'), 'Pants tile is a real link');
     assert.equal(pantsNavItem.getAttribute('href'), pantsTileNavCheck.getAttribute('href'), 'Pants nav and card share the same collection route');
     const footerHeadings = [...d.querySelectorAll('.site-footer h4')].map(h => h.textContent.trim());
     assert.ok(!footerHeadings.includes('Shop'), 'footer has no Shop column');
     assert.equal(d.querySelectorAll('.site-footer a[href^="/collection/"]').length, 1, 'Pants is the only stock-aware footer collection link');
-    assert.equal(d.getElementById('footerPantsItem').style.display, 'none', 'Pants footer link stays hidden until stocked');
+    assert.notEqual(d.getElementById('footerPantsItem').style.display, 'none', 'Pants footer link is always shown');
     assert.equal(d.querySelector('#footerPantsItem a').getAttribute('href'), '/collection/pants');
     assert.equal(d.querySelector('#navLinks .mobile-icons-row'), null, 'mobile menu has no extra track-order icon row below search');
     assert.equal(d.querySelectorAll('#navLinks .nav-icon').length, 0, 'mobile menu has no icon buttons below the search bar');

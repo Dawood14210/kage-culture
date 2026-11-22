@@ -108,7 +108,10 @@ async function waitForCatalog(window) {
       assert.equal(d.activeElement, target);
     });
 
-    await check('loaded stock controls every Pants/Graphic Tees promotion across refresh, sellout, deletion and failure', async () => {
+    await check('every category stays promoted through refresh, sellout, deletion and failure', async () => {
+      // Categories used to be stock-gated: an empty Graphic Tees or Pants hid its
+      // nav link, home card and footer link. They are permanent now, so stock can
+      // change freely and the four cards never appear or vanish under the user.
       const dom = makePage();
       windows.push(dom);
       const cw = dom.window, cd = cw.document;
@@ -119,7 +122,7 @@ async function waitForCatalog(window) {
         assert.ok(nodes.some(node => node.dataset.stockCategory === category && node.closest('#navLinks')));
         assert.ok(nodes.some(node => node.dataset.stockCategory === category && node.matches('.cat-tile')));
         const product = { id: 990001, name: 'Collection Stock Probe', category, price: 1000, sizes: ['S', 'M'], in_stock: true };
-        for (const [stock, visible] of [
+        for (const [stock, stocked] of [
           [{ stock_qty: 2 }, true],
           [{ stock_qty: 2, in_stock: false }, false],
           [{ stock_qty: 0 }, false],
@@ -131,30 +134,34 @@ async function waitForCatalog(window) {
         ]) {
           cw.fetch = async () => new Response(JSON.stringify(stock ? [{ ...product, ...stock }] : []), { status: 200 });
           await cw.loadProductsFromAPI();
-          nodes.forEach(node => assert.equal(node.style.display !== 'none', visible && node.dataset.stockCategory === category));
-          // Even when hidden from promotions, both direct collection routes stay reachable.
+          nodes.forEach(node => assert.notEqual(node.style.display, 'none',
+            `${category} stays promoted at ${JSON.stringify(stock)}`));
           cw.navigateTo('collection', category);
           assert.equal(cd.getElementById('shopSection').classList.contains('shop-visible'), true);
           assert.equal(cd.getElementById('page-coming-soon').classList.contains('active'), false);
-          assert.match(cd.getElementById('collectionGrid').textContent, stock ? /Collection Stock Probe/ : /No .* available right now/i);
+          // Out of stock, the products are still browsable (flagged SOLD OUT) or,
+          // with no products at all, the grid says so instead of 404-ing.
+          if (stock) assert.match(cd.getElementById('collectionGrid').textContent, /Collection Stock Probe/);
+          else assert.match(cd.getElementById('collectionGrid').textContent, /No .* available right now/i);
+          if (stock && !stocked) assert.ok(cd.querySelector('#collectionGrid .sale-flag'), 'sold-out stock still renders its SOLD OUT flag');
         }
       }
       cw.fetch = async () => { throw new Error('catalog unavailable'); };
       await cw.loadProductsFromAPI();
-      assert.ok(nodes.every(node => node.style.display === 'none'), 'API failure must not promote fallback products');
+      assert.ok(nodes.every(node => node.style.display !== 'none'), 'a catalog failure must not hide the category cards');
       assert.equal(cd.getElementById('productLoadError').hidden, false);
       cw.fetch = (url, opts) => fetch(origin + url, opts);
       await cw.loadProductsFromAPI();
       assert.equal(cd.getElementById('productLoadError').hidden, true);
-      assert.ok(nodes.filter(node => node.dataset.stockCategory === 'graphic-tees').every(node => node.style.display !== 'none'));
+      assert.ok(nodes.every(node => node.style.display !== 'none'));
       assert.ok(nodes.every(node => cd.contains(node)), 'refreshes must preserve the existing nodes');
     });
 
     const originalPantsTile = d.getElementById('catTilePants');
-    await check('empty Pants category hides all promotional links without removing the route', () => {
-      assert.equal(d.getElementById('navPantsItem').style.display, 'none');
-      assert.equal(d.getElementById('footerPantsItem').style.display, 'none');
-      assert.equal(originalPantsTile.style.display, 'none');
+    await check('empty Pants category still shows its links and keeps a live route', () => {
+      assert.notEqual(d.getElementById('navPantsItem').style.display, 'none', 'Pants stays in the nav with no stock');
+      assert.notEqual(d.getElementById('footerPantsItem').style.display, 'none', 'Pants stays in the footer with no stock');
+      assert.notEqual(originalPantsTile.style.display, 'none', 'Pants card stays on the home page with no stock');
       assert.ok(originalPantsTile, 'Pants tile must be present in the category strip');
       assert.equal(originalPantsTile.tagName, 'A', 'Pants is always a real link like the other cards');
       assert.equal(originalPantsTile.getAttribute('href'), '/collection/pants');
@@ -175,16 +182,17 @@ async function waitForCatalog(window) {
       w.navigateTo('home');
     });
 
-    await check('visibility refetch reveals server-added Pants in nav/footer, best sellers and the open grid', async () => {
+    await check('visibility refetch pulls server-added Pants into best sellers and the open grid', async () => {
       const db = require('../database');
       const refreshPage = makePage('/collection/pants');
       windows.push(refreshPage);
       const rw = refreshPage.window, rd = rw.document;
       await waitForCatalog(rw);
       await wait(50);
-      assert.equal(rd.getElementById('navPantsItem').style.display, 'none');
-      assert.equal(rd.getElementById('footerPantsItem').style.display, 'none');
-      assert.equal(rd.getElementById('catTilePants').style.display, 'none');
+      // Pants is already a visible category even though it has no products yet.
+      for (const id of ['navPantsItem', 'footerPantsItem', 'catTilePants']) {
+        assert.notEqual(rd.getElementById(id).style.display, 'none', `${id} is permanent`);
+      }
       const before = await fetch(origin + '/api/products');
       const oldTag = before.headers.get('etag');
       const requests = [];
@@ -237,9 +245,11 @@ async function waitForCatalog(window) {
         rd.dispatchEvent(new rw.Event('visibilitychange'));
         for (let i = 0; i < 60 && rw.eval('productsFetchInFlight'); i++) await wait(25);
         assert.equal(requests.length, 2);
-        assert.equal(rd.getElementById('navPantsItem').style.display, 'none');
-        assert.equal(rd.getElementById('footerPantsItem').style.display, 'none');
-      assert.equal(rd.getElementById('catTilePants').style.display, 'none');
+        // Deleting the only Pants product removes its listings but not the
+        // category: the card stays and opens the empty state instead.
+        for (const id of ['navPantsItem', 'footerPantsItem', 'catTilePants']) {
+          assert.notEqual(rd.getElementById(id).style.display, 'none', `${id} survives the category emptying`);
+        }
         assert.doesNotMatch(rd.getElementById('bestSellersGrid').textContent, /Cargo Pants/);
         assert.match(rd.getElementById('collectionGrid').textContent, /No pants available right now/i);
       } finally {
@@ -351,7 +361,7 @@ async function waitForCatalog(window) {
       w.navigateTo('home');
     });
 
-    await check('selling out Pants hides promotions but preserves the deep-linked sold-out grid', () => {
+    await check('selling out Pants keeps its promotions and the deep-linked sold-out grid', () => {
       w.eval(`allProducts.filter(product => product.collection === 'pants').forEach(product => {
         product.stock_qty = 0;
         product.in_stock = false;
@@ -361,8 +371,8 @@ async function waitForCatalog(window) {
       assert.equal(originalPantsTile.matches('.reveal, .reveal-scale'), false);
       assert.equal(originalPantsTile.getAttribute('aria-disabled'), null);
       assert.notEqual(w.getComputedStyle(originalPantsTile.querySelector('.cat-shop')).display, 'none');
-      assert.equal(d.getElementById('navPantsItem').style.display, 'none');
-      assert.equal(originalPantsTile.style.display, 'none');
+      assert.notEqual(d.getElementById('navPantsItem').style.display, 'none', 'selling out keeps Pants in the nav');
+      assert.notEqual(originalPantsTile.style.display, 'none', 'selling out keeps the Pants card');
       w.navigateTo('collection', 'pants');
       assert.equal(w.location.pathname, '/collection/pants');
       assert.match(d.getElementById('collectionGrid').textContent, /Kage Cargo Pant/);
@@ -371,13 +381,13 @@ async function waitForCatalog(window) {
       w.navigateTo('home');
     });
 
-    await check('removing the final Pants product hides but never replaces or relabels its homepage card', () => {
+    await check('removing the final Pants product never replaces or relabels its homepage card', () => {
       w.eval("allProducts = allProducts.filter(product => product.collection !== 'pants')");
       w.syncCollectionVisibility();
       w.syncCollectionVisibility();
       assert.equal(d.getElementById('catTilePants'), originalPantsTile);
       assert.equal(d.querySelectorAll('#catTilePants').length, 1);
-      assert.equal(originalPantsTile.style.display, 'none');
+      assert.notEqual(originalPantsTile.style.display, 'none', 'the card survives its category emptying');
       assert.equal(originalPantsTile.tagName, 'A');
       assert.equal(originalPantsTile.querySelector('.cat-shop').textContent.trim(), 'Explore');
       assert.equal(originalPantsTile.querySelector('.cat-coming-soon'), null);
