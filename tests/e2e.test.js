@@ -1172,8 +1172,10 @@ async function main() {
       'track timeline must stack vertically on phones (4 labels across overflow)');
     assert.ok(/\.nav-links li \{\s*min-height: 0;/.test(storeCss) && /\.nav-links li:has\(\.nav-icon\) \{\s*min-height: 44px;/.test(storeCss),
       'nav dropdown rows must not inherit the 44px min-height as full-width rows');
-    assert.ok(/@media \(max-width: 360px\)[\s\S]*?\.nav-inner \{\s*flex-wrap: wrap/.test(storeCss),
-      'header must wrap instead of overflowing on ultra-narrow phones');
+    assert.ok(/@media \(max-width: 360px\)[\s\S]*?\.site-header \.nav-inner \{\s*height: auto; min-height: 67px; flex-wrap: wrap/.test(storeCss),
+      'header must grow with the wrapped row instead of overflowing on ultra-narrow phones');
+    assert.ok(/\.kage-logo \{[^}]*max-width: max\(80px, calc\(100vw - 224px\)\)/.test(storeCss),
+      'the mobile logo must shrink so the icon row stays on one line');
     assert.ok(/\.co-row \{\s*grid-template-columns: 1fr;\s*\}/.test(storeCss),
       'checkout form rows must collapse to one column on phones');
   });

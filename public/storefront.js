@@ -827,15 +827,23 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       const header = document.getElementById('siteHeader');
       setDesktopSearch(!(header && header.classList.contains('search-open')));
     }
+    // One submit path for the desktop field: Enter, the in-field icon and the
+    // header search button all land here, so the header re-render, scroll and
+    // blur behaviour can never drift between them.
+    function submitDesktopSearch(input) {
+      if (!input) return;
+      onSearchInput(input.value);
+      setDesktopSearch(false);
+      input.blur();
+      if (input.value && input.value.trim()) {
+        window.scrollTo({ top: 0, behavior: 'auto' });
+      }
+    }
     // Escape closes the field when it is empty and returns focus to the icon button
     function searchKeydown(e) {
       if (e.key === 'Enter') {
         e.preventDefault();
-        onSearchInput(e.target.value);
-        e.target.blur();
-        if (e.target.value && e.target.value.trim()) {
-          window.scrollTo({ top: 0, behavior: 'auto' });
-        }
+        submitDesktopSearch(e.target);
       } else if (e.key === 'Escape' && !e.target.value) {
         setDesktopSearch(false);
         const btn = document.getElementById('searchToggle');
@@ -2597,16 +2605,26 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
     // Element events that do not delegate through bubbling (or predate the
     // data-action scheme): search fields and the about-page hero fallback.
     // This script runs after the markup, so the elements already exist.
+    // Search runs on submit only (Enter, the field's search icon, or the header's
+    // search button) — typing no longer re-renders the grid on every keystroke.
     const searchInputEl = document.getElementById('searchInput');
     if (searchInputEl) {
-      searchInputEl.addEventListener('input', (e) => onSearchInput(e.target.value));
       searchInputEl.addEventListener('keydown', searchKeydown);
       searchInputEl.addEventListener('blur', searchBlur);
     }
     const mobileSearchEl = document.getElementById('mobileSearch');
     if (mobileSearchEl) {
-      mobileSearchEl.addEventListener('input', (e) => onSearchInput(e.target.value));
       mobileSearchEl.addEventListener('keydown', mobileSearchKeydown);
+    }
+    // The magnifier inside each field is part of the search box, so it submits
+    // the field it sits in. The desktop one used to be a decorative,
+    // pointer-events:none glyph; the mobile one already had a button.
+    const searchIconEl = document.getElementById('searchSubmit');
+    if (searchIconEl) {
+      searchIconEl.addEventListener('click', (e) => {
+        e.preventDefault();
+        submitDesktopSearch(document.getElementById('searchInput'));
+      });
     }
     const aboutHeroImgEl = document.getElementById('aboutHeroImg');
     if (aboutHeroImgEl) {

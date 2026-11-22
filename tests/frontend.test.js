@@ -1060,6 +1060,129 @@ async function ready(win) {
       await overlapPage.close();
       console.log('✅ Real Chromium — WhatsApp float stays clear of product, cart and checkout actions at 320–1440px');
 
+      // ---- Mobile header: the logo row must stay on ONE line and inside the
+      // ---- fixed 95px bar. Reported from Firefox on an Android phone that
+      // ---- exposes a 343.6px CSS viewport: the full-size 128.75px logo plus
+      // ---- four 44px tap targets needed 344.75px, so the row wrapped — and
+      // ---- the wrapped second row did not fit the fixed-height header, so the
+      // ---- icons were painted over the hero. Chrome never showed it because
+      // ---- it laid that phone out at 360px, where the row still fit.
+      for (const vw of [280, 300, 320, 344, 360, 375, 412, 640]) {
+        const mhp = await browser.newPage();
+        await mhp.setViewport({ width: vw, height: 800, isMobile: true, hasTouch: true });
+        await mhp.goto(origin + '/', { waitUntil: 'domcontentloaded' });
+        await waitForCatalog(mhp);
+        await settleLayout(mhp);
+        const hm = await mhp.evaluate(() => {
+          const rect = (sel) => {
+            const r = document.querySelector(sel).getBoundingClientRect();
+            return { left: r.left, right: r.right, top: r.top, bottom: r.bottom, width: r.width, height: r.height };
+          };
+          const header = rect('.site-header');
+          const logo = rect('.kage-logo img');
+          const icons = rect('.nav-icons');
+          const targets = [...document.querySelectorAll('.nav-icons > .nav-icon, .nav-icons > .hamburger')]
+            .filter((el) => getComputedStyle(el).display !== 'none')
+            .map((el) => el.getBoundingClientRect().width + 'x' + el.getBoundingClientRect().height);
+          const hero = document.querySelector('.hero-media img').getBoundingClientRect();
+          return {
+            header,
+            logo,
+            icons,
+            targets: [...new Set(targets)],
+            heroTop: hero.top,
+            headerVar: getComputedStyle(document.documentElement).getPropertyValue('--header-h').trim(),
+            docW: document.documentElement.scrollWidth,
+            innerW: window.innerWidth
+          };
+        });
+        const label = `${vw}px mobile header`;
+        // The square emblem is narrow enough that the row fits on one line at
+        // every width we support, so the bar keeps its 95px height throughout.
+        // If a future change makes the row wrap, height:auto must let the bar
+        // grow rather than spill its icons over the hero — that is the guard.
+        // Same row = vertically centred on each other. Comparing tops would
+        // fail once the emblem is taller than the 44px icon targets.
+        const logoMid = hm.logo.top + hm.logo.height / 2;
+        const iconsMid = hm.icons.top + hm.icons.height / 2;
+        assert.ok(Math.abs(logoMid - iconsMid) < 1.5, `${label}: logo and icons sit on one row (${logoMid.toFixed(1)} vs ${iconsMid.toFixed(1)})`);
+        assert.equal(Math.round(hm.header.height), 95, `${label}: the single-row bar keeps its 95px height`);
+        // Inside the bar: the icons never spill out over the hero.
+        assert.ok(hm.icons.bottom <= hm.header.bottom + 0.5, `${label}: icons stay inside the header (${hm.icons.bottom} > ${hm.header.bottom})`);
+        assert.ok(hm.icons.bottom <= hm.heroTop + 0.5, `${label}: icons never paint over the hero`);
+        // The tap targets are the thing that must not be sacrificed.
+        assert.deepEqual(hm.targets, ['44x44'], `${label}: header tap targets stay 44x44`);
+        // The measured header height keeps the hero clear of the fixed bar.
+        assert.ok(Math.abs(parseFloat(hm.headerVar) - hm.header.height) < 1.5, `${label}: --header-h tracks the real header height`);
+        assert.ok(hm.heroTop >= hm.header.bottom, `${label}: hero starts below the fixed header`);
+        assert.equal(hm.docW, hm.innerW, `${label}: no horizontal page scroll`);
+        await mhp.close();
+      }
+      console.log('✅ Real Chromium — mobile header keeps one row, 44px targets and its 95px bar at 280–640px');
+
+      // ---- Mobile menu rows: the active/hover tint must not touch the label.
+      // ---- The row used to have `padding: 10px 0`, so the pill's left edge
+      // ---- sat exactly on the text (reported from the live site).
+      {
+        const mp = await browser.newPage();
+        await mp.setViewport({ width: 412, height: 900, isMobile: true, hasTouch: true });
+        await mp.goto(origin + '/', { waitUntil: 'domcontentloaded' });
+        await waitForCatalog(mp);
+        await mp.click('#hamburger');
+        await mp.waitForSelector('#navLinks.open');
+        await settleLayout(mp);
+        const row = await mp.evaluate(() => {
+          const rowEl = document.querySelector('#navLinks a.active') || document.querySelector('#navLinks a');
+          const r = rowEl.getBoundingClientRect();
+          const range = document.createRange();
+          range.selectNodeContents(rowEl);
+          const text = range.getBoundingClientRect();
+          return { rowLeft: r.left, textLeft: text.left, inset: text.left - r.left, pad: getComputedStyle(rowEl).paddingLeft };
+        });
+        assert.ok(row.inset >= 12, `mobile menu label is inset from the row tint (${row.inset.toFixed(1)}px)`);
+        assert.equal(row.pad, '16px', 'mobile menu rows keep their 16px horizontal padding');
+        await mp.close();
+        console.log('✅ Real Chromium — mobile menu labels sit inside the row highlight, not on its edge');
+      }
+
+      // ---- Search commits on Enter / the magnifier, never while typing.
+      {
+        const sp = await browser.newPage();
+        await sp.setViewport({ width: 1280, height: 900 });
+        await sp.goto(origin + '/', { waitUntil: 'domcontentloaded' });
+        await waitForCatalog(sp);
+        await sp.click('#searchToggle');
+        await sp.waitForFunction(() => document.getElementById('siteHeader').classList.contains('search-open'));
+        await sp.type('#searchInput', 'wolf', { delay: 20 });
+        await settleLayout(sp);
+        const typed = await sp.evaluate(() => ({
+          query: eval('searchQuery'),
+          shop: document.getElementById('shopSection').classList.contains('shop-visible')
+        }));
+        assert.equal(typed.query, '', 'typing alone does not search');
+        assert.equal(typed.shop, false, 'typing alone does not reveal the shop grid');
+        await sp.keyboard.press('Enter');
+        await sp.waitForFunction(() => document.getElementById('shopSection').classList.contains('shop-visible'));
+        await settleLayout(sp);
+        const committed = await sp.evaluate(() => ({
+          query: eval('searchQuery'),
+          cards: document.querySelectorAll('#collectionGrid .product-card').length,
+          headerClosed: !document.getElementById('siteHeader').classList.contains('search-open')
+        }));
+        assert.equal(committed.query, 'wolf', 'Enter commits the search');
+        assert.ok(committed.cards >= 1, 'Enter renders the matching results');
+        assert.equal(committed.headerClosed, true, 'committing closes the open search field');
+        // ...and the in-field magnifier commits too.
+        await sp.evaluate(() => onSearchInput(''));
+        await sp.click('#searchToggle');
+        await sp.type('#searchInput', 'wolf', { delay: 20 });
+        await sp.click('#searchSubmit');
+        await sp.waitForFunction(() => eval('searchQuery') === 'wolf');
+        assert.ok((await sp.$$('#collectionGrid .product-card')).length >= 1, 'the magnifier runs the search');
+        await sp.close();
+        console.log('✅ Real Chromium — search runs on Enter and the magnifier, not on every keystroke');
+      }
+
       // ---- Desktop header: alignment, one-line navigation, and spacing at
       // ---- the requested widths, with the inventory-controlled Pants link
       // ---- both hidden and visible (eight links total).
@@ -1139,7 +1262,7 @@ async function ready(win) {
           assert.ok(m.links.filter((link) => link.text !== 'Home').every((link) => link.fontWeight === '500'), `${label}: inactive links use weight 500`);
           assert.ok(Math.abs(m.logo.left - m.content.left) < 0.5, `${label}: logo aligns to the page content left edge (${m.logo.left}/${m.content.left})`);
           assert.ok(Math.abs(m.icons.right - m.content.right) < 0.5, `${label}: icons align to the page content right edge (${m.icons.right}/${m.content.right})`);
-          assert.ok(Math.abs(m.logo.height - 52.8) < 1, `${label}: logo is enlarged by about 20%`);
+          assert.ok(Math.abs(m.logo.height - 60) < 1, `${label}: the square emblem renders at 60px`);
           assert.equal(m.iconGap, 12, `${label}: desktop icons have 12px of additional spacing`);
           assert.ok(m.buttons.every((button) => button.width === 44 && button.height === 44), `${label}: icon hit-target sizes stay unchanged`);
           assert.ok(m.glyphs.every((glyph) => glyph.width === 20 && glyph.height === 20), `${label}: icon glyph sizes stay unchanged`);
@@ -2067,7 +2190,9 @@ async function ready(win) {
     // at the requested widths and exercise open/close behavior at phone/tablet widths.
     assert.match(storeHtml, /@media \(max-width: 1023px\) \{\s*\.nav-links\.open \{[\s\S]*?display: flex;[\s\S]*?max-height: calc\(100dvh - 95px\);[\s\S]*?overflow-y: auto;[\s\S]*?background-color: var\(--bg-primary\);[\s\S]*?z-index: 1001;/, 'open menu is an opaque, bounded panel below the header');
     assert.match(storeHtml, /@media \(max-width: 768px\) \{\s*\.nav-links \{\s*position: absolute; top: 100%; left: 0; right: 0; width: 100%;\s*background: var\(--bg-primary\);/, 'phone/tablet menu spans the viewport with a solid background');
-    assert.match(storeHtml, /@media \(max-width: 360px\) \{\s*\.nav-inner \{ flex-wrap: wrap; \}/, 'the 360px header keeps its wrapping guard');
+    assert.match(storeHtml, /@media \(max-width: 360px\) \{\s*\.site-header \{ height: auto; \}\s*\.site-header \.nav-inner \{ height: auto; min-height: 67px; flex-wrap: wrap; \}/, 'the 360px header lets its bar grow when the row wraps');
+    assert.match(storeHtml, /@media \(max-width: 640px\) \{[\s\S]*?\.kage-logo \{[^}]*max-width: max\(80px, calc\(100vw - 224px\)\);/, 'the mobile logo shrinks so the row never wraps on normal phones');
+    assert.match(storeHtml, /@media \(max-width: 640px\) \{[\s\S]*?\.kage-logo img \{[^}]*object-fit: contain;/, 'the shrunk logo scales instead of distorting');
     assert.match(storeHtml, /\.hamburger\.active svg line:nth-child\(2\) \{ transform: translateY\(6px\) rotate\(45deg\); \}/, 'the SVG hamburger animates into an X');
     assert.doesNotMatch(storeHtml, /\.hamburger\.active span:nth-child/, 'hamburger state does not target nonexistent spans');
     assert.match(storeHtml, /@media \(min-width: 1024px\) \{[\s\S]*?\.nav-links \{[\s\S]*?display: flex !important;[\s\S]*?position: static;[\s\S]*?flex-direction: row;[\s\S]*?\.hamburger \{ display: none; \}/, 'desktop nav stays horizontal and hides the hamburger');
@@ -2114,6 +2239,40 @@ async function ready(win) {
     Object.defineProperty(w, 'innerWidth', { configurable: true, value: 1440 });
     assert.equal(navList.classList.contains('open'), false, 'desktop menu remains in its closed horizontal-nav state');
     d.body.style.overflow = '';
+
+    // Search submits on Enter or the magnifier — never while typing. Typing
+    // used to re-render the grid on every keystroke (and on the plain homepage
+    // it swapped the marketing sections for the shop mid-word).
+    {
+      w.resetFilters();
+      Object.defineProperty(w, 'innerWidth', { configurable: true, value: 1440 });
+      const dInput = d.getElementById('searchInput');
+      dInput.value = 'wolf';
+      dInput.dispatchEvent(new w.Event('input', { bubbles: true }));
+      assert.equal(w.eval('searchQuery'), '', 'typing does not search yet');
+      assert.equal(shopVisible(), false, 'typing does not reveal the shop grid');
+      dInput.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+      assert.equal(w.eval('searchQuery'), 'wolf', 'Enter commits the search');
+      assert.equal(shopVisible(), true, 'committing the search reveals the shop grid');
+      assert.equal(d.querySelectorAll('#collectionGrid .product-card h3').length, 1, 'Enter runs the search');
+      // The in-field magnifier is a real submit button for its own field.
+      w.onSearchInput('');
+      const submitIcon = d.getElementById('searchSubmit');
+      assert.equal(submitIcon.tagName, 'BUTTON', 'the desktop search magnifier is a button');
+      dInput.value = 'wolf';
+      submitIcon.dispatchEvent(new w.MouseEvent('click', { bubbles: true, cancelable: true }));
+      assert.equal(w.eval('searchQuery'), 'wolf', 'the magnifier commits the search');
+      assert.equal(d.querySelectorAll('#collectionGrid .product-card h3').length, 1, 'the magnifier runs the search');
+      w.onSearchInput('');
+    }
+
+    // The dropdown row's tint must not touch the label: the row carries real
+    // horizontal padding, so the text sits inside the pill instead of flush
+    // against its left edge (the reported "highlight touching the word").
+    assert.match(storeHtml, /@media \(max-width: 768px\) \{[\s\S]*?\.nav-links a \{ padding: 10px 16px;/,
+      'mobile menu rows inset their label from the row tint');
+    assert.doesNotMatch(storeHtml, /@media \(max-width: 768px\) \{[\s\S]*?\.nav-links a \{ padding: 10px 0;/,
+      'mobile menu rows no longer zero their horizontal padding');
 
     // Hidden admin tabs must stay inside the main column (not become siblings
     // in the dashboard flex row).
