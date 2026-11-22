@@ -1730,3 +1730,45 @@ Unchanged non-token text on solid surfaces was also checked:
   and "same row" now compares centre lines, since the emblem is taller than the
   44px icon targets); rest of `npm test` unchanged at 141/142 with the known
   pre-existing `seed-demo` storage failure.
+- **Per-product Fabric & Care / Fit Guide (done 2026-11-22):** the detail page's
+  Fabric & Care and Fit Guide tabs were the same hardcoded copy for every
+  product. Both are now per-product fields, editable when adding **and** editing
+  a product in the admin panel.
+  *Backend.* Two nullable `TEXT` columns, `fabric_care` and `fit_guide`, added to
+  the products `CREATE TABLE` and to `ADDITIVE_COLUMN_MIGRATIONS` so existing
+  databases pick them up on boot. They are ordinary *public* fields — added to
+  `PUBLIC_PRODUCT_COLUMNS`, so they ship in the storefront payload as well as the
+  admin one (`PUBLIC_PRODUCT_SELECT` / `ADMIN_PRODUCT_SELECT` derive from that
+  list, so no query strings needed editing). POST and PUT both accept them,
+  capped at 2,000 characters per field; empty means `NULL`.
+  *Semantics.* On PUT, an **omitted** field keeps its stored value and an
+  explicitly **empty** field clears to `NULL` — so the panel always sends both,
+  and clearing a textarea really restores the site default instead of silently
+  keeping the old text. The Quick Upload path deliberately still sends neither.
+  *Normalisation.* Browsers and undici serialise multipart fields with CRLF, so
+  Enter arrived as `\r\n`. Both fields now pass through one `cleanDetailCopy()`
+  helper (`\r\n?` → `\n`, trim, cap, empty → `NULL`) so the stored value matches
+  what was typed, and the storefront splits on either line ending anyway.
+  *Storefront.* `openProductDetail()` now calls a new `renderDetailTabs()`: one
+  `<li>` per line, each row `esc()`-escaped, with a typed leading `-`, `•` or `*`
+  stripped so the admin can type bullets naturally. Blank lines are skipped.
+  *Fallback.* The shipped markup in `index.html` is the site's generic copy and
+  is captured once on first render, so a product with no saved text shows the
+  default — and browsing a customised product *then* a plain one restores the
+  default instead of leaking the previous product's copy into the next. The
+  tabs are never hidden.
+  *Gotcha found while testing.* The storefront does not use the API payload
+  directly; `loadProductsFromAPI()` rebuilds each product from a field
+  whitelist. The new columns had to be added there too, or the API returned them
+  and the UI silently never saw them.
+  *Admin UI.* Two full-width textareas under Description with a
+  "one point per line" hint, prefilled on edit and cleared by `resetForm()`
+  (which calls `form.reset()`); both are appended to the same `FormData` used
+  for create and update.
+  *Verification.* New `tabs` frontend scenario (custom copy renders, bullets
+  stripped, plain product keeps the generic list, A→plain→B does not leak,
+  `<img onerror>` payload stays literal text) and a new e2e check (create →
+  public payload → partial edit keeps the other field → empty clears to `NULL` →
+  5,000 characters truncate to 2,000). `npm test` 142/143 — the only failure is
+  the known pre-existing `seed-demo` storage one that needs
+  `BLOB_READ_WRITE_TOKEN`; frontend 37/37.

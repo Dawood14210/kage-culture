@@ -564,6 +564,8 @@
       document.getElementById('prodSalePrice').value = p.sale_price || '';
       document.getElementById('prodUnitCost').value = p.unit_cost || '';
       document.getElementById('prodDesc').value = p.description || '';
+      document.getElementById('prodFabricCare').value = p.fabric_care || '';
+      document.getElementById('prodFitGuide').value = p.fit_guide || '';
 
       // Sizes and stock. A product tracked per size shows each size's count. A
       // legacy single count shows on its only size; with several sizes it stays
@@ -992,6 +994,10 @@
       if (unitCost) formData.append('unit_cost', unitCost);
 
       formData.append('description', document.getElementById('prodDesc').value.trim());
+      // Detail-tab copy is always sent so clearing the field really clears it
+      // (an omitted key means "keep what is stored" on edit).
+      formData.append('fabric_care', document.getElementById('prodFabricCare').value.trim());
+      formData.append('fit_guide', document.getElementById('prodFitGuide').value.trim());
 
       const sizesOffered = selectedSizes();
       if (!sizesOffered.length) {

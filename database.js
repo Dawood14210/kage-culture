@@ -521,6 +521,11 @@ async function createSchema(exec) {
       sale_price REAL,
       on_sale INTEGER DEFAULT 0,
       description TEXT,
+      -- Per-product copy for the detail page's Fabric & Care and Fit Guide
+      -- tabs. One bullet per line; NULL/empty falls back to the generic tab
+      -- copy in the storefront.
+      fabric_care TEXT,
+      fit_guide TEXT,
       sizes TEXT DEFAULT '["S","M","L","XL","XXL"]',
       front_image TEXT,
       back_image TEXT,
@@ -671,9 +676,12 @@ async function createSchema(exec) {
 // Indexes that reference one of these columns are created by createIndexes()
 // afterwards — never before the ALTERs.
 const ADDITIVE_COLUMN_MIGRATIONS = [
-  // products: unit_cost (P&L), [drop] (drop-shipping flag).
+  // products: unit_cost (P&L), [drop] (drop-shipping flag), and the per-product
+  // detail copy (Fabric & Care / Fit Guide).
   ['products', 'unit_cost', 'REAL'],
   ['products', '[drop]', "TEXT DEFAULT ''"],
+  ['products', 'fabric_care', 'TEXT'],
+  ['products', 'fit_guide', 'TEXT'],
   // orders: payment review + COD confirmation + delivery-charge state, and the
   // customer link order history is matched on.
   ['orders', 'payment_ref', 'TEXT DEFAULT NULL'],

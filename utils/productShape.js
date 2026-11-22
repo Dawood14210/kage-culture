@@ -31,6 +31,7 @@ const sizeStock = require('./sizes');
 // collections are gone, and nothing reads or writes that column any more.)
 const PUBLIC_PRODUCT_COLUMNS = [
   'id', 'name', 'category', 'fit', 'price', 'sale_price', 'description',
+  'fabric_care', 'fit_guide',
   'sizes', 'front_image', 'back_image', 'extra_images', 'in_stock',
   'stock_qty', 'created_at'
 ];
@@ -79,6 +80,8 @@ function shapePublicProduct(row, extras) {
     price: Number(row.price),
     sale_price: numericOrNull(row.sale_price),
     description: row.description,
+    fabric_care: row.fabric_care,
+    fit_guide: row.fit_guide,
     sizes: sizeStock.parseSizeColumn(row.sizes),
     front_image: row.front_image,
     back_image: row.back_image,

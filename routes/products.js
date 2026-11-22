@@ -23,6 +23,15 @@ function sendPublicProductPayload(res, data) {
   return res.type('json').send(payload);
 }
 
+// Fabric & Care / Fit Guide are multi-line text. Browsers and undici serialise
+// multipart fields with CRLF, so an admin typing Enter stores "\r\n". Normalise
+// to "\n" on the way in: the storefront splits on newlines and the admin
+// textarea round-trips either way, but keeping one canonical form makes the
+// stored value and the API response predictable (and testable).
+function cleanDetailCopy(value) {
+  return String(value ?? '').replace(/\r\n?/g, '\n').trim().slice(0, 2000) || null;
+}
+
 function respondToProductWriteError(err, res) {
   console.error('products route failed:', err && err.message ? err.message : err);
   if (err && err.publicMessage) {
@@ -87,7 +96,7 @@ module.exports = function createProductRoutes(db) {
   // POST create product (admin only)
   router.post('/api/products', requireCsrf, requireAuth, upload.fields([{ name: 'front_image', maxCount: 1 }, { name: 'back_image', maxCount: 1 }, { name: 'extra_images', maxCount: config.MAX_EXTRA_IMAGES }]), async (req, res) => {
     try {
-      const { name, category, fit, price, sale_price, description, sizes, in_stock, stock_qty, unit_cost, size_stock } = req.body;
+      const { name, category, fit, price, sale_price, description, fabric_care, fit_guide, sizes, in_stock, stock_qty, unit_cost, size_stock } = req.body;
       const cleanName = String(name || '').trim().slice(0, 120);
       const cleanCategory = String(category || '').trim();
       if (!cleanName || !cleanCategory || price === undefined || price === '' || price === null) return res.status(400).json({ error: 'Name, category, and price are required.' });
@@ -128,7 +137,11 @@ module.exports = function createProductRoutes(db) {
       // discarded on create and replaced with a 55% estimate); estimate only
       // when none was provided.
       const estCost = unitCostVal != null ? unitCostVal : Math.max(50, Math.round(priceVal * 0.55));
-      const result = await db.prepare('INSERT INTO products (name, category, fit, price, sale_price, on_sale, description, sizes, front_image, back_image, extra_images, in_stock, unit_cost, stock_qty) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(cleanName, cleanCategory, String(fit || '').trim().slice(0, 60), priceVal, salePriceVal, onSale, String(description || '').slice(0, 2000), JSON.stringify(sizesParsed), frontImage, backImage, JSON.stringify(extraImages), inStock, estCost, stockQty);
+      // Detail-tab copy: one bullet per line, capped so a paste-bomb cannot
+      // bloat the row. Empty stays NULL so the storefront can fall back.
+      const cleanFabric = cleanDetailCopy(fabric_care);
+      const cleanFitGuide = cleanDetailCopy(fit_guide);
+      const result = await db.prepare('INSERT INTO products (name, category, fit, price, sale_price, on_sale, description, fabric_care, fit_guide, sizes, front_image, back_image, extra_images, in_stock, unit_cost, stock_qty) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(cleanName, cleanCategory, String(fit || '').trim().slice(0, 60), priceVal, salePriceVal, onSale, String(description || '').slice(0, 2000), cleanFabric, cleanFitGuide, JSON.stringify(sizesParsed), frontImage, backImage, JSON.stringify(extraImages), inStock, estCost, stockQty);
       productShape.invalidateProductAggregates();
       if (sizeStockInput.value) await sizeStock.replaceSizeStock(db, result.lastInsertRowid, sizeStockInput.value);
       const product = await db.prepare(`SELECT ${productShape.ADMIN_PRODUCT_SELECT} FROM products WHERE id = ?`).get(result.lastInsertRowid);
@@ -143,7 +156,7 @@ module.exports = function createProductRoutes(db) {
     try {
       const existing = await db.prepare('SELECT * FROM products WHERE id = ?').get(req.params.id);
       if (!existing) return res.status(404).json({ error: 'Product not found' });
-      const { name, category, fit, price, sale_price, description, sizes, in_stock, unit_cost, stock_qty, remove_front, remove_back, remove_extra, size_stock } = req.body;
+      const { name, category, fit, price, sale_price, description, fabric_care, fit_guide, sizes, in_stock, unit_cost, stock_qty, remove_front, remove_back, remove_extra, size_stock } = req.body;
       // Optional JSON array of existing extra-image URLs to delete (the admin
       // form sends it when a gallery photo is removed while editing).
       let removeExtraUrls = [];
@@ -162,6 +175,10 @@ module.exports = function createProductRoutes(db) {
       }
       const finalFit = fit !== undefined && fit !== null ? String(fit).trim().slice(0, 60) : existing.fit;
       const finalDesc = description !== undefined && description !== null ? String(description).slice(0, 2000) : existing.description;
+      // Undefined keeps what is stored; an explicit empty string clears it
+      // (which restores the storefront's generic tab copy).
+      const finalFabric = fabric_care !== undefined && fabric_care !== null ? cleanDetailCopy(fabric_care) : existing.fabric_care;
+      const finalFitGuide = fit_guide !== undefined && fit_guide !== null ? cleanDetailCopy(fit_guide) : existing.fit_guide;
       let finalPrice = existing.price;
       if (price !== undefined) {
         const pv = Number(price);
@@ -228,7 +245,7 @@ module.exports = function createProductRoutes(db) {
       if (req.files?.extra_images) { for (const f of req.files.extra_images) { extraImages.push(await persistImage(f.buffer, f.originalname)); } }
       for (const url of removedExtras) { try { await removeImage(url); } catch (err) { console.error('extra image cleanup failed:', err && err.message ? err.message : err); } }
       const now = new Date().toISOString().replace('T', ' ').slice(0, 19);
-      await db.prepare('UPDATE products SET name=?, category=?, fit=?, price=?, sale_price=?, on_sale=?, description=?, sizes=?, front_image=?, back_image=?, extra_images=?, in_stock=?, unit_cost=?, stock_qty=?, updated_at=? WHERE id=?').run(finalName, finalCategory, finalFit, finalPrice, salePriceVal, onSale, finalDesc, JSON.stringify(sizesParsed), frontImage, backImage, JSON.stringify(extraImages), finalStockQty === 0 ? 0 : finalInStock, finalUnitCost, finalStockQty, now, req.params.id);
+      await db.prepare('UPDATE products SET name=?, category=?, fit=?, price=?, sale_price=?, on_sale=?, description=?, fabric_care=?, fit_guide=?, sizes=?, front_image=?, back_image=?, extra_images=?, in_stock=?, unit_cost=?, stock_qty=?, updated_at=? WHERE id=?').run(finalName, finalCategory, finalFit, finalPrice, salePriceVal, onSale, finalDesc, finalFabric, finalFitGuide, JSON.stringify(sizesParsed), frontImage, backImage, JSON.stringify(extraImages), finalStockQty === 0 ? 0 : finalInStock, finalUnitCost, finalStockQty, now, req.params.id);
       if (nextSizeStock) await sizeStock.replaceSizeStock(db, existing.id, nextSizeStock);
       productShape.invalidateProductAggregates();
       const updated = await db.prepare(`SELECT ${productShape.ADMIN_PRODUCT_SELECT} FROM products WHERE id = ?`).get(req.params.id);

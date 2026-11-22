@@ -1317,8 +1317,40 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       const th = document.getElementById('detailThumbnails');
       th.innerHTML = p.images.map((img,i) => `<div class="detail-thumb ${i===0?'active':''}" role="button" tabindex="0" aria-label="View image ${i+1}" data-action="detail-angle" data-index="${i}" data-key><img src="${esc(img)}" alt="View ${i+1}" width="56" height="56" sizes="56px" loading="lazy" decoding="async" /></div>`).join('');
       renderSizePicker(p);
+      renderDetailTabs(p);
       setupGallerySwipe();
       renderDetailAvailability(p);
+    }
+
+    // Fabric & Care / Fit Guide are per product: one <li> per line the admin
+    // typed. The shipped markup IS the site's generic copy, so it is captured
+    // once before the first product can overwrite a pane — a product with no
+    // saved text then falls back to it, and browsing A (custom) then B (plain)
+    // restores the default instead of leaking A's text into B.
+    let detailTabDefaults = null;
+    function renderDetailTabs(p) {
+      const ids = ['tab-fabric', 'tab-fit'];
+      if (!detailTabDefaults) {
+        detailTabDefaults = {};
+        for (const id of ids) {
+          const pane = document.getElementById(id);
+          if (pane) detailTabDefaults[id] = pane.innerHTML;
+        }
+      }
+      const fill = (id, raw) => {
+        const pane = document.getElementById(id);
+        if (!pane) return;
+        const lines = String(raw == null ? '' : raw)
+          .split(/\r\n?|\n/)
+          .map(line => line.replace(/^\s*[-\u2022*]\s*/, '').trim())
+          .filter(Boolean);
+        // No saved copy -> the site's generic list, never the last product's.
+        pane.innerHTML = lines.length
+          ? '<ul>' + lines.map(line => `<li>${esc(line)}</li>`).join('') + '</ul>'
+          : (detailTabDefaults[id] || '');
+      };
+      fill('tab-fabric', p.fabric_care);
+      fill('tab-fit', p.fit_guide);
     }
 
     function renderDetailAvailability(p) {
@@ -2009,6 +2041,8 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
             rating: (p.avg_rating != null && p.review_count > 0) ? p.avg_rating : null, // real, from approved reviews only
             variants: art ? art.variants : null,
             desc: p.description || '',
+            fabric_care: p.fabric_care || null,
+            fit_guide: p.fit_guide || null,
             sizes: p.sizes || ['S','M','L','XL','XXL'],
             images: imgs.length ? imgs : (art ? art.images : [placeholderImg(p.name)]),
             in_stock: p.in_stock !== false && (p.stock_qty == null || Number(p.stock_qty) > 0),
