@@ -1694,3 +1694,39 @@ Unchanged non-token text on solid surfaces was also checked:
   the grid hidden while Enter/the magnifier commit and render results, plus
   real-Chromium checks that menu labels are inset ≥12px and both submit paths
   work end to end.
+- **Storefront logo swapped to the Pagoda Emblem (done 2026-11-22):** the header
+  wordmark is now the supplied square emblem instead of the 影 KAGE — CULTURE —
+  lockup.
+  *Archival (nothing lost).* The outgoing artwork moved with `git mv` to
+  `source/kage-horizontal-light-2026-11-22.svg` (still in the repo, still
+  restorable by pointing the `<img>` back at it). The new artwork's full
+  resolution master is `source/kage-mark-pagoda-source.png` (835×835, ink on
+  alpha), derived from the 1536×1024 upload.
+  *Compression.* The upload was an opaque 1.81 MB PNG whose cream plate is not
+  the site background (`#FAF7EC` vs `#D9D4C8`), so pasting it as-is would have
+  shown a visible box. Luminance is a direct measure of ink coverage on a flat
+  plate, so the artwork was recovered as **black ink on transparency**
+  (`alpha = (247 - luminance) / 233`), cropped to the mark + 2% padding, and
+  encoded at 384px — enough for the 52px emblem on a 3× screen (156 device px)
+  with headroom. A 64-colour palette PNG beats every alternative here and is
+  indistinguishable at display size (flattened RMSE 2.3/255; the residual is
+  dither noise in the semi-transparent spray):
+  - served asset `kage-mark-light.png` — **14,368 B**, down from 1,892,738 B
+    (**99.2% smaller**), and less than half the 34,836 B SVG wordmark it
+    replaces;
+  - lossy WebP was *bigger* (58 KB at 384px) — dither noise is expensive in
+    lossy codecs and cheap in a palette — so the `<picture>`/WebP source was
+    dropped rather than shipped;
+  - full-lossless PNG24 was 96 KB, so the palette is doing the real work.
+  *Layout.* A 1:1 mark needs different sizing than a 4:1 wordmark: 52px in the
+  mobile row, 60px on desktop (`≥1024px`), and 44px at `≤360px` so the emblem
+  still fits the 67px row and the bar is not pushed taller. `.kage-logo img`
+  pins the height and lets the width follow the image's own ratio.
+  *Verification.* Real Chromium at 280/320/344/360/412/768/1280px: header stays
+  95px, logo and icons share one centre line, everything stays inside the bar,
+  the hero clears it, no horizontal scroll, and `--header-h` tracks the real
+  height. Emblem renders 156 device px from a 384px source at 3× DPR. Frontend
+  37/37 (assertions updated from the old 52.8px wordmark to the 60px emblem,
+  and "same row" now compares centre lines, since the emblem is taller than the
+  44px icon targets); rest of `npm test` unchanged at 141/142 with the known
+  pre-existing `seed-demo` storage failure.

@@ -231,8 +231,10 @@
           font-family: 'Noto Serif JP', 'Archivo', sans-serif;
           line-height: 1; user-select: none; cursor: pointer; flex-shrink: 0;
         }
+    /* The mark is a 1:1 emblem, so one dimension is enough: the height is
+       pinned and the width follows from the image's own ratio. */
     .kage-logo img {
-          height: 44px;
+          height: 52px;
           width: auto;
           display: block;
         }
@@ -2522,6 +2524,9 @@
     @media (max-width: 360px) {
       .site-header { height: auto; }
       .site-header .nav-inner { height: auto; min-height: 67px; flex-wrap: wrap; }
+      /* 44px keeps the emblem inside the 67px row (10px padding either
+         side), so the bar only grows when the row actually wraps. */
+      .kage-logo img { height: 44px; }
     }
 
     /* ================================================================
@@ -3227,7 +3232,7 @@
         flex: 0 0 auto;
         padding: 0;
       }
-      .kage-logo img { height: 52.8px; width: auto; }
+      .kage-logo img { height: 60px; width: auto; }
 
       /* Search: the field is hidden until the icon button opens it. While open it
          covers the nav links (which are hidden), so it never overlaps them. */

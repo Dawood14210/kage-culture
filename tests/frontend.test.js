@@ -1097,16 +1097,16 @@ async function ready(win) {
           };
         });
         const label = `${vw}px mobile header`;
-        // A wrapped bar must grow, not overflow: below ~304px the row
-        // legitimately stacks, and height:auto is what keeps the second row
-        // inside it. Everywhere else the row stays on one line.
-        if (vw <= 280) {
-          assert.ok(hm.header.height > 96, `${label}: a wrapped bar grows with its content`);
-          assert.ok(hm.icons.bottom <= hm.header.bottom + 0.5, `${label}: wrapped icons stay inside the grown header`);
-        } else {
-          assert.ok(Math.abs(hm.logo.top - hm.icons.top) < 3, `${label}: logo and icons stay on one row`);
-          assert.equal(Math.round(hm.header.height), 95, `${label}: the single-row bar keeps its 95px height`);
-        }
+        // The square emblem is narrow enough that the row fits on one line at
+        // every width we support, so the bar keeps its 95px height throughout.
+        // If a future change makes the row wrap, height:auto must let the bar
+        // grow rather than spill its icons over the hero — that is the guard.
+        // Same row = vertically centred on each other. Comparing tops would
+        // fail once the emblem is taller than the 44px icon targets.
+        const logoMid = hm.logo.top + hm.logo.height / 2;
+        const iconsMid = hm.icons.top + hm.icons.height / 2;
+        assert.ok(Math.abs(logoMid - iconsMid) < 1.5, `${label}: logo and icons sit on one row (${logoMid.toFixed(1)} vs ${iconsMid.toFixed(1)})`);
+        assert.equal(Math.round(hm.header.height), 95, `${label}: the single-row bar keeps its 95px height`);
         // Inside the bar: the icons never spill out over the hero.
         assert.ok(hm.icons.bottom <= hm.header.bottom + 0.5, `${label}: icons stay inside the header (${hm.icons.bottom} > ${hm.header.bottom})`);
         assert.ok(hm.icons.bottom <= hm.heroTop + 0.5, `${label}: icons never paint over the hero`);
@@ -1262,7 +1262,7 @@ async function ready(win) {
           assert.ok(m.links.filter((link) => link.text !== 'Home').every((link) => link.fontWeight === '500'), `${label}: inactive links use weight 500`);
           assert.ok(Math.abs(m.logo.left - m.content.left) < 0.5, `${label}: logo aligns to the page content left edge (${m.logo.left}/${m.content.left})`);
           assert.ok(Math.abs(m.icons.right - m.content.right) < 0.5, `${label}: icons align to the page content right edge (${m.icons.right}/${m.content.right})`);
-          assert.ok(Math.abs(m.logo.height - 52.8) < 1, `${label}: logo is enlarged by about 20%`);
+          assert.ok(Math.abs(m.logo.height - 60) < 1, `${label}: the square emblem renders at 60px`);
           assert.equal(m.iconGap, 12, `${label}: desktop icons have 12px of additional spacing`);
           assert.ok(m.buttons.every((button) => button.width === 44 && button.height === 44), `${label}: icon hit-target sizes stay unchanged`);
           assert.ok(m.glyphs.every((glyph) => glyph.width === 20 && glyph.height === 20), `${label}: icon glyph sizes stay unchanged`);
