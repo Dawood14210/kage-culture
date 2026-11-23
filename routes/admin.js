@@ -8,6 +8,8 @@ const multer = require('multer');
 const config = require('../config');
 const { requireCsrf } = require('../middleware/csrf');
 const { requireAuth } = require('../middleware/auth');
+const { describeMailConfig } = require('../utils/mailConfig');
+const { verifyEmailTransport } = require('../utils/email');
 const { persistImage, removeImage } = require('../utils/helpers');
 const categoryCards = require('../utils/categoryCards');
 const productShape = require('../utils/productShape');
@@ -41,6 +43,25 @@ module.exports = function createAdminRoutes(db) {
   // The public catalog deliberately omits internal columns (unit_cost drives
   // the P&L and must stay private). The panel reads the full shape from here
   // instead — requireAuth only; GETs carry no CSRF token.
+  // ----------------------------------------------------------------
+  // Email diagnostics — "why is nobody receiving email?"
+  // ----------------------------------------------------------------
+  // Misconfigured mail is invisible from the storefront: orders still return
+  // 201 and signups still succeed. This reports *what* is wrong (never the
+  // password) and can optionally perform a live SMTP handshake.
+  //   GET  /api/admin/email/diagnostics
+  //   POST /api/admin/email/diagnostics/verify   (live auth check)
+  router.get('/api/admin/email/diagnostics', requireAuth, (req, res) => {
+    const status = describeMailConfig();
+    res.json({ ...status, password: status.hasPassword ? 'set (hidden)' : 'missing' });
+  });
+
+  router.post('/api/admin/email/diagnostics/verify', requireAuth, requireCsrf, async (req, res) => {
+    const status = describeMailConfig();
+    const check = await verifyEmailTransport();
+    res.json({ config: { ...status, password: status.hasPassword ? 'set (hidden)' : 'missing' }, handshake: check });
+  });
+
   router.get('/api/admin/products', requireAuth, async (req, res) => {
     try {
       const products = await db.prepare(`SELECT ${productShape.ADMIN_PRODUCT_SELECT} FROM products ORDER BY created_at DESC, id DESC`).all();

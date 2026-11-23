@@ -209,4 +209,33 @@ async function sendVerificationEmail(customer, verifyUrl) {
   return sendEmail(customer && customer.email, 'Verify your KAGE Culture email', html);
 }
 
-module.exports = { sendEmail, sendOrderConfirmation, sendStatusUpdate, sendVerificationEmail, escapeHtml, stripHeaderChars, buildLink };
+// Proves the configured transport can actually authenticate, without sending
+// mail to a customer. Used by the admin diagnostics endpoint; the error message
+// (never the password) is returned so the operator can act on it.
+async function verifyEmailTransport() {
+  const smtpHost = String(process.env.SMTP_HOST || '').trim();
+  if (!smtpHost) {
+    if (process.env.EMAIL_API_KEY) return { ok: true, detail: 'Resend API key configured (HTTP API; no handshake to verify).' };
+    return { ok: false, detail: 'No provider configured: set SMTP_HOST (+ SMTP_USER/SMTP_PASS) or EMAIL_API_KEY.' };
+  }
+  const transport = nodemailer.createTransport({
+    host: smtpHost,
+    port: smtpPort(),
+    secure: smtpPort() === 465,
+    requireTLS: smtpPort() !== 465,
+    connectionTimeout: config.EMAIL_SEND_TIMEOUT_MS,
+    greetingTimeout: config.EMAIL_SEND_TIMEOUT_MS,
+    socketTimeout: config.EMAIL_SEND_TIMEOUT_MS,
+    auth: { user: process.env.SMTP_USER || '', pass: process.env.SMTP_PASS || '' }
+  });
+  try {
+    await withTimeout(() => transport.verify(), config.EMAIL_SEND_TIMEOUT_MS, () => closeTransport(transport));
+    return { ok: true, detail: `SMTP ${smtpHost}:${smtpPort()} authenticated successfully.` };
+  } catch (err) {
+    return { ok: false, detail: err && err.message ? err.message : String(err) };
+  } finally {
+    closeTransport(transport);
+  }
+}
+
+module.exports = { sendEmail, sendOrderConfirmation, sendStatusUpdate, sendVerificationEmail, verifyEmailTransport, escapeHtml, stripHeaderChars, buildLink };

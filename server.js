@@ -9,6 +9,7 @@ const path = require('path');
 const fs = require('fs');
 const dbModule = require('./database');
 const config = require('./config');
+const { describeMailConfig, formatMailConfigLine } = require('./utils/mailConfig');
 const { globalLimiter } = require('./middleware/rateLimit');
 const { csrfMiddleware, CSRF_ENDPOINT } = require('./middleware/csrf');
 const { requireAuth } = require('./middleware/auth');
@@ -1309,16 +1310,35 @@ module.exports.bootstrapData = bootstrapData; // tests: one-time-per-database st
 module.exports.readinessGate = readinessGate;
 module.exports.escapeXml = escapeXml;   // sitemap XML escaping regression tests
 
-// Local dev / direct execution: listen and manage the process lifecycle.
-if (require.main === module) {
-  getReady().then(() => {
+// Listen on PORT and manage the process lifecycle. Exported so scripts/dev.js
+// (which loads .env, and is therefore its own entry module) can boot the very
+// same server: `npm run dev` previously printed "Loaded environment" and
+// exited because `require('../server.js')` skipped this block.
+function startServer() {
+  return getReady().then(() => {
     const server = app.listen(PORT, () => {
       const mode = dbModule.USE_TURSO ? 'Turso (cloud)' : (dbModule.activeBackend === 'mem' ? 'in-memory' : 'sql.js (local)');
       console.log(`\n╔══════════════════════════════════════════════════╗\n║         KAGE CULTURE — Admin System              ║\n╠══════════════════════════════════════════════════╣\n║  Public site:  http://localhost:${PORT}              ║\n║  Admin panel:  http://localhost:${PORT}/admin       ║\n║  Database:     ${mode}                                ║\n╚══════════════════════════════════════════════════╝\n    `);
+      // Email is the one subsystem whose misconfiguration produces no visible
+      // error: orders still return 201 and signups still succeed. Say it at
+      // boot, and say exactly which variable is wrong.
+      const mailStatus = describeMailConfig();
+      console.log(formatMailConfigLine(mailStatus));
+      for (const problem of mailStatus.problems) console.error(`   ✖ ${problem}`);
+      for (const warning of mailStatus.warnings) console.warn(`   ⚠ ${warning}`);
+      if (process.env.SMTP_HOST && !process.env.SITE_URL) {
+        console.warn('   ⚠ Account-verification and password-reset emails will NOT be sent until SITE_URL is set.');
+      }
     });
     process.on('SIGTERM', () => { console.log('SIGTERM received — shutting down gracefully...'); server.close(() => { process.exit(0); }); setTimeout(() => process.exit(1), 5000); });
+    return server;
   }).catch(err => {
     console.error('Failed to start server:', err.message);
     process.exit(1);
   });
 }
+
+module.exports.startServer = startServer;
+
+// Local dev / direct execution: listen and manage the process lifecycle.
+if (require.main === module) startServer();
