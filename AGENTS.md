@@ -83,6 +83,23 @@
   `renderHomeProductCard` alias, a `newsletterMsg` fallback for an element that
   no longer exists, and a needless `window.` export. Details in `AUDIT.md`;
   `npm test` **169/169**, frontend **81/81**.
+- ✅ *(2026-11-23, perf pass)* **Task 6 — accessibility, and why PageSpeed called
+  the tree malformed.** Lighthouse's "Accessibility tree is not well-formed" is
+  `agent-accessibility-tree`, which fails if any of 34 axe rules fail; two did —
+  `button-name` (the two icon-only drawer close buttons) and
+  `aria-prohibited-attr` (`#categoryStrip` had an `aria-label` on a generic
+  `div`). Both fixed at the source, along with `label-content-name-mismatch` (the
+  count is now in the nav buttons' names; product cards are named by their own
+  content), `region` (the WhatsApp link sits in a labelled `aside`),
+  `aria-dialog-name` (the sign-in card), `link-in-text-block` (inline policy
+  links are underlined — the only visible change) and the whole heading outline
+  (`page-has-heading-one` + `heading-order` on every route, stylesheet selectors
+  retargeted with `:is(h2, h3)` so nothing moves). axe-core 4.14.1 is now **0
+  violations across 20 states x 390/1440 px** and the AX probe reports 0
+  problems; the two "needs review" contrast items were verified by hand
+  (9.57:1 and 6.20:1). A geometry + computed-type diff against `ba934a7`
+  proves no visual change. Details in `AUDIT.md`; `npm test` **169/169**,
+  frontend **81/81**, a11y suite green.
 - ✅ CRITICAL admin auth bypass fixed: `requireAuth` trusts only
   `cookie-session`-verified `req.session`; standalone/forged payloads and the
   legacy `kage.cust` fallback are rejected by the E2E regression suite.

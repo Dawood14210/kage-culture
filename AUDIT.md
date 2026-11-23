@@ -2109,3 +2109,118 @@ diff is 2 insertions / 4 deletions in `public/storefront.js`. The measurement is
 the point of this entry: the next byte-class win in this bundle is splitting the
 route-specific half out of boot (rejected for this pass — too invasive for the
 risk budget), not deleting more code.
+
+### ✅ Task 6 — Accessibility: the tree is well-formed now, and the fixes were invisible
+**Why PageSpeed said "Accessibility tree is not well-formed".** That string is
+Lighthouse's `agent-accessibility-tree` audit
+(`core/audits/agentic/agent-accessibility-tree.js`). It is not a bespoke check:
+it re-runs axe-core and **fails if any of 34 specific rules fail** (`button-name`,
+`link-name`, `label`, all the `aria-*` name/role/attribute rules, `tabindex`,
+`duplicate-id-aria`, `svg-img-alt`, …). Two of them were failing on the live
+homepage, so the audit could not pass no matter what the rest of the tree looked
+like:
+* `button-name` (critical) — the two icon-only `.cart-close` buttons in the cart
+  and wishlist drawers had no accessible name.
+* `aria-prohibited-attr` (serious) — `#categoryStrip` carried `aria-label="Shop
+  categories"` but `aria-label` is **prohibited on a generic `div`**, so the name
+  was discarded. This is exactly the "ARIA attribute that does not match the
+  element" class of fault the task asked about.
+
+The rest of the candidate causes in the brief were already clean and stayed
+clean: no focusable element inside an `aria-hidden` subtree, exactly one `main`
+landmark, no `aria-labelledby`/`describedby`/`controls` pointing at a missing id,
+no invalid role parent/child pairs, no duplicate ids in ARIA references.
+
+**Method.** axe-core 4.14.1 (tags `wcag2a wcag2aa wcag21a wcag21aa
+best-practice`) at **390x844 (DPR 2.625) and 1440x900**, over 20 states: `/`,
+`/product/:id`, `/collection/:cat`, cart drawer (with items), wishlist drawer
+(with items), mobile menu, desktop search, `/checkout`, `/tracking`, `/account`
+(both the sign-in dialog and the forced signed-in view), `/reset-password`,
+`/verify-email`, `/order-confirmed`, `/returns`, `/shipping`, `/terms`,
+`/privacy`, `/contact`, `/about`, 404. Plus a CDP accessibility-tree probe
+(unnamed controls, focusable-in-`aria-hidden`, invalid roles, dangling ARIA
+references, landmark/`h1` structure), and the repo's own `tests/a11y.test.js`.
+
+**Before (homepage, identical at both widths).**
+
+| rule | impact | nodes |
+|---|---|---|
+| `button-name` | critical | `.cart-close[data-action="toggle-cart"]`, `.cart-close[data-action="toggle-wishlist"]` |
+| `label-content-name-mismatch` | serious | `#wishlistNav`, `button[title="Cart"]`, every `.product-card[aria-label="View …"]` |
+| `region` | moderate | `.whatsapp-float` (last floating action, outside every landmark) |
+| `aria-prohibited-attr` *(needs review)* | serious | `#categoryStrip` |
+| `color-contrast` *(needs review)* | serious | `.why-item h3/p` — axe cannot resolve a gradient background |
+
+Once the home page was clean, the same harness over the other routes added:
+`page-has-heading-one` (collection, checkout, tracking, reset, verify — no `h1`
+on those routes at all), `heading-order` (collection filter headings, content
+pages, contact cards, cart/wishlist drawer item names), `link-in-text-block`
+(returns/terms/privacy) and `aria-dialog-name` (the sign-in card).
+
+**Fixes — one line each.**
+1. `button-name` — the cart and wishlist close buttons now say "Close cart" /
+   "Close wishlist" (`type="button"`, decorative `<svg aria-hidden="true">`).
+2. `aria-prohibited-attr` — `#categoryStrip` is a `role="region"` labelled "Shop
+   categories", so the `aria-label` is legal and the strip is a named landmark
+   (its `tabindex="0"` is the scrollable-region keyboard affordance and stays).
+3. `region` — the WhatsApp button sits inside `<aside class="whatsapp-dock"
+   aria-label="WhatsApp support">`; the link keeps its class, so every
+   `body:has(…) .whatsapp-float` rule still applies and the fixed positioning is
+   unchanged.
+4. `label-content-name-mismatch` (nav) — the visible count badge is now part of
+   the name: "Wishlist, 0 items" / "Shopping cart, 0 items", re-synced by
+   `syncBadgeLabel()` whenever the count changes.
+5. `label-content-name-mismatch` (cards) — the card's `aria-label="View …"` is
+   gone; a `role="link"` card is named by its own content, so the announced name
+   now *is* the visible text (name, fit, rating, price).
+6. `aria-dialog-name` — the sign-in/sign-up card is `aria-label="Sign in or
+   create an account"`.
+7. `link-in-text-block` — inline body links (`.link-accent`) are underlined; this
+   is the **only visible pixel change** in the task. The storefront accent
+   `#4A4433` sits at **1.09:1** against the surrounding body copy `#4F493F`
+   (both pass 6.5:1 against the page background, so the text was readable — it
+   was only *unmarked*), and WCAG 1.4.1 needs a non-colour cue or a colour
+   change, which would have altered the palette.
+8. `page-has-heading-one` — every route now has exactly one `h1`: the collection,
+   tracking, reset, verify, checkout and confirmation titles were `h2`; the
+   account page gained an `sr-only` "Your account" `h1`.
+9. `heading-order` — the levels below those `h1`s were renumbered so no page
+   skips a level: filter sections `h4 → h2`, content-page sections
+   `h3 → h2` (27 headings), contact cards `h3 → h2`, checkout sections
+   `h3 → h2`, cart/wishlist drawer headers `h3 → h2` and their line items
+   `h4 → h3`, account cards `h3 → h2`. Every affected stylesheet selector was
+   retargeted with `:is(h2, h3)`/`:is(h2, h4)` in the same commit, so the
+   declarations that style them are byte-for-byte the same.
+10. `color-contrast` (needs review, 6 nodes) — verified by hand instead of
+    "fixed": the section's background is `--bg-secondary` `#C4BEB0` with a 1 px
+    `--border-subtle` hairline (that hairline is *why* axe cannot resolve a
+    gradient). `#1A1815` headings measure **9.57:1** and `#3D3931` body copy
+    **6.20:1** on that background — both pass AA.
+
+**No visual change — checked, not assumed.** The task's constraint was "fix
+without changing the visual design", so the change was verified by diffing every
+element's painted geometry and computed type between `ba934a7` and the working
+tree: 13 routes x 2 viewports, capturing tag-independent signatures (rect,
+font-size/weight/family/line-height/letter-spacing, colour, decoration, margins,
+padding, transform, display). Every route is identical except three known items:
+the intentional `.link-accent` underline, the new zero-height `.whatsapp-dock`
+aside, and the new `id="cartNav"`/`sr-only` nodes. The top-bar marquee was not
+touched (only skipped in the diff because its position is animation-dependent).
+
+**After.** axe-core **0 violations in all 20 states at both widths** (the two
+needs-review items are the manual contrast verification above and nothing else);
+accessibility-tree probe **0 problems** (one `h1` per rendered page, every
+control named, one `main`, no aria-hidden focus traps, no dangling references);
+`tests/a11y.test.js` unchanged and green (148/175/175 contrast pairs, every
+outline reset paired, 41 selectors re-tested by real click + Tab). Full suite
+before and after: `npm test` **169/169** API, rate-limit, regressions, upgrade
+migration and mail suites, frontend **81/81**, a11y **all green** (the two h3
+selectors in the frontend suite that referenced the renumbered content-page
+headings were widened to `h2, h3` in the same commit).
+
+**After deploying:** nothing to run — this is static markup and CSS, and the CSP
+`style-src` hash is recomputed from the CSS bytes at boot. Re-run PageSpeed
+Insights on the deployed URL to see Accessibility 100 and "Accessibility tree is
+well-formed"; the only thing to eyeball is the new underline on the five inline
+links in Returns/Terms/Privacy, in case the owner prefers a different
+non-colour cue.

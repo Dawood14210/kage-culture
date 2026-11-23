@@ -88,6 +88,7 @@ earlyFetch('/api/reviews/featured');
       } catch (e) { cart = []; wishlist.clear(); }
       shopStateReady = true;
       document.getElementById('wishlistCount').textContent = wishlist.size;
+      syncBadgeLabel('wishlistNav', wishlist.size, 'Wishlist');
       updateCartUI();
       renderWishlistDrawer();
     }
@@ -1182,6 +1183,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
         }
       }
       document.getElementById('wishlistCount').textContent = wishlist.size;
+      syncBadgeLabel('wishlistNav', wishlist.size, 'Wishlist');
       var wName = (allProducts.find(function (x) { return x.id === id; }) || {}).name || 'Product';
       announce(saved ? 'Saved ' + wName + ' to favourites.' : 'Removed ' + wName + ' from favourites.');
       persistShopState();
@@ -1225,7 +1227,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
         if (!p) return;
         var img = (p.images && p.images[0]) || p.image || '';
         var available = anySizeAvailable(p);
-        html += '<div class="cart-item"><div class="cart-item-image">' + (img ? '<img src="' + esc(img) + '" alt="' + esc(p.name) + '" width="55" height="55"' + srcsetAttr(img) + ' sizes="55px" loading="lazy" decoding="async" />' : '') + '</div><div class="cart-item-info"><h4>' + esc(p.name) + '</h4><div class="cart-item-meta">' + esc(p.fit || '') + (available ? '' : ' · Sold Out — unavailable') + '</div><div class="cart-item-price">Rs. ' + (p.sale_price || p.price) + '</div></div><div class="wishlist-item-actions"><button class="btn btn-sm btn-outline btn-xxs"' + (available ? '' : ' disabled') + ' data-action="quick-add" data-pid="' + p.id + '">' + (available ? 'Add to Cart' : 'Sold Out') + '</button><button class="wishlist-remove-btn" data-action="wishlist-remove" data-pid="' + p.id + '">Remove</button></div></div>';
+        html += '<div class="cart-item"><div class="cart-item-image">' + (img ? '<img src="' + esc(img) + '" alt="' + esc(p.name) + '" width="55" height="55"' + srcsetAttr(img) + ' sizes="55px" loading="lazy" decoding="async" />' : '') + '</div><div class="cart-item-info"><h3>' + esc(p.name) + '</h3><div class="cart-item-meta">' + esc(p.fit || '') + (available ? '' : ' · Sold Out — unavailable') + '</div><div class="cart-item-price">Rs. ' + (p.sale_price || p.price) + '</div></div><div class="wishlist-item-actions"><button class="btn btn-sm btn-outline btn-xxs"' + (available ? '' : ' disabled') + ' data-action="quick-add" data-pid="' + p.id + '">' + (available ? 'Add to Cart' : 'Sold Out') + '</button><button class="wishlist-remove-btn" data-action="wishlist-remove" data-pid="' + p.id + '">Remove</button></div></div>';
       });
       container.innerHTML = html;
     }
@@ -1356,7 +1358,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
           : `Rs. ${fmt(range.min)}`;
       const isWishlisted = wishlist && wishlist.has(p.id);
       return `
-        <div class="product-card" data-pid="${p.id}" role="link" tabindex="0" aria-label="View ${esc(p.name)}" data-action="open-product" data-pid="${p.id}" data-key="enter">
+        <div class="product-card" data-pid="${p.id}" role="link" tabindex="0" data-action="open-product" data-pid="${p.id}" data-key="enter">
           <div class="product-card-image${anySizeAvailable(p) ? '' : ' sold-out'}">
             ${img ? `<img src="${esc(img)}" alt="${esc(p.name)}" class="img-skel" width="600" height="800"${srcsetAttr(img)} sizes="(max-width: 768px) calc((100vw - 40px) / 2), (max-width: 1024px) calc((100vw - 80px) / 3), (max-width: 1279px) calc((100vw - 112px) / 4), 296px" loading="lazy" decoding="async" />` : `<div class="no-image-cell">No Image</div>`}
             <button class="product-wishlist ${isWishlisted ? 'active' : ''}" data-action="toggle-wish" data-pid="${p.id}" aria-label="Wishlist">
@@ -1460,7 +1462,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
           </div>
         </div>
         <div class="filter-section" data-group="price">
-          <h4>Price Range</h4>
+          <h2>Price Range</h2>
           <div class="price-display">
             <span class="price-min-display">Rs. 0</span>
             <span class="price-max-display">Rs. 10,000</span>
@@ -1473,7 +1475,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
           </div>
         </div>
         <div class="filter-section" data-group="size">
-          <h4>Size</h4>
+          <h2>Size</h2>
           <select class="sort-select fp-size" aria-label="Filter by size">
             <option value="">All Sizes</option>
             <option value="S">S</option>
@@ -2263,11 +2265,18 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       toggleCart(true);  // show the cart list so the user sees what was added
       return true;
     }
+    // Icon-only nav buttons show a visible count badge, so the count has to be part
+    // of the accessible name (WCAG 2.5.3 Label in Name: visible text in the name).
+    function syncBadgeLabel(id, count, label) {
+      const btn = document.getElementById(id);
+      if (btn) btn.setAttribute('aria-label', label + ', ' + count + (count === 1 ? ' item' : ' items'));
+    }
     function updateCartUI() {
       const c = cart.reduce((s,i) => s + i.qty, 0);
       document.querySelector('#cartFooter button').disabled = !cart.length || cartHasUnavailableItems();
       persistShopState();
       document.getElementById('cartCount').textContent = c;
+      syncBadgeLabel('cartNav', c, 'Shopping cart');
       const items = document.getElementById('cartItems'), footer = document.getElementById('cartFooter');
       if (!cart.length) { items.innerHTML = '<div class="cart-empty"><span class="cart-empty-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg></span><p>Your cart is empty.</p></div>'; footer.style.display = 'none'; return; }
       footer.style.display = 'flex';
@@ -2275,7 +2284,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       items.innerHTML = cart.map((item,i) => {
         const unavailable = cartItemUnavailable(item);
         const t = item.price * item.qty; sub += t;
-        return `<div class="cart-item"><div class="cart-item-image"><img src="${esc(item.images[0])}" alt="${esc(item.name)}" width="55" height="55"${srcsetAttr(item.images[0])} sizes="55px" loading="lazy" decoding="async" /></div><div class="cart-item-info"><h4>${esc(item.name)}</h4><div class="cart-item-meta">Size: ${esc(item.size)} · ${esc(item.fit)}${unavailable ? ' · Sold Out — unavailable' : ''}</div><div class="cart-item-price">Rs. ${t}</div></div><div class="wishlist-item-actions-end"><div class="cart-item-qty"><button data-action="cart-qty" data-index="${i}" data-delta="-1"${unavailable ? ' disabled' : ''}>−</button><span>${item.qty}</span><button data-action="cart-qty" data-index="${i}" data-delta="1"${unavailable ? ' disabled' : ''}>+</button></div><button class="cart-item-remove" data-action="cart-remove" data-index="${i}">Remove</button></div></div>`;
+        return `<div class="cart-item"><div class="cart-item-image"><img src="${esc(item.images[0])}" alt="${esc(item.name)}" width="55" height="55"${srcsetAttr(item.images[0])} sizes="55px" loading="lazy" decoding="async" /></div><div class="cart-item-info"><h3>${esc(item.name)}</h3><div class="cart-item-meta">Size: ${esc(item.size)} · ${esc(item.fit)}${unavailable ? ' · Sold Out — unavailable' : ''}</div><div class="cart-item-price">Rs. ${t}</div></div><div class="wishlist-item-actions-end"><div class="cart-item-qty"><button data-action="cart-qty" data-index="${i}" data-delta="-1"${unavailable ? ' disabled' : ''}>−</button><span>${item.qty}</span><button data-action="cart-qty" data-index="${i}" data-delta="1"${unavailable ? ' disabled' : ''}>+</button></div><button class="cart-item-remove" data-action="cart-remove" data-index="${i}">Remove</button></div></div>`;
       }).join('');
       document.getElementById('cartSubtotal').textContent = 'Rs. ' + fmt(sub);
     }

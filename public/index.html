@@ -138,9 +138,9 @@
               <div class="nav-icons">
                 <button class="nav-icon nav-search-toggle" id="searchToggle" type="button" data-action="desktop-search" title="Search" aria-label="Search" aria-controls="searchInput" aria-expanded="false"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></button>
                 <button class="nav-icon" data-route="tracking" title="Track Order" aria-label="Track Order"><img src="/images/track-order.png" alt="" width="22" height="22" /></button>
-                <button class="nav-icon" id="wishlistNav" data-action="toggle-wishlist" title="Wishlist" aria-label="Wishlist"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg><span class="badge" id="wishlistCount">0</span></button>
+                <button class="nav-icon" id="wishlistNav" data-action="toggle-wishlist" title="Wishlist" aria-label="Wishlist, 0 items"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg><span class="badge" id="wishlistCount">0</span></button>
                 <button class="nav-icon" id="customerAccountBtn" data-action="account" title="Account" aria-label="Account"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></button>
-                <button class="nav-icon" data-action="toggle-cart" title="Cart" aria-label="Shopping Cart">
+                <button class="nav-icon" id="cartNav" data-action="toggle-cart" title="Cart" aria-label="Shopping cart, 0 items">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg><span class="badge" id="cartCount">0</span>
                 </button>
                 <button class="hamburger" id="hamburger" type="button" aria-label="Open menu" aria-controls="navLinks" aria-expanded="false">
@@ -186,7 +186,7 @@
         <section class="section-categories" id="sectionCategories">
       <div class="category-band">
         <div class="container">
-          <div class="category-strip" id="categoryStrip" tabindex="0" aria-label="Shop categories">
+          <div class="category-strip" id="categoryStrip" role="region" tabindex="0" aria-label="Shop categories">
             <a class="cat-tile" data-stock-category="graphic-tees" href="/collection/graphic-tees" data-cat="graphic-tees" data-route="collection" data-filter="graphic-tees">
               <span class="cat-thumb"><picture><source type="image/webp" srcset="/images/graphic-tees-200.webp 200w, /images/graphic-tees-500.webp 500w" sizes="(min-width: 1024px) 150px, 104px" /><img data-cat-photo src="/images/graphic-tees.jpg" alt="Graphic Tees" width="600" height="600" sizes="(min-width: 1024px) 150px, 104px" loading="lazy" decoding="async" /></picture></span>
               <span class="cat-info">
@@ -320,7 +320,7 @@
       <div class="container">
         <div class="shop-header">
           <p class="section-label" id="shopEyebrow"></p>
-          <h2 class="section-title" id="collectionTitle"></h2>
+          <h1 class="section-title" id="collectionTitle"></h1>
           <p class="section-desc" id="collectionDesc"></p>
         </div>
 
@@ -342,6 +342,7 @@
                 </button>
               </div>
             </div>
+            <h2 class="sr-only">Product results</h2>
             <div class="product-grid collection-grid" id="collectionGrid"></div>
             <div class="pagination" id="pagination">
               <div class="progress-bar">
@@ -377,7 +378,7 @@
   <div class="page" id="page-tracking">
     <div class="container tracking-page">
       <p class="section-label">Order Lookup</p>
-      <h2 class="section-title">TRACK YOUR ORDER</h2>
+      <h1 class="section-title">TRACK YOUR ORDER</h1>
       <p class="tracking-sub">Enter your order number and the phone number you ordered with. No account needed — it's that simple.</p>
       <form class="tracking-form" data-form="tracking">
         <label class="sr-only" for="trkNumber">Order number</label>
@@ -395,7 +396,7 @@
   <div class="page" id="page-reset">
     <div class="container tracking-page">
       <p class="section-label">Account Recovery</p>
-      <h2 class="section-title">RESET YOUR PASSWORD</h2>
+      <h1 class="section-title">RESET YOUR PASSWORD</h1>
       <p class="tracking-sub">Choose a new password for your account.</p>
       <form class="tracking-form" data-form="password-reset">
         <label class="sr-only" for="rstPassword">New password</label>
@@ -414,7 +415,7 @@
   <div class="page" id="page-verify">
     <div class="container tracking-page">
       <p class="section-label">Account</p>
-      <h2 class="section-title">VERIFY YOUR EMAIL</h2>
+      <h1 class="section-title">VERIFY YOUR EMAIL</h1>
       <p class="tracking-sub">We're confirming the email address on your KAGE Culture account.</p>
       <div class="tracking-error is-hidden" id="vfyError"></div>
       <div id="vfyMsg" class="form-note-accent"></div>
@@ -429,13 +430,13 @@
     <div class="container checkout-page">
       <div class="checkout-head">
         <p class="section-label">Secure Checkout</p>
-        <h2 class="section-title">COMPLETE YOUR ORDER</h2>
+        <h1 class="section-title">COMPLETE YOUR ORDER</h1>
         <span class="checkout-back" data-route="home" data-init-shop="all" role="button" tabindex="0" data-key>← Back to shop</span>
       </div>
       <div class="checkout-error is-hidden" id="checkoutError" role="alert"></div>
       <div class="checkout-layout">
         <div class="checkout-form">
-          <h3>Contact &amp; Delivery</h3>
+          <h2>Contact &amp; Delivery</h2>
           <div class="co-field"><label for="coName">Full name *</label><input type="text" id="coName" autocomplete="name" aria-describedby="err-coName" /><small class="field-error" id="err-coName" hidden></small></div>
           <div class="co-row">
             <div class="co-field"><label for="coEmail">Email *</label><input type="email" id="coEmail" autocomplete="email" aria-describedby="err-coEmail" /><small class="field-error" id="err-coEmail" hidden></small></div>
@@ -466,14 +467,14 @@
             <small class="field-error" id="err-coCityOther" hidden></small>
           </div>
 
-          <h3>Payment method</h3>
+          <h2>Payment method</h2>
           <div class="co-payment">
             <label class="co-pay-option"><input type="radio" name="payMethod" value="cod" checked /> <span><strong>Cash on Delivery</strong><small>Pay when your order arrives</small></span></label>
           </div>
         </div>
 
         <aside class="checkout-summary">
-          <h3>Order Summary</h3>
+          <h2>Order Summary</h2>
           <div class="co-items" id="coItems"></div>
           <div class="co-totals">
             <div><span>Subtotal</span><span id="coSubtotal">Rs. 0</span></div>
@@ -498,7 +499,7 @@
     <div class="container confirm-page">
       <div class="confirm-card">
         <div class="confirm-check">✓</div>
-        <h2 class="section-title">ORDER CONFIRMED</h2>
+        <h1 class="section-title">ORDER CONFIRMED</h1>
         <p class="confirm-sub">Thank you, <span id="confName"></span>! Your order is in.</p>
         <div class="confirm-number">Order <span id="confNumber"></span></div>
         <div class="confirm-detail">
@@ -625,8 +626,8 @@
   <div class="cart-overlay" id="cartOverlay" data-action="toggle-cart"></div>
   <div class="cart-drawer" id="cartDrawer">
     <div class="cart-header">
-      <h3>Your Cart</h3>
-      <button class="cart-close" data-action="toggle-cart"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+      <h2>Your Cart</h2>
+      <button class="cart-close" data-action="toggle-cart" type="button" aria-label="Close cart"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
     </div>
     <div class="cart-items" id="cartItems"><div class="cart-empty"><span class="cart-empty-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg></span><p>Your cart is empty.</p></div></div>
     <div class="cart-footer is-hidden" id="cartFooter">
@@ -639,8 +640,8 @@
   <div class="cart-overlay" id="wishlistOverlay" data-action="toggle-wishlist"></div>
   <div class="cart-drawer" id="wishlistDrawer">
     <div class="cart-header">
-      <h3><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>Favourites</h3>
-                <button class="cart-close" data-action="toggle-wishlist"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+      <h2><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>Favourites</h2>
+                <button class="cart-close" data-action="toggle-wishlist" type="button" aria-label="Close wishlist"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
     </div>
     <div class="cart-items" id="wishlistItems"><div class="cart-empty"><span class="cart-empty-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg></span>No favourite picks yet.<br><span class="hint-block-sm">Tap the heart icon on any product to save it here.</span></div></div>
   </div>
@@ -648,6 +649,7 @@
   <!-- CUSTOMER ACCOUNT PAGE (content injected by JS) -->
   <div class="page" id="page-account">
     <div class="container">
+      <h1 class="sr-only">Your account</h1>
       <div class="account-welcome">Welcome, <span id="acctName">Clan Member</span></div>
       <div class="account-email" id="acctEmail"></div>
       <div class="acct-verify" id="acctVerifyBanner" hidden>
@@ -657,7 +659,7 @@
       <div class="account-grid">
         <div class="account-sidebar">
           <div class="account-card">
-            <h3>Profile</h3>
+            <h2>Profile</h2>
             <div class="acct-field"><label for="acctNameInput">Name</label><input type="text" id="acctNameInput" /></div>
             <div class="acct-field"><label for="acctPhone">Phone</label><input type="tel" id="acctPhone" /></div>
             <div class="acct-field"><label for="acctAddress">Address</label><input type="text" id="acctAddress" /></div>
@@ -666,7 +668,7 @@
             <div class="acct-msg" id="acctProfileMsg"></div>
           </div>
           <div class="account-card">
-            <h3>Change Password</h3>
+            <h2>Change Password</h2>
             <div class="acct-field"><label for="acctCurrentPw">Current Password</label><input type="password" id="acctCurrentPw" /></div>
             <div class="acct-field"><label for="acctNewPw">New Password</label><input type="password" id="acctNewPw" placeholder="Min. 10 characters" /></div>
             <button class="acct-btn" data-action="change-password">Update Password</button>
@@ -676,7 +678,7 @@
         </div>
         <div>
           <div class="account-card">
-            <h3>Order History</h3>
+            <h2>Order History</h2>
             <div class="account-orders" id="acctOrders" aria-busy="true">
               <div class="skeleton-order-row" aria-hidden="true"><div class="skeleton skel-line skel-line-wide"></div><div class="skeleton skel-line"></div></div><div class="skeleton-order-row" aria-hidden="true"><div class="skeleton skel-line skel-line-wide"></div><div class="skeleton skel-line"></div></div><div class="skeleton-order-row" aria-hidden="true"><div class="skeleton skel-line skel-line-wide"></div><div class="skeleton skel-line"></div></div>
             </div>
@@ -692,10 +694,10 @@
         <p class="section-label">Policy</p>
         <h1 class="section-title">Return & Refund Policy</h1>
         <div class="content-page-body">
-          <h3>Return Window</h3>
+          <h2>Return Window</h2>
           <p>You may request a return within <strong class="text-strong">7 days</strong> of receiving your order. Items must be unworn, unwashed, and in original packaging with tags attached.</p>
 
-          <h3>Eligible Items</h3>
+          <h2>Eligible Items</h2>
           <ul class="list-plain">
             <li class="policy-item">✓ All clothing items (tees, compression, oversized)</li>
             <li class="policy-item">✓ Items in original condition with tags</li>
@@ -704,7 +706,7 @@
             <li class="policy-item">✗ Worn, washed, or damaged items</li>
           </ul>
 
-          <h3>How to Request a Return</h3>
+          <h2>How to Request a Return</h2>
           <ol class="list-indent">
             <li class="policy-item">Contact us via WhatsApp at <a href="https://wa.me/923228042633?text=Hi%20Kage%20Culture%2C%20I%20want%20to%20return%20an%20order" target="_blank" class="link-accent">+92 322 804 2633</a> with your order number</li>
             <li class="policy-item">We'll confirm eligibility and provide return instructions</li>
@@ -712,10 +714,10 @@
             <li class="policy-item">Refund processed within 3-5 business days of receiving the return</li>
           </ol>
 
-          <h3>Refund Method</h3>
+          <h2>Refund Method</h2>
           <p>Refunds are issued via bank transfer to the account you specify. COD orders are refunded via bank transfer only.</p>
 
-          <h3>Defective Items</h3>
+          <h2>Defective Items</h2>
           <p>If you received a defective or wrong item, contact us within 48 hours with photos. We'll cover return shipping and send a replacement or full refund.</p>
         </div>
         <p class="content-page-back"><a href="/" data-route="home" class="link-accent-sm">← Back to Shop</a></p>
@@ -727,13 +729,13 @@
         <p class="section-label">Policy</p>
         <h1 class="section-title">Shipping & Delivery</h1>
         <div class="content-page-body">
-          <h3>Delivery Time</h3>
+          <h2>Delivery Time</h2>
           <p>Orders are processed within 1-2 business days. Delivery takes <strong class="text-strong">3-5 business days</strong> for major cities and <strong class="text-strong">5-7 business days</strong> for other areas.</p>
 
-          <h3>Delivery Charges</h3>
+          <h2>Delivery Charges</h2>
           <p>Delivery charges are Rs. 250 – Rs. 500 depending on your city and are confirmed by phone before dispatch.</p>
 
-          <h3>Cities Currently Served</h3>
+          <h2>Cities Currently Served</h2>
           <p>We deliver nationwide across Pakistan, including:</p>
           <ul class="list-plain-2col">
             <li class="policy-item">• Lahore</li>
@@ -749,7 +751,7 @@
           </ul>
           <p class="mt-sm2">And all other major cities via our delivery partners.</p>
 
-          <h3>Payment Methods</h3>
+          <h2>Payment Methods</h2>
           <ul class="list-plain">
             <li class="policy-item"><strong class="text-strong">Cash on Delivery (COD)</strong> — pay when your order arrives</li>
           </ul>
@@ -765,28 +767,28 @@
         <div class="content-page-body">
           <p class="mb-md">Last updated: October 2026</p>
 
-          <h3>1. Acceptance of Terms</h3>
+          <h2>1. Acceptance of Terms</h2>
           <p>By accessing and using this website, you agree to be bound by these Terms of Service.</p>
 
-          <h3>2. Products &amp; Pricing</h3>
+          <h2>2. Products &amp; Pricing</h2>
           <p>All product descriptions, images, and specifications are as accurate as possible. Colors may vary slightly due to screen settings. Prices are in Pakistani Rupees (PKR) and include applicable taxes. We reserve the right to modify prices without prior notice.</p>
 
-          <h3>3. Orders &amp; Payment</h3>
+          <h2>3. Orders &amp; Payment</h2>
           <p>Orders are subject to availability. We reserve the right to cancel any order. Cash on Delivery orders are payable upon delivery.</p>
 
-          <h3>4. Intellectual Property</h3>
+          <h2>4. Intellectual Property</h2>
           <p>All content on this site, including designs, logos, and graphics, is the property of KAGE Culture and protected by intellectual property laws.</p>
 
-          <h3>5. Limitation of Liability</h3>
+          <h2>5. Limitation of Liability</h2>
           <p>KAGE Culture shall not be liable for any indirect, incidental, or consequential damages arising from the use of our products or services.</p>
 
-          <h3>6. Contact</h3>
+          <h2>6. Contact</h2>
           <p>For questions about these terms, contact us via WhatsApp at <a href="https://wa.me/923228042633" target="_blank" class="link-accent">+92 322 804 2633</a>.</p>
 
-          <h3>7. Custom Orders &amp; Returns</h3>
+          <h2>7. Custom Orders &amp; Returns</h2>
           <p>Custom-designed items and custom stickers cannot be returned unless they are defective or the wrong item was supplied. See our <a href="/returns" data-route="returns" class="link-accent">Returns &amp; Refund Policy</a> for the return process and eligibility.</p>
 
-          <h3>8. Governing Law</h3>
+          <h2>8. Governing Law</h2>
           <p>These Terms are governed by the laws of Pakistan.</p>
 
           <p><em>This policy is provided for general information only, is not legal advice, and should be reviewed by a qualified legal professional.</em></p>
@@ -802,7 +804,7 @@
         <div class="content-page-body">
           <p class="mb-md">Last updated: October 2026</p>
 
-          <h3>Information We Collect</h3>
+          <h2>Information We Collect</h2>
           <p>Depending on how you use this website, we may collect:</p>
           <ul class="list-plain">
             <li class="policy-item">• Order details, including your name, email address, phone number, delivery address, and city</li>
@@ -810,21 +812,21 @@
             <li class="policy-item">• Email addresses submitted through newsletter or product-notification forms; product-notification requests also record the selected category</li>
           </ul>
 
-          <h3>How We Use Your Information</h3>
+          <h2>How We Use Your Information</h2>
           <p>We use this information to process and support orders, manage customer accounts, respond to requests, and coordinate delivery. When needed to deliver an order, we may share the necessary delivery details—such as your name, phone number, address, and city—with the courier partner handling the delivery.</p>
           <p>Newsletter sign-up emails are for product-drop, restock, and KAGE Clan updates. Every subscription carries a private one-click unsubscribe link, shown right after you subscribe — open it and confirm to leave the list immediately, no account needed. If you lost the link, just subscribe again with the same address to see it, or contact us via WhatsApp at <a href="https://wa.me/923228042633" target="_blank" class="link-accent">+92 322 804 2633</a>.</p>
           <p>We do not sell your personal data or share it with third parties for their marketing.</p>
 
-          <h3>Data Security</h3>
+          <h2>Data Security</h2>
           <p>We implement appropriate security measures to protect your personal information. However, no method of transmission over the internet is 100% secure.</p>
 
-          <h3>Cookies</h3>
+          <h2>Cookies</h2>
           <p>We use essential cookies for session management and request protection. The <code>kage.session</code> cookie supports customer and admin login sessions, while <code>kage.csrf</code> helps protect requests against cross-site request forgery. These cookies are not used for advertising or analytics.</p>
 
-          <h3>Analytics</h3>
+          <h2>Analytics</h2>
           <p>We measure shop visits with Umami Cloud, a privacy-friendly analytics service that uses no cookies and collects no personal data. It records aggregate visits — pages viewed, referrer, and device type — so we can improve the shop. The admin panel carries no analytics.</p>
 
-          <h3>Your Rights</h3>
+          <h2>Your Rights</h2>
           <p>You may request access to, correction of, or deletion of your personal data by contacting us via WhatsApp at <a href="https://wa.me/923228042633" target="_blank" class="link-accent">+92 322 804 2633</a>.</p>
 
           <p><em>This policy is provided for general information only, is not legal advice, and should be reviewed by a qualified legal professional.</em></p>
@@ -922,7 +924,7 @@
               <svg viewBox="0 0 24 24"><path d="M20 11.5a8.25 8.25 0 0 1-12.1 7.3L4 20l1.2-3.9A8.25 8.25 0 1 1 20 11.5Z"/><path d="M9 8.2c.2-.4.7-.5 1-.2l.8 1.3c.2.3.1.6-.1.8l-.5.5a6.8 6.8 0 0 0 2.3 2.3l.5-.5c.2-.2.5-.3.8-.1l1.3.8c.3.2.3.7.1 1-.4.4-.9.6-1.5.5a7.1 7.1 0 0 1-5-5c-.1-.5.1-1.1.5-1.4Z"/></svg>
             </span>
             <span class="contact-card-body">
-              <h3>WhatsApp</h3>
+              <h2>WhatsApp</h2>
               <p>+92 322 804 2633 — Tap to chat instantly</p>
             </span>
           </a>
@@ -932,7 +934,7 @@
             </span>
             <div class="contact-card-body">
               <a class="contact-card-primary" href="/tracking" data-route="tracking">
-                <h3>Order Support</h3>
+                <h2>Order Support</h2>
                 <p>Track your order</p>
               </a>
               <p class="contact-card-secondary">or <a href="https://wa.me/923228042633?text=Hi%20Kage%20Culture%2C%20I%20have%20an%20order%20inquiry" target="_blank" rel="noopener">message us on WhatsApp</a></p>
@@ -943,7 +945,7 @@
               <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="0.75" fill="currentColor" stroke="none"/></svg>
             </span>
             <span class="contact-card-body">
-              <h3>Instagram</h3>
+              <h2>Instagram</h2>
               <p>@kage_culture — Follow for drops &amp; behind the scenes</p>
             </span>
           </a>
@@ -952,7 +954,7 @@
               <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m4 7 8 6 8-6"/></svg>
             </span>
             <span class="contact-card-body">
-              <h3>Email</h3>
+              <h2>Email</h2>
               <p>kageculture01@gmail.com</p>
             </span>
           </a>
@@ -1031,7 +1033,7 @@
 
   <!-- CUSTOMER LOGIN / SIGNUP MODAL -->
   <div class="cust-overlay" id="custOverlay" data-action="cust-backdrop">
-    <div class="cust-card" role="dialog" aria-modal="true">
+    <div class="cust-card" role="dialog" aria-modal="true" aria-label="Sign in or create an account">
       <button type="button" class="cust-close" data-action="cust-close" aria-label="Close"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
       <div class="text-center-mb-xs"><span class="footer-wordmark">影</span></div>
       <div id="custLoginView">
@@ -1063,8 +1065,10 @@
   </div>
 
   <!-- FLOATING WHATSAPP BUTTON -->
+  <aside class="whatsapp-dock" aria-label="WhatsApp support">
   <a class="whatsapp-float" href="https://wa.me/923228042633?text=Hi%20Kage%20Culture%2C%20I%20need%20help" target="_blank" rel="noopener" aria-label="Chat on WhatsApp">
     <svg viewBox="0 0 24 24" fill="currentColor" width="28" height="28"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
   </a>
+  </aside>
 </body>
 </html>
