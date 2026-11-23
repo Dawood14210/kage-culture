@@ -14,6 +14,7 @@ process.env.SESSION_SECRET = process.env.SESSION_SECRET || 'frontend-test-secret
 require('../config').RATE_LIMIT_GLOBAL = 1000;
 const assert = require('node:assert/strict');
 const { readFileSync, existsSync } = require('node:fs');
+const { join } = require('node:path');
 const { JSDOM, VirtualConsole } = require('jsdom');
 const { app, ensureReady } = require('../server');
 
@@ -2359,6 +2360,33 @@ async function ready(win) {
     assert.match(storeHtml, /@media \(max-width: 360px\) \{\s*\.site-header \{ height: auto; \}\s*\.site-header \.nav-inner \{ height: auto; min-height: 67px; flex-wrap: wrap; \}/, 'the 360px header lets its bar grow when the row wraps');
     assert.match(storeHtml, /@media \(max-width: 640px\) \{[\s\S]*?\.kage-logo \{[^}]*max-width: max\(80px, calc\(100vw - 224px\)\);/, 'the mobile logo shrinks so the row never wraps on normal phones');
     assert.match(storeHtml, /@media \(max-width: 640px\) \{[\s\S]*?\.kage-logo img \{[^}]*object-fit: contain;/, 'the shrunk logo scales instead of distorting');
+
+    // FOUC guard: the main bundle is 146 KB, and before it applies the browser
+    // paints the document with its own defaults - a blue "Skip to content" link
+    // at the top, a full-size wordmark and bulleted nav. A tiny pre-paint
+    // stylesheet must load FIRST to hold that back, and the main bundle must
+    // release it (visibility inherits, so an explicit `visible` is required).
+    // stitched() inlines the bundle, so assert order on the <link> position:
+    // the guard must appear before the main stylesheet link in the source.
+    const rawIndexHtml = readFileSync(join(__dirname, '..', 'public', 'index.html'), 'utf8');
+    const guardAt = rawIndexHtml.indexOf('href="/pre-paint.css"');
+    const bundleAt = rawIndexHtml.indexOf('href="/storefront.css?v=');
+    assert.ok(guardAt !== -1, 'the pre-paint guard is linked');
+    assert.ok(bundleAt !== -1, 'the main bundle is linked');
+    assert.ok(guardAt < bundleAt, 'the pre-paint guard loads before the main bundle');
+    const prePaint = readFileSync(join(__dirname, '..', 'public', 'pre-paint.css'), 'utf8');
+    assert.ok(prePaint.length < 2048, `the pre-paint guard stays small enough to arrive in one round trip (${prePaint.length} B)`);
+    for (const sel of ['.skip-link', '.topbar', '.hero-media', '.site-header', '.cart-drawer', '.cart-overlay', '.zoom-overlay']) {
+      assert.ok(prePaint.includes(sel), `the guard hides ${sel} before CSS arrives`);
+    }
+    assert.match(prePaint, /html \{\s*background: #D9D4C8;/, 'the pre-CSS canvas is the brand background, not browser white');
+    // Every guarded selector must be released by the main bundle.
+    const release = storeHtml.match(/PRE-PAINT GUARD RELEASE[\s\S]*?\{\s*visibility: visible;\s*\}/);
+    assert.ok(release, 'storefront.css carries the release block for the pre-paint guard');
+    const releaseBlock = release[0];
+    for (const sel of ['.skip-link', '.topbar', '.hero-media', '.site-header', '.cart-drawer', '.cart-overlay', '.zoom-overlay']) {
+      assert.ok(releaseBlock.includes(sel), `the release block restores ${sel}`);
+    }
     assert.match(storeHtml, /\.hamburger\.active svg line:nth-child\(2\) \{ transform: translateY\(6px\) rotate\(45deg\); \}/, 'the SVG hamburger animates into an X');
     assert.doesNotMatch(storeHtml, /\.hamburger\.active span:nth-child/, 'hamburger state does not target nonexistent spans');
     assert.match(storeHtml, /@media \(min-width: 1024px\) \{[\s\S]*?\.nav-links \{[\s\S]*?display: flex !important;[\s\S]*?position: static;[\s\S]*?flex-direction: row;[\s\S]*?\.hamburger \{ display: none; \}/, 'desktop nav stays horizontal and hides the hamburger');

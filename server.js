@@ -829,11 +829,27 @@ app.use(loadHelmet()({
 }));
 
 // ── Rate Limiting ─────────────────────────────────────────────
+// FOUC-FIX: static assets do not count against the per-client request budget.
+// The limiter is registered before express.static, so every stylesheet, image,
+// font and script used to consume the same 120/minute allowance as the API. A
+// single page load is ~24 requests, so a handful of page views in a minute could
+// exhaust it — and when the *stylesheet* is the request that gets a 429, the
+// browser has no CSS at all and paints the bare, unstyled document (a "Skip to
+// content" link over plain text) until the window resets. Static files are
+// cheap, immutable and already cached; only API/document traffic is limited.
+const STATIC_ASSET_PATH = /^\/(?:images|fonts|vendor|uploads)\//;
+const STATIC_ASSET_FILE = /^\/(?:storefront|admin)\.(?:css|js)$|^\/[^/]+\.(?:ico|png|jpe?g|webp|svg|woff2?|ttf|otf|map)$/i;
+function isStaticAssetRequest(req) {
+  if (req.method !== 'GET' && req.method !== 'HEAD') return false;
+  return STATIC_ASSET_PATH.test(req.path) || STATIC_ASSET_FILE.test(req.path);
+}
+
 app.use((req, res, next) => {
   // A failed readiness check already proves the shared DB-backed limiter is
   // unavailable; don't make a second database attempt before serving crawler
   // documents from their static fallback.
   if (req.crawlerDatabaseUnavailable) return next();
+  if (isStaticAssetRequest(req)) return next();
   return globalLimiter(req, res, next);
 });
 
