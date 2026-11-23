@@ -2068,3 +2068,44 @@ unchanged, `/product/1` and `/about` render styled and console-clean. `npm test`
 block is byte-identical to `pre-paint.css` + `\n` + `storefront.css` normalised
 to LF, that the CSP allows exactly that hash (and never `'unsafe-inline'`), and
 that no render-blocking stylesheet link remains.
+
+### ✅ Task 5 — Dead-code audit of the storefront bundle (almost nothing was dead)
+**Method.** Three independent passes over `public/storefront.js` (166 functions,
+164 KB raw / 45 KB gzip):
+1. **Static reachability** — every function, top-level binding and `data-action` /
+   `data-route` key cross-checked against its declaration, the templates in
+   `public/index.html`, the strings the JS builds, and the two test suites.
+2. **Runtime coverage** — Chrome's precise JS coverage over three full passes:
+   a home-page load; every route (`/`, `/collection/anime`, `/product/1`,
+   `/about`, `/contact`, `/returns`, `/shipping`, `/terms`, `/privacy`,
+   `/tracking`, `/account`, `/checkout`, `/wishlist`) plus the JS-driven route
+   changes; and every overlay/flow that is not a route (mobile menu, search,
+   cart, wishlist, account modal, signup/login, review submission, tracking,
+   filter/sort/search on the grid).
+3. **DOM-liveness** — every `getElementById`/`querySelector('#…')` target checked
+   against the markup and the strings the JS builds; every id that no longer
+   exists exposes a dead branch.
+
+**Result: the bundle is live code.** 166/166 functions are referenced, 37/37
+delegated actions and all routes have handlers, every declared binding is read,
+and no function is unreachable. A home-page load executes ~68% of the file's
+bytes; the rest is the other routes' code, which is a *code-splitting*
+opportunity, not dead weight. `public/admin.js` (98 functions) audits the same.
+
+**Removed (the only genuinely dead code found):**
+* `window.renderHomeProductCard = renderProductCard` and its "the old name still
+  points at it" comment — a public alias left over from when the card renderer
+  was home-only. Nothing in the page, the templates or the suites called it; the
+  frontend suite now asserts it stays gone instead of asserting it equals the
+  renderer.
+* `|| document.getElementById('newsletterMsg')` in `subscribeNewsletter()` — a
+  fallback for an element that has not existed in the markup for a long time
+  (`form.parentElement.querySelector('.newsletter-msg')` is the live target).
+* `window.settleBootCards = function () {…}` — only ever called from inside the
+  bundle, so it is now a plain `function settleBootCards()` instead of a global.
+
+**Verified.** `npm test` **169/169**, frontend **81/81** after the removals; the
+diff is 2 insertions / 4 deletions in `public/storefront.js`. The measurement is
+the point of this entry: the next byte-class win in this bundle is splitting the
+route-specific half out of boot (rejected for this pass — too invasive for the
+risk budget), not deleting more code.

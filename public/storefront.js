@@ -492,7 +492,7 @@ earlyFetch('/api/reviews/featured');
       } catch (e) { bootCardsFetch = null; /* keep the bundled photos */ }
     }
     window.syncCategoryCardPhotos = syncCategoryCardPhotos;
-    window.settleBootCards = function () { bootSettled = true; bootCardsFetch = null; };
+    function settleBootCards() { bootSettled = true; bootCardsFetch = null; }
     document.querySelector('.skip-link').addEventListener('click', () => {
       document.getElementById('mainContent').focus({ preventScroll: true });
     });
@@ -1268,7 +1268,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       e.preventDefault();
       const form = e.target;
       const input = form.querySelector('input[type=email]');
-      const msg = form.parentElement.querySelector('.newsletter-msg') || document.getElementById('newsletterMsg');
+      const msg = form.parentElement.querySelector('.newsletter-msg');
       if (!input || !input.value.trim()) return;
       const btn = form.querySelector('button[type=submit]');
       setButtonLoading(btn, true, 'Subscribing…');
@@ -1387,8 +1387,6 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       image.setAttribute('fetchpriority', 'high');
     }
 
-    // The renderer used to be home-only; the old name still points at it.
-    window.renderHomeProductCard = renderProductCard;
 
     // Load Best Sellers (sorted by order count if available, else newest)
     function loadBestSellers() {

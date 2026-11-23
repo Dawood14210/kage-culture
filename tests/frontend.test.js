@@ -1020,7 +1020,9 @@ async function ready(win) {
       assert.ok(body, `${fn}() exists`);
       assert.match(body[0], /\.map\(renderProductCard\)/, `${fn}() renders its cards through the shared renderProductCard`);
     }
-    assert.strictEqual(sharedWin.renderHomeProductCard, sharedWin.renderProductCard, 'the old home-only name is an alias of the shared renderer, not a second one');
+    // The old home-only name was a public alias for the shared renderer. Nothing
+    // (page, template or test) ever called it, so it is gone — one name only.
+    assert.equal(sharedWin.renderHomeProductCard, undefined, 'no legacy renderer alias lingers on the page');
     assert.doesNotMatch(storeHtml, /animateProductGrid/, 'no load-time stagger that would leave inline transform/opacity on collection cards (it killed their hover lift)');
     // Both grids are .product-grid, so one set of card CSS styles them.
     const bsGridEl = sharedDoc.getElementById('bestSellersGrid');

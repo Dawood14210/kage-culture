@@ -74,6 +74,15 @@
   0.0040 (a 15 px hero jump appeared once paint beat the script's header
   measurement; `:root` now declares `--header-h: 95px`). Details in `AUDIT.md`;
   `npm test` **169/169**, frontend **81/81**.
+- ✅ *(2026-11-23, perf pass)* **Task 5 — dead-code audit.** Static reachability
+  + Chrome precise coverage (13 routes, every overlay/flow) + DOM-liveness check
+  over `public/storefront.js`: 166/166 functions reachable, all 37 delegated
+  actions handled, every binding read — the bundle is live code (~68% of its
+  bytes execute on a home-page load; the remainder is other routes' code, i.e. a
+  code-splitting job, not dead weight). Removed the only dead bits: the
+  `renderHomeProductCard` alias, a `newsletterMsg` fallback for an element that
+  no longer exists, and a needless `window.` export. Details in `AUDIT.md`;
+  `npm test` **169/169**, frontend **81/81**.
 - ✅ CRITICAL admin auth bypass fixed: `requireAuth` trusts only
   `cookie-session`-verified `req.session`; standalone/forged payloads and the
   legacy `kage.cust` fallback are rejected by the E2E regression suite.
