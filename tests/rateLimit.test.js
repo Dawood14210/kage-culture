@@ -195,8 +195,9 @@ async function run() {
     }
     last = await trackRequest(localPort, 'KAGE-DOESNOTEXIST', '03000000000', forwardedIp);
     assert.equal(last.status, 429, 'the tracking endpoint must enforce strictLimiter');
-    const forwardedCounter = await db.getRateLimit(`strict:${forwardedIp}`);
-    assert.equal(forwardedCounter.count, 11, 'req.ip should be the forwarded client address');
+    const ipKey = ipKeyGenerator(forwardedIp);
+    const forwardedCounter = await db.getRateLimit(`tracking-id:${ipKey}|3000000000|`);
+    assert.equal(forwardedCounter.count, 11, 'the (IP, phone) identity bucket should be the forwarded client address + normalised phone');
 
     const pathIp = '203.0.113.42';
     for (let i = 0; i < 10; i++) {
@@ -214,9 +215,77 @@ async function run() {
       last = await trackRequest(localPort, 'KAGE-DOESNOTEXIST', '03000000000', forwarded);
       assert.equal(last.status, 404);
     }
-    const ipv6Counter = await db.getRateLimit(`strict:${ipv6Key}`);
+    const ipv6Counter = await db.getRateLimit(`tracking-id:${ipv6Key}|3000000000|`);
     assert.equal(ipv6Counter.count, 2, 'different IPv6 addresses in one subnet share the limit key');
     console.log('✅ Tracking/order lookups are limited; X-Forwarded-For and IPv6 keys are correct');
+
+    // F29: order/tracking limits key on IP + normalised identity, so carrier
+    // NAT neighbours do not share one budget. Distinct phones from one IP get
+    // independent budgets; the per-IP floor still stops rotating-identity floods.
+    const neighbourIp = '198.51.100.71';
+    for (let i = 0; i < 10; i++) {
+      last = await trackRequest(localPort, 'KAGE-DOESNOTEXIST', '03001110001', neighbourIp);
+      assert.equal(last.status, 404, `identity budget for phone A, request ${i + 1}`);
+    }
+    last = await trackRequest(localPort, 'KAGE-DOESNOTEXIST', '03001110001', neighbourIp);
+    assert.equal(last.status, 429, 'the identity budget for phone A is exhausted');
+    last = await trackRequest(localPort, 'KAGE-DOESNOTEXIST', '03001110002', neighbourIp);
+    assert.equal(last.status, 404, 'a different phone from the same IP keeps its own budget');
+
+    // Phone normalisation: '03001110003', '+92 300 1110003' and '0300-1110003'
+    // are the same last-10-digit identity.
+    const normIp = '198.51.100.72';
+    const formats = ['03001110003', '+92 300 1110003', '0300-1110003'];
+    for (let i = 0; i < 10; i++) {
+      last = await trackRequest(localPort, 'KAGE-DOESNOTEXIST', formats[i % formats.length], normIp);
+      assert.equal(last.status, 404, `normalised formats share one budget, request ${i + 1}`);
+    }
+    last = await trackRequest(localPort, 'KAGE-DOESNOTEXIST', '03001110003', normIp);
+    assert.equal(last.status, 429, 'normalised phone formats share the identity bucket');
+
+    // The per-IP floor: 50 distinct phones from one IP, the 51st request is
+    // refused even though every identity is fresh.
+    const floorIp = '198.51.100.73';
+    for (let i = 0; i < 50; i++) {
+      last = await trackRequest(localPort, 'KAGE-DOESNOTEXIST', '0300222' + String(1000 + i).slice(-4), floorIp);
+      assert.equal(last.status, 404, `floor budget request ${i + 1}`);
+    }
+    last = await trackRequest(localPort, 'KAGE-DOESNOTEXIST', '03002229999', floorIp);
+    assert.equal(last.status, 429, 'the per-IP floor stops rotating-phone floods');
+
+    // Orders: the identity bucket is (IP, phone, email) with email normalised.
+    const orderIp = '198.51.100.74';
+    const orderAttempt = (phone, email) => request(localPort, 'POST', '/api/orders', {
+      body: { name: 'Limit Probe', email, phone, address: '1 Test Street', city: 'Karachi', items: [{ id: 1, qty: 1, size: 'M' }] },
+      headers: { 'X-Forwarded-For': orderIp }
+    });
+    for (let i = 0; i < 8; i++) {
+      last = await orderAttempt('03003330001', i % 2 ? 'buyer@example.test' : 'Buyer@Example.TEST ');
+      assert.equal(last.status, 403, `mixed-case email is one identity, attempt ${i + 1} (403 = CSRF refusal after passing the limiter)`);
+    }
+    last = await orderAttempt('03003330001', 'BUYER@example.test');
+    assert.equal(last.status, 429, 'email is trimmed and lower-cased before keying');
+    last = await orderAttempt('03003330001', 'someone-else@example.test');
+    assert.equal(last.status, 403, 'a different email gets an independent budget');
+    last = await orderAttempt('+92 300 3330001', 'buyer@example.test');
+    assert.equal(last.status, 429, 'the phone part is normalised to its last 10 digits');
+
+    // Orders: the per-IP floor (5× the identity limit) stops rotating identities.
+    const orderFloorIp = '198.51.100.75';
+    for (let i = 0; i < 40; i++) {
+      last = await request(localPort, 'POST', '/api/orders', {
+        // Unique identity per attempt so only the per-IP floor can trip.
+        body: { phone: '0300444' + String(1000 + i).slice(-4), email: `floor-probe-${i}@example.test` },
+        headers: { 'X-Forwarded-For': orderFloorIp }
+      });
+      assert.equal(last.status, 403, `order floor budget request ${i + 1}`);
+    }
+    last = await request(localPort, 'POST', '/api/orders', {
+      body: { phone: '03004449999', email: 'floor-probe-final@example.test' },
+      headers: { 'X-Forwarded-For': orderFloorIp }
+    });
+    assert.equal(last.status, 429, 'the per-IP floor stops rotating-identity order floods');
+    console.log('✅ Order/tracking limits key on IP + normalised phone/email with a per-IP floor');
 
     // A failed shared-store increment must be logged and let ordinary traffic
     // through (not turn a DB blip into a 500). Admin login is the exception and

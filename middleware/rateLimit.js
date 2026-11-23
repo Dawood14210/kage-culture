@@ -18,7 +18,7 @@ function retryAfterSeconds(req) {
   return String(Math.max(1, Math.ceil((resetAt - Date.now()) / 1000)));
 }
 
-function createLimiter({ namespace, limit, windowMs = 60 * 1000, message, failClosed = false }) {
+function createLimiter({ namespace, limit, windowMs = 60 * 1000, message, failClosed = false, keyGenerator }) {
   const options = {
     windowMs,
     limit,
@@ -44,6 +44,8 @@ function createLimiter({ namespace, limit, windowMs = 60 * 1000, message, failCl
       console.warn(`⚠️  rate-limit warning (${namespace})${detail ? `: ${detail}` : ''}:`, error && error.message ? error.message : error);
     }
   };
+
+  if (keyGenerator) options.keyGenerator = keyGenerator;
 
   if (useDatabaseStore) {
     options.store = new DatabaseRateLimitStore({
@@ -92,11 +94,79 @@ const customerLoginLimiter = createLimiter({
   message: 'Too many attempts. Please try again later.'
 });
 
-const orderLimiter = createLimiter({
+// ── F29: identity-aware keys for order/tracking traffic ──────────
+// Carrier-grade NATs put many unrelated customers behind ONE egress IP, so a
+// purely per-IP bucket lets one busy carrier exhaust the store's patience —
+// and one rotating-identity attacker burn exactly the same budget as a whole
+// neighbourhood. Order and tracking requests are therefore bucketed by
+// IP + normalised phone (+ email for orders), with a RELAXED per-IP floor
+// kept as a backstop. (The previous per-IP-only bucket at 8/min could not be
+// kept unchanged: it would cap every NAT'd customer at 8 orders/min together,
+// which is the bug this fixes. The floor is 5× the identity limit.)
+// Phone normalisation matches the order lookup (last 10 digits, digits only);
+// email is trimmed and lower-cased to match how it is stored.
+const { ipKeyGenerator } = require('express-rate-limit');
+
+function normalizePhoneIdentity(value) {
+  return String(value == null ? '' : value).replace(/\D/g, '').slice(-10);
+}
+
+function normalizeEmailIdentity(value) {
+  return String(value == null ? '' : value).trim().toLowerCase();
+}
+
+function compositeIdentityKey(req) {
+  const body = req.body || {};
+  const query = req.query || {};
+  const ip = ipKeyGenerator((req.ip || '0.0.0.0').toString());
+  const phone = normalizePhoneIdentity(body.phone !== undefined ? body.phone : query.phone);
+  const email = normalizeEmailIdentity(body.email !== undefined ? body.email : query.email);
+  return `${ip}|${phone}|${email}`;
+}
+
+// Per-IP floor: 5× the identity limit. Buckets rotating-identity floods from
+// one address without throttling NAT'd neighbours.
+const ORDER_IP_FLOOR = config.RATE_LIMIT_ORDERS * 5;
+const TRACKING_IP_FLOOR = config.RATE_LIMIT_STRICT * 5;
+
+// Kept as the per-IP floor for order placement (bug fix requires relaxing it;
+// the identity limiter below is the operative per-customer control).
+const orderIpFloorLimiter = createLimiter({
   namespace: 'orders',
   windowMs: 60 * 1000,
-  limit: config.RATE_LIMIT_ORDERS,
+  limit: ORDER_IP_FLOOR,
   message: 'Too many order attempts. Please try again later.'
+});
+
+// The operative limit: 8 orders per minute per (IP, phone, email).
+const orderIdentityLimiter = createLimiter({
+  namespace: 'orders-id',
+  windowMs: 60 * 1000,
+  limit: config.RATE_LIMIT_ORDERS,
+  message: 'Too many order attempts. Please try again later.',
+  keyGenerator: compositeIdentityKey
+});
+
+// Back-compat alias: older call sites asked for "orderLimiter"; the floor is
+// what they get, with the identity limiter stacked on top at the route.
+const orderLimiter = orderIpFloorLimiter;
+
+// Tracking (POST /api/orders/track and the phone-verified GET): the operative
+// limit is per (IP, phone). The floor keeps a single address from rotating
+// phones forever.
+const trackingIpFloorLimiter = createLimiter({
+  namespace: 'tracking-ip',
+  windowMs: 60 * 1000,
+  limit: TRACKING_IP_FLOOR,
+  message: 'Too many attempts. Please try again later.'
+});
+
+const trackingIdentityLimiter = createLimiter({
+  namespace: 'tracking-id',
+  windowMs: 60 * 1000,
+  limit: config.RATE_LIMIT_STRICT,
+  message: 'Too many attempts. Please try again later.',
+  keyGenerator: compositeIdentityKey
 });
 
 const resetLimiter = createLimiter({
@@ -112,6 +182,10 @@ module.exports = {
   adminLoginLimiter,
   customerLoginLimiter,
   orderLimiter,
+  orderIpFloorLimiter,
+  orderIdentityLimiter,
+  trackingIpFloorLimiter,
+  trackingIdentityLimiter,
   resetLimiter,
   useDatabaseStore
 };

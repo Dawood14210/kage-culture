@@ -6,7 +6,7 @@ const crypto = require('crypto');
 const config = require('../config');
 const { requireCsrf } = require('../middleware/csrf');
 const { requireAuth, requireCustomerAuth, optionalCustomerId } = require('../middleware/auth');
-const { orderLimiter, strictLimiter } = require('../middleware/rateLimit');
+const { orderIpFloorLimiter, orderIdentityLimiter, trackingIpFloorLimiter, trackingIdentityLimiter } = require('../middleware/rateLimit');
 const { sendOrderConfirmation, sendStatusUpdate } = require('../utils/email');
 const sizeStock = require('../utils/sizes');
 const productShape = require('../utils/productShape');
@@ -69,7 +69,7 @@ module.exports = function createOrderRoutes(db) {
   }
 
   // POST place order (public)
-  router.post('/api/orders', orderLimiter, requireCsrf, async (req, res) => {
+  router.post('/api/orders', orderIpFloorLimiter, orderIdentityLimiter, requireCsrf, async (req, res) => {
     try {
       const { name, email, phone, address, city, notes, payment_method, payment_ref, items } = req.body;
       if (!name || !email || !phone || !address || !city) return res.status(400).json({ error: 'Name, email, phone, address and city are required.' });
@@ -198,7 +198,7 @@ module.exports = function createOrderRoutes(db) {
   // F16: POST + CSRF + strict rate limit. Order numbers and phone numbers
   // no longer travel in the URL (browser history, shared caches, CDN and
   // proxy logs), and a cross-site page cannot replay the lookup as a GET.
-  router.post('/api/orders/track', strictLimiter, requireCsrf, async (req, res) => {
+  router.post('/api/orders/track', trackingIpFloorLimiter, trackingIdentityLimiter, requireCsrf, async (req, res) => {
     try {
       const { number, phone } = req.body || {};
       if (!number || !phone) return res.status(400).json({ error: 'Order number and phone are required.' });
@@ -211,7 +211,7 @@ module.exports = function createOrderRoutes(db) {
   // GET single order (public) — requires the order number AND matching phone
   // (same verification as /track). Previously this returned name, address and
   // payment details to anyone who knew/guessed an order number.
-  router.get('/api/orders/:orderNumber', strictLimiter, async (req, res) => {
+  router.get('/api/orders/:orderNumber', trackingIpFloorLimiter, trackingIdentityLimiter, async (req, res) => {
     try {
       const { phone } = req.query;
       if (!phone) return res.status(401).json({ error: 'Phone verification required. Use POST /api/orders/track with { number, phone } instead.' });
