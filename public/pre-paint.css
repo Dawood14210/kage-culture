@@ -1,0 +1,32 @@
+/* ================================================================
+   Pre-CSS paint guard (FOUC)
+   ================================================================
+   Loaded BEFORE storefront.css and deliberately tiny (~0.5 KB), so even a
+   slow connection resolves it in one round trip. Its only job is to stop the
+   browser painting a raw, unstyled document while the 146 KB main bundle is
+   still in flight — or for good, if that bundle is ever unavailable.
+
+   Without this, the first paint shows the document in browser-default
+   styling: a blue "Skip to content" link at the top (storefront.css parks it
+   off-screen at top: -40px), a full-size wordmark, bulleted navigation and a
+   plain white body.
+
+   Every selector hidden here is re-declared by storefront.css, which sets the
+   real positioning/display values and therefore overrides this file. Nothing
+   is hidden that the main bundle does not unhide.
+   ================================================================ */
+
+html {
+  background: #D9D4C8; /* --bg-primary, so the flash is the brand canvas */
+}
+
+/* Positioned or animated by storefront.css — showing them raw is the bug. */
+.skip-link,
+.topbar,
+.hero-media,
+.site-header,
+.cart-drawer,
+.cart-overlay,
+.zoom-overlay {
+  visibility: hidden;
+}

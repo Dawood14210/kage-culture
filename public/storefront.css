@@ -11,6 +11,28 @@
     }
 
     /* ================================================================
+       PRE-PAINT GUARD RELEASE (see public/pre-paint.css)
+       ================================================================
+       pre-paint.css hides these selectors so the browser never paints a raw
+       unstyled document before this bundle applies. That guard is loaded
+       FIRST, so these later rules win and restore normal painting.
+
+       This block is required, not cosmetic: `visibility` inherits and none of
+       these selectors declare it below, so without an explicit release the
+       header, hero and drawers would stay invisible for the whole session.
+       Keep this list in sync with public/pre-paint.css.
+       ================================================================ */
+    .skip-link,
+    .topbar,
+    .hero-media,
+    .site-header,
+    .cart-drawer,
+    .cart-overlay,
+    .zoom-overlay {
+      visibility: visible;
+    }
+
+    /* ================================================================
        DESIGN SYSTEM — WARM EDITORIAL THEME
        Beige/taupe canvas, charcoal type, deep olive-brown accent.
        ================================================================ */

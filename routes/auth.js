@@ -12,6 +12,7 @@ const { hashToken, isValidEmail } = require('../utils/helpers');
 const { getSessionSecret } = require('../utils/secret');
 const { getConfiguredSiteUrl } = require('../utils/siteUrl');
 const { sendEmail, sendVerificationEmail, buildLink, escapeHtml } = require('../utils/email');
+const { describeMailConfig } = require('../utils/mailConfig');
 
 // SESSION_SECRET defaults through utils/secret.js so this route file can never
 // carry its own copy of the fallback.
@@ -239,10 +240,17 @@ module.exports = function createAuthRoutes(db, SESSION_SECRET = getSessionSecret
 
   // Issue a fresh single-use token and email the link. Any older unused token
   // for the account is burned first, so only the newest link works.
+  // Returns { rawToken, verifyUrl, sent }. `sent === false` means the SMTP
+  // provider refused the message (bad App Password, blocked port, wrong port):
+  // the account still exists, but the customer will never receive the link, so
+  // the API must say so instead of "Check your email".
   async function issueVerificationToken(customer) {
+    // Check the origin BEFORE minting a token: without SITE_URL the link
+    // cannot be built, and storing a token nobody can ever use would leave a
+    // dead row (and an unusable "resend" state) behind.
     if (!getConfiguredSiteUrl()) {
-      console.error('Verification email not sent: SITE_URL is not configured.');
-      return null;
+      console.error('Verification email not sent: SITE_URL is not configured. Set SITE_URL to your public HTTPS origin.');
+      return { rawToken: null, verifyUrl: null, sent: false, reason: 'site_url_missing' };
     }
     const rawToken = crypto.randomBytes(32).toString('hex');
     const tokenHash = hashToken(rawToken);
@@ -250,8 +258,15 @@ module.exports = function createAuthRoutes(db, SESSION_SECRET = getSessionSecret
     await db.prepare('UPDATE customer_verification_tokens SET used = 1 WHERE customer_id = ? AND used = 0').run(customer.id);
     await db.prepare('INSERT INTO customer_verification_tokens (customer_id, token_hash, expires_at) VALUES (?, ?, ?)').run(customer.id, tokenHash, expiresAt);
     const verifyUrl = buildLink('/verify-email', { token: rawToken });
-    try { await sendVerificationEmail(customer, verifyUrl); } catch (e) { console.error('verification email failed:', e.message); }
-    return { rawToken, verifyUrl };
+    let sent = false;
+    try { sent = (await sendVerificationEmail(customer, verifyUrl)) !== false; }
+    catch (e) { console.error('verification email failed:', e.message); sent = false; }
+    if (!sent) {
+      const status = describeMailConfig();
+      console.error(`Verification email was NOT delivered (transport: ${status.transport}). ` +
+        'Check SMTP_HOST / SMTP_PORT / SMTP_USER / SMTP_PASS. If the provider is Gmail, SMTP_PASS must be a 16-character App Password.');
+    }
+    return { rawToken, verifyUrl, sent: sent === true };
   }
 
   // Shared by the link handler and the API endpoint below.
@@ -293,9 +308,9 @@ module.exports = function createAuthRoutes(db, SESSION_SECRET = getSessionSecret
       req.session.customerId = customerId;
       const stored = { id: customerId, email: clean, name: customerName };
       const verification = await issueVerificationToken(stored);
-      const message = verification
+      const message = verification.sent
         ? 'Account created. Check your email to verify your address and see your order history.'
-        : 'Account created, but verification email is unavailable. Please contact support.';
+        : 'Account created, but we could not send the verification email. Please contact support so we can verify your address manually.';
       res.json({ success: true, customer: { ...stored, email_verified: false }, message });
     } catch (err) { console.error('customer/signup failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
   });
@@ -420,7 +435,9 @@ module.exports = function createAuthRoutes(db, SESSION_SECRET = getSessionSecret
       if (!customer) return res.status(404).json({ error: 'Account not found.' });
       if (Number(customer.email_verified) === 1) return res.json({ success: true, message: 'Your email is already verified.' });
       const verification = await issueVerificationToken(customer);
-      if (!verification) return res.status(503).json({ error: 'Verification email is unavailable. Please try again later.' });
+      if (!verification.sent) {
+        return res.status(503).json({ error: 'We could not send the verification email right now. Please try again later.' });
+      }
       res.json({ success: true, message: 'Verification email sent. Check your inbox.' });
     } catch (err) { console.error('resend-verification failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
   });

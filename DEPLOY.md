@@ -131,6 +131,16 @@ rather than sent with a guessed domain.
 2. In Vercel's **Settings → Environment Variables**, add `SMTP_HOST=smtp.gmail.com`, `SMTP_PORT=465`, `SMTP_USER` as the full Gmail address, and `SMTP_PASS` as the generated App Password (remove any display spaces). Do **not** use the account's regular password or commit the App Password to the repository.
 3. `EMAIL_FROM` is optional; if omitted, messages use `SMTP_USER` as the sender. Set `EMAIL_FROM` only to an address/name Gmail is authorized to send as. Port `465` uses implicit TLS (the default); set `SMTP_PORT=587` to use STARTTLS instead.
 4. Redeploy after saving the variables. When `SMTP_HOST` is set it takes precedence over `EMAIL_API_KEY`; remove `SMTP_HOST` to switch back to Resend. SMTP and Resend sends are bounded by an 8-second timeout, and a delivery failure is logged as a warning without rejecting an order.
+5. **Verify it actually works.** Every boot prints one line — `📧 Email: SMTP smtp.gmail.com:465 (implicit TLS) as shop@…, App-Password-shaped secret` — followed by a `✖` line for every problem it can see (a `# comment` glued to `SMTP_PORT`, a missing password, port 25). To test authentication without emailing a customer, sign in to `/admin` and call `POST /api/admin/email/diagnostics/verify`; `GET /api/admin/email/diagnostics` shows the parsed config (the password itself is never returned).
+
+### Why email silently fails (the four causes, in order of frequency)
+
+| Symptom | Cause | Fix |
+| --- | --- | --- |
+| Signup says "we could not send the verification email"; boot log shows `SMTP smtp.gmail.com:465 … secret` | The `# comment` from `.env.example` was pasted into `SMTP_PORT` or `SMTP_PASS` | Use the bare value. `npm run dev` now strips trailing comments, but a Vercel dashboard value does not |
+| Signup says "could not send"; log shows `Invalid login` or `535` | `SMTP_PASS` is the Google account password, not an App Password — or 2-Step Verification is off, so no App Password exists | Create one at [myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords) after enabling 2-Step Verification |
+| Verification and reset emails never arrive, but order confirmations do | `SITE_URL` is unset: link-based emails are suppressed on purpose so a guessed domain is never emailed | Set `SITE_URL` to the public HTTPS origin |
+| No mail locally at all | `npm start` does not read `.env` (only `npm run dev` does) | Run `npm run dev`. Fixed in this release: `npm run dev` previously loaded `.env` and then exited without listening |
 
 Vercel's Storage quickstart may show a store-prefixed variable such as `kage_READ_WRITE_TOKEN`; this app accepts that variable as well as `BLOB_READ_WRITE_TOKEN`.
 
@@ -188,8 +198,11 @@ npm run dev   # http://localhost:3000 — sets NODE_ENV=development, loads .env 
 ```
 
 `npm run dev` is the only entry point that sets `NODE_ENV=development` and reads
-`.env` (a ~10-line loader in `scripts/dev.js`; the project deliberately has no
-dotenv dependency). By default it uses the in-memory sql.js DB (resets on exit)
+`.env` (`loadEnvFile` in `scripts/dev.js`; the project deliberately has no
+dotenv dependency). Quoted values work, `export KEY=value` works, and a `#`
+after whitespace starts a comment — the last point matters: `.env.example`
+used to put a comment on every line, and the old loader kept it as part of the
+value, which is why a correct Gmail App Password could still fail to send. By default it uses the in-memory sql.js DB (resets on exit)
 + `./uploads`; set `KAGE_DB_FILE=./kage.db` to persist the local database to a
 file (that file is gitignored). Local rate limits stay in process memory unless
 `RATE_LIMIT_STORE=db` is set. With Turso, the DB store is automatic; with a

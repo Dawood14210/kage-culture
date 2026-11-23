@@ -184,6 +184,33 @@ async function run() {
     await unitA.resetKey('shared-client');
     console.log('✅ Shared DB store increments atomically and resets after expiry');
 
+    // FOUC regression: the global limiter used to run BEFORE express.static, so
+    // every stylesheet/image/font request consumed the 120/minute client budget
+    // (one page load is ~24 requests). When the *stylesheet* was the request that
+    // got a 429 the browser had no CSS at all and painted the raw document - the
+    // "Skip to content" link over unstyled text that users reported. Static
+    // assets must not be counted; API/document traffic still must be.
+    {
+      const css = await request(localPort, 'GET', '/storefront.css');
+      assert.equal(css.status, 200, 'the stylesheet is served');
+      assert.equal(css.headers['ratelimit-remaining'], undefined, 'static assets must not be counted by the global limiter');
+      const img = await request(localPort, 'GET', '/images/logo/kage-horizontal-light.svg');
+      assert.equal(img.status, 200, 'static images are served');
+      assert.equal(img.headers['ratelimit-remaining'], undefined, 'static images must not be counted by the global limiter');
+      const api = await request(localPort, 'GET', '/api/products');
+      assert.equal(api.status, 200, 'API reads keep working');
+      assert.notEqual(api.headers['ratelimit-remaining'], undefined, 'API traffic is still rate limited');
+
+      // Burn well past the whole per-minute budget with static requests only:
+      // the page must still be reachable and still styled afterwards.
+      for (let i = 0; i < 130; i++) await request(localPort, 'GET', '/storefront.css');
+      const afterFlood = await request(localPort, 'GET', '/storefront.css');
+      assert.equal(afterFlood.status, 200, 'a static-asset flood never locks the stylesheet out');
+      const doc = await request(localPort, 'GET', '/');
+      assert.equal(doc.status, 200, 'the storefront document is still served after a static flood');
+      console.log('✅ Static assets bypass the global rate limit (styles cannot be 429-ed into a FOUC)');
+    }
+
     // Express trusts one Vercel proxy hop. The active rate-limit keys below
     // prove req.ip follows X-Forwarded-For, and ipKeyGenerator normalizes IPv6
     // to the same /56 bucket used by express-rate-limit's default keyGenerator.
