@@ -2719,7 +2719,18 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
     // Deep-link restore runs after the catalog loads; only then is boot routing
     // done. Resolve AND reject paths flip the flag so a failed boot fetch can
     // never wedge later navigations out of focus management.
+    // F1: the server renders a plain #ssrContent block (product summary or
+    // collection list) into the shell for crawlers and pre-boot paint. Now
+    // that the SPA has routed, drop it — otherwise users would see two copies.
+    const removeSsrContent = () => {
+      const el = document.getElementById('ssrContent');
+      if (el && el.parentNode) el.parentNode.removeChild(el);
+    };
     const finishBootRouting = () => {
+      // Drop the SSR block BEFORE routing so the first post-hydration render
+      // measures the settled layout (e.g. first-image promotion needs the
+      // card in view).
+      removeSsrContent();
       if (location.pathname === initialPath && initialPath !== '/') restoreRouteFromLocation();
       bootNavComplete = true;
     };

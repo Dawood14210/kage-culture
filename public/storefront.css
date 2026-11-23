@@ -3751,3 +3751,69 @@
     :root[data-focus-modality="pointer"] :focus,
     :root[data-focus-modality="pointer"] :focus-within { outline: none !important; }
   
+/* F1: server-rendered summary/list shown before the SPA boots (and to
+   non-JS crawlers). The bundle removes #ssrContent right after hydration. */
+.ssr-content {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: calc(var(--spacing-md, 1rem) * 2) var(--spacing-md, 1rem);
+  color: var(--text-primary);
+  font-family: var(--font-body, inherit);
+}
+.ssr-content .ssr-eyebrow {
+  font-size: 0.72rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin: 0 0 0.35rem;
+}
+.ssr-content .ssr-title,
+.ssr-content .ssr-collection-title {
+  font-family: var(--font-display, inherit);
+  font-size: clamp(1.6rem, 4.5vw, 2.25rem);
+  line-height: 1.15;
+  margin: 0 0 0.6rem;
+  color: var(--text-primary);
+}
+.ssr-content .ssr-price {
+  font-size: 1.15rem;
+  font-weight: 700;
+  margin: 0 0 0.75rem;
+}
+.ssr-content .ssr-price s {
+  color: var(--text-muted);
+  font-weight: 400;
+  margin-left: 0.4rem;
+}
+.ssr-content .ssr-description {
+  color: var(--text-muted);
+  line-height: 1.6;
+  margin: 0 0 0.75rem;
+  white-space: pre-line;
+}
+.ssr-content .ssr-availability {
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin: 0 0 0.75rem;
+}
+.ssr-content .ssr-link {
+  color: var(--text-primary);
+  text-decoration: underline;
+}
+.ssr-content .ssr-product-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  columns: 1;
+}
+.ssr-content .ssr-product-list li {
+  border-bottom: 1px solid var(--border-color);
+  padding: 0.55rem 0;
+}
+.ssr-content .ssr-product-list a {
+  color: var(--text-primary);
+  text-decoration: underline;
+}
+@media (min-width: 720px) {
+  .ssr-content .ssr-product-list { columns: 2; column-gap: 2rem; }
+}

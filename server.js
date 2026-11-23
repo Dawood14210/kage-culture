@@ -448,6 +448,82 @@ function serializeJsonLd(data) {
     .split(String.fromCharCode(0x2029)).join(`${backslash}u2029`);
 }
 
+// ── F1: server-rendered content for SEO ────────────────────────────────
+// Crawlers that do not run JavaScript (and users on slow networks, before
+// boot) see the product name, price, description/availability — or a plain
+// link list for a collection — instead of an empty shell. The SPA removes
+// #ssrContent once it hydrates, so there is nothing to duplicate and no
+// flicker: the block IS the pre-hydration paint.
+function ssrPriceHtml(p) {
+  const effective = p.sale_price != null && Number(p.sale_price) > 0 && Number(p.sale_price) < Number(p.price) ? Number(p.sale_price) : Number(p.price);
+  const onSale = effective !== Number(p.price);
+  const fmtNum = n => Number(n).toLocaleString('en-IN');
+  if (onSale) return `Rs. ${fmtNum(effective)} <s>Rs. ${fmtNum(p.price)}</s>`;
+  return `Rs. ${fmtNum(effective)}`;
+}
+
+function buildProductSsr(product) {
+  const name = normalizeSeoName(product.name);
+  const description = String(product.description || '').trim();
+  const price = ssrPriceHtml(product);
+  const availability = product.in_stock ? 'In stock' : 'Sold out';
+  return [
+    '<section class="ssr-content" id="ssrContent" aria-label="Product summary">',
+    `  <p class="ssr-eyebrow">KAGE Culture</p>`,
+    `  <h1 class="ssr-title">${escapeHtml(name)}</h1>`,
+    `  <p class="ssr-price">${price}</p>`,
+    description ? `  <p class="ssr-description">${escapeHtml(description)}</p>` : '',
+    `  <p class="ssr-availability">${escapeHtml(availability)}</p>`,
+    '  <p><a class="ssr-link" href="/collection/all">Browse the full catalog</a></p>',
+    '</section>'
+  ].filter(Boolean).join('\n');
+}
+
+async function buildCollectionSsr(slug, siteUrl) {
+  const collection = COLLECTION_SEO[slug];
+  if (!collection) return '';
+  let rows = [];
+  try {
+    const columns = productShape.PUBLIC_PRODUCT_SELECT;
+    if (config.PRODUCT_CATEGORY_VALUES.has(slug)) {
+      rows = await db.prepare(`SELECT ${columns} FROM products WHERE category = ? ORDER BY created_at DESC, id DESC LIMIT 24`).all(slug);
+    } else if (slug === 'sale') {
+      rows = await db.prepare(`SELECT ${columns} FROM products WHERE sale_price > 0 AND sale_price < price ORDER BY created_at DESC, id DESC LIMIT 24`).all();
+      rows = (rows || []).filter(r => Number(r.sale_price) > 0 && Number(r.sale_price) < Number(r.price));
+    } else {
+      // all / new: the newest drops.
+      rows = await db.prepare(`SELECT ${columns} FROM products ORDER BY created_at DESC, id DESC LIMIT 24`).all();
+    }
+  } catch (_) {
+    rows = [];
+  }
+  const items = (rows || []).map(row => {
+    try {
+      const p = productShape.shapePublicProduct(row);
+      const name = normalizeSeoName(p.name);
+      return `  <li><a href="/product/${Number(p.id)}">${escapeHtml(name)}</a> — ${ssrPriceHtml(p)}</li>`;
+    } catch (_) { return null; }
+  }).filter(Boolean);
+  return [
+    '<section class="ssr-content" id="ssrContent" aria-label="Collection">',
+    `  <h1 class="ssr-collection-title">${escapeHtml(collection.name)}</h1>`,
+    `  <p class="ssr-description">${escapeHtml(collection.description)}</p>`,
+    '  <ul class="ssr-product-list">',
+    ...items,
+    '  </ul>',
+    '</section>'
+  ].join('\n');
+}
+
+const SSR_MAIN_OPEN = '<main id="mainContent" tabindex="-1" aria-label="Main content">';
+function injectSsrContent(html, ssr) {
+  if (!ssr) return html;
+  const marker = html.indexOf(SSR_MAIN_OPEN);
+  if (marker < 0) return html;
+  const insertAt = marker + SSR_MAIN_OPEN.length;
+  return `${html.slice(0, insertAt)}\n${ssr}\n${html.slice(insertAt)}`;
+}
+
 function appendJsonLd(html, schemas) {
   const newline = String.fromCharCode(10);
   const scripts = schemas.map(schema => `  <script type="application/ld+json" data-seo-generated="true">${serializeJsonLd(schema)}</script>`).join(newline);
@@ -580,6 +656,7 @@ async function resolveSeoPage(req, siteUrl) {
     const categoryUrl = new URL(`/collection/${categorySlug}`, `${siteUrl}/`).href;
     return {
       status: 200,
+      ssr: buildProductSsr(product),
       seo: {
         title: `${name} | KAGE CULTURE`,
         description,
@@ -606,6 +683,7 @@ async function resolveSeoPage(req, siteUrl) {
     const canonical = new URL(`/collection/${slug}`, `${siteUrl}/`).href;
     return {
       status: 200,
+      ssr: await buildCollectionSsr(slug, siteUrl),
       seo: {
         title: `${collection.name} | KAGE CULTURE`,
         description: trimSeoDescription(collection.description),
@@ -671,6 +749,7 @@ async function renderStorefrontHtml(req) {
     html = applySeoMetadata(html, resolved.seo);
     html = appendJsonLd(html, resolved.schemas || []);
   }
+  html = injectSsrContent(html, resolved.ssr);
   html = await injectCatalogSeed(html);
   return { html, status: resolved.status || 200 };
 }

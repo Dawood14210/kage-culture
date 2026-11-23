@@ -661,6 +661,44 @@ async function main() {
     assert.deepStrictEqual(seed.products.map(p => p.id), live.json.products.map(p => p.id), 'the seed carries the same first page as the live endpoint');
   });
 
+  console.log('Server-rendered content (F1):');
+  await check('/product/:id ships name, price and description in the raw HTML (no JS required)', async () => {
+    const api = await request(PORT, 'GET', '/api/products/1');
+    assert.strictEqual(api.status, 200);
+    const res = await request(PORT, 'GET', '/product/1');
+    assert.strictEqual(res.status, 200);
+    assert.ok(res.text.includes('id="ssrContent"'), 'the shell must carry the server-rendered summary');
+    const name = String(api.json.name);
+    assert.ok(res.text.includes(name), 'the raw HTML contains the product name');
+    assert.match(res.text, /ssr-price[^>]*>Rs\. [\d,]+/, 'the raw HTML contains the price');
+    const description = String(api.json.description || '').trim();
+    if (description && /^[\w .,!&()'-]+$/u.test(description)) {
+      assert.ok(res.text.includes(description), 'the raw HTML contains the description');
+    }
+    assert.ok(res.text.includes('In stock') || res.text.includes('Sold out'), 'the raw HTML states availability');
+  });
+
+  await check('/collection/:slug ships a plain product list in the raw HTML (no JS required)', async () => {
+    const res = await request(PORT, 'GET', '/collection/anime');
+    assert.strictEqual(res.status, 200);
+    assert.ok(res.text.includes('id="ssrContent"'), 'the collection shell must carry the server-rendered list');
+    assert.ok(res.text.includes('ssr-product-list'), 'the collection shell carries the product list');
+    assert.ok((res.text.match(/href="\/product\//g) || []).length >= 1, 'the list links to product pages');
+    assert.ok(res.text.includes('Anime Shirts'), 'the collection name is present');
+  });
+
+  await check('an unknown collection route stays a 404 shell without SSR content', async () => {
+    const res = await request(PORT, 'GET', '/collection/not-a-real-place');
+    assert.strictEqual(res.status, 404);
+    assert.ok(!res.text.includes('id="ssrContent"'), 'no SSR block is injected for an unknown collection');
+  });
+
+  await check('an unknown product route stays a 404 shell without SSR content', async () => {
+    const res = await request(PORT, 'GET', '/product/999999');
+    assert.strictEqual(res.status, 404);
+    assert.ok(!res.text.includes('id="ssrContent"'), 'no SSR block is injected for an unknown product');
+  });
+
   console.log('CSRF: fresh-browser checkout:');
   await check('a cookie-less client is refused until it fetches /api/csrf, then places an order', async () => {
     const catalog = (await request(PORT, 'GET', '/api/products')).json;
