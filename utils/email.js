@@ -141,9 +141,9 @@ async function sendOrderConfirmation(order) {
   const payLabel = order.payment_method === 'bank' ? 'Bank Transfer' : order.payment_method === 'jazzcash' ? 'JazzCash' : 'Cash on Delivery';
   const payRef = order.payment_ref ? `<p style="color:#504C47;font-size:14px;">Payment Reference: <strong>${escapeHtml(order.payment_ref)}</strong></p>` : '';
   // D1 (CONV-1): the published Rs. 250–500 band; the exact fee is confirmed by phone before dispatch.
-  const shippingLabel = order.shipping_pending ? DELIVERY_FEE_BAND : `Rs. ${escapeHtml(order.shipping)}`;
-  const totalLabel = order.shipping_pending ? 'Items subtotal (delivery charge pending)' : 'Total';
-  const deliveryContactNote = order.shipping_pending ? `<p style="font-size:13px;color:#504C47;margin-top:16px;">Delivery is ${DELIVERY_FEE_BAND} depending on your city. We will contact you to confirm the final amount before dispatch.</p>` : '';
+  const shippingLabel = order.shipping_pending ? `${DELIVERY_FEE_BAND} (confirmed by phone)` : `Rs. ${escapeHtml(order.shipping)}`;
+  const totalLabel = order.shipping_pending ? 'Total (before delivery)' : 'Total';
+  const deliveryContactNote = order.shipping_pending ? `<p style="font-size:13px;color:#504C47;margin-top:16px;">We'll call you to confirm your order and the exact delivery charge before dispatch. You pay the total plus delivery in cash when it arrives.</p>` : '';
   const html = `
   <div style="font-family:'Archivo',Arial,sans-serif;background:#D9D4C8;padding:32px;color:#1A1815;">
     <div style="max-width:560px;margin:0 auto;background:#FFF;border-radius:12px;padding:32px;border:1px solid #BDB6A6;">

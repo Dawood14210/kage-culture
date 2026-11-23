@@ -706,14 +706,14 @@ async function ready(win) {
 
     const shippingCopy = d.querySelector('#page-shipping .content-page-body').textContent;
     assert.match(shippingCopy, /Delivery Charges/);
-    assert.match(shippingCopy, /Delivery charges depend on your delivery location: Rs\. 250 – Rs\. 500 nationwide\. We confirm the exact fee by phone before dispatch\./);
+    assert.match(shippingCopy, /Delivery charges are Rs\. 250 – Rs\. 500 depending on your city and are confirmed by phone before dispatch\./);
     assert.doesNotMatch(shippingCopy, /Location-based rates|Rs\. 150/, 'shipping policy no longer promises an unconfigured fee');
     assert.doesNotMatch(shippingCopy, /Free-shipping threshold|\bTODO\b|\[/, 'unconfirmed free-shipping rules are omitted rather than published as placeholders');
-    assert.equal(d.getElementById('coShipping').textContent.trim(), 'Rs. 250 – Rs. 500', 'checkout shows the published band, not an unconfirmed charge');
-    assert.equal(d.querySelector('#page-checkout .co-grand span').textContent.trim(), 'Total before delivery');
-    assert.match(d.querySelector('#page-checkout .co-safe').textContent, /confirm the exact fee by phone before dispatch/);
-    assert.ok(d.getElementById('confShipping'), 'order confirmation has a pending delivery-charge field');
-    assert.match(d.querySelector('#page-confirmation .confirm-next').textContent, /Rs\. 250 – Rs\. 500/);
+    assert.equal(d.getElementById('coShipping').textContent.trim(), 'Rs. 250 – Rs. 500 (confirmed by phone)', 'checkout shows the published band with the phone-confirmation wording, not an unconfirmed charge');
+    assert.equal(d.querySelector('#page-checkout .co-grand span').textContent.trim(), 'Total (before delivery)');
+    assert.match(d.querySelector('#page-checkout .co-callnote').textContent, /We'll call you to confirm your order and the exact delivery charge before dispatch/);
+    assert.equal(d.getElementById('confShipping').textContent.trim(), 'Rs. 250 – Rs. 500 (confirmed by phone)', 'confirmation shows the published band with phone-confirmation wording');
+    assert.match(d.querySelector('#page-confirmation .confirm-next').textContent, /We'll call you to confirm your order and the exact delivery charge before dispatch\. You pay the total plus delivery in cash when it arrives\./, 'confirmation view carries the phone-confirmation wording');
     assert.doesNotMatch(storeHtml, /const shipping = 150/, 'checkout no longer hardcodes the old flat charge');
 
     const checkoutPaymentValues = [...d.querySelectorAll('#page-checkout input[name="payMethod"]')].map(input => input.value);
@@ -721,7 +721,8 @@ async function ready(win) {
     assert.match(storeHtml, /payment_method:\s*'cod'/, 'checkout submits Cash on Delivery only');
     assert.equal(d.getElementById('paymentRefGroup'), null, 'non-COD payment reference controls are removed');
     assert.equal(d.getElementById('coPaymentRef'), null, 'non-COD payment reference input is removed');
-    assert.equal(d.querySelector('#page-checkout .co-safe').textContent.trim(), 'Cash on Delivery accepted. Delivery is Rs. 250 – Rs. 500 depending on your city — we confirm the exact fee by phone before dispatch.');
+    assert.equal(d.querySelector('#page-checkout .co-callnote').textContent.trim(), "We'll call you to confirm your order and the exact delivery charge before dispatch. You pay the total plus delivery in cash when it arrives.");
+    assert.equal(d.getElementById('coPlaceBtn').getAttribute('aria-describedby'), 'coDeliveryNote', 'Place Order points at the note beside it');
     const checkoutTrust = d.querySelector('#page-checkout .co-trust-strip');
     assert.equal(checkoutTrust.getAttribute('aria-label'), 'Checkout reassurance');
     assert.deepEqual([...checkoutTrust.querySelectorAll('li')].map(item => item.textContent.trim()), [

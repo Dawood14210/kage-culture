@@ -2667,7 +2667,8 @@
       outline-offset: 2px;
       border-radius: 2px;
     }
-    .co-safe { font-size: 0.7rem; color: var(--text-gray); margin-top: 0.7rem; text-align: center; }
+    /* Task A: the required phone-confirmation note — visible, readable at 390px. */
+    .co-callnote { font-size: 0.8rem; color: var(--text-primary); margin: 0 0 0.6rem; line-height: 1.5; text-align: left; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 10px; padding: 0.55rem 0.75rem; }
     @media (max-width: 380px) {
       .co-trust-strip { grid-template-columns: 1fr; }
     }

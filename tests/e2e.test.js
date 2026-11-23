@@ -2458,6 +2458,9 @@ async function main() {
     assert.ok(!/<a\s/i.test(html), 'the confirmation template carries no links at all');
     assert.ok(html.includes(order.json.order_number), 'the real order number is still present');
     assert.ok(html.includes('Rs. 250 – Rs. 500'), 'the pending email shows the published delivery band (D1)');
+    assert.ok(html.includes('Rs. 250 – Rs. 500 (confirmed by phone)'), 'the email delivery line carries the phone-confirmation wording');
+    assert.ok(html.includes('Total (before delivery)'), 'the email totals label reads Total (before delivery)');
+    assert.ok(html.includes("We'll call you to confirm your order and the exact delivery charge before dispatch. You pay the total plus delivery in cash when it arrives."), 'the email carries the phone-confirmation note');
   });
 
   await check('the status update email escapes the stored customer name', async () => {
