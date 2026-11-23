@@ -872,6 +872,77 @@ async function main() {
     assert.deepStrictEqual(legacyCookie.json, { customer: null }, 'the removed kage.cust cookie must not authorize a customer');
   });
 
+  // PERF (2026-11-23): anonymous visitors must not pay for /api/customers/me.
+  // The session cookie is httpOnly, so a readable, identity-free hint cookie is
+  // what lets the storefront skip that probe and still recognise a real session.
+  await check('login sets the readable session hint cookie; logout clears it; nothing else does', async () => {
+    const csrf = await getCsrf();
+    const login = await request(PORT, 'POST', '/api/customers/login', { body: { email: 'cust@kage.test', password: 'custpass-e2e-1' }, headers: { 'X-CSRF-Token': csrf.token, Cookie: csrf.cookie } });
+    assert.strictEqual(login.status, 200);
+    const hint = (login.headers['set-cookie'] || []).find((c) => c.startsWith('kage.signed_in=')) || '';
+    assert.ok(hint, 'a customer login must set kage.signed_in');
+    assert.match(hint, /^kage\.signed_in=1;/, 'the hint carries no identity, just "1"');
+    assert.doesNotMatch(hint, /httponly/i, 'the hint must be readable by the storefront script');
+    assert.match(hint, /samesite=lax/i);
+    assert.match(hint, /path=\//i);
+
+    const loginCookies = cookieHeader(login);
+    const logout = await request(PORT, 'POST', '/api/customers/logout', { headers: { 'X-CSRF-Token': csrf.token, Cookie: `${loginCookies}; ${csrf.cookie}` } });
+    assert.strictEqual(logout.status, 200);
+    const cleared = (logout.headers['set-cookie'] || []).find((c) => c.startsWith('kage.signed_in=')) || '';
+    assert.ok(cleared, 'a customer logout must clear kage.signed_in');
+    assert.match(cleared, /Expires=Thu, 01 Jan 1970|Max-Age=0/i);
+
+    const anonMe = await request(PORT, 'GET', '/api/customers/me');
+    assert.ok(!(anonMe.headers['set-cookie'] || []).some((c) => c.startsWith('kage.signed_in=')), 'an anonymous probe must not set the hint');
+    assert.deepStrictEqual(anonMe.json, { customer: null });
+  });
+
+  await check('the shell preconnects to the blob store only when one is configured, and never leaks a token', async () => {
+    const before = { ...process.env };
+    try {
+      delete process.env.BLOB_PUBLIC_HOST;
+      delete process.env.BLOB_READ_WRITE_TOKEN;
+      delete process.env.kage_READ_WRITE_TOKEN;
+      const local = await request(PORT, 'GET', '/');
+      assert.ok(!local.text.includes('__BLOB_PRECONNECT__'), 'the template token is always substituted');
+      assert.ok(!local.text.includes('rel="preconnect"'), 'local uploads are same-origin: no hint');
+
+      process.env.BLOB_PUBLIC_HOST = 'store123.public.blob.vercel-storage.com';
+      const hosted = await request(PORT, 'GET', '/');
+      assert.ok(hosted.text.includes('<link rel="preconnect" href="https://store123.public.blob.vercel-storage.com" crossorigin />'),
+        'a configured blob host is preconnected to');
+      assert.ok(!hosted.text.includes('store123.public.blob.vercel-storage.com/'), 'only the origin is hinted, never a path');
+
+      delete process.env.BLOB_PUBLIC_HOST;
+      process.env.BLOB_READ_WRITE_TOKEN = 'vercel_blob_rw_abc123store_s3cret';
+      const derived = await request(PORT, 'GET', '/');
+      assert.ok(derived.text.includes('href="https://abc123store.public.blob.vercel-storage.com"'),
+        'the store id in the read-write token supplies the origin');
+      assert.ok(!derived.text.includes('s3cret'), 'the token itself never reaches the page');
+
+      process.env.BLOB_PUBLIC_HOST = 'not a url';
+      const broken = await request(PORT, 'GET', '/');
+      assert.ok(!broken.text.includes('rel="preconnect"'), 'an unusable host simply gets no hint');
+      // The hints must travel with every storefront page, not only the home page.
+      const product = await request(PORT, 'GET', '/product/1');
+      assert.ok(!product.text.includes('__BLOB_PRECONNECT__'), 'product pages substitute the token too');
+    } finally {
+      for (const key of ['BLOB_PUBLIC_HOST', 'BLOB_READ_WRITE_TOKEN', 'kage_READ_WRITE_TOKEN']) {
+        if (before[key] === undefined) delete process.env[key]; else process.env[key] = before[key];
+      }
+    }
+  });
+
+  await check('category cards cache for a minute at the edge and are still revalidated by browsers', async () => {
+    const cards = await request(PORT, 'GET', '/api/category-cards');
+    assert.strictEqual(cards.status, 200);
+    assert.strictEqual(cards.headers['cache-control'], 'public, max-age=0, s-maxage=60, stale-while-revalidate=300');
+    assert.ok(!(cards.headers['set-cookie'] || []).some((c) => c.startsWith('kage.signed_in=')), 'the hint is only ever set by a login');
+    assert.ok(Array.isArray(cards.json) && cards.json.length === 4, 'all four cards come back');
+    assert.ok(cards.json.every((card) => card.id && card.image && card.label));
+  });
+
   // ---------------------------------------------------------------
   // 2. Admin setup gating (C1)
   // ---------------------------------------------------------------

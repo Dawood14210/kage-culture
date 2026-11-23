@@ -62,6 +62,28 @@ function substituteAssetHashes(html) {
     .replaceAll('__ADMIN_CSS_HASH__', ASSET_HASH.ADMIN_CSS)
     .replaceAll('__ADMIN_JS_HASH__', ASSET_HASH.ADMIN_JS);
 }
+
+// PERF (2026-11-23): warm the TLS connection to the Vercel Blob store before
+// the first product photo is requested. The origin is not a build-time
+// constant — it belongs to the owner's store — so it comes from
+// BLOB_PUBLIC_HOST when set, or from the store id embedded in the read-write
+// token (`vercel_blob_rw_<storeId>_<secret>`). Local development serves
+// /uploads from this origin, so no hint is emitted there.
+function blobPreconnectTag() {
+  const explicit = String(process.env.BLOB_PUBLIC_HOST || '').trim();
+  if (explicit) {
+    // Owner-provided: any https origin is fine (a custom Blob domain is legal).
+    const withScheme = /^https?:\/\//i.test(explicit) ? explicit.replace(/^http:/i, 'https:') : `https://${explicit}`;
+    try {
+      const url = new URL(withScheme);
+      return url.protocol === 'https:' ? `<link rel="preconnect" href="${url.origin}" crossorigin />` : '';
+    } catch (_) { return ''; }
+  }
+  const token = String(process.env.BLOB_READ_WRITE_TOKEN || process.env.kage_READ_WRITE_TOKEN || '').trim();
+  const tokenStore = /^vercel_blob_rw_([A-Za-z0-9]+)_/.exec(token);
+  if (!tokenStore) return '';
+  return `<link rel="preconnect" href="https://${tokenStore[1].toLowerCase()}.public.blob.vercel-storage.com" crossorigin />`;
+}
 // D2 (ANALYTICS-1): Umami Cloud tracker tag. The website id comes from the
 // owner's Umami Cloud dashboard after adding the site; when unset (or not a
 // plausible id) no tag is rendered and no tracking happens. Read per request
@@ -769,6 +791,7 @@ async function renderStorefrontHtml(req) {
   let html = substituteAssetHashes(STOREFRONT_HTML_TEMPLATE)
     .replaceAll('__SITE_URL__', siteUrl)
     .replaceAll('__PAGE_URL__', pageUrl)
+    .replaceAll('<!--__BLOB_PRECONNECT__-->', blobPreconnectTag())
     .replaceAll('<!--__UMAMI_TAG__-->', umamiTag());
   const resolved = await resolveSeoPage(req, siteUrl);
   if (resolved.seo) {

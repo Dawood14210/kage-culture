@@ -88,8 +88,33 @@ function buildSrcset(imageUrl, meta) {
 // Reads every card's stored override and resolves it. Both the admin list and
 // the public endpoint go through this, so the two can never disagree about
 // what a card is showing.
+// One query for every `category_card.%` row instead of twelve sequential
+// getSetting() round trips (4 cards x image/alt/meta). On Turso each of those
+// was a network hop, which is part of why this endpoint was the slowest request
+// in the PageSpeed waterfall. Unexpected shapes and failures fall back to the
+// per-key reads, so behaviour is identical if the table or adapter misbehaves.
 async function loadCategoryCards(db) {
   const stored = {};
+  let rows = null;
+  try {
+    rows = await db.prepare('SELECT key, value FROM app_settings WHERE key LIKE ?').all('category_card.%');
+  } catch (err) {
+    rows = null;
+  }
+  if (Array.isArray(rows) && rows.length >= 0) {
+    const byKey = {};
+    for (const row of rows) {
+      if (row && typeof row.key === 'string') byKey[row.key] = row.value == null ? null : String(row.value);
+    }
+    for (const card of CATEGORY_CARDS) {
+      stored[card.id] = {
+        image: byKey[settingKeyFor(card.id)] || null,
+        alt: byKey[altKeyFor(card.id)] || null,
+        meta: parseCardMeta(byKey[metaKeyFor(card.id)])
+      };
+    }
+    return resolveCategoryCards(stored);
+  }
   for (const card of CATEGORY_CARDS) {
     stored[card.id] = {
       image: await db.getSetting(settingKeyFor(card.id)),

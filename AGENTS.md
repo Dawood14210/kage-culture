@@ -40,6 +40,21 @@
 
 ## Status snapshot (updated 2026-11-23)
 
+- ✅ *(2026-11-23, perf pass)* **Task 1 — category-card photos.** Uploads are
+  re-encoded through `utils/categoryCardImage.js` (WebP, longest edge 600 px,
+  quality ladder, 300 px variant, 100 KB/48 KB budgets) and published with
+  `srcset`/`width`/`height` + a circle-matched `sizes`; corrupt input falls back
+  to the old store path. `npm run convert-cards` backfills older photos.
+  4105 KB → 403 KB, one tile 3709 KB → 7.2 KB. **Task 2 — phones get the 700 px
+  hero** (`(max-width: 640px)` sources + `width`/`height` with `height: auto`):
+  96.2 KB → 37.3 KB, identical pixels. **Task 3 — data requests start early**:
+  the three boot GETs are issued by the first statements of `storefront.js`,
+  anonymous visitors skip `/api/customers/me` via the readable `kage.signed_in`
+  hint cookie, `/api/category-cards` uses one settings query and
+  `s-maxage=60, swr=300`, and the shell preconnects to the Blob origin. Mobile
+  API requests: five at 1589–1878 ms → three at ~1544 ms. Details in `AUDIT.md`
+  (2026-11-23 perf entry); `npm test` **169/169**, frontend **81/81**.
+
 - ✅ *(2026-11-23)* Skeleton loading screens + action spinners. Storefront:
   `.skel-card`/`.skel-line` placeholders for empty catalog grids (first load or
   retry only — the seed paint is never replaced), reviews, account order history

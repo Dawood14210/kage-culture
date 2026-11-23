@@ -3,6 +3,35 @@
 // It only measures the topbar above it, so running at bundle start
 // (end of body) keeps its seamless-loop guarantee.
 
+// PERF (2026-11-23): boot needs three public GETs (catalog, category cards,
+// featured reviews). They used to be issued from deep inside boot — hundreds
+// of milliseconds after this bundle started running, because each one waited
+// for the code path that consumes it — which is what put the catalog request
+// near the end of the waterfall. Starting them here, as the first statements
+// of the bundle, overlaps all three with the rest of boot; nothing awaits them
+// until it actually needs the data. Rate-limit and cache semantics are
+// unchanged: still one request each, still revalidated by Cache-Control/ETag.
+var EARLY_FETCHES = Object.create(null);
+function earlyFetch(url) {
+  if (EARLY_FETCHES[url]) return EARLY_FETCHES[url];
+  var pending = fetch(url);
+  EARLY_FETCHES[url] = pending;
+  // A consumer may never run (offline boot, seed-only paint). Attaching a
+  // handler to a separate branch keeps that from becoming an unhandled
+  // rejection while leaving the original promise intact for awaiters.
+  pending.catch(function () {});
+  return pending;
+}
+function consumeEarlyFetch(url) {
+  var pending = EARLY_FETCHES[url];
+  if (!pending) return null;
+  delete EARLY_FETCHES[url];
+  return pending;
+}
+earlyFetch('/api/products');
+earlyFetch('/api/category-cards');
+earlyFetch('/api/reviews/featured');
+
       // Marquee top-up: the loop is seamless only while one group is at least
       // as wide as the viewport (the track shows group N while group N+1 slides
       // in). On very wide screens, clone items into BOTH groups until that
@@ -439,14 +468,31 @@
     // Fired alongside each catalog refresh. Any failure leaves the bundled
     // photos already in the markup untouched — a missing photo is not an error
     // worth telling the shopper about.
+    // Boot calls this twice for the same page view (once when the inlined seed
+    // paints, once when the API catalog lands), so the two boot calls share one
+    // request. Once boot routing has settled, each later refresh asks again —
+    // an admin photo swap must not wait for a reload.
+    let bootSettled = false;
+    let bootCardsFetch = null;
+    function nextCardsFetch() {
+      return consumeEarlyFetch('/api/category-cards') || fetch('/api/category-cards');
+    }
     async function syncCategoryCardPhotos() {
       try {
-        const res = await fetch('/api/category-cards');
-        if (!res.ok) return;
+        let pending;
+        if (bootSettled) {
+          pending = nextCardsFetch();
+        } else {
+          if (!bootCardsFetch) bootCardsFetch = nextCardsFetch();
+          pending = bootCardsFetch;
+        }
+        const res = await pending;
+        if (!res.ok) { bootCardsFetch = null; return; }
         applyCategoryCardPhotos(await res.json());
-      } catch (e) { /* keep the bundled photos */ }
+      } catch (e) { bootCardsFetch = null; /* keep the bundled photos */ }
     }
     window.syncCategoryCardPhotos = syncCategoryCardPhotos;
+    window.settleBootCards = function () { bootSettled = true; bootCardsFetch = null; };
     document.querySelector('.skip-link').addEventListener('click', () => {
       document.getElementById('mainContent').focus({ preventScroll: true });
     });
@@ -1371,7 +1417,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       const grid = document.getElementById('homeReviewsGrid');
       if (!section || !grid) return;
       try {
-        const res = await fetch('/api/reviews/featured');
+        const res = await (consumeEarlyFetch('/api/reviews/featured') || fetch('/api/reviews/featured'));
         const rows = res.ok ? await res.json() : [];
         const items = Array.isArray(rows) ? rows.slice(0, 3) : [];
         if (!items.length) { section.classList.add('is-hidden'); grid.innerHTML = ''; return; }
@@ -2478,7 +2524,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       try {
         // Default HTTP cache mode: revalidate via Cache-Control/ETag, never
         // persist the catalog in localStorage/sessionStorage across visits.
-        const res = await fetch('/api/products');
+        const res = await (consumeEarlyFetch('/api/products') || fetch('/api/products'));
         if (!res.ok) throw new Error('Catalog request failed');
         const data = await res.json();
         if (!Array.isArray(data)) throw new Error('Invalid catalog');
@@ -2526,7 +2572,24 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
     // ================================================================
     let currentCustomer = null;
 
-    async function checkCustomerAuth() {
+    // PERF: the session cookie is httpOnly, so this readable companion cookie
+    // (set only when a customer session exists, cleared on logout) is the only
+    // signal the page can see. Without it we skip the /api/customers/me probe
+    // entirely — a first-time visitor should not pay for a round trip that can
+    // only answer "nobody". Unknown/blocked cookies fail open (probe as before).
+    function hasCustomerSessionHint() {
+      try {
+        const jar = String(document.cookie || '');
+        return /(?:^|;\s*)kage\.signed_in=1(?:;|$)/.test(jar);
+      } catch (e) { return true; }
+    }
+
+    async function checkCustomerAuth(force) {
+      if (!force && !hasCustomerSessionHint()) {
+        currentCustomer = null;
+        updateAccountUI();
+        return;
+      }
       try {
         const res = await fetch('/api/customers/me');
         if (res.ok) {
@@ -2560,7 +2623,12 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
               }
     }
 
-    function handleAccountClick() {
+    // If the hint cookie is missing but a session somehow exists (cleared
+    // cookie jar, an older tab), one forced probe before showing the sign-in
+    // form keeps a signed-in shopper signed in. Costs nothing for anonymous
+    // visitors until they click, and never runs on page load.
+    async function handleAccountClick() {
+      if (!currentCustomer && !hasCustomerSessionHint()) await checkCustomerAuth(true);
       if (currentCustomer) {
         navigateTo('account');
         loadAccountPage();
@@ -2939,6 +3007,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       if (el && el.parentNode) el.parentNode.removeChild(el);
     };
     const finishBootRouting = () => {
+      settleBootCards();
       // Drop the SSR block BEFORE routing so the first post-hydration render
       // measures the settled layout (e.g. first-image promotion needs the
       // card in view).

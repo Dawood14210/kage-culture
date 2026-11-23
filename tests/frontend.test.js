@@ -65,7 +65,7 @@ let origin;
 // own requests: cookies from the jsdom document are sent with each request and
 // Set-Cookie headers from the response are stored back into it. `requests`
 // records every URL the page asked for, in order.
-function page(html, path = '/', { storage = {}, offline = false, fetchImpl, browserCookies = false } = {}) {
+function page(html, path = '/', { storage = {}, offline = false, fetchImpl, browserCookies = false, cookies = [] } = {}) {
   const requests = [];
   const dom = new JSDOM(html, {
     url: origin + path, runScripts: 'dangerously', pretendToBeVisual: true, virtualConsole,
@@ -79,6 +79,9 @@ function page(html, path = '/', { storage = {}, offline = false, fetchImpl, brow
       w.URL.createObjectURL = () => 'blob:mock-object-url-' + (++objectUrlSeq);
       w.URL.revokeObjectURL = () => {};
       for (const [key, value] of Object.entries(storage)) w.localStorage.setItem(key, value);
+      // Cookies planted before any page script runs (jsdom's jar, so the
+      // browserCookies fetch shim forwards them like a real browser would).
+      for (const cookie of cookies) w.document.cookie = cookie + '; Path=/';
       w.fetch = (url, options) => {
         if (fetchImpl) return fetchImpl(url, options);
         if (offline && url === '/api/products') return Promise.reject(new Error('offline'));
@@ -2557,6 +2560,51 @@ async function ready(win) {
     assert.equal(nd.getElementById('vfyError').style.display, 'block', 'a token-less link shows an explanation');
     assert.match(nd.getElementById('vfyError').textContent, /missing its token/i);
     console.log('✅ Email verification: account banner, resend link, verify route and token handling');
+
+    // ---------------------------------------------------------------
+    // Scenario 19b: anonymous visits skip the session probe
+    // ---------------------------------------------------------------
+    // The session cookie is httpOnly; `kage.signed_in` (set by the server on
+    // login, cleared on logout, no identity inside) is the readable hint the
+    // storefront uses to decide whether /api/customers/me is worth a round trip.
+    const anonVisit = page(storeHtml, '/', { browserCookies: true });
+    windows.push(anonVisit);
+    await ready(anonVisit.window);
+    assert.equal(anonVisit.requests.some(r => r.url === '/api/customers/me'), false,
+      'a first-time visitor must not request /api/customers/me');
+    assert.equal(anonVisit.window.eval('currentCustomer'), null, 'and is treated as signed out');
+
+    // The three boot GETs are started by the first statements of the bundle and
+    // handed to the code that needs them — exactly once each, never duplicated
+    // and never re-fetched after the early promise is consumed.
+    for (const url of ['/api/products', '/api/category-cards', '/api/reviews/featured']) {
+      assert.equal(anonVisit.requests.filter(r => r.url === url).length, 1,
+        `${url} must be requested exactly once per visit`);
+    }
+    assert.equal(typeof anonVisit.window.earlyFetch, 'function', 'the early-fetch helper is part of the bundle');
+    assert.equal(anonVisit.window.eval("consumeEarlyFetch('/api/products')"), null,
+      'a consumed early request is never handed out twice');
+
+    const hintedVisit = page(storeHtml, '/', { browserCookies: true, cookies: ['kage.signed_in=1'] });
+    windows.push(hintedVisit);
+    await ready(hintedVisit.window);
+    assert.equal(hintedVisit.requests.filter(r => r.url === '/api/customers/me').length, 1,
+      'a browser carrying the hint still asks the server who it is');
+
+    // Hint lost but session alive: clicking the account icon probes once, so a
+    // signed-in shopper is never shown the sign-in form.
+    hintedVisit.window.document.cookie = 'kage.signed_in=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT';
+    assert.equal(hintedVisit.window.hasCustomerSessionHint(), false, 'the hint is gone');
+    hintedVisit.window.eval('currentCustomer = null');
+    let forcedProbe = 0;
+    hintedVisit.window.fetch = (url, options) => {
+      if (String(url) === '/api/customers/me') forcedProbe++;
+      return fetch(origin + url, options);
+    };
+    await hintedVisit.window.handleAccountClick();
+    assert.equal(forcedProbe, 1, 'opening the account view forces exactly one /api/customers/me probe');
+    console.log('✅ Session hint: anonymous visits skip /api/customers/me, hinted ones probe, account click self-heals');
+
 
     // ---------------------------------------------------------------
     // Scenario 20: a browser with no CSRF cookie completes a checkout

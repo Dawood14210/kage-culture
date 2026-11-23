@@ -26,6 +26,32 @@ function clearSessionIdentity(req, key) {
   if (identities.length === 0) req.session = null; // nothing left — drop the cookie
 }
 
+// PERF (2026-11-23): the storefront used to call GET /api/customers/me on
+// every page view, including first visits by anonymous shoppers, which put a
+// pointless round trip at the head of the request waterfall. The session
+// cookie is httpOnly (correctly — it must stay unreadable to scripts), so the
+// client cannot see it. This companion cookie is the signal it can see: it is
+// set only when a customer session is created, cleared when it ends, and holds
+// nothing but "1" — never an identity, id or token. The client skips the probe
+// only when this cookie is absent; if it is ever missing while a session does
+// exist, clicking the account icon forces a real /api/customers/me call, so a
+// desynced hint can never strand a signed-in shopper.
+const SESSION_HINT_COOKIE = 'kage.signed_in';
+function sessionHintCookieOptions() {
+  return {
+    httpOnly: false,
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production' || !!process.env.VERCEL,
+    maxAge: 24 * 60 * 60 * 1000
+  };
+}
+function markCustomerSession(res) {
+  res.cookie(SESSION_HINT_COOKIE, '1', sessionHintCookieOptions());
+}
+function clearCustomerSessionHint(res) {
+  res.clearCookie(SESSION_HINT_COOKIE, { httpOnly: false, sameSite: 'lax', secure: process.env.NODE_ENV === 'production' || !!process.env.VERCEL });
+}
+
 const LOGIN_LOCKOUT_WINDOW_MS = 15 * 60 * 1000;
 const ADMIN_LOGIN_FAILURES = 5;
 const CUSTOMER_LOGIN_FAILURES = 10;
@@ -306,6 +332,7 @@ module.exports = function createAuthRoutes(db, SESSION_SECRET = getSessionSecret
       const customerId = result.lastInsertRowid;
       // cookie-session middleware commits kage.session after this handler.
       req.session.customerId = customerId;
+      markCustomerSession(res);
       const stored = { id: customerId, email: clean, name: customerName };
       const verification = await issueVerificationToken(stored);
       const message = verification.sent
@@ -351,6 +378,7 @@ module.exports = function createAuthRoutes(db, SESSION_SECRET = getSessionSecret
       catch (storeError) { console.warn('⚠️  customer login lockout reset failed open:', storeError.message); }
       // cookie-session middleware commits kage.session after this handler.
       req.session.customerId = customer.id;
+      markCustomerSession(res);
       res.json({ success: true, customer: { id: customer.id, email: customer.email, name: customer.name, phone: customer.phone, address: customer.address, city: customer.city, email_verified: Number(customer.email_verified) === 1 } });
     } catch (err) { console.error('customer/login failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
   });
@@ -360,6 +388,7 @@ module.exports = function createAuthRoutes(db, SESSION_SECRET = getSessionSecret
     // NOTE: no kage.cust Set-Cookie here — nothing has set that cookie since the
     // session was consolidated into kage.session; the old line was dead code.
     clearSessionIdentity(req, 'customerId');
+    clearCustomerSessionHint(res);
     res.json({ success: true });
   });
 

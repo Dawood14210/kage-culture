@@ -1922,3 +1922,98 @@ hidden-home-reviews assertions. Two static guards were kept honest (the served
 grids, replaced by real cards with the attribute cleared on resolution, and a
 held tracking request confirmed the skeleton card plus a spinning
 `Tracking…` button.
+
+---
+
+## 2026-11-23 performance pass — Tasks 1–3 (photos, hero, data requests)
+
+Owner-supplied performance review, worked one task per commit. Baseline before
+this pass: home page **4105 KB** and **LCP 2038 ms** on a throttled 390x844 slow-4G
+profile; the PageSpeed report's headline complaints were a 3.6 MB homepage photo,
+a full-size desktop hero served to phones, and a 3.9 s data-request dependency
+chain.
+
+### ✅ Task 1 — Category-card photos are optimised on upload (`utils/categoryCardImage.js`)
+**Was.** The admin homepage-card uploader stored whatever the owner selected, and
+the homepage rendered it at 95–150 px. A 1122x1126 PNG (3.6 MB) was being served
+into a 95 px circle: `#sectionCategories` alone was 3.7 MB of the 4.0 MB page.
+
+**Fix.** A new `utils/categoryCardImage.js` shrinks the file at upload time —
+`sharp` re-encodes to WebP, longest edge ≤ 600 px, quality ladder 78 → 72 → 66 → 60
+until the main image is under 100 KB, plus a 300 px variant under 48 KB, both
+stored through `storeProcessedImage`. `routes/admin.js` uses it and records the
+real dimensions + variants in `app_settings` (`category_card.<id>.meta` =
+`{v, width, height, variants}`); `utils/categoryCards.js` turns that into
+`srcset`/`width`/`height` on the public card payload, and `public/storefront.js`
+renders them with `sizes="(min-width: 1024px) 150px, 104px"` (the CSS circle
+width). Unsupported/corrupt buffers fall back to the old `persistImage` path
+(upload still succeeds), and `scripts/convert-category-cards.js`
+(`npm run convert-cards`, `--dry-run` supported) backfills photos already stored
+the old way — idempotent, it skips cards that already have a `meta` row.
+
+**Verified.** Convert script: `3.62 MB → 21.3 KB (598x600, 99.4% saved)`, no-op on
+re-run. Live upload through the admin route: 3000x3000 input stored as a 300 px
+variant + ≤600 px main, both WebP. Phone profile: page **4105 KB → 403 KB**, the
+Pants tile **3709 KB → 7.2 KB** (`-300.webp`, 1122x1126 PNG into a 95 px box).
+Desktop pixel diff of the category band: identical.
+
+### ✅ Task 2 — Phones get the 700 px hero (`public/index.html`, `public/storefront.css`)
+**Was.** The hero shipped 700w/1376w candidates but no `(max-width: 640px)` source
+at all, so a 390 px phone downloaded the 1363 px `hero.webp` (96 KB) — and the
+`<img>` had no `width`/`height`, so the box was reserved by `aspect-ratio` alone.
+
+**Fix.** Two `(max-width: 640px)` `<source>`s (WebP + JPEG) for `hero-700.*`, and
+`width="1363" height="768"` on the `<img>` paired with `height: auto` in
+`.hero-media img` (a presentation height attribute otherwise beats
+`aspect-ratio` and stretches the picture to `56vh` — this was caught in review).
+
+**Verified (headless Chromium).** 390x844 and 360x800@3x now fetch
+`hero-700.webp` — natural 700x391, same rendered box (390x219 / 360x203),
+**96.2 KB → 37.3 KB**. 1440x900 still gets `hero.webp` and renders identically.
+Screenshots before/after are byte-for-byte the same look.
+
+### ✅ Task 3 — Data requests start with the bundle, anonymous visits skip the session probe
+**Was.** `Promise.all([loadProductsFromAPI(), checkCustomerAuth()])` ran at the
+*end* of a 45 KB bundle, and the category-card and featured-review fetches only
+started from the code paths that consumed them. On slow 4G the four API requests
+therefore began at 1589/1590/1877/1878 ms — effectively a chain — for a page whose
+catalog was already painted from the inlined seed.
+
+**Fix (four parts).**
+1. `public/storefront.js` now issues the three public GETs in its **first
+   statements** (`earlyFetch()` + `consumeEarlyFetch()`), and every consumer awaits
+   the existing promise instead of issuing its own; nothing is fetched twice and a
+   consumer that never runs cannot leave an unhandled rejection. Boot's two
+   category-card calls share one request until boot routing settles
+   (`settleBootCards()`), after which each refresh asks again so an admin photo
+   swap still appears without a reload.
+2. `GET /api/customers/me` is no longer called for anonymous visitors. The session
+   cookie is (correctly) httpOnly, so `routes/auth.js` now also sets a readable
+   companion cookie `kage.signed_in=1` on customer login/signup and clears it on
+   logout — it carries no identity, id or token. `checkCustomerAuth()` skips the
+   probe when the hint is absent, and `handleAccountClick()` forces one probe
+   before showing the sign-in form, so a lost hint can never strand a signed-in
+   shopper. Blocked/unknown cookies fail open (probe as before).
+3. `GET /api/category-cards` reads all twelve `category_card.*` settings in **one**
+   query instead of twelve sequential `getSetting()` round trips (twelve network
+   hops per page view on Turso), and its cache header moved from
+   `s-maxage=10, swr=30, must-revalidate` to `s-maxage=60, stale-while-revalidate=300`
+   — four rarely changed pictures, so a photo swap may take up to a minute.
+4. The shell preconnects to the Blob photo origin (`BLOB_PUBLIC_HOST`, else the
+   store id inside `BLOB_READ_WRITE_TOKEN`) — server-injected, absent locally
+   where uploads are same-origin, and the token itself never reaches the page.
+   `<link rel="preload" as="fetch">` was tried first and **dropped**: the three
+   endpoints are `must-revalidate`, so Chrome could not reuse the preload and the
+   later fetch revalidated anyway — the hints only competed with the CSS/JS for
+   bandwidth.
+
+**Verified.** Throttled 390x844 slow-4G: API requests go from five (1589, 1590,
+1877, 1878) to **three, all starting at ~1544 ms**, and the page is 344.6 KB;
+desktop 1440: 133.1 → 130.5 KB, three requests at ~38 ms. LCP is unchanged
+(2038 → ~2034 ms) because the LCP element is the hero image, gated by the 77 KB of
+CSS+JS — that is the next task. CLS stays 0.0040. `npm test` **169/169** and the
+frontend suite **81/81** (new checks: the hint cookie is set by login, cleared by
+logout, never by an anonymous probe; the shell substitutes its preconnect token in
+every branch and never leaks the token; category cards keep their new header; a
+first-time visitor makes no `/api/customers/me` request while a hinted browser
+does, and each boot GET is requested exactly once).
