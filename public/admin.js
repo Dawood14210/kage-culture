@@ -146,7 +146,7 @@
               const date = (o.created_at || '').replace('T', ' ').slice(0, 16);
               // data-label feeds the phone layout: the column legend is hidden
               // once rows wrap into cards, so each cell names itself.
-              rhtml += '<div class="product-row recent-order-row" style="cursor:pointer;">'
+              rhtml += '<div class="product-row recent-order-row clickable-row">'
                 + '<div data-label="Order"><div class="p-name">' + esc(o.order_number) + '</div></div>'
                 + '<div class="p-category" data-label="Customer">' + esc(o.customer_name) + '</div>'
                 + '<div class="p-price" data-label="Total">' + fmtRs(o.total) + '</div>'
@@ -664,7 +664,7 @@
       document.getElementById('prodCategory').value = '';
       document.getElementById('prodFit').value = 'Regular';
       document.getElementById('prodUnitCost').value = '';
-      document.getElementById('backPreview').innerHTML = '          <span class="hint" style="color:var(--text-muted)">Tap to upload back view</span>';
+      document.getElementById('backPreview').innerHTML = '          <span class="hint hint-muted">Tap to upload back view</span>';
       document.getElementById('backUploadArea').classList.remove('has-image');
       const backErr = document.getElementById('backImgError');
       if (backErr) backErr.style.display = 'none';
@@ -715,7 +715,7 @@
       } catch (err) {
         currentImageFiles.back = null;
         URL.revokeObjectURL(rawUrl);
-        preview.innerHTML = '<span class="hint" style="color:var(--text-muted);">Tap to upload back view</span>';
+        preview.innerHTML = '<span class="hint hint-muted">Tap to upload back view</span>';
         area.classList.remove('has-image');
         errEl.textContent = 'Could not process that image. Please try a different photo.';
         errEl.style.display = 'block';
@@ -1354,13 +1354,13 @@
         const pay = o.payment_method === 'bank' ? 'Bank Transfer' : o.payment_method === 'jazzcash' ? 'JazzCash' : 'COD';
         const st = (o.status || 'pending').toLowerCase();
         const statusLabel = { pending:'Pending', awaiting_verification:'Awaiting Payment', confirmed:'Confirmed', shipped:'Shipped', delivered:'Delivered', cancelled:'Cancelled' }[st] || st;
-        const payRef = o.payment_ref ? `<div class="p-category" style="font-size:0.65rem;color:var(--text-accent);">Ref: ${esc(o.payment_ref)}</div>` : '';
-        const codBadge = o.payment_method === 'cod' && o.cod_confirmed ? `<div class="p-category" style="font-size:0.62rem;color:var(--text-success);">${icon('check')} COD Confirmed</div>` : '';
+        const payRef = o.payment_ref ? `<div class="p-category pay-ref">Ref: ${esc(o.payment_ref)}</div>` : '';
+        const codBadge = o.payment_method === 'cod' && o.cod_confirmed ? `<div class="p-category pay-badge pay-badge-success">${icon('check')} COD Confirmed</div>` : '';
         const expectedFee = Number(o.delivery_fee_expected);
         const shippingPendingBadge = o.shipping_pending && o.status !== 'cancelled'
-          ? `<div class="p-category" style="font-size:0.62rem;color:var(--text-accent);">Delivery pending${Number.isFinite(expectedFee) && expectedFee > 0 ? ` · expected Rs. ${expectedFee}` : ''}</div>`
+          ? `<div class="p-category pay-badge pay-badge-accent">Delivery pending${Number.isFinite(expectedFee) && expectedFee > 0 ? ` · expected Rs. ${expectedFee}` : ''}</div>`
           : '';
-        const verifiedBadge = o.payment_method !== 'cod' && o.payment_verified ? `<div class="p-category" style="font-size:0.62rem;color:var(--text-success);">${icon('check')} Payment Verified</div>` : '';
+        const verifiedBadge = o.payment_method !== 'cod' && o.payment_verified ? `<div class="p-category pay-badge pay-badge-success">${icon('check')} Payment Verified</div>` : '';
         const payOpts = o.payment_method !== 'cod'
           ? `<button data-action="verify-payment" data-id="${o.id}" data-value="${o.payment_verified ? 'false' : 'true'}" class="status-opt status-opt-confirmed">${icon('credit-card')} ${o.payment_verified ? 'Remove Verification' : 'Verify Payment'}</button>`
           : `<button data-action="cod-confirm" data-id="${o.id}" data-value="${o.cod_confirmed ? 'false' : 'true'}" class="status-opt status-opt-delivered">${icon('dollar')} ${o.cod_confirmed ? 'Undo COD Confirmation' : 'Mark COD Confirmed'}</button>`;

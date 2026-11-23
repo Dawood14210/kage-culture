@@ -2111,6 +2111,27 @@
       white-space: nowrap;
       color: var(--accent);
     }
+    .star-rating .stars-fg.w-0 { width: 0%; }
+    .star-rating .stars-fg.w-5 { width: 5%; }
+    .star-rating .stars-fg.w-10 { width: 10%; }
+    .star-rating .stars-fg.w-15 { width: 15%; }
+    .star-rating .stars-fg.w-20 { width: 20%; }
+    .star-rating .stars-fg.w-25 { width: 25%; }
+    .star-rating .stars-fg.w-30 { width: 30%; }
+    .star-rating .stars-fg.w-35 { width: 35%; }
+    .star-rating .stars-fg.w-40 { width: 40%; }
+    .star-rating .stars-fg.w-45 { width: 45%; }
+    .star-rating .stars-fg.w-50 { width: 50%; }
+    .star-rating .stars-fg.w-55 { width: 55%; }
+    .star-rating .stars-fg.w-60 { width: 60%; }
+    .star-rating .stars-fg.w-65 { width: 65%; }
+    .star-rating .stars-fg.w-70 { width: 70%; }
+    .star-rating .stars-fg.w-75 { width: 75%; }
+    .star-rating .stars-fg.w-80 { width: 80%; }
+    .star-rating .stars-fg.w-85 { width: 85%; }
+    .star-rating .stars-fg.w-90 { width: 90%; }
+    .star-rating .stars-fg.w-95 { width: 95%; }
+    .star-rating .stars-fg.w-100 { width: 100%; }
     /* Rating row on product cards: keeps its line even when a product has no
        reviews yet, so titles, prices and buttons stay on one baseline across
        every card in a row. */
@@ -3817,3 +3838,45 @@
 @media (min-width: 720px) {
   .ssr-content .ssr-product-list { columns: 2; column-gap: 2rem; }
 }
+
+/* F31: classes that replaced inline style attributes (CSP style-src 'self') */
+.is-hidden { display: none; } /* JS toggles el.style.display, which outranks this class */
+.catalog-error { padding: 1rem 2rem; background: #FFF1EE; color: #75251C; text-align: center; }
+.form-note-accent { display: none; margin-top: 0.8rem; font-size: 0.85rem; color: var(--accent); }
+.mt-16 { margin-top: 1rem; }
+.mt-10 { margin-top: 0.6rem; }
+.mt-sm2 { margin-top: var(--spacing-sm); }
+.mb-md { margin-bottom: var(--spacing-md); }
+.link-accent { color: var(--accent); }
+.link-accent-pointer { color: var(--accent); cursor: pointer; }
+.link-accent-sm { color: var(--accent); cursor: pointer; font-size: 0.85rem; }
+.text-strong { color: var(--text-primary); }
+.list-plain { list-style: none; padding: 0; }
+.list-plain-2col { list-style: none; padding: 0; columns: 2; }
+.list-indent { padding-left: 1.2rem; }
+.policy-item { padding: 0.3rem 0; }
+.field-label-caps { font-size: 0.7rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; display: block; margin-bottom: 0.4rem; }
+.field-hint { font-size: 0.7rem; color: var(--text-gray); margin-top: 0.3rem; }
+.hint-block-sm { font-size: 0.75rem; margin-top: 0.3rem; display: block; }
+.flex-row-gap-sm { display: flex; align-items: center; gap: 0.6rem; }
+.qty-value { font-weight: 600; font-size: 1rem; min-width: 24px; text-align: center; }
+.text-muted-block { text-align: center; padding: 1rem; color: var(--text-muted); font-size: 0.82rem; }
+.text-center-fineprint { text-align: center; margin-top: 0.5rem; font-size: 0.72rem; }
+.text-center-mb-xs { text-align: center; margin-bottom: 0.3rem; }
+.text-center-mb-sm { text-align: center; margin-bottom: 0.6rem; }
+.footer-clip { position: relative; overflow: hidden; }
+.footer-wordmark { font-family: Georgia, 'Times New Roman', serif; font-size: 1.8rem; font-weight: 900; color: var(--accent); }
+/* F31: classes for markup storefront.js builds (style-src 'self') */
+.no-results-note { font-size: 0.8rem; margin-top: 0.5rem; color: var(--text-gray); }
+.no-results-action { margin-top: 1rem; }
+.no-image-cell { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; color: var(--text-dim); font-size: 0.8rem; }
+.reset-filters-btn { width: 100%; margin-top: 0.25rem; }
+.text-gray-sm { font-size: 0.85rem; color: var(--text-gray); }
+.mt-4px { margin-top: 0.4rem; }
+.wishlist-item-actions { display: flex; flex-direction: column; gap: 0.3rem; }
+.wishlist-item-actions-end { display: flex; flex-direction: column; align-items: flex-end; gap: 0.3rem; }
+.btn-xxs { font-size: 0.7rem; }
+.wishlist-remove-btn { background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 0.7rem; min-height: 36px; }
+.link-accent-underline { color: var(--accent); font-weight: 700; text-decoration: underline; }
+/* Newsletter unsubscribe link — matches the surrounding msg text style */
+.auth-link-muted { display: block; margin-top: 0.4rem; font-size: 0.7rem; color: var(--text-muted); }

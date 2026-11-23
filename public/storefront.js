@@ -186,7 +186,8 @@
 
     function starsOnlyHtml(r) {
       const pct = Math.max(0, Math.min(5, r || 0)) / 5 * 100;
-      return `<span class="star-rating" title="${(r || 0).toFixed(1)} / 5"><span class="stars-bg">★★★★★</span><span class="stars-fg" style="width:${pct}%">★★★★★</span></span>`;
+      const bucket = Math.round(pct / 5) * 5;
+      return `<span class="star-rating" title="${(r || 0).toFixed(1)} / 5"><span class="stars-bg">★★★★★</span><span class="stars-fg w-${bucket}">★★★★★</span></span>`;
     }
 
     function starsHtml(r, count) {
@@ -904,14 +905,14 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       const isBrowsingCategory = currentCollectionFilter && ['anime','graphic-tees','pants','sale'].includes(currentCollectionFilter) && !searchQuery.trim() && !wishlistOnly && filterState.cats.size === 3 && filterState.priceMin === 0 && filterState.priceMax === 10000 && !filterState.size;
       if (isBrowsingCategory && filtered.length === 0) {
         const name = CATEGORY_NAMES[currentCollectionFilter] || currentCollectionFilter;
-        grid.innerHTML = '<div class="no-results"><p>No ' + esc(name.toLowerCase()) + ' available right now.</p><p style="font-size:0.8rem;margin-top:0.5rem;color:var(--text-gray);">Check back soon for new drops.</p><p style="margin-top:1rem;"><button class="btn btn-primary btn-sm" data-route="collection" data-filter="all">Browse all shirts</button></p></div>';
+        grid.innerHTML = '<div class="no-results"><p>No ' + esc(name.toLowerCase()) + ' available right now.</p><p class="no-results-note">Check back soon for new drops.</p><p class="no-results-action"><button class="btn btn-primary btn-sm" data-route="collection" data-filter="all">Browse all shirts</button></p></div>';
         document.getElementById('resultCount').textContent = '0 results';
         document.getElementById('catalogShowing').textContent = 'Showing 0 of 0';
         document.getElementById('loadMoreBtn').style.display = 'none';
         return;
       }
       if (pageItems.length === 0) {
-        grid.innerHTML = '<div class="no-results"><p>No products match your filters.</p><p style="font-size:0.8rem;margin-top:0.5rem;color:var(--text-gray);">Try adjusting your selections.</p></div>';
+        grid.innerHTML = '<div class="no-results"><p>No products match your filters.</p><p class="no-results-note">Try adjusting your selections.</p></div>';
         document.getElementById('catalogShowing').textContent = 'Showing 0 of 0';
         document.getElementById('loadMoreBtn').style.display = 'none';
         return;
@@ -1064,7 +1065,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
     function renderWishlistDrawer() {
       var container = document.getElementById('wishlistItems');
       if (wishlist.size === 0) {
-        container.innerHTML = '<div class="cart-empty"><span class="cart-empty-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg></span>No favourite picks yet.<br><span style="font-size:0.75rem;margin-top:0.3rem;display:block;">Tap the heart icon on any product to save it here.</span></div>';
+        container.innerHTML = '<div class="cart-empty"><span class="cart-empty-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg></span>No favourite picks yet.<br><span class="hint-block-sm">Tap the heart icon on any product to save it here.</span></div>';
         return;
       }
       var html = '';
@@ -1073,7 +1074,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
         if (!p) return;
         var img = (p.images && p.images[0]) || p.image || '';
         var available = anySizeAvailable(p);
-        html += '<div class="cart-item"><div class="cart-item-image">' + (img ? '<img src="' + esc(img) + '" alt="' + esc(p.name) + '" width="55" height="55"' + srcsetAttr(img) + ' sizes="55px" loading="lazy" decoding="async" />' : '') + '</div><div class="cart-item-info"><h4>' + esc(p.name) + '</h4><div class="cart-item-meta">' + esc(p.fit || '') + (available ? '' : ' · Sold Out — unavailable') + '</div><div class="cart-item-price">Rs. ' + (p.sale_price || p.price) + '</div></div><div style="display:flex;flex-direction:column;gap:0.3rem;"><button class="btn btn-sm btn-outline"' + (available ? '' : ' disabled') + ' data-action="quick-add" data-pid="' + p.id + '" style="font-size:0.7rem;">' + (available ? 'Add to Cart' : 'Sold Out') + '</button><button style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:0.7rem;min-height:36px;" data-action="wishlist-remove" data-pid="' + p.id + '">Remove</button></div></div>';
+        html += '<div class="cart-item"><div class="cart-item-image">' + (img ? '<img src="' + esc(img) + '" alt="' + esc(p.name) + '" width="55" height="55"' + srcsetAttr(img) + ' sizes="55px" loading="lazy" decoding="async" />' : '') + '</div><div class="cart-item-info"><h4>' + esc(p.name) + '</h4><div class="cart-item-meta">' + esc(p.fit || '') + (available ? '' : ' · Sold Out — unavailable') + '</div><div class="cart-item-price">Rs. ' + (p.sale_price || p.price) + '</div></div><div class="wishlist-item-actions"><button class="btn btn-sm btn-outline btn-xxs"' + (available ? '' : ' disabled') + ' data-action="quick-add" data-pid="' + p.id + '">' + (available ? 'Add to Cart' : 'Sold Out') + '</button><button class="wishlist-remove-btn" data-action="wishlist-remove" data-pid="' + p.id + '">Remove</button></div></div>';
       });
       container.innerHTML = html;
     }
@@ -1134,7 +1135,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
               const link = document.createElement('a');
               link.href = data.unsubscribe_url;
               link.textContent = 'Private unsubscribe link (bookmark this page to leave anytime)';
-              link.style.cssText = 'display:block;margin-top:0.4rem;font-size:0.7rem;color:var(--text-muted);';
+              link.classList.add('auth-link-muted');
               msg.appendChild(link);
             }
           }
@@ -1198,7 +1199,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       return `
         <div class="product-card" data-pid="${p.id}" role="link" tabindex="0" aria-label="View ${esc(p.name)}" data-action="open-product" data-pid="${p.id}" data-key="enter">
           <div class="product-card-image${anySizeAvailable(p) ? '' : ' sold-out'}">
-            ${img ? `<img src="${esc(img)}" alt="${esc(p.name)}" width="600" height="800"${srcsetAttr(img)} sizes="(max-width: 768px) calc((100vw - 40px) / 2), (max-width: 1024px) calc((100vw - 80px) / 3), (max-width: 1279px) calc((100vw - 112px) / 4), 296px" loading="lazy" decoding="async" />` : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:var(--text-dim);font-size:0.8rem;">No Image</div>`}
+            ${img ? `<img src="${esc(img)}" alt="${esc(p.name)}" width="600" height="800"${srcsetAttr(img)} sizes="(max-width: 768px) calc((100vw - 40px) / 2), (max-width: 1024px) calc((100vw - 80px) / 3), (max-width: 1279px) calc((100vw - 112px) / 4), 296px" loading="lazy" decoding="async" />` : `<div class="no-image-cell">No Image</div>`}
             <button class="product-wishlist ${isWishlisted ? 'active' : ''}" data-action="toggle-wish" data-pid="${p.id}" aria-label="Wishlist">
               ${HEART_SVG}
             </button>
@@ -1287,7 +1288,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
             <option value="XXL">XXL</option>
           </select>
         </div>
-        <button class="btn btn-outline btn-sm" data-action="reset-filters" style="width:100%;margin-top:0.25rem;">Reset Filters</button>`;
+        <button class="btn btn-outline btn-sm reset-filters-btn" data-action="reset-filters">Reset Filters</button>`;
     }
 
     function readFiltersFromPanel(panel) {
@@ -1655,10 +1656,10 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       const list = document.getElementById('reviewsList');
       const summary = document.getElementById('reviewSummary');
       if (!section || !list || !summary) return;
-      section.style.display = '';
+      section.classList.remove('is-hidden');
       if (!reviews.length) {
         summary.innerHTML = '<span class="review-no">No reviews yet.</span>';
-        list.innerHTML = '<p style="font-size:0.85rem;color:var(--text-gray);">Be the first to share your experience.</p>';
+        list.innerHTML = '<p class="text-gray-sm">Be the first to share your experience.</p>';
         return;
       }
       const sorted = [...reviews].sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
@@ -1885,11 +1886,11 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
         }
         const fresh = items.filter(p => !bsIds.has(String(p.id)));
         if (!fresh.length) { section.style.display = 'none'; return; }
-        section.style.display = '';
+        section.classList.remove('is-hidden');
         grid.innerHTML = fresh.map(renderProductCard).join('');
         return;
       }
-      section.style.display = '';
+      section.classList.remove('is-hidden');
       grid.innerHTML = items.map(renderProductCard).join('');
     }
 
@@ -2008,7 +2009,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
           <div class="track-top">
             <strong>Order ${esc(o.order_number)}</strong>
             <span class="track-status">${esc(TRACK_STATUS_LABELS[o.status] || o.status)}</span>
-            ${o.status === 'awaiting_verification' ? '<p class="track-help" style="margin-top:0.4rem;">We\'re verifying your payment — this usually takes a few hours. You\'ll get a confirmation email once it\'s confirmed.</p>' : ''}
+            ${o.status === 'awaiting_verification' ? '<p class="track-help mt-4px">We\'re verifying your payment — this usually takes a few hours. You\'ll get a confirmation email once it\'s confirmed.</p>' : ''}
           </div>
           <div class="track-timeline">${timeline}</div>
           <div class="track-details">
@@ -2066,7 +2067,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       items.innerHTML = cart.map((item,i) => {
         const unavailable = cartItemUnavailable(item);
         const t = item.price * item.qty; sub += t;
-        return `<div class="cart-item"><div class="cart-item-image"><img src="${esc(item.images[0])}" alt="${esc(item.name)}" width="55" height="55"${srcsetAttr(item.images[0])} sizes="55px" loading="lazy" decoding="async" /></div><div class="cart-item-info"><h4>${esc(item.name)}</h4><div class="cart-item-meta">Size: ${esc(item.size)} · ${esc(item.fit)}${unavailable ? ' · Sold Out — unavailable' : ''}</div><div class="cart-item-price">Rs. ${t}</div></div><div style="display:flex;flex-direction:column;align-items:flex-end;gap:0.3rem;"><div class="cart-item-qty"><button data-action="cart-qty" data-index="${i}" data-delta="-1"${unavailable ? ' disabled' : ''}>−</button><span>${item.qty}</span><button data-action="cart-qty" data-index="${i}" data-delta="1"${unavailable ? ' disabled' : ''}>+</button></div><button class="cart-item-remove" data-action="cart-remove" data-index="${i}">Remove</button></div></div>`;
+        return `<div class="cart-item"><div class="cart-item-image"><img src="${esc(item.images[0])}" alt="${esc(item.name)}" width="55" height="55"${srcsetAttr(item.images[0])} sizes="55px" loading="lazy" decoding="async" /></div><div class="cart-item-info"><h4>${esc(item.name)}</h4><div class="cart-item-meta">Size: ${esc(item.size)} · ${esc(item.fit)}${unavailable ? ' · Sold Out — unavailable' : ''}</div><div class="cart-item-price">Rs. ${t}</div></div><div class="wishlist-item-actions-end"><div class="cart-item-qty"><button data-action="cart-qty" data-index="${i}" data-delta="-1"${unavailable ? ' disabled' : ''}>−</button><span>${item.qty}</span><button data-action="cart-qty" data-index="${i}" data-delta="1"${unavailable ? ' disabled' : ''}>+</button></div><button class="cart-item-remove" data-action="cart-remove" data-index="${i}">Remove</button></div></div>`;
       }).join('');
       document.getElementById('cartSubtotal').textContent = 'Rs. ' + fmt(sub);
     }
@@ -2408,6 +2409,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
     }
     function showCustSignup() {
       document.getElementById('custLoginView').style.display = 'none';
+      document.getElementById('custSignupView').classList.remove('is-hidden');
       document.getElementById('custSignupView').style.display = '';
       document.getElementById('custSignupError').style.display = 'none';
     }
@@ -2619,8 +2621,8 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
         // SECURITY: until the email is confirmed the history stays hidden, so
         // the empty state explains why instead of looking like "no orders".
         wrap.innerHTML = verified === false
-          ? '<div style="text-align:center;padding:1rem;color:var(--text-muted);font-size:0.82rem;">Verify your email to see your orders.<br><a href="#" data-action="resend-verification" style="color:var(--accent);font-weight:700;text-decoration:underline;">Resend verification email</a></div>'
-          : '<div style="text-align:center;padding:1rem;color:var(--text-muted);font-size:0.82rem;">No orders yet. Time to shop!</div>';
+          ? '<div class="text-muted-block">Verify your email to see your orders.<br><a href="#" data-action="resend-verification" class="link-accent-underline">Resend verification email</a></div>'
+          : '<div class="text-muted-block">No orders yet. Time to shop!</div>';
         return;
       }
       wrap.innerHTML = orders.map(o => {

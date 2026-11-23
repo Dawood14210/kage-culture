@@ -814,10 +814,10 @@ app.use(loadHelmet()({
       // (History: omitting this defaulted to 'none' while inline handlers
       // still existed and silently blocked every click, 2026-09-23.)
       scriptSrcAttr: ["'none'"],
-      // F22: fonts are self-hosted from /fonts (variable Archivo for storefront
-      // + admin, Anton for admin display type) — no third-party font hosts.
-      // 'unsafe-inline' stays for style attributes until Phase 3.
-      styleSrc: ["'self'", "'unsafe-inline'"],
+      // F22 + F31: fonts are self-hosted — no third-party font hosts.
+      // 'unsafe-inline' is gone: every style attribute moved into the
+      // bundles' CSS, so no inline style can run.
+      styleSrc: ["'self'"],
       fontSrc: ["'self'"],
       imgSrc: ["'self'", "data:", "https:", "blob:"],
       connectSrc: ["'self'", "https://*.blob.vercel-storage.com", "https://cloud.umami.is"],
@@ -835,6 +835,15 @@ app.use((req, res, next) => {
   // documents from their static fallback.
   if (req.crawlerDatabaseUnavailable) return next();
   return globalLimiter(req, res, next);
+});
+
+// F31: deny the browser features this site never uses. Camera, microphone and
+// geolocation are hard-denied; everything else unused is off too. (Nothing
+// under public/ references getUserMedia, geolocation, Payment Request,
+// fullscreen, clipboard, share, audio or video — verified by grep.)
+app.use((req, res, next) => {
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=(), usb=(), serial=(), bluetooth=(), hid=(), magnetometer=(), accelerometer=(), gyroscope=(), idle-detection=(), browsing-topics=(), clipboard-read=(), clipboard-write=(), fullscreen=(self), picture-in-picture=()');
+  next();
 });
 
 // ── CSRF ──────────────────────────────────────────────────────
