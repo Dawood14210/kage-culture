@@ -1247,9 +1247,45 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       prioritizeFirstVisibleProductImage(grid);
     }
 
+    // ---------- "What customers say" home strip ----------
+    // Up to three real APPROVED reviews (those with an actual comment).
+    // Nothing is invented and nothing is a placeholder: with zero approved
+    // reviews the endpoint returns [] and the whole section stays hidden.
+    async function loadHomeReviews() {
+      const section = document.getElementById('sectionHomeReviews');
+      const grid = document.getElementById('homeReviewsGrid');
+      if (!section || !grid) return;
+      try {
+        const res = await fetch('/api/reviews/featured');
+        const rows = res.ok ? await res.json() : [];
+        const items = Array.isArray(rows) ? rows.slice(0, 3) : [];
+        if (!items.length) { section.classList.add('is-hidden'); grid.innerHTML = ''; return; }
+        grid.innerHTML = items.map(rv => {
+          const name = esc(rv.customer_name || 'Verified Buyer');
+          const comment = esc(rv.comment || '');
+          const rating = Number(rv.rating) || 0;
+          const pid = Number(rv.product_id) || 0;
+          const productName = esc(rv.product_name || '');
+          return `
+          <figure class="home-review-card">
+            <div class="home-review-stars">${starsOnlyHtml(rating)}</div>
+            <blockquote class="home-review-text">${comment}</blockquote>
+            <figcaption class="home-review-meta">
+              <span class="home-review-name">${name}</span>
+              ${pid ? `<button type="button" class="home-review-product" data-action="open-product" data-pid="${pid}">${productName}</button>` : ''}
+            </figcaption>
+          </figure>`;
+        }).join('');
+        section.classList.remove('is-hidden');
+      } catch (e) {
+        section.classList.add('is-hidden');
+      }
+    }
+
     // Initialize all homepage sections after products load
     function initHomePageSections() {
       loadBestSellers();
+      loadHomeReviews();
       loadRecentlyViewed();
     }
 

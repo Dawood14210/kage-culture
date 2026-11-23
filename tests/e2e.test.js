@@ -499,7 +499,8 @@ async function main() {
     const reads = [
       ['/api/products', 'public, max-age=0, s-maxage=10, stale-while-revalidate=30, must-revalidate'],
       ['/api/products/1', 'public, max-age=0, s-maxage=10, stale-while-revalidate=30, must-revalidate'],
-      ['/api/reviews', 'public, max-age=120, s-maxage=120']
+      ['/api/reviews', 'public, max-age=120, s-maxage=120'],
+      ['/api/reviews/featured', 'public, max-age=120, s-maxage=120']
     ];
     for (const [path, expectedCache] of reads) {
       // HEAD must report the same headers a GET would, cacheability included.
@@ -1030,6 +1031,46 @@ async function main() {
     const p2 = product2.json.find(p => p.id === 2);
     assert.strictEqual(p2.avg_rating, 3);
     assert.strictEqual(p2.review_count, 1);
+  });
+
+  await check('featured reviews endpoint returns up to 3 newest approved with comments, nothing else', async () => {
+    // Marker reviews with far-future timestamps outrank everything else in the
+    // store, so ordering is deterministic regardless of other fixtures.
+    const markers = [
+      ['Featured Marker A', 5, 'Marker A comment', 'approved', '2027-06-01 00:00:01'],
+      ['Featured Marker B', 4, 'Marker B comment', 'approved', '2027-06-02 00:00:01'],
+      ['Featured Marker C', 5, 'Marker C comment', 'approved', '2027-06-03 00:00:01'],
+      ['Featured Marker D pending', 1, 'Marker D comment', 'pending', '2027-06-04 00:00:01'],
+      ['Featured Marker E rejected', 2, 'Marker E comment', 'rejected', '2027-06-05 00:00:01'],
+      ['Featured Marker F whitespace comment', 5, '   ', 'approved', '2027-06-06 00:00:01']
+    ];
+    for (const [name, rating, comment, status, created_at] of markers) {
+      await dbModule.prepare('INSERT INTO reviews (product_id, order_number, customer_name, rating, comment, status, viewer_token, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+        .run(1, 'FEATURED-' + name.replace(/\s+/g, '-').toUpperCase(), name, rating, comment, status, '', created_at);
+    }
+    const res = await request(PORT, 'GET', '/api/reviews/featured');
+    try {
+      assert.strictEqual(res.status, 200);
+      assert.ok(Array.isArray(res.json), 'featured feed is an array');
+      assert.strictEqual(res.json.length, 3, 'exactly the three newest eligible reviews');
+      assert.deepStrictEqual(res.json.map(r => r.customer_name), ['Featured Marker C', 'Featured Marker B', 'Featured Marker A'], 'newest first');
+      for (const item of res.json) {
+        assert.strictEqual(typeof item.comment, 'string');
+        assert.ok(item.comment.trim().length > 0, 'comment is never blank');
+        assert.strictEqual(typeof item.product_name, 'string');
+        assert.ok(item.product_name.length > 0, 'product name is carried for the card link');
+        assert.strictEqual(typeof item.rating, 'number');
+        assert.ok(!('viewer_token' in item), 'viewer token must never leak');
+        assert.ok(!('status' in item), 'moderation state is not exposed');
+      }
+      assert.strictEqual(res.headers['cache-control'], 'public, max-age=120, s-maxage=120');
+    } finally {
+      await dbModule.prepare("DELETE FROM reviews WHERE order_number LIKE 'FEATURED-%'").run();
+    }
+    // The home shell carries the strip, hidden, awaiting real data.
+    const home = await request(PORT, 'GET', '/');
+    assert.match(home.text, /id="sectionHomeReviews"/, 'home shell contains the reviews strip');
+    assert.match(home.text, /WHAT CUSTOMERS SAY/, 'strip heading present');
   });
 
   // ---------------------------------------------------------------

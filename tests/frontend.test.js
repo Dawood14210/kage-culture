@@ -938,6 +938,45 @@ async function ready(win) {
     assert.match(storeHtml, /\.card-rating \{[^}]*min-height: 1\.15rem;[^}]*\}/, 'the rating row keeps its line when there are no reviews');
     console.log('✅ Product cards keep a reserved rating row and pin their button to the card bottom');
 
+    // ---- "What customers say" home strip (F34) -----------------------
+    {
+      const strip = d.getElementById('sectionHomeReviews');
+      assert.ok(strip, 'the reviews strip exists in the shell');
+      assert.ok(strip.classList.contains('is-hidden'), 'strip ships hidden until real reviews exist');
+      assert.equal(d.getElementById('homeReviewsGrid').children.length, 0);
+      const realFetch = w.fetch;
+      w.fetch = (url, options) => {
+        if (String(url).startsWith('/api/reviews/featured')) {
+          return Promise.resolve({ ok: true, json: async () => ([
+            { id: 1, customer_name: 'Eve <script>alert(1)</script>', rating: 5, comment: 'Love it <img src=x onerror=alert(1)>', created_at: '2026-10-01 09:00:00', product_id: 1, product_name: 'Shadow <b>Fit</b>' },
+            { id: 2, customer_name: 'Kai', rating: 4, comment: 'Great fit', created_at: '2026-09-30 09:00:00', product_id: 2, product_name: 'Oni Muscle Tee' },
+            { id: 3, customer_name: 'Ada', rating: 5, comment: 'Third review', created_at: '2026-09-29 09:00:00', product_id: 3, product_name: 'Kage Core Compression' },
+            { id: 4, customer_name: 'Extra', rating: 5, comment: 'Would be fourth — must not render', created_at: '2026-09-28 09:00:00', product_id: 4, product_name: 'Blade Wolf' }
+          ]) });
+        }
+        return realFetch(url, options);
+      };
+      await w.loadHomeReviews();
+      const grid = d.getElementById('homeReviewsGrid');
+      assert.equal(grid.querySelectorAll('.home-review-card').length, 3, 'caps at three cards');
+      assert.equal(strip.classList.contains('is-hidden'), false, 'strip reveals with real reviews');
+      assert.ok(!grid.innerHTML.includes('<script>alert'), 'names are escaped');
+      assert.ok(!/<img src=x/.test(grid.innerHTML), 'comments are escaped');
+      assert.ok(grid.innerHTML.includes('&lt;img'), 'comment markup is entity-escaped');
+      assert.ok(!grid.textContent.includes('Would be fourth'), 'only three render');
+      d.querySelector('.home-review-product').click();
+      assert.equal(w.location.pathname, '/product/1', 'the product link opens the product page');
+      w.navigateTo('home');
+      w.fetch = (url, options) => String(url).startsWith('/api/reviews/featured')
+        ? Promise.resolve({ ok: true, json: async () => [] })
+        : realFetch(url, options);
+      await w.loadHomeReviews();
+      assert.equal(d.getElementById('sectionHomeReviews').classList.contains('is-hidden'), true, 'an empty feed hides the strip again');
+      w.fetch = realFetch;
+      await w.loadHomeReviews();
+      console.log('✅ What customers say: hidden without approved reviews, real escaped data with them, product link opens the product');
+    }
+
     // ---- ONE card renderer for every product grid. The /collection/* and
     // ---- search grid (#collectionGrid) used to render its own big single-column
     // ---- card with "Add to Cart"; it now shows exactly the home Best Sellers card.
