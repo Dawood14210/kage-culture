@@ -1319,18 +1319,55 @@ async function main() {
   // PERF-1 — split bundles: hashed, immutable, shell stays small
   // ---------------------------------------------------------------
   console.log('\nSplit bundles (PERF-1):');
-  await check('pages reference hashed CSS/JS bundles and stay small', async () => {
-    const pages = { '/': ['storefront.css', 'storefront.js'], '/admin': ['admin.css', 'admin.js'] };
-    for (const [path, bundles] of Object.entries(pages)) {
-      const r = await request(PORT, 'GET', path);
-      assert.strictEqual(r.status, 200, path);
-      assert.ok(Buffer.byteLength(r.text, 'utf8') < 120000, `${path} shell must stay under 120KB, got ${Buffer.byteLength(r.text, 'utf8')}`);
-      assert.ok(!r.text.includes('__STORE_') && !r.text.includes('__ADMIN_'), `${path} must substitute every asset hash token`);
-      for (const bundle of bundles) {
-        const m = new RegExp(`/${bundle}\\?v=([0-9a-f]{10})`).exec(r.text);
-        assert.ok(m, `${path} must reference /${bundle} with a 10-hex content hash`);
-      }
+  await check('pages reference their bundles by content hash; the storefront stylesheet is inlined, not linked', async () => {
+    const admin = await request(PORT, 'GET', '/admin');
+    assert.strictEqual(admin.status, 200);
+    assert.ok(Buffer.byteLength(admin.text, 'utf8') < 120000, `the admin shell stays under 120KB, got ${Buffer.byteLength(admin.text, 'utf8')}`);
+    assert.ok(!admin.text.includes('__STORE_') && !admin.text.includes('__ADMIN_'), 'both shells substitute every asset hash token');
+    for (const bundle of ['admin.css', 'admin.js']) {
+      assert.ok(new RegExp(`/${bundle}\\?v=([0-9a-f]{10})`).test(admin.text), `the admin shell references /${bundle} with a 10-hex hash`);
     }
+
+    // PERF (2026-11-23): the storefront no longer links its stylesheet. The
+    // pre-paint guard and storefront.css are concatenated into one inline
+    // <style> block, so first paint waits for no CSS request at all.
+    const home = await request(PORT, 'GET', '/');
+    assert.strictEqual(home.status, 200);
+    // The document now carries the stylesheet, so it is bigger by exactly those
+    // bytes (235 KB raw / ~49 KB gzipped here). It is still one request that
+    // paints immediately, and repeat visits revalidate it (max-age=0) instead
+    // of re-downloading.
+    const homeBytes = Buffer.byteLength(home.text, 'utf8');
+    assert.ok(homeBytes < 260000, `the storefront shell stays under 260KB, got ${homeBytes}`);
+    assert.ok(!home.text.includes('/storefront.css?v='), 'no render-blocking stylesheet link');
+    assert.ok(!home.text.includes('href="/pre-paint.css"'), 'the guard is inlined too');
+    assert.ok(new RegExp('/storefront.js\\?v=([0-9a-f]{10})').test(home.text), 'the JS bundle is still referenced by hash');
+
+    const guard = fs.readFileSync(path.join(__dirname, '..', 'public', 'pre-paint.css'), 'utf8');
+    const store = fs.readFileSync(path.join(__dirname, '..', 'public', 'storefront.css'), 'utf8');
+    const inline = /<style>([\s\S]*?)<\/style>/.exec(home.text);
+    assert.ok(inline, 'the shell carries the inline stylesheet');
+    // The HTML parser turns CRLF into LF inside <style>, so the block is the
+    // two files normalised — the same bytes the CSP hash is taken over.
+    assert.strictEqual(inline[1], `${guard}\n${store}`.replace(/\r\n/g, '\n'),
+      'the inline block is exactly the guard + the bundle, normalised to LF');
+    assert.match(inline[1], /\.hero-media img \{/, 'the inline block really is the stylesheet');
+
+    // ... and the CSP allows exactly that block, by hash, and nothing else inline.
+    const csp = home.headers['content-security-policy'] || '';
+    const expected = `'sha256-${crypto.createHash('sha256').update(inline[1], 'utf8').digest('base64')}'`;
+    const styleSrc = /style-src[^;]*/.exec(csp)?.[0] || '';
+    assert.ok(styleSrc.includes(expected), `style-src must allow the inline block by hash, got: ${styleSrc}`);
+    assert.ok(!styleSrc.includes("'unsafe-inline'"), 'the hash replaces unsafe-inline, it does not join it');
+    const tampered = `'sha256-${crypto.createHash('sha256').update(inline[1] + ' ').digest('base64')}'`;
+    assert.ok(!styleSrc.includes(tampered), 'a single changed byte would not match the policy');
+
+    // The stylesheet still ships as a cacheable file: the admin bundle rules,
+    // the jsdom fixture and any rollback keep working.
+    const css = await request(PORT, 'GET', '/storefront.css?v=0123456789');
+    assert.strictEqual(css.status, 200);
+    assert.strictEqual(css.text.replace(/\r\n/g, '\n'), store.replace(/\r\n/g, '\n'),
+      'the served file is the same stylesheet that is inlined');
   });
 
   await check('Umami tag renders only when UMAMI_WEBSITE_ID is set (storefront only)', async () => {

@@ -1925,11 +1925,11 @@ held tracking request confirmed the skeleton card plus a spinning
 
 ---
 
-## 2026-11-23 performance pass — Tasks 1–3 (photos, hero, data requests)
+## 2026-11-23 performance pass — Tasks 1–4 (photos, hero, data requests, first paint)
 
 Owner-supplied performance review, worked one task per commit. Baseline before
-this pass: home page **4105 KB** and **LCP 2038 ms** on a throttled 390x844 slow-4G
-profile; the PageSpeed report's headline complaints were a 3.6 MB homepage photo,
+this pass: home page **4105 KB**, with first paint at **1184 ms** on a throttled
+390x844 slow-4G profile; the PageSpeed report's headline complaints were a 3.6 MB homepage photo,
 a full-size desktop hero served to phones, and a 3.9 s data-request dependency
 chain.
 
@@ -2009,11 +2009,62 @@ catalog was already painted from the inlined seed.
 
 **Verified.** Throttled 390x844 slow-4G: API requests go from five (1589, 1590,
 1877, 1878) to **three, all starting at ~1544 ms**, and the page is 344.6 KB;
-desktop 1440: 133.1 → 130.5 KB, three requests at ~38 ms. LCP is unchanged
-(2038 → ~2034 ms) because the LCP element is the hero image, gated by the 77 KB of
-CSS+JS — that is the next task. CLS stays 0.0040. `npm test` **169/169** and the
+desktop 1440: 133.1 → 130.5 KB, three requests at ~38 ms. Paint metrics did not
+move in this step (first paint 1184 → 1184 ms, CLS 0.0040): the page still waits
+for 32 KB of render-blocking CSS, which is the next task.
+
+> Measurement note: the LCP numbers in this log come from a CDP harness that first
+> added `startTime + loadTime`, double-counting the image download and inflating
+> every value by ~800 ms on slow-4G. The harness now uses `renderTime ||
+> startTime`; the figures above are the corrected ones (LCP == FCP at 1184 ms,
+> because the whole page paints in one go when the stylesheet lands). CLS stays 0.0040. `npm test` **169/169** and the
 frontend suite **81/81** (new checks: the hint cookie is set by login, cleared by
 logout, never by an anonymous probe; the shell substitutes its preconnect token in
 every branch and never leaks the token; category cards keep their new header; a
 first-time visitor makes no `/api/customers/me` request while a hinted browser
 does, and each boot GET is requested exactly once).
+
+### ✅ Task 4 — First paint no longer waits for the stylesheet (`server.js`, `public/index.html`)
+**Was.** Two render-blocking requests (the 1.3 KB pre-paint guard and the 32 KB
+`storefront.css`) sat between the HTML and the first pixel. On a throttled
+390x844 slow-4G profile nothing painted until **1184 ms**, and FCP == LCP: the
+whole page appeared at once when the stylesheet landed. Blocking the stylesheet
+by hand dropped first paint to 232–412 ms, which is what this task recovers
+without giving up any styling.
+
+**Fix.** `renderStorefrontHtml()` now concatenates `pre-paint.css` and
+`storefront.css` into a single `<style>` block injected at the
+`<!--__INLINE_CSS__-->` token in the head. The CSP keeps `style-src 'self'` and
+adds exactly one `'sha256-<base64>'` for that block (computed at boot from the
+same bytes, so an edit can never drift), and the two `<link rel="stylesheet">`
+tags are gone. The standalone files are still served (immutable `?v=` caching,
+the jsdom fixture, and a rollback path). `/storefront.css` cannot be cached
+across documents any more, but the shell is an SPA: the second page view is a
+pushState navigation, and repeat visits revalidate the document with a 304, so
+no CSS bytes are re-sent.
+
+**Two traps found while verifying (both fixed):**
+1. The HTML parser normalises CRLF to LF *inside* `<style>`, so a hash taken over
+   the raw file bytes never matched the parsed block. Chrome silently dropped the
+   whole stylesheet and rendered an unstyled page — which is exactly what the
+   first measurement showed (FCP 388 ms, CLS 0). `INLINE_CSS` is normalised to LF
+   before hashing and injecting, and a headless check now asserts
+   `document.styleSheets.length === 1`, the brand canvas colour and a fixed
+   header on `/`, `/product/1` and `/about`.
+2. Painting before JavaScript revealed a 15 px jump: the hero clears the fixed
+   header with `padding-top: calc(var(--header-h, 80px) …)`, and `--header-h` is
+   only published by script — the header is actually 95 px at every breakpoint,
+   so the page shifted 15 px when that measurement landed (CLS 0.0199). `:root`
+   now declares `--header-h: 95px`; the ResizeObserver still re-measures for the
+   360 px wrap case. CLS is back to the pre-change 0.0040 (the remaining shift is
+   the pre-existing text/category swap when the catalog lands).
+
+**Verified.** Throttled 390x844 slow-4G: **first paint 1184 → 500 ms**, LCP
+**1184 → 832 ms** (the hero is now bandwidth-bound, not CSS-bound), CLS 0.0040,
+341 KB, no console errors, one stylesheet in `document.styleSheets`. Desktop
+1440x900: LCP 220 → ~150-280 ms. Full-page screenshots at 390 and 1440 are
+unchanged, `/product/1` and `/about` render styled and console-clean. `npm test`
+**169/169**, frontend **81/81** — including a new e2e contract that the inline
+block is byte-identical to `pre-paint.css` + `\n` + `storefront.css` normalised
+to LF, that the CSP allows exactly that hash (and never `'unsafe-inline'`), and
+that no render-blocking stylesheet link remains.

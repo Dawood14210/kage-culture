@@ -2396,11 +2396,12 @@ async function ready(win) {
     // stitched() inlines the bundle, so assert order on the <link> position:
     // the guard must appear before the main stylesheet link in the source.
     const rawIndexHtml = readFileSync(join(__dirname, '..', 'public', 'index.html'), 'utf8');
-    const guardAt = rawIndexHtml.indexOf('href="/pre-paint.css"');
-    const bundleAt = rawIndexHtml.indexOf('href="/storefront.css?v=');
-    assert.ok(guardAt !== -1, 'the pre-paint guard is linked');
-    assert.ok(bundleAt !== -1, 'the main bundle is linked');
-    assert.ok(guardAt < bundleAt, 'the pre-paint guard loads before the main bundle');
+    // Since 2026-11-23 the guard and the bundle are concatenated into ONE
+    // inline <style> block at render time, so there is no request between the
+    // HTML and the first paint and the guard can never arrive late.
+    assert.ok(rawIndexHtml.includes('<!--__INLINE_CSS__-->'), 'the shell inlines its stylesheet at boot');
+    assert.ok(!rawIndexHtml.includes('href="/pre-paint.css"'), 'the guard is no longer a separate link');
+    assert.ok(!rawIndexHtml.includes('href="/storefront.css'), 'no render-blocking stylesheet link remains');
     const prePaint = readFileSync(join(__dirname, '..', 'public', 'pre-paint.css'), 'utf8');
     assert.ok(prePaint.length < 2048, `the pre-paint guard stays small enough to arrive in one round trip (${prePaint.length} B)`);
     for (const sel of ['.skip-link', '.topbar', '.hero-media', '.site-header', '.cart-drawer', '.cart-overlay', '.zoom-overlay']) {

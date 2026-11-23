@@ -66,6 +66,14 @@
   **80/80**.
 
 
+- ✅ *(2026-11-23, perf pass)* **Task 4 — first paint no longer waits for the
+  stylesheet.** `server.js` inlines `pre-paint.css` + `storefront.css` into one
+  `<style>` block (CSP `'sha256-…'` computed at boot from the same, LF-normalised
+  bytes), and the two blocking `<link rel="stylesheet">` tags are gone. Slow-4G
+  phone: first paint **1184 → 500 ms**, LCP **1184 → 832 ms**, CLS back to
+  0.0040 (a 15 px hero jump appeared once paint beat the script's header
+  measurement; `:root` now declares `--header-h: 95px`). Details in `AUDIT.md`;
+  `npm test` **169/169**, frontend **81/81**.
 - ✅ CRITICAL admin auth bypass fixed: `requireAuth` trusts only
   `cookie-session`-verified `req.session`; standalone/forged payloads and the
   legacy `kage.cust` fallback are rejected by the E2E regression suite.

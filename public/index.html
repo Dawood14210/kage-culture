@@ -69,9 +69,9 @@
   </script>
 
 
-  <!-- Tiny pre-CSS guard so a slow main bundle cannot flash raw HTML. -->
-  <link rel="stylesheet" href="/pre-paint.css">
-  <link rel="stylesheet" href="/storefront.css?v=__STORE_CSS_HASH__">
+  <!-- The whole stylesheet is inlined at boot (server.js) under a CSP hash, so
+       first paint no longer waits for a render-blocking request. -->
+  <!--__INLINE_CSS__-->
 
   <script src="/focus-modality.js" defer></script>
   <!--__UMAMI_TAG__-->

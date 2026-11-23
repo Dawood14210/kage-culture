@@ -61,6 +61,11 @@
       --text-accent-hover: #423C2D;
       --font-display: 'Archivo', sans-serif;
       --font-body: 'Archivo', sans-serif;
+      /* Measured height of the fixed header, so the first paint already clears
+         it. Script re-measures into this variable (it can grow when the nav
+         wraps at 360px); without the default the hero jumped 15px the moment
+         that measurement landed. */
+      --header-h: 95px;
       --font-kanji: Georgia, 'Times New Roman', serif;
       --spacing-xs: 0.25rem;
       --spacing-sm: 0.5rem;
