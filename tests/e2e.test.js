@@ -699,6 +699,60 @@ async function main() {
     assert.ok(!res.text.includes('id="ssrContent"'), 'no SSR block is injected for an unknown product');
   });
 
+  console.log('Product JSON-LD enrichment (F27):');
+  const ldBlocks = res => {
+    const out = [];
+    const re = /<script type="application\/ld\+json" data-seo-generated="true">([\s\S]*?)<\/script>/g;
+    let m;
+    while ((m = re.exec(res.text))) out.push(JSON.parse(m[1]));
+    return out;
+  };
+  await check('every JSON-LD block on a product page parses, with the pre-existing fields intact', async () => {
+    const res = await request(PORT, 'GET', '/product/1');
+    assert.strictEqual(res.status, 200);
+    const schemas = ldBlocks(res);
+    const product = schemas.find(s => s['@type'] === 'Product');
+    assert.ok(product, 'a Product schema is present');
+    assert.strictEqual(product['@context'], 'https://schema.org');
+    assert.ok(product.name && product.image && product.description, 'name, image and description are present');
+    assert.ok(product.sku && product.brand, 'sku and brand are present');
+    assert.strictEqual(product.offers['@type'], 'Offer');
+    assert.ok(product.offers.priceCurrency === 'PKR' && product.offers.price > 0, 'price and currency are present');
+    assert.ok(/schema\.org\/(In|Out)Stock/.test(product.offers.availability), 'availability is present');
+    assert.ok(schemas.some(s => s['@type'] === 'BreadcrumbList'), 'the breadcrumb schema is still present');
+  });
+
+  await check('the offer carries shippingDetails matching the published Shipping page', async () => {
+    const res = await request(PORT, 'GET', '/product/1');
+    const product = ldBlocks(res).find(s => s['@type'] === 'Product');
+    const shipping = product.offers.shippingDetails;
+    assert.ok(shipping, 'shippingDetails is present on the offer');
+    assert.strictEqual(shipping['@type'], 'OfferShippingDetails');
+    assert.strictEqual(shipping.shippingDestination.addressCountry, 'PK');
+    assert.strictEqual(shipping.shippingRate['@type'], 'MonetaryAmount');
+    assert.strictEqual(shipping.shippingRate.minValue, 250);
+    assert.strictEqual(shipping.shippingRate.maxValue, 500);
+    assert.strictEqual(shipping.shippingRate.currency, 'PKR');
+    assert.strictEqual(shipping.deliveryTime.transitTime.minValue, 3);
+    assert.strictEqual(shipping.deliveryTime.transitTime.maxValue, 7);
+    assert.strictEqual(shipping.deliveryTime.transitTime.unitCode, 'DAY');
+    assert.strictEqual(shipping.deliveryTime.handlingTime.minValue, 1);
+    assert.strictEqual(shipping.deliveryTime.handlingTime.maxValue, 2);
+  });
+
+  await check('the offer carries a merchant return policy matching the Returns page (7 days)', async () => {
+    const res = await request(PORT, 'GET', '/product/1');
+    const product = ldBlocks(res).find(s => s['@type'] === 'Product');
+    const ret = product.offers.hasMerchantReturnPolicy;
+    assert.ok(ret, 'hasMerchantReturnPolicy is present on the offer');
+    assert.strictEqual(ret['@type'], 'MerchantReturnPolicy');
+    assert.strictEqual(ret.applicableCountry, 'PK');
+    assert.strictEqual(ret.returnPolicyCategory, 'https://schema.org/MerchantReturnFiniteReturnWindow');
+    assert.strictEqual(ret.merchantReturnDays, 7);
+    assert.strictEqual(ret.returnMethod, 'https://schema.org/ReturnByMail');
+    assert.match(ret.merchantReturnLink, /\/returns$/, 'the policy links to the Returns page');
+  });
+
   console.log('CSRF: fresh-browser checkout:');
   await check('a cookie-less client is refused until it fetches /api/csrf, then places an order', async () => {
     const catalog = (await request(PORT, 'GET', '/api/products')).json;

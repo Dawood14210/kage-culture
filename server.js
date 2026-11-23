@@ -636,7 +636,32 @@ async function resolveSeoPage(req, siteUrl) {
         priceCurrency: 'PKR',
         price: offerPrice,
         availability: product.in_stock ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
-        itemCondition: 'https://schema.org/NewCondition'
+        itemCondition: 'https://schema.org/NewCondition',
+        // F27: mirror the published Shipping page exactly. Delivery is
+        // 3–5 business days for major cities, 5–7 elsewhere; a single
+        // transitTime window is the honest way to express both in one
+        // OfferShippingDetails. Charges Rs. 250–500, confirmed by phone.
+        shippingDetails: {
+          '@type': 'OfferShippingDetails',
+          shippingDestination: { '@type': 'DefinedRegion', addressCountry: 'PK' },
+          shippingRate: { '@type': 'MonetaryAmount', minValue: config.DELIVERY_FEE_MIN, maxValue: config.DELIVERY_FEE_MAX, currency: 'PKR' },
+          deliveryTime: {
+            '@type': 'ShippingDeliveryTime',
+            handlingTime: { '@type': 'QuantitativeValue', minValue: 1, maxValue: 2, unitCode: 'DAY' },
+            transitTime: { '@type': 'QuantitativeValue', minValue: 3, maxValue: 7, unitCode: 'DAY' }
+          }
+        },
+        // F27: mirror the Returns page exactly — request within 7 days of
+        // delivery, item shipped back by the customer (unless defective).
+        hasMerchantReturnPolicy: {
+          '@type': 'MerchantReturnPolicy',
+          applicableCountry: 'PK',
+          returnPolicyCategory: 'https://schema.org/MerchantReturnFiniteReturnWindow',
+          merchantReturnDays: 7,
+          returnMethod: 'https://schema.org/ReturnByMail',
+          returnFees: 'https://schema.org/ReturnFeesCustomerResponsibility',
+          merchantReturnLink: new URL('/returns', `${siteUrl}/`).href
+        }
       }
     };
     const reviewData = await loadApprovedReviewSchema(product.id);
