@@ -174,6 +174,100 @@
       return 'data:image/svg+xml,' + encodeURIComponent(svg);
     }
 
+    // ---------- Loading feedback: button spinners + skeleton placeholders ----------
+    // Every async action swaps its button to a spinner (and disables it) for
+    // the duration of the request, then restores the exact original markup.
+    // Skeleton placeholders mirror the real layout so content that loads
+    // async never leaves a blank gap. They carry no text and are aria-hidden;
+    // the container is marked aria-busy while loading.
+    const SPINNER_HTML = '<span class="spinner" aria-hidden="true"></span>';
+    function setButtonLoading(btn, loading, label) {
+      if (!btn) return;
+      if (loading) {
+        if (btn.dataset._loading === '1') return;
+        btn.dataset._loading = '1';
+        btn.dataset._origHtml = btn.innerHTML;
+        btn.dataset._origDisabled = btn.disabled ? '1' : '0';
+        btn.disabled = true;
+        btn.setAttribute('aria-busy', 'true');
+        btn.classList.add('is-loading');
+        const text = label != null ? label : (btn.textContent || '').trim();
+        btn.innerHTML = SPINNER_HTML + (text ? '<span class="btn-loading-label">' + esc(text) + '</span>' : '');
+      } else {
+        if (btn.dataset._loading !== '1') return;
+        delete btn.dataset._loading;
+        if (btn.dataset._origHtml != null) btn.innerHTML = btn.dataset._origHtml;
+        delete btn.dataset._origHtml;
+        btn.disabled = btn.dataset._origDisabled === '1';
+        delete btn.dataset._origDisabled;
+        btn.removeAttribute('aria-busy');
+        btn.classList.remove('is-loading');
+      }
+    }
+    function skeletonProductCards(n) {
+      let html = '';
+      for (let i = 0; i < (n || 8); i++) {
+        html += '<div class="skel-card" aria-hidden="true">'
+          + '<div class="skeleton skel-img"></div>'
+          + '<div class="skeleton skel-line skel-line-wide"></div>'
+          + '<div class="skeleton skel-line"></div>'
+          + '<div class="skeleton skel-line skel-line-sm"></div>'
+          + '<div class="skeleton skel-btn"></div>'
+          + '</div>';
+      }
+      return html;
+    }
+    function skeletonReviewRows(n) {
+      let html = '';
+      for (let i = 0; i < (n || 2); i++) {
+        html += '<div class="skeleton-review" aria-hidden="true">'
+          + '<div class="skeleton skel-line skel-line-wide"></div>'
+          + '<div class="skeleton skel-line"></div>'
+          + '<div class="skeleton skel-line skel-line-sm"></div>'
+          + '</div>';
+      }
+      return html;
+    }
+    function skeletonOrderRows(n) {
+      let html = '';
+      for (let i = 0; i < (n || 3); i++) {
+        html += '<div class="skeleton-order-row" aria-hidden="true">'
+          + '<div class="skeleton skel-line skel-line-wide"></div>'
+          + '<div class="skeleton skel-line"></div>'
+          + '</div>';
+      }
+      return html;
+    }
+    function skeletonTrackCard() {
+      return '<div class="skeleton-track" aria-hidden="true">'
+        + '<div class="skeleton skel-line skel-line-wide"></div>'
+        + '<div class="skeleton skel-line"></div>'
+        + '<div class="skeleton skel-line skel-line-sm"></div>'
+        + '</div>';
+    }
+    // Photos carry .img-skel (shimmer) until they decode. The capture-phase
+    // listener catches load/error for every image, and sweepImageSkeletons()
+    // covers images that were already cached when they were rendered.
+    function sweepImageSkeletons(root) {
+      (root || document).querySelectorAll('img.img-skel').forEach(img => {
+        if (img.complete) img.classList.remove('img-skel');
+      });
+    }
+    ['load', 'error'].forEach(evt => {
+      document.addEventListener(evt, e => {
+        const t = e.target;
+        if (t && t.tagName === 'IMG' && t.classList.contains('img-skel')) t.classList.remove('img-skel');
+      }, true);
+    });
+    function showGridSkeleton(grid, n) {
+      if (!grid) return;
+      grid.innerHTML = skeletonProductCards(n);
+      grid.setAttribute('aria-busy', 'true');
+    }
+    function clearGridBusy(grid) {
+      if (grid) grid.removeAttribute('aria-busy');
+    }
+
     function getPriceRange(p) {
       if (p.variants && p.variants.length > 1) {
         const ps = p.variants.map(v => v.price);
@@ -757,8 +851,7 @@
         return;
       }
       const btn = document.getElementById('coPlaceBtn');
-      btn.disabled = true;
-      btn.textContent = 'Placing order…';
+      setButtonLoading(btn, true, 'Placing order…');
       try {
         const res = await fetch('/api/orders', {
           method: 'POST',
@@ -793,8 +886,8 @@
         errEl.textContent = 'Connection problem — check your network and try again, or WhatsApp us at +92 322 804 2633 and we will place the order for you.';
         errEl.style.display = 'block';
       }
+      setButtonLoading(btn, false);
       btn.disabled = !cart.length || cartHasUnavailableItems();
-      btn.textContent = 'Place Order';
     }
 
     function renderConfirmation(order) {
@@ -883,6 +976,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
     function renderCollectionGrid() {
       const filtered = getFilteredProducts();
       const grid = document.getElementById('collectionGrid');
+      clearGridBusy(grid);
       const total = filtered.length;
       visibleCount = Math.max(GRID_PAGE, Math.min(visibleCount, Math.max(total, GRID_PAGE)));
       const pageItems = filtered.slice(0, visibleCount);
@@ -921,6 +1015,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       // Same cards as the home Best Sellers: one shared renderer (renderProductCard).
       grid.innerHTML = pageItems.map(renderProductCard).join('');
       prioritizeFirstVisibleProductImage(grid);
+      requestAnimationFrame(() => sweepImageSkeletons());
     }
 
     // "Load more" reveals the next GRID_PAGE loaded cards; when everything
@@ -929,9 +1024,9 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
     async function loadMore() {
       if (!catalogExhausted && visibleCount >= allProducts.length) {
         const btn = document.getElementById('loadMoreBtn');
-        if (btn) { btn.disabled = true; btn.setAttribute('aria-busy', 'true'); }
+        setButtonLoading(btn, true, 'Loading…');
         try { await loadRemainingCatalogPages(); }
-        finally { const b = document.getElementById('loadMoreBtn'); if (b) b.removeAttribute('aria-busy'); }
+        finally { setButtonLoading(document.getElementById('loadMoreBtn'), false); }
       }
       visibleCount += GRID_PAGE;
       renderCollectionGrid();
@@ -1119,6 +1214,8 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       const input = form.querySelector('input[type=email]');
       const msg = form.parentElement.querySelector('.newsletter-msg') || document.getElementById('newsletterMsg');
       if (!input || !input.value.trim()) return;
+      const btn = form.querySelector('button[type=submit]');
+      setButtonLoading(btn, true, 'Subscribing…');
       try {
         const res = await fetch('/api/newsletter', {
           method: 'POST',
@@ -1145,6 +1242,8 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
         }
       } catch (err) {
         if (msg) msg.textContent = 'Connection error. Please try again.';
+      } finally {
+        setButtonLoading(btn, false);
       }
     }
 
@@ -1155,6 +1254,8 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       const msg = document.getElementById('comingSoonMsg');
       if (!email || !email.value.trim()) return;
       if (msg) { msg.textContent = ''; msg.className = 'coming-soon-msg'; }
+      const btn = e.target.querySelector('button[type=submit]');
+      setButtonLoading(btn, true, 'Subscribing…');
       try {
         const res = await fetch('/api/coming-soon', {
           method: 'POST',
@@ -1170,6 +1271,8 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
         }
       } catch (err) {
         if (msg) msg.textContent = 'Connection error. Please try again.';
+      } finally {
+        setButtonLoading(btn, false);
       }
     }
 
@@ -1199,7 +1302,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       return `
         <div class="product-card" data-pid="${p.id}" role="link" tabindex="0" aria-label="View ${esc(p.name)}" data-action="open-product" data-pid="${p.id}" data-key="enter">
           <div class="product-card-image${anySizeAvailable(p) ? '' : ' sold-out'}">
-            ${img ? `<img src="${esc(img)}" alt="${esc(p.name)}" width="600" height="800"${srcsetAttr(img)} sizes="(max-width: 768px) calc((100vw - 40px) / 2), (max-width: 1024px) calc((100vw - 80px) / 3), (max-width: 1279px) calc((100vw - 112px) / 4), 296px" loading="lazy" decoding="async" />` : `<div class="no-image-cell">No Image</div>`}
+            ${img ? `<img src="${esc(img)}" alt="${esc(p.name)}" class="img-skel" width="600" height="800"${srcsetAttr(img)} sizes="(max-width: 768px) calc((100vw - 40px) / 2), (max-width: 1024px) calc((100vw - 80px) / 3), (max-width: 1279px) calc((100vw - 112px) / 4), 296px" loading="lazy" decoding="async" />` : `<div class="no-image-cell">No Image</div>`}
             <button class="product-wishlist ${isWishlisted ? 'active' : ''}" data-action="toggle-wish" data-pid="${p.id}" aria-label="Wishlist">
               ${HEART_SVG}
             </button>
@@ -1235,6 +1338,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
     function loadBestSellers() {
       const grid = document.getElementById('bestSellersGrid');
       if (!grid) return;
+      clearGridBusy(grid);
       const sorted = [...allProducts].sort((a, b) => {
         const oa = a.order_count || 0;
         const ob = b.order_count || 0;
@@ -1245,6 +1349,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       }).slice(0, 8);
       grid.innerHTML = sorted.map(renderProductCard).join('');
       prioritizeFirstVisibleProductImage(grid);
+      requestAnimationFrame(() => sweepImageSkeletons());
     }
 
     // ---------- "What customers say" home strip ----------
@@ -1470,7 +1575,8 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       loadReviews(p.id);
       document.getElementById('detailQty').textContent = '1';
       const track = document.getElementById('galleryTrack');
-      track.innerHTML = p.images.map((img,i) => `<img src="${esc(img)}" alt="${esc(p.name)} view ${i+1}" width="900" height="1200"${srcsetAttr(img)} sizes="(max-width: 768px) 92vw, (max-width: 1279px) 45vw, 600px" loading="${i>0?'lazy':'eager'}" decoding="async"${i===0?' fetchpriority="high"':''} />`).join('');
+      track.innerHTML = p.images.map((img,i) => `<img src="${esc(img)}" alt="${esc(p.name)} view ${i+1}" class="img-skel" width="900" height="1200"${srcsetAttr(img)} sizes="(max-width: 768px) 92vw, (max-width: 1279px) 45vw, 600px" loading="${i>0?'lazy':'eager'}" decoding="async"${i===0?' fetchpriority="high"':''} />`).join('');
+      requestAnimationFrame(() => sweepImageSkeletons());
       track.style.transform = 'translateX(0)';
       const dc = document.getElementById('detailDots');
       if (p.images.length > 1) {
@@ -1681,6 +1787,17 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
     }
 
     async function loadReviews(productId) {
+      const section = document.getElementById('reviewsSection');
+      const list = document.getElementById('reviewsList');
+      const summary = document.getElementById('reviewSummary');
+      if (!section || !list || !summary) return;
+      // Skeleton rows while the reviews fetch — the section is revealed
+      // immediately so the placeholder is visible, then swapped for real
+      // reviews (or the empty state) when the request settles.
+      section.classList.remove('is-hidden');
+      summary.innerHTML = '<span class="skeleton skel-line skel-line-sm" aria-hidden="true"></span>';
+      list.innerHTML = skeletonReviewRows(2);
+      list.setAttribute('aria-busy', 'true');
       let reviews = [];
       try {
         const res = await fetch('/api/reviews?product_id=' + encodeURIComponent(productId), {
@@ -1688,11 +1805,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
         });
         if (res.ok) reviews = await res.json();
       } catch (e) { reviews = []; }
-      const section = document.getElementById('reviewsSection');
-      const list = document.getElementById('reviewsList');
-      const summary = document.getElementById('reviewSummary');
-      if (!section || !list || !summary) return;
-      section.classList.remove('is-hidden');
+      list.removeAttribute('aria-busy');
       if (!reviews.length) {
         summary.innerHTML = '<span class="review-no">No reviews yet.</span>';
         list.innerHTML = '<p class="text-gray-sm">Be the first to share your experience.</p>';
@@ -1730,7 +1843,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       if (!rating) { errEl.textContent = 'Please select a star rating.'; errEl.style.display = 'block'; return; }
       if (!order || !phone) { errEl.textContent = 'Enter the order number and phone from your delivered order.'; errEl.style.display = 'block'; return; }
       const btn = e.target.querySelector('button[type=submit]');
-      btn.disabled = true;
+      setButtonLoading(btn, true, 'Submitting…');
       try {
         const res = await fetch('/api/reviews', {
           method: 'POST',
@@ -1760,7 +1873,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
         errEl.textContent = 'Connection error. Please try again.';
         errEl.style.display = 'block';
       }
-      btn.disabled = false;
+      setButtonLoading(btn, false);
     }
 
     // Star picker for the review form. ONE value drives the fill — the
@@ -1960,7 +2073,10 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
         return;
       }
       const btn = e.target.querySelector('button[type=submit]');
-      btn.disabled = true;
+      setButtonLoading(btn, true, 'Tracking…');
+      result.innerHTML = skeletonTrackCard();
+      result.style.display = 'block';
+      result.setAttribute('aria-busy', 'true');
       try {
         // F16: POST body (the global fetch wrapper attaches X-CSRF-Token) —
         // order number and phone stay out of URLs and logs.
@@ -1982,6 +2098,8 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
         err.style.display = 'block';
         result.style.display = 'none';
       } finally {
+        result.removeAttribute('aria-busy');
+        setButtonLoading(btn, false);
         btn.disabled = false;  // was skipped on the !res.ok path — one failed lookup bricked the button
       }
     }
@@ -2314,7 +2432,15 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
     // catalog is already complete (the common case after boot).
     function withFullCatalog(render) {
       if (catalogExhausted) { render(); return; }
-      loadRemainingCatalogPages().then(render);
+      // Still fetching the rest of the catalog: keep any painted cards on
+      // screen (marked busy) and skeleton only an empty grid, so a search
+      // or filter never flashes a blank page.
+      const grid = document.getElementById('collectionGrid');
+      if (grid) {
+        if (!grid.querySelector('.product-card')) grid.innerHTML = skeletonProductCards(GRID_PAGE);
+        grid.setAttribute('aria-busy', 'true');
+      }
+      loadRemainingCatalogPages().then(() => { clearGridBusy(grid); render(); });
     }
 
     // Paints from the inlined seed (no network), then finishes the catalog in
@@ -2332,6 +2458,13 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       if (productsFetchInFlight) return;
       productsFetchInFlight = true;
       lastProductsFetchAt = Date.now();
+      // First load (or a retry after an outage) with nothing painted yet:
+      // skeleton cards hold the grid's shape until the catalog lands. A
+      // seed-painted or already-loaded grid keeps its cards — no flash.
+      if (!allProducts.length) {
+        showGridSkeleton(document.getElementById('bestSellersGrid'), 8);
+        showGridSkeleton(document.getElementById('collectionGrid'), GRID_PAGE);
+      }
       try {
         // Default HTTP cache mode: revalidate via Cache-Control/ETag, never
         // persist the catalog in localStorage/sessionStorage across visits.
@@ -2450,9 +2583,10 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       document.getElementById('custSignupError').style.display = 'none';
     }
 
-    async function requestCustomerPasswordReset() {
+    async function requestCustomerPasswordReset(btn) {
       const email = prompt('Enter your email address:');
       if (!email) return;
+      setButtonLoading(btn, true, 'Sending…');
       try {
         const res = await fetch('/api/auth/forgot-password', {
           method: 'POST',
@@ -2463,6 +2597,8 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
         alert(data.message || 'Check your email for reset instructions.');
       } catch (err) {
         alert('Connection error.');
+      } finally {
+        setButtonLoading(btn, false);
       }
     }
 
@@ -2496,6 +2632,8 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       const resetMin = resetUserType === 'admin' ? 14 : 10;
       if (!password || password.length < resetMin) { err.textContent = 'Password must be at least ' + resetMin + ' characters.'; err.style.display = 'block'; return; }
       if (password !== confirm) { err.textContent = 'Passwords do not match.'; err.style.display = 'block'; return; }
+      const btn = e.target.querySelector('button[type=submit]');
+      setButtonLoading(btn, true, 'Updating…');
       try {
         const res = await fetch('/api/auth/reset-password', {
           method: 'POST',
@@ -2516,6 +2654,8 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       } catch (e2) {
         err.textContent = 'Connection error. Please try again.';
         err.style.display = 'block';
+      } finally {
+        setButtonLoading(btn, false);
       }
     }
 
@@ -2538,6 +2678,8 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
     async function verifyEmail() {
       const err = document.getElementById('vfyError');
       const msg = document.getElementById('vfyMsg');
+      // Inline spinner while the verification request is in flight.
+      if (msg) { msg.innerHTML = SPINNER_HTML + ' Verifying your email…'; msg.style.display = 'block'; }
       try {
         const res = await fetch('/api/auth/verify-email?token=' + encodeURIComponent(verifyToken));
         const data = await res.json().catch(() => ({}));
@@ -2554,12 +2696,14 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       }
     }
 
-    async function resendVerificationEmail() {
+    async function resendVerificationEmail(btn) {
+      setButtonLoading(btn, true, 'Sending…');
       try {
         const res = await fetch('/api/customers/resend-verification', { method: 'POST' });
         const data = await res.json().catch(() => ({}));
         showToast(res.ok ? (data.message || 'Verification email sent. Check your inbox.') : (data.error || 'Could not send the verification email.'));
       } catch (e) { showToast('Connection error. Please try again.'); }
+      setButtonLoading(btn, false);
     }
 
     // Show/hide the "verify your email" banner on the account page.
@@ -2575,14 +2719,14 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       const errEl = document.getElementById('custLoginError');
       const btn = document.getElementById('custLoginBtn');
       if (!email || !password) { errEl.textContent = 'Please fill in all fields.'; errEl.style.display = 'block'; return; }
-      btn.disabled = true; btn.textContent = 'Signing in…';
+      setButtonLoading(btn, true, 'Signing in…');
       try {
         const res = await fetch('/api/customers/login', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email, password })
         });
         const data = await res.json();
-        if (!res.ok) { errEl.textContent = data.error || 'Login failed.'; errEl.style.display = 'block'; btn.disabled = false; btn.textContent = 'Sign In'; return; }
+        if (!res.ok) { errEl.textContent = data.error || 'Login failed.'; errEl.style.display = 'block'; return; }
         currentCustomer = data.customer;
         updateAccountUI();
         closeCustModal();
@@ -2590,8 +2734,9 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
         showToast('Welcome back, ' + (currentCustomer.name || 'Clan Member') + '!');
       } catch (e) {
         errEl.textContent = 'Something went wrong. Please try again.'; errEl.style.display = 'block';
+      } finally {
+        setButtonLoading(btn, false);
       }
-      btn.disabled = false; btn.textContent = 'Sign In';
     }
 
     async function submitCustSignup() {
@@ -2602,14 +2747,14 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       const btn = document.getElementById('custSignupBtn');
       if (!email || !password) { errEl.textContent = 'Email and password are required.'; errEl.style.display = 'block'; return; }
       if (password.length < 10) { errEl.textContent = 'Password must be at least 10 characters.'; errEl.style.display = 'block'; return; }
-      btn.disabled = true; btn.textContent = 'Creating…';
+      setButtonLoading(btn, true, 'Creating…');
       try {
         const res = await fetch('/api/customers/signup', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email, password, name })
         });
         const data = await res.json();
-        if (!res.ok) { errEl.textContent = data.error || 'Signup failed.'; errEl.style.display = 'block'; btn.disabled = false; btn.textContent = 'Create Account'; return; }
+        if (!res.ok) { errEl.textContent = data.error || 'Signup failed.'; errEl.style.display = 'block'; return; }
         currentCustomer = data.customer;
         updateAccountUI();
         closeCustModal();
@@ -2617,16 +2762,19 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
         showToast('Account created! Check your email to verify your address.');
       } catch (e) {
         errEl.textContent = 'Something went wrong. Please try again.'; errEl.style.display = 'block';
+      } finally {
+        setButtonLoading(btn, false);
       }
-      btn.disabled = false; btn.textContent = 'Create Account';
     }
 
-    async function customerLogout() {
+    async function customerLogout(btn) {
+      setButtonLoading(btn, true, 'Signing out…');
       try { await fetch('/api/customers/logout', { method: 'POST' }); } catch (e) {}
       currentCustomer = null;
       updateAccountUI();
       navigateTo('home');
       showToast('Signed out.');
+      setButtonLoading(btn, false);
     }
 
     async function loadAccountPage() {
@@ -2638,7 +2786,10 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       document.getElementById('acctAddress').value = currentCustomer.address || '';
       document.getElementById('acctCity').value = currentCustomer.city || '';
       updateVerifyBanner(currentCustomer.email_verified !== false);
-      // Load orders
+      // Load orders — skeleton rows while the history fetch is in flight.
+      const ordersEl = document.getElementById('acctOrders');
+      ordersEl.innerHTML = skeletonOrderRows(3);
+      ordersEl.setAttribute('aria-busy', 'true');
       try {
         const res = await fetch('/api/customers/orders');
         if (!res.ok) throw new Error('Order history unavailable');
@@ -2648,6 +2799,8 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
         renderAccountOrders(data.orders, verified);
       } catch (e) {
         document.getElementById('acctOrders').textContent = 'Could not load your orders. Please try again later.';
+      } finally {
+        ordersEl.removeAttribute('aria-busy');
       }
     }
 
@@ -2672,7 +2825,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       }).join('');
     }
 
-    async function saveAccountProfile() {
+    async function saveAccountProfile(btn) {
       const msg = document.getElementById('acctProfileMsg');
       const body = {
         name: document.getElementById('acctNameInput').value.trim(),
@@ -2680,6 +2833,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
         address: document.getElementById('acctAddress').value.trim(),
         city: document.getElementById('acctCity').value.trim()
       };
+      setButtonLoading(btn, true, 'Saving…');
       try {
         const res = await fetch('/api/customers/me', {
           method: 'PUT', headers: { 'Content-Type': 'application/json' },
@@ -2695,16 +2849,19 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
         }
       } catch (e) {
         msg.textContent = 'Something went wrong.'; msg.className = 'acct-msg error';
+      } finally {
+        setButtonLoading(btn, false);
       }
       setTimeout(() => { msg.textContent = ''; }, 3000);
     }
 
-    async function changeAccountPassword() {
+    async function changeAccountPassword(btn) {
       const msg = document.getElementById('acctPwMsg');
       const currentPassword = document.getElementById('acctCurrentPw').value;
       const newPassword = document.getElementById('acctNewPw').value;
       if (!currentPassword || !newPassword) { msg.textContent = 'Both fields are required.'; msg.className = 'acct-msg error'; return; }
       if (newPassword.length < 10) { msg.textContent = 'New password must be at least 10 characters.'; msg.className = 'acct-msg error'; return; }
+      setButtonLoading(btn, true, 'Updating…');
       try {
         const res = await fetch('/api/customers/me', {
           method: 'PUT', headers: { 'Content-Type': 'application/json' },
@@ -2720,6 +2877,8 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
         }
       } catch (e) {
         msg.textContent = 'Something went wrong.'; msg.className = 'acct-msg error';
+      } finally {
+        setButtonLoading(btn, false);
       }
       setTimeout(() => { msg.textContent = ''; }, 3000);
     }
@@ -2747,6 +2906,11 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
     if (requestedPath === '/confirmation' && !lastOrder) history.replaceState(null, '', '/');
     const initialPath = location.pathname;
     setupFilters(); updateCartUI();
+    // Skeleton cards first: when the inlined seed is present it paints over
+    // them in the same frame (no flash), and when it is not — slow network,
+    // seed skipped — the skeletons hold the layout until the catalog lands.
+    showGridSkeleton(document.getElementById('bestSellersGrid'), 8);
+    showGridSkeleton(document.getElementById('collectionGrid'), GRID_PAGE);
     // Paint instantly from the inlined catalog seed (server-rendered first
     // page) if one is present — no network wait for the first paint. The
     // seed is public catalog data only; loadProductsFromAPI() revalidates it.
@@ -2861,18 +3025,24 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       'start-checkout': () => startCheckout(),
       'place-order': () => placeOrder(),
       'load-more': () => loadMore(),
-      'load-products': () => loadProductsFromAPI(),
+      'load-products': (el) => {
+        setButtonLoading(el, true, 'Loading…');
+        return Promise.resolve(loadProductsFromAPI()).then(
+          () => setButtonLoading(el, false),
+          () => setButtonLoading(el, false)
+        );
+      },
       'account': () => handleAccountClick(),
       'go-track': () => goTrackOrder(),
-      'resend-verification': () => resendVerificationEmail(),
-      'request-pw-reset': () => requestCustomerPasswordReset(),
+      'resend-verification': (el) => resendVerificationEmail(el),
+      'request-pw-reset': (el) => requestCustomerPasswordReset(el),
       'cust-show-login': () => showCustLogin(),
       'cust-show-signup': () => showCustSignup(),
       'cust-login': () => submitCustLogin(),
       'cust-signup': () => submitCustSignup(),
-      'save-profile': () => saveAccountProfile(),
-      'change-password': () => changeAccountPassword(),
-      'customer-logout': () => customerLogout(),
+      'save-profile': (el) => saveAccountProfile(el),
+      'change-password': (el) => changeAccountPassword(el),
+      'customer-logout': (el) => customerLogout(el),
       'cust-close': () => closeCustModal(),
       'cust-backdrop': (el, e) => { if (e.target === el) closeCustModal(); },
       'desktop-search': () => toggleDesktopSearch(),

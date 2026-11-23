@@ -1855,3 +1855,70 @@ Unchanged non-token text on solid surfaces was also checked:
   *Also fixed:* the frontend suite's closing line hard-coded "37/37" while 79
   scenarios actually ran. It now counts the `✅` lines it prints, so the summary
   cannot drift again.
+
+## 2026-11-23 follow-up — skeleton loading screens + action spinners
+
+**Problem.** Every slow path was silent. The storefront painted empty grids while
+`/api/products` was in flight, the account page sat blank until order history
+arrived, tracking showed nothing between submit and result, and every action that
+took more than a moment only disabled its button (or, worse, closed its dropdown
+and left no trace at all). The CSS already shipped `.skeleton` /
+`skeleton-shimmer` primitives, but nothing used them; the admin panel had exactly
+one spinner, hard-wired to Quick Upload.
+
+**Storefront (`public/storefront.js`, `public/storefront.css`).**
+* `setButtonLoading(btn, on, label)` — the one spinner primitive. It disables the
+  button, sets `aria-busy`, swaps the label for `<span class="spinner">` + a
+  text label, and restores the **exact** original `innerHTML`/`disabled` state
+  afterwards, so no flow leaks a half-rendered button. Wired into: place order,
+  login, signup, logout, save profile, change password, resend verification,
+  request password reset, reset password, review submit, tracking submit each
+  newsletter/notify form, Load more, and the catalog Retry button.
+* Skeletons: `skeletonProductCards` / `skeletonReviewRows` / `skeletonOrderRows`
+  / `skeletonTrackCard`, painted into `#bestSellersGrid`, `#collectionGrid`,
+  `#reviewsList`, `#acctOrders` and `#trkResult`. The collection/best-seller
+  skeletons are only painted when nothing is on screen yet (first load, or a
+  retry after an outage) — a seed-painted or already-loaded grid keeps its real
+  cards, so the instant seed paint is never replaced by a flash of placeholders.
+  `withFullCatalog()` now marks the grid `aria-busy` and skeletons an *empty*
+  grid only, so a filter applied before the last catalog page lands no longer
+  blanks the page.
+* Photos decode asynchronously, so card and gallery `<img>` carry `.img-skel`
+  (the shimmer) until `load`/`error` fires; a capture-phase listener removes it
+  for every image, and a post-render sweep covers cache hits.
+* Detail reviews reveal the section immediately with two skeleton rows and swap
+  in real reviews (or the empty state) when the fetch settles. Tracking shows a
+  skeleton card under the form while the lookup runs.
+* `prefers-reduced-motion: reduce` stops both the shimmer and the ring.
+
+**Admin (`public/admin.js`, `public/admin.css`).**
+* `btnLoading()` (same restore-exact-markup contract) drives Save/Update Product
+  and bulk delete; `busyButton()` covers row-level icon buttons (stock toggle,
+  delete, order status/payment/COD, review approve/reject/delete) with an
+  in-place spinning ring, driven by a promise-aware `ASYNC_ACTIONS` allow-list in
+  the delegated click handler.
+* Skeletons for every list that starts empty: dashboard stat values and Recent
+  Orders, Products, Orders, Reviews, Homepage Cards, plus the sales-summary and
+  P&L numbers. `aria-busy` is set on the list and cleared in `finally`.
+* A 2px top progress bar (`#adminBusyBar`) is ticked by the existing `fetch`
+  wrapper for *every* API call, so actions whose button lived in a dropdown that
+  just closed still show activity. It appears after a 140 ms delay, so cache hits
+  never flash.
+* Homepage-card photo upload/reset now dims the card frame, spins a ring over it
+  and prints "Uploading…" / "Resetting…" in the card status line — client-side
+  compression makes those cycles the slowest in the panel.
+
+**Accessibility.** Decorative skeleton nodes are `aria-hidden` and text-free;
+loading state is conveyed with `aria-busy` on the container and the button, so a
+screen reader is not read a wall of empty boxes. Nothing relies on colour alone.
+
+**Verification.** All skeletons/spinners are pure decoration on top of the
+existing markup contracts: `npm test` **165/165** and the frontend suite
+**80/80** stay green, including the grid/card, lazy-image, offline-catalog and
+hidden-home-reviews assertions. Two static guards were kept honest (the served
+`#collectionGrid` must stay an empty `.product-grid`, and `trackOrder`'s
+`finally` must still contain `btn.disabled = false`). A jsdom probe with a held
+`/api/products` response confirmed 8 skeleton cards + `aria-busy="true"` on both
+grids, replaced by real cards with the attribute cleared on resolution, and a
+held tracking request confirmed the skeleton card plus a spinning
+`Tracking…` button.

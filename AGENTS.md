@@ -38,7 +38,18 @@
 - When a work item from `AUDIT.md` is completed, update `AUDIT.md`: mark the item done
   and record what changed + how it was verified.
 
-## Status snapshot (updated 2026-10-15)
+## Status snapshot (updated 2026-11-23)
+
+- ✅ *(2026-11-23)* Skeleton loading screens + action spinners. Storefront:
+  `.skel-card`/`.skel-line` placeholders for empty catalog grids (first load or
+  retry only — the seed paint is never replaced), reviews, account order history
+  and order tracking, plus a `.spinner` in every async button via
+  `setButtonLoading()` (restores the exact original markup) and `.img-skel`
+  shimmer on photos until they decode. Admin: list/stat skeletons, `btnLoading()`
+  and `busyButton()`, and a fetch-wrapped top progress bar for every API call.
+  Details in `AUDIT.md` (2026-11-23 entry); `npm test` **165/165**, frontend
+  **80/80**.
+
 
 - ✅ CRITICAL admin auth bypass fixed: `requireAuth` trusts only
   `cookie-session`-verified `req.session`; standalone/forged payloads and the

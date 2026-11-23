@@ -2248,8 +2248,12 @@
     }
 
     /* ================================================================
-       LOADING SKELETON
-       ================================================================ */
+       LOADING SKELETON + SPINNERS
+       ================================================================
+       Skeleton placeholders mirror the real layout (product card, review
+       row, order row, tracking card) so async content never leaves a
+       blank gap or causes a layout jump. They are aria-hidden and
+       text-free; the container carries aria-busy while loading. */
     .skeleton {
       background: linear-gradient(90deg, var(--bg-card-image) 25%, #D3CDBE 50%, var(--bg-card-image) 75%);
       background-size: 200% 100%;
@@ -2273,6 +2277,96 @@
       height: 10px;
       margin-top: 6px;
       width: 40%;
+    }
+    /* Product-card skeleton: image block + title/price lines + button,
+       sized like a real card so the grid keeps its shape while loading. */
+    .skel-card {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+    .skel-img {
+      aspect-ratio: 3 / 4;
+      width: 100%;
+      border-radius: 0;
+    }
+    .skel-line {
+      height: 14px;
+      margin-top: 10px;
+      width: 60%;
+    }
+    .skel-line-wide { width: 85%; }
+    .skel-line-sm { height: 10px; width: 40%; }
+    .skel-btn {
+      height: 44px;
+      margin-top: auto;
+      width: 100%;
+    }
+    .skel-card .skel-btn { margin-top: 12px; }
+    /* Review / order / tracking skeletons reuse the real containers'
+       padding and borders so nothing shifts when content lands. */
+    .skeleton-review {
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 0.9rem 1rem;
+      background: var(--bg-panel);
+    }
+    .skeleton-review .skel-line:first-child { margin-top: 0; }
+    .skeleton-order-row {
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 0.9rem 1rem;
+      background: var(--bg-panel);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .skeleton-order-row .skel-line { margin-top: 0; }
+    .skeleton-track {
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 1rem;
+      background: var(--bg-panel);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .skeleton-track .skel-line { margin-top: 0; }
+    .product-grid[aria-busy="true"] { cursor: progress; }
+    /* Images decode async, so a photo's frame shimmers instead of sitting
+       flat/blank until the bitmap arrives. .img-skel is dropped as soon as
+       the image loads (or errors), so loaded photos never animate. */
+    .product-card-image img.img-skel,
+    .detail-main-image .gallery-track img.img-skel {
+      background: linear-gradient(90deg, var(--bg-card-image) 25%, #D3CDBE 50%, var(--bg-card-image) 75%);
+      background-size: 200% 100%;
+      animation: skeleton-shimmer 1.5s ease-in-out infinite;
+    }
+    /* CSS-only ring spinner. The arc uses currentColor so it reads on
+       dark primary buttons and light outline buttons alike. */
+    .spinner {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      flex: none;
+      border: 2px solid rgba(128, 128, 128, 0.35);
+      border-top-color: currentColor;
+      border-radius: 50%;
+      animation: kage-spin 0.7s linear infinite;
+      vertical-align: -3px;
+    }
+    .spinner-sm { width: 12px; height: 12px; border-width: 1.5px; }
+    @keyframes kage-spin { to { transform: rotate(360deg); } }
+    .btn.is-loading,
+    button.is-loading,
+    a.is-loading {
+      pointer-events: none;
+    }
+    .btn.is-loading .spinner { margin-right: 0.5rem; }
+    .btn.is-loading .btn-loading-label { white-space: nowrap; }
+    @media (prefers-reduced-motion: reduce) {
+      .skeleton,
+      .spinner { animation: none; }
     }
 
     /* ================================================================
