@@ -828,6 +828,20 @@ async function ready(win) {
     assert.match(storeHtml, /\.contact-card-icon svg\s*\{[^}]*stroke:\s*currentColor;[^}]*stroke-width:\s*1\.7;[^}]*stroke-linecap:\s*round;[^}]*stroke-linejoin:\s*round;/, 'contact SVGs share a consistent themed stroke style');
     assert.match(storeHtml, /\.tracking-form \.btn \{ align-self: flex-start; \}/, 'desktop Track Order button retains its original alignment');
     assert.match(storeHtml, /@media \(max-width: 768px\) \{\s*#page-tracking \.tracking-form \.btn \{ width: 100%; align-self: stretch; \}/, 'Track Order button expands to the form width on mobile');
+    // Mobile tracking timeline regression: an @media (max-width: 540px) block used to
+    // sit ABOVE the base .track-* rules. Same specificity, so the base
+    // `.track-step { flex-direction: column }` won the cascade, the steps rendered
+    // as centred columns and the horizontal connector's left: -50% bled outside the
+    // result card. The override must come after the base rules it overrides.
+    const storeCssLf = storeHtml.replace(/\r\n/g, '\n'); // the bundle is CRLF on disk
+    const baseTrackStep = storeCssLf.indexOf('.track-step { display: flex; flex-direction: column;');
+    const narrowTrackStep = storeCssLf.indexOf('.track-step {\n        flex-direction: row;');
+    assert.ok(baseTrackStep !== -1, 'base tracking step rule exists');
+    assert.ok(narrowTrackStep !== -1, 'narrow-screen tracking step override exists');
+    assert.ok(narrowTrackStep > baseTrackStep, 'narrow-screen tracking override comes after the base rule it overrides (source order decides at equal specificity)');
+    const narrowTrackBlock = storeCssLf.slice(storeCssLf.lastIndexOf('@media (max-width: 540px)', narrowTrackStep), narrowTrackStep + 400);
+    assert.match(narrowTrackBlock, /\.track-timeline \{ flex-direction: column;/, 'narrow screens stack the timeline vertically');
+    assert.match(narrowTrackBlock, /\.track-step::before \{[^}]*left: 11px;[^}]*width: 2px;/, 'narrow-screen connector is a vertical rail beside the dots, inside the card (never left: -50%)');
     for (const width of [360, 414, 768, 1440]) {
       const pageOuterWidth = Math.min(width, 720);
       const pageGutter = width < 600 ? 16 : 20;

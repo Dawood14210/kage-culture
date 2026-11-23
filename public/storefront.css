@@ -2532,16 +2532,6 @@
        that way rather than piling on generic overrides.
        ================================================================ */
     @media (max-width: 540px) {
-      /* Track timeline: 4 labels in a flex row overflow narrow screens;
-         the horizontal connector line breaks anyway once labels wrap. */
-      .track-timeline { flex-direction: column; align-items: flex-start; gap: 1.1rem; }
-      .track-step { flex-direction: row; align-items: center; width: 100%; }
-      .track-step::before {
-        top: auto; left: 10px; width: 2px; height: 100%; min-height: 24px;
-      }
-      .track-step:first-child::before { display: none; }
-      .track-label { font-size: 0.78rem; }
-
       /* Horizontal row-limits so min-height:44px nav buttons can't
          stretch to the header's full height. */
       .nav-links li { min-height: 0; }
@@ -2964,6 +2954,24 @@
     .track-step.done::before { background: var(--accent); }
     .track-label { font-size: 0.68rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-gray); }
     .track-step.active .track-label, .track-step.done .track-label { color: var(--text-primary); }
+
+    /* Narrow screens: stack the four tracking stages vertically. The
+       connector rails become vertical segments beside the dots (the
+       horizontal rail's left:-50% bled outside the result card here).
+       This block must stay AFTER the base .track-* rules above: same
+       specificity, so source order decides. */
+    @media (max-width: 540px) {
+      .track-timeline { flex-direction: column; align-items: flex-start; gap: 0; }
+      .track-step {
+        flex-direction: row; align-items: center; width: 100%;
+        gap: 0.75rem; padding: 0.55rem 0 0.55rem 0;
+      }
+      .track-step::before {
+        top: auto; bottom: 50%; left: 11px; width: 2px; height: 100%;
+      }
+      .track-step:first-child::before { display: none; }
+      .track-label { font-size: 0.78rem; }
+    }
     .track-details { display: flex; flex-direction: column; gap: 0.4rem; font-size: 0.82rem; margin-bottom: var(--spacing-md); }
     .track-details div { display: flex; justify-content: space-between; }
     .track-details span:first-child { color: var(--text-gray); }
