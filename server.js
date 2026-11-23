@@ -14,6 +14,7 @@ const { csrfMiddleware, CSRF_ENDPOINT } = require('./middleware/csrf');
 const { requireAuth } = require('./middleware/auth');
 const { getSessionSecret } = require('./utils/secret');
 const { getSiteUrlForRequest } = require('./utils/siteUrl');
+const { CATALOG_PAGE_SIZE, buildPublicProductList, catalogEnvelope } = require('./utils/publicCatalog');
 const productShape = require('./utils/productShape');
 const sizeStock = require('./utils/sizes');
 const demoProducts = require('./utils/demoProducts');
@@ -636,6 +637,27 @@ async function resolveSeoPage(req, siteUrl) {
   return { status: 200 };
 }
 
+// F21: inline the first page of the public catalog as an inert
+// application/json block so the storefront can paint the grid without
+// waiting for /api/products. The block carries the same envelope as
+// GET /api/products?page=1; serializeJsonLd escapes `<`, U+2028 and
+// U+2029 so a product description can never break out of the tag.
+// Failure (e.g. the DB is down for a crawler cold start) injects
+// nothing and the client fetches the catalog the old way.
+async function injectCatalogSeed(html) {
+  try {
+    const list = await buildPublicProductList(db);
+    const envelope = catalogEnvelope(list, 1, CATALOG_PAGE_SIZE, list.length);
+    const tag = `  <script type="application/json" id="kageCatalogSeed">${serializeJsonLd(envelope)}</script>\n`;
+    const bodyEnd = html.lastIndexOf('</body>');
+    if (bodyEnd < 0) return html;
+    return `${html.slice(0, bodyEnd)}${tag}${html.slice(bodyEnd)}`;
+  } catch (err) {
+    console.error('catalog seed skipped:', err && err.message ? err.message : err);
+    return html;
+  }
+}
+
 async function renderStorefrontHtml(req) {
   const siteUrl = getSiteUrlForRequest(req);
   const pagePath = req.path === '/index.html' ? '/' : req.path;
@@ -649,6 +671,7 @@ async function renderStorefrontHtml(req) {
     html = applySeoMetadata(html, resolved.seo);
     html = appendJsonLd(html, resolved.schemas || []);
   }
+  html = await injectCatalogSeed(html);
   return { html, status: resolved.status || 200 };
 }
 

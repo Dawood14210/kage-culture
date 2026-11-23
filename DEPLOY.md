@@ -38,6 +38,24 @@ Both public product endpoints return a payload-hash ETag. An unchanged
 when the underlying public payload changes. `/api/reviews` keeps its existing
 120-second browser/shared-cache policy.
 
+Pagination (Phase 3, F21): `GET /api/products` accepts `?page=N` (1-based)
+and `?category=<graphic-tees|anime|pants|sale>`. With any of those parameters
+the endpoint returns a JSON envelope — `{ products, page, limit, total,
+totalPages, hasMore }` — with 24 items per page and the same Cache-Control and
+ETag behaviour as the legacy response. Called **without** any pagination
+parameters it returns the full catalog as a plain array, exactly as before, so
+existing consumers are unaffected. A page beyond the end returns an empty
+`products` array with `hasMore: false` (never the last page replayed);
+`?page` that is not a positive integer and an unknown `?category` are 400s.
+
+The storefront HTML shell additionally inlines page 1 of the catalog as an
+inert `<script type="application/json" id="kageCatalogSeed">` block (escaped
+with `<`-for-`\u003c`), so the grid can paint before any network request. The
+block carries public catalog data only (never `unit_cost`), is capped at 24
+products, and is covered by the same HTML edge cache (`s-maxage=60`) as the
+rest of the shell; the client revalidates with `GET /api/products` on boot and
+loads any further pages via `/api/products?page=N`.
+
 The storefront uses normal HTTP caching and does not persist product lists in
 localStorage/sessionStorage. Returning to a visible tab triggers a refetch when
 the last fetch was more than 15 seconds ago, refreshing Pants navigation/footer

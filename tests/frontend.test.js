@@ -175,11 +175,12 @@ async function ready(win) {
     console.log('✅ Shop grid visibility follows collection routes and search');
 
     w.navigateTo('home');
-    w.nextPage();
+    w.loadMore();
     const size = d.querySelector('#filterSidebar .fp-size');
     size.value = 'XL';
     size.dispatchEvent(new w.Event('change', { bubbles: true }));
-    assert.equal(d.querySelector('#pageInfo').textContent, 'Page 1 of 1');
+    assert.match(d.querySelector('#catalogShowing').textContent, /^Showing (\d+) of \1$/, 'a fully-visible filtered grid reports "Showing N of N"');
+    assert.equal(d.getElementById('loadMoreBtn').style.display, 'none', 'no Load more when everything fits');
     assert.ok(d.querySelector('#collectionGrid .product-card'));
     assert.ok(w.eval('renderProductCard(allProducts.find(p => p.name === "Wrath Silhouette"))').includes('class="product-discount-badge"'));
     console.log('✅ Filters clamp pagination; homepage sale badge is displayed');
@@ -1909,7 +1910,7 @@ async function ready(win) {
           ['pants (empty state)', "navigateTo('collection', 'pants')"],
           ['sale', "navigateTo('collection', 'sale')"],
           ['search results', "onSearchInput('wolf')"],
-          ['page 2', "onSearchInput(''); navigateTo('collection', 'all'); nextPage()"]
+          ['load more page', "onSearchInput(''); navigateTo('collection', 'all'); loadMore()"]
         ];
         for (const [state, action] of states) {
           if (action) await rp.evaluate(action);
@@ -1933,7 +1934,7 @@ async function ready(win) {
         }
         assert.equal(await fp.$eval('#collectionTitle', (el) => el.textContent), 'FEATURED DROPS | NEW ARRIVALS');
         assert.equal(await fp.$eval('#resultCount', (el) => el.textContent), '10 results');
-        assert.equal(await fp.$eval('#pageInfo', (el) => el.textContent), 'Page 1 of 2');
+        assert.equal(await fp.$eval('#catalogShowing', (el) => el.textContent), 'Showing 8 of 10');
         // Sort: cheapest first (price range → its lowest price), and the grid really re-renders.
         await fp.select('#sortSelect', 'price-low');
         const sortedMins = await fp.evaluate(() => [...document.querySelectorAll('#collectionGrid .product-card')]
@@ -1950,16 +1951,18 @@ async function ready(win) {
         await fp.click('#filterDrawer .filter-drawer-footer .btn');
         await fp.waitForFunction(() => !document.getElementById('filterDrawer').classList.contains('open'));
         await settleLayout(fp);   // the drawer is a fixed layer until it has finished sliding out
-        // Pagination: Next shows the last two products.
-        await fp.click('#nextBtn');
-        await fp.waitForFunction(() => document.getElementById('pageInfo').textContent === 'Page 2 of 2');
-        assert.equal(await fp.$$eval('#collectionGrid .product-card', (cards) => cards.length), 2, 'page 2 holds the remaining two products');
-        assert.equal(await fp.$eval('#nextBtn', (el) => getComputedStyle(el).display), 'none', 'there is no Next on the last page');
+        // Load more: reveals the remaining two products.
+        await fp.click('#loadMoreBtn');
+        await fp.waitForFunction(() => document.getElementById('catalogShowing').textContent === 'Showing 10 of 10');
+        assert.equal(await fp.$$eval('#collectionGrid .product-card', (cards) => cards.length), 10, 'load more reveals the remaining two products');
+        assert.equal(await fp.$eval('#loadMoreBtn', (el) => getComputedStyle(el).display), 'none', 'there is no Load more once everything is shown');
         await fp.mouse.move(0, 0);   // park the pointer: a card under it would show its hover lift
         await settleLayout(fp);
         const last = await measureGrid(fp, '#collectionGrid');
-        assert.equal(groupRows(last.cards).length, 1, 'the two cards of the last page share one row');
-        assert.ok(spread(last.cards.map((c) => c.h)) <= 1 && spread(last.cards.map((c) => c.btnTop)) <= 1, 'and line up too');
+        const tail = last.cards.filter((card) => card.id === '9' || card.id === '10');
+        assert.equal(tail.length, 2, 'both remaining products are rendered');
+        assert.equal(groupRows(tail).length, 1, 'the two cards revealed by Load more share one row');
+        assert.ok(spread(tail.map((c) => c.h)) <= 1 && spread(tail.map((c) => c.btnTop)) <= 1, 'and line up too');
         console.log('✅ 320px real Chromium — page header, result count, sort, Filter drawer and pagination all work');
         await fp.close();
       }

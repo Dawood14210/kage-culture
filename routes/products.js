@@ -13,6 +13,7 @@ const { persistImageVariants, readVariantMap, pruneVariantMap } = require('../ut
 const categoryCards = require('../utils/categoryCards');
 const sizeStock = require('../utils/sizes');
 const productShape = require('../utils/productShape');
+const { CATALOG_PAGE_SIZE, buildPublicProductList, catalogEnvelope } = require('../utils/publicCatalog');
 
 // Hash the complete public representation, including stock/review aggregates.
 // Unlike timestamps alone, this also detects deletes and same-second edits.
@@ -76,19 +77,40 @@ module.exports = function createProductRoutes(db) {
   // GET all products (public)
   // Payload is built from the public allow-list in utils/productShape.js —
   // `unit_cost` (cost of goods) and the other internal columns stay out of it.
+  //
+  // Pagination (F21): ?page=N (1-based, otherwise 400) and ?category=<slug>
+  // (graphic-tees | anime | pants | sale) return a JSON envelope
+  //   { products, page, limit, total, totalPages, hasMore }
+  // with CATALOG_PAGE_SIZE (24) items per page. Called with NO query
+  // parameters the endpoint is exactly what it always was: the full catalog
+  // as a plain array. That backwards-compatible default keeps every existing
+  // consumer — including the sitemap and this shop's own tests — working
+  // without changes. The Cache-Control/ETag policy is unchanged either way
+  // (the cache middleware keys on the path, not the query), and the envelope
+  // gets the same SHA-256 weak ETag treatment as the legacy array.
   router.get('/api/products', async (req, res) => {
     try {
-      const products = await db.prepare(`SELECT ${productShape.PUBLIC_PRODUCT_SELECT} FROM products ORDER BY created_at DESC, id DESC`).all();
-      const sold = await productShape.getSoldCounts(db);
-      const revAgg = await productShape.loadReviewAggregates(db);
-      const sizeStockById = await sizeStock.loadAllSizeStock(db);
-      const parsed = products.map(p => productShape.shapePublicProduct(p, {
-        size_stock: sizeStockById.get(Number(p.id)) || null,
-        sold_count: sold.get(Number(p.id)) || 0,
-        order_count: sold.get(Number(p.id)) || 0, // unchanged: mirrors sold_count
-        ...productShape.ratingFields(revAgg.get(Number(p.id)))
-      }));
-      sendPublicProductPayload(res, parsed);
+      const parsed = await buildPublicProductList(db);
+      const rawPage = typeof req.query.page === 'string' ? req.query.page.trim() : undefined;
+      const rawCategory = typeof req.query.category === 'string' ? req.query.category.trim().toLowerCase() : undefined;
+      if (rawPage === undefined && rawCategory === undefined) return sendPublicProductPayload(res, parsed);
+      let page = 1;
+      if (rawPage !== undefined) {
+        if (!/^\d+$/.test(rawPage)) return res.status(400).json({ error: 'The page parameter must be a positive whole number.' });
+        page = Math.floor(Number(rawPage));
+        if (!Number.isSafeInteger(page) || page < 1) return res.status(400).json({ error: 'The page parameter must be a positive whole number.' });
+      }
+      let filtered = parsed;
+      if (rawCategory) {
+        if (PRODUCT_CATEGORY_VALUES.has(rawCategory)) {
+          filtered = parsed.filter(p => p.category === rawCategory);
+        } else if (rawCategory === 'sale') {
+          filtered = parsed.filter(p => p.sale_price != null && Number(p.sale_price) > 0 && Number(p.sale_price) < Number(p.price));
+        } else {
+          return res.status(400).json({ error: `Unknown category "${rawCategory}". Use one of: ${[...PRODUCT_CATEGORY_VALUES, 'sale'].join(', ')}.` });
+        }
+      }
+      sendPublicProductPayload(res, catalogEnvelope(filtered, page, CATALOG_PAGE_SIZE, filtered.length));
     } catch (err) { console.error('products route failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
   });
 

@@ -581,6 +581,86 @@ async function main() {
   // ---------------------------------------------------------------
   // A fresh browser (no cookies at all) still completes a checkout
   // ---------------------------------------------------------------
+  console.log('Catalog pagination (F21):');
+  await check('GET /api/products with no parameters keeps the legacy array contract', async () => {
+    const res = await request(PORT, 'GET', '/api/products');
+    assert.strictEqual(res.status, 200);
+    assert.ok(Array.isArray(res.json), 'the default response stays a plain array');
+    assert.ok(res.json.length >= 1, 'the seeded catalog is not empty');
+  });
+
+  await check('page 1 returns the paginated envelope with coherent metadata', async () => {
+    const res = await request(PORT, 'GET', '/api/products?page=1');
+    assert.strictEqual(res.status, 200);
+    const body = res.json;
+    assert.ok(!Array.isArray(body), 'a paged request returns the envelope, not the array');
+    assert.ok(Array.isArray(body.products) && body.products.length >= 1);
+    assert.strictEqual(body.page, 1);
+    assert.strictEqual(body.limit, 24);
+    assert.strictEqual(body.totalPages, Math.max(1, Math.ceil(body.total / 24)));
+    assert.strictEqual(body.hasMore, body.page < body.totalPages);
+    assert.ok(body.products.length <= body.limit);
+  });
+
+  await check('page 1 of the envelope carries the same public shape as the legacy array', async () => {
+    const paged = (await request(PORT, 'GET', '/api/products?page=1')).json;
+    const legacy = (await request(PORT, 'GET', '/api/products')).json;
+    assert.deepStrictEqual(paged.products.map(p => p.id), legacy.slice(0, 24).map(p => p.id), 'same products, same order');
+    for (const p of paged.products) assert.ok(!('unit_cost' in p), 'public envelope must not leak unit_cost');
+  });
+
+  await check('out-of-range pages return an empty window, not an error', async () => {
+    const res = await request(PORT, 'GET', '/api/products?page=999');
+    assert.strictEqual(res.status, 200);
+    assert.deepStrictEqual(res.json.products, []);
+    assert.strictEqual(res.json.hasMore, false);
+  });
+
+  await check('category filter only yields matching products, sale only discounted ones', async () => {
+    for (const category of ['graphic-tees', 'anime', 'pants']) {
+      const res = await request(PORT, 'GET', '/api/products?category=' + category);
+      assert.strictEqual(res.status, 200);
+      assert.ok(res.json.products.every(p => p.category === category), `expected only ${category}`);
+      assert.strictEqual(res.json.total, res.json.products.length);
+    }
+    const sale = await request(PORT, 'GET', '/api/products?category=sale');
+    assert.strictEqual(sale.status, 200);
+    assert.ok(sale.json.products.every(p => Number(p.sale_price) > 0 && Number(p.sale_price) < Number(p.price)));
+  });
+
+  await check('invalid pagination parameters are rejected with 400', async () => {
+    assert.strictEqual((await request(PORT, 'GET', '/api/products?page=abc')).status, 400);
+    assert.strictEqual((await request(PORT, 'GET', '/api/products?page=0')).status, 400);
+    assert.strictEqual((await request(PORT, 'GET', '/api/products?page=-3')).status, 400);
+    assert.strictEqual((await request(PORT, 'GET', '/api/products?page=1.5')).status, 400);
+    assert.strictEqual((await request(PORT, 'GET', '/api/products?category=bogus')).status, 400);
+  });
+
+  await check('paginated responses keep the public cache policy and a working ETag', async () => {
+    const first = await request(PORT, 'GET', '/api/products?page=1');
+    assert.strictEqual(first.headers['cache-control'], 'public, max-age=0, s-maxage=10, stale-while-revalidate=30, must-revalidate');
+    assert.ok(first.headers.etag, 'envelope must carry an ETag');
+    assert.strictEqual(first.headers['set-cookie'], undefined);
+    const repeat = await request(PORT, 'GET', '/api/products?page=1', { headers: { 'If-None-Match': first.headers.etag } });
+    assert.strictEqual(repeat.status, 304);
+    assert.strictEqual(repeat.text, '');
+  });
+
+  await check('the storefront HTML inlines page 1 of the catalog as inert JSON', async () => {
+    const res = await request(PORT, 'GET', '/');
+    assert.strictEqual(res.status, 200);
+    const match = res.text.match(/<script type="application\/json" id="kageCatalogSeed">([\s\S]*?)<\/script>/);
+    assert.ok(match, 'the HTML shell must inline the catalog seed');
+    const seed = JSON.parse(match[1]);
+    assert.ok(Array.isArray(seed.products) && seed.products.length >= 1, 'the seed carries page 1');
+    assert.strictEqual(seed.page, 1);
+    assert.strictEqual(seed.limit, 24);
+    for (const p of seed.products) assert.ok(!('unit_cost' in p), 'seed must not expose unit_cost');
+    const live = await request(PORT, 'GET', '/api/products?page=1');
+    assert.strictEqual(seed.total, live.json.total, 'the seed reports the same catalog size as the live first page');
+    assert.deepStrictEqual(seed.products.map(p => p.id), live.json.products.map(p => p.id), 'the seed carries the same first page as the live endpoint');
+  });
+
   console.log('CSRF: fresh-browser checkout:');
   await check('a cookie-less client is refused until it fetches /api/csrf, then places an order', async () => {
     const catalog = (await request(PORT, 'GET', '/api/products')).json;

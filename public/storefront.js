@@ -23,59 +23,12 @@
     
 // ---- main storefront script (was the end-of-body inline block) ----
 
-    let allProducts = [
-      { id:1, name:'Shadow Fit', price:1499, fit:'Compression', collection:'compression', style:'Japanese Art', rating:4.6,
-        desc:'4-way stretch muscle-fit compression shirt. Second-skin feel with maximum mobility.',
-        sizes:['S','M','L','XL','XXL'],
-        images:['data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 300 400%22%3E%3Crect fill=%22%23C4BEB0%22 width=%22300%22 height=%22400%22/%3E%3Ctext x=%22150%22 y=%22200%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2224%22%3E%E2%86%91%3C/text%3E%3Ctext x=%22150%22 y=%22220%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2210%22%3EShadow Fit%3C/text%3E%3C/svg%3E',
-        'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 300 400%22%3E%3Crect fill=%22%23C4BEB0%22 width=%22300%22 height=%22400%22/%3E%3Ctext x=%22150%22 y=%22200%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2224%22%3E%E2%86%93%3C/text%3E%3Ctext x=%22150%22 y=%22220%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2210%22%3EShadow Back%3C/text%3E%3C/svg%3E'] },
-      { id:2, name:'Oni Muscle Tee', price:1599, fit:'Compression', collection:'compression', style:'Anime-Inspired', rating:4.8, variants:[{label:'Black',price:1599},{label:'White',price:1699}],
-        desc:'Sleeveless compression with bold contrast panels. For those who train until the mask drops.',
-        sizes:['S','M','L','XL','XXL'],
-        images:['data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 300 400%22%3E%3Crect fill=%22%23C4BEB0%22 width=%22300%22 height=%22400%22/%3E%3Ctext x=%22150%22 y=%22200%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2224%22%3E%E2%86%91%3C/text%3E%3Ctext x=%22150%22 y=%22220%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2210%22%3EOni Front%3C/text%3E%3C/svg%3E',
-        'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 300 400%22%3E%3Crect fill=%22%23C4BEB0%22 width=%22300%22 height=%22400%22/%3E%3Ctext x=%22150%22 y=%22200%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2224%22%3E%E2%86%93%3C/text%3E%3Ctext x=%22150%22 y=%22220%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2210%22%3EOni Back%3C/text%3E%3C/svg%3E',
-        'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 300 400%22%3E%3Crect fill=%22%23C4BEB0%22 width=%22300%22 height=%22400%22/%3E%3Ctext x=%22150%22 y=%22200%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2224%22%3E%E2%96%B2%3C/text%3E%3Ctext x=%22150%22 y=%22220%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2210%22%3ESide%3C/text%3E%3C/svg%3E'] },
-      { id:3, name:'Kage Core Compression', price:1399, fit:'Compression', collection:'compression', style:'Typography', rating:4.4,
-        desc:'Core compression layer — seamless, breathable, built for combat-level intensity.',
-        sizes:['S','M','L','XL','XXL'],
-        images:['data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 300 400%22%3E%3Crect fill=%22%23C4BEB0%22 width=%22300%22 height=%22400%22/%3E%3Ctext x=%22150%22 y=%22200%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2224%22%3E%E2%86%91%3C/text%3E%3Ctext x=%22150%22 y=%22220%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2210%22%3ECore%3C/text%3E%3C/svg%3E',
-        'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 300 400%22%3E%3Crect fill=%22%23C4BEB0%22 width=%22300%22 height=%22400%22/%3E%3Ctext x=%22150%22 y=%22200%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2224%22%3E%E2%86%93%3C/text%3E%3Ctext x=%22150%22 y=%22220%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2210%22%3ECore Back%3C/text%3E%3C/svg%3E'] },
-      { id:4, name:'Rising Vermillion', price:999, fit:'Regular', collection:'graphic-tees', style:'Japanese Art', rating:4.7, on_sale:true, sale_price:799,
-        desc:'Heavyweight 220GSM cotton tee. A gradient sky turned crimson.',
-        sizes:['S','M','L','XL','XXL'],
-        images:['data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 300 400%22%3E%3Crect fill=%22%23C4BEB0%22 width=%22300%22 height=%22400%22/%3E%3Ctext x=%22150%22 y=%22200%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2224%22%3E%E2%86%91%3C/text%3E%3Ctext x=%22150%22 y=%22220%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2210%22%3EVermillion%3C/text%3E%3C/svg%3E',
-        'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 300 400%22%3E%3Crect fill=%22%23C4BEB0%22 width=%22300%22 height=%22400%22/%3E%3Ctext x=%22150%22 y=%22200%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2224%22%3E%E2%86%93%3C/text%3E%3Ctext x=%22150%22 y=%22220%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2210%22%3EBack%3C/text%3E%3C/svg%3E'] },
-      { id:5, name:'Blade Wolf', price:1149, fit:'Regular', collection:'graphic-tees', style:'Anime-Inspired', rating:4.9, variants:[{label:'Black',price:1149},{label:'Crimson',price:1199}],
-        desc:'Silver ink on black — a lone wolf under a crescent moon.',
-        sizes:['S','M','L','XL','XXL'],
-        images:['data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 300 400%22%3E%3Crect fill=%22%23C4BEB0%22 width=%22300%22 height=%22400%22/%3E%3Ctext x=%22150%22 y=%22200%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2224%22%3E%E2%86%91%3C/text%3E%3Ctext x=%22150%22 y=%22220%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2210%22%3EBlade Wolf%3C/text%3E%3C/svg%3E',
-        'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 300 400%22%3E%3Crect fill=%22%23C4BEB0%22 width=%22300%22 height=%22400%22/%3E%3Ctext x=%22150%22 y=%22200%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2224%22%3E%E2%86%93%3C/text%3E%3Ctext x=%22150%22 y=%22220%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2210%22%3EWolf Back%3C/text%3E%3C/svg%3E'] },
-      { id:6, name:'Neon Fangs', price:1049, fit:'Regular', collection:'graphic-tees', style:'Anime-Inspired', rating:4.3,
-        desc:'Electric strike — neon clash across heavyweight cotton.',
-        sizes:['S','M','L','XL','XXL'],
-        images:['data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 300 400%22%3E%3Crect fill=%22%23C4BEB0%22 width=%22300%22 height=%22400%22/%3E%3Ctext x=%22150%22 y=%22200%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2224%22%3E%E2%86%91%3C/text%3E%3Ctext x=%22150%22 y=%22220%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2210%22%3ENeon%3C/text%3E%3C/svg%3E',
-        'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 300 400%22%3E%3Crect fill=%22%23C4BEB0%22 width=%22300%22 height=%22400%22/%3E%3Ctext x=%22150%22 y=%22200%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2224%22%3E%E2%86%93%3C/text%3E%3Ctext x=%22150%22 y=%22220%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2210%22%3EFangs Back%3C/text%3E%3C/svg%3E'] },
-      { id:7, name:'Shinobi Mark', price:999, fit:'Regular', collection:'graphic-tees', style:'Japanese Art', rating:4.5,
-        desc:'Minimalist shinobi crest. High-contrast placement on premium 220GSM cotton.',
-        sizes:['S','M','L','XL','XXL'],
-        images:['data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 300 400%22%3E%3Crect fill=%22%23C4BEB0%22 width=%22300%22 height=%22400%22/%3E%3Ctext x=%22150%22 y=%22200%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2224%22%3E%E2%86%91%3C/text%3E%3Ctext x=%22150%22 y=%22220%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2210%22%3EShinobi%3C/text%3E%3C/svg%3E',
-        'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 300 400%22%3E%3Crect fill=%22%23C4BEB0%22 width=%22300%22 height=%22400%22/%3E%3Ctext x=%22150%22 y=%22200%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2224%22%3E%E2%86%93%3C/text%3E%3Ctext x=%22150%22 y=%22220%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2210%22%3EShinobi Back%3C/text%3E%3C/svg%3E'] },
-      { id:8, name:'Drift Oversized', price:1199, fit:'Oversized', collection:'oversized', style:'Typography', rating:4.2, variants:[{label:'Black',price:1199},{label:'Ash',price:1249}],
-        desc:'Drop-shoulder, relaxed fit — heavyweight cotton.',
-        sizes:['S','M','L','XL','XXL'],
-        images:['data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 300 400%22%3E%3Crect fill=%22%23C4BEB0%22 width=%22300%22 height=%22400%22/%3E%3Ctext x=%22150%22 y=%22200%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2224%22%3E%E2%86%91%3C/text%3E%3Ctext x=%22150%22 y=%22220%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2210%22%3EDrift%3C/text%3E%3C/svg%3E',
-        'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 300 400%22%3E%3Crect fill=%22%23C4BEB0%22 width=%22300%22 height=%22400%22/%3E%3Ctext x=%22150%22 y=%22200%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2224%22%3E%E2%86%93%3C/text%3E%3Ctext x=%22150%22 y=%22220%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2210%22%3EDrift Back%3C/text%3E%3C/svg%3E'] },
-      { id:9, name:'Wrath Silhouette', price:1249, fit:'Oversized', collection:'oversized', style:'Anime-Inspired', rating:4.7, on_sale:true, sale_price:1099,
-        desc:'Boxy, cropped oversized fit. Built for those who take up space.',
-        sizes:['S','M','L','XL','XXL'],
-        images:['data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 300 400%22%3E%3Crect fill=%22%23C4BEB0%22 width=%22300%22 height=%22400%22/%3E%3Ctext x=%22150%22 y=%22200%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2224%22%3E%E2%86%91%3C/text%3E%3Ctext x=%22150%22 y=%22220%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2210%22%3EWrath%3C/text%3E%3C/svg%3E',
-        'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 300 400%22%3E%3Crect fill=%22%23C4BEB0%22 width=%22300%22 height=%22400%22/%3E%3Ctext x=%22150%22 y=%22200%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2224%22%3E%E2%86%93%3C/text%3E%3Ctext x=%22150%22 y=%22220%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2210%22%3EWrath Back%3C/text%3E%3C/svg%3E'] },
-      { id:10, name:'Hollow Gaze', price:1149, fit:'Oversized', collection:'oversized', style:'Japanese Art', rating:4.6,
-        desc:'Extended drop-shoulder with raw hem. Unsettling and calm.',
-        sizes:['S','M','L','XL','XXL'],
-        images:['data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 300 400%22%3E%3Crect fill=%22%23C4BEB0%22 width=%22300%22 height=%22400%22/%3E%3Ctext x=%22150%22 y=%22200%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2224%22%3E%E2%86%91%3C/text%3E%3Ctext x=%22150%22 y=%22220%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2210%22%3EHollow%3C/text%3E%3C/svg%3E',
-        'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 300 400%22%3E%3Crect fill=%22%23C4BEB0%22 width=%22300%22 height=%22400%22/%3E%3Ctext x=%22150%22 y=%22200%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2224%22%3E%E2%86%93%3C/text%3E%3Ctext x=%22150%22 y=%22220%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2210%22%3EHollow Back%3C/text%3E%3C/svg%3E'] }
-    ];
+    // The catalog arrives from the server: page 1 is inlined in the HTML shell
+    // (#kageCatalogSeed) so the grid paints without waiting, and the rest loads
+    // via /api/products?page=N (see loadRemainingCatalogPages). The old bundled
+    // demo catalogue and its data-URI art were removed in Phase 3 — no product
+    // ships in the JS bundle any more.
+    let allProducts = [];
 
     let cart = [];
     let shopStateReady = false;
@@ -114,8 +67,15 @@
     let detailSize = 'L';
     let detailAngle = 0;
     let currentCollectionFilter = 'all';
-    let currentPage = 1;
-    const perPage = 8;
+    // Server-side pagination state (F21). The grid reveals GRID_PAGE more
+    // cards per "Load more" click; when the loaded set is exhausted but the
+    // server still has pages, the next page is fetched first.
+    const GRID_PAGE = 8;
+    let visibleCount = GRID_PAGE;
+    let catalogNextPage = 2;        // next page of /api/products to append
+    let catalogTotal = 0;           // full catalog size, from the seed/envelope
+    let catalogExhausted = false;   // every page is loaded into allProducts
+    let catalogLoadPromise = null;  // memoized sequential page loader
 
     // The shop grid (#shopSection) replaces the marketing homepage while a
     // collection is open or a search is active. `shopCollectionMode` is set by
@@ -857,7 +817,7 @@
 
     function initShop(filter, opts = {}) {
       currentCollectionFilter = filter || 'all';
-      currentPage = 1;
+      visibleCount = GRID_PAGE;
       // Only a collection route (or an active search) surfaces the grid — the
       // plain homepage keeps it hidden.
       shopCollectionMode = opts.collection === true;
@@ -923,18 +883,21 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       const filtered = getFilteredProducts();
       const grid = document.getElementById('collectionGrid');
       const total = filtered.length;
-      const totalPages = Math.max(1, Math.ceil(total / perPage));
-      currentPage = Math.min(currentPage, totalPages);
-      const start = (currentPage - 1) * perPage;
-      const pageItems = filtered.slice(start, start + perPage);
+      visibleCount = Math.max(GRID_PAGE, Math.min(visibleCount, Math.max(total, GRID_PAGE)));
+      const pageItems = filtered.slice(0, visibleCount);
 
       document.getElementById('resultCount').textContent = total + ' result' + (total !== 1 ? 's' : '');
       document.getElementById('filterBadge').textContent = countActiveFilters();
 
-      const progress = total > 0 ? ((start + pageItems.length) / total) * 100 : 100;
+      const progress = total > 0 ? (pageItems.length / total) * 100 : 100;
       document.getElementById('progressFill').style.width = Math.min(100, progress) + '%';
-      document.getElementById('pageInfo').textContent = 'Page ' + currentPage + ' of ' + totalPages;
-      document.getElementById('nextBtn').style.display = currentPage < totalPages ? 'flex' : 'none';
+      // "Showing X of Y" doubles as the accessible live status; the same
+      // numbers drive the Load more button's visibility.
+      document.getElementById('catalogShowing').textContent = total === 0 ? 'Showing 0 of 0' : 'Showing ' + pageItems.length + ' of ' + total;
+      const moreAvailable = pageItems.length < total || !catalogExhausted;
+      const loadMoreBtn = document.getElementById('loadMoreBtn');
+      loadMoreBtn.style.display = moreAvailable && total > 0 ? 'inline-flex' : 'none';
+      loadMoreBtn.disabled = false;
 
       // A category is empty only when there are no matching products.
       // Sold-out products remain browsable, including when every item is sold out.
@@ -943,12 +906,14 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
         const name = CATEGORY_NAMES[currentCollectionFilter] || currentCollectionFilter;
         grid.innerHTML = '<div class="no-results"><p>No ' + esc(name.toLowerCase()) + ' available right now.</p><p style="font-size:0.8rem;margin-top:0.5rem;color:var(--text-gray);">Check back soon for new drops.</p><p style="margin-top:1rem;"><button class="btn btn-primary btn-sm" data-route="collection" data-filter="all">Browse all shirts</button></p></div>';
         document.getElementById('resultCount').textContent = '0 results';
-        document.getElementById('pageInfo').textContent = 'Page 1 of 1';
-        document.getElementById('nextBtn').style.display = 'none';
+        document.getElementById('catalogShowing').textContent = 'Showing 0 of 0';
+        document.getElementById('loadMoreBtn').style.display = 'none';
         return;
       }
       if (pageItems.length === 0) {
         grid.innerHTML = '<div class="no-results"><p>No products match your filters.</p><p style="font-size:0.8rem;margin-top:0.5rem;color:var(--text-gray);">Try adjusting your selections.</p></div>';
+        document.getElementById('catalogShowing').textContent = 'Showing 0 of 0';
+        document.getElementById('loadMoreBtn').style.display = 'none';
         return;
       }
 
@@ -957,10 +922,18 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       prioritizeFirstVisibleProductImage(grid);
     }
 
-    function nextPage() {
-      const total = getFilteredProducts().length;
-      const totalPages = Math.max(1, Math.ceil(total / perPage));
-      if (currentPage < totalPages) { currentPage++; renderCollectionGrid(); window.scrollTo({ top: document.getElementById('collectionGrid').offsetTop - 80, behavior: 'auto' }); }
+    // "Load more" reveals the next GRID_PAGE loaded cards; when everything
+    // currently in memory is visible but the server still has pages, the next
+    // page is fetched first (and the button reports progress via aria-busy).
+    async function loadMore() {
+      if (!catalogExhausted && visibleCount >= allProducts.length) {
+        const btn = document.getElementById('loadMoreBtn');
+        if (btn) { btn.disabled = true; btn.setAttribute('aria-busy', 'true'); }
+        try { await loadRemainingCatalogPages(); }
+        finally { const b = document.getElementById('loadMoreBtn'); if (b) b.removeAttribute('aria-busy'); }
+      }
+      visibleCount += GRID_PAGE;
+      renderCollectionGrid();
     }
 
     // ---------- Search ----------
@@ -1034,12 +1007,12 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       document.querySelectorAll('#searchInput, #mobileSearch').forEach(inp => {
         if (inp && inp.value !== searchQuery) inp.value = searchQuery;
       });
-      currentPage = 1;
+      visibleCount = GRID_PAGE;
       if (searchQuery.trim() && !document.getElementById('page-home').classList.contains('active')) navigateTo('home', null, { keepSearch: true });
       // Typing shows the grid with the results; clearing the box on the plain
       // homepage brings the marketing sections back.
       applyShopVisibility();
-      renderCollectionGrid();
+      withFullCatalog(renderCollectionGrid);
     }
 
     // ---------- Wishlist ----------
@@ -1366,7 +1339,8 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
         if (t.classList.contains('fp-cat') || t.classList.contains('fp-size') || t.classList.contains('price-min') || t.classList.contains('price-max')) {
           readFiltersFromPanel(panel);
           syncFiltersToPanels();
-          renderCollectionGrid();
+          visibleCount = GRID_PAGE;
+          withFullCatalog(renderCollectionGrid);
         }
       });
       document.addEventListener('input', function(e) {
@@ -1385,7 +1359,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
         }
       });
       const sort = document.getElementById('sortSelect');
-      if (sort) sort.addEventListener('change', () => renderCollectionGrid());
+      if (sort) sort.addEventListener('change', () => { visibleCount = GRID_PAGE; withFullCatalog(renderCollectionGrid); });
       syncFiltersToPanels();
     }
 
@@ -1402,9 +1376,10 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       if (sort) sort.value = 'featured';
       document.querySelectorAll('#searchInput, #mobileSearch').forEach(inp => { if (inp) inp.value = ''; });
       searchQuery = '';
+      visibleCount = GRID_PAGE;
       applyShopVisibility();
       syncFiltersToPanels();
-      renderCollectionGrid();
+      withFullCatalog(renderCollectionGrid);
     }
 
     // ---------- Filter drawer (mobile) ----------
@@ -2181,6 +2156,141 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       return s ? ' srcset="' + esc(s) + '"' : '';
     }
 
+    // Shared mapper: API product objects → storefront product view models.
+    // The old bundled demo art is gone — images come from the database, with
+    // a generated placeholder when a product has none.
+    function mapApiProducts(data) {
+      return data.map(p => {
+        const imgs = [p.front_image, p.back_image, ...(p.extra_images || [])].filter(Boolean);
+        const effective = p.sale_price && p.sale_price < p.price ? p.sale_price : p.price;
+        return {
+          id: p.id,
+          name: p.name,
+          price: effective,
+          original_price: p.price,
+          fit: p.fit || 'Regular',
+          collection: p.category,
+          drop: p.drop || '',
+          style: p.style || ['Anime-Inspired','Japanese Art','Typography'][Math.abs(p.id) % 3],
+          rating: (p.avg_rating != null && p.review_count > 0) ? p.avg_rating : null, // real, from approved reviews only
+          variants: null,
+          desc: p.description || '',
+          fabric_care: p.fabric_care || null,
+          fit_guide: p.fit_guide || null,
+          sizes: p.sizes || ['S','M','L','XL','XXL'],
+          images: imgs.length ? imgs : [placeholderImg(p.name)],
+          in_stock: p.in_stock !== false && (p.stock_qty == null || Number(p.stock_qty) > 0),
+          on_sale: !!(p.sale_price && p.sale_price < p.price),
+          sale_price: p.sale_price && p.sale_price < p.price ? p.sale_price : null,
+          created_at: p.created_at || null,
+          order_count: p.order_count || 0,
+          stock_qty: p.stock_qty,
+          size_stock: p.size_stock || null,
+          sold_count: p.sold_count || 0,
+          avg_rating: (p.avg_rating != null && p.review_count > 0) ? p.avg_rating : null,
+          review_count: p.review_count || 0
+        };
+      });
+    }
+
+    function mergeVariantMap(into, data) {
+      for (const p of data) { if (p && p.image_variants && typeof p.image_variants === 'object') Object.assign(into, p.image_variants); }
+      return into;
+    }
+
+    // The HTML shell inlines page 1 of the catalog in an inert
+    // <script type="application/json" id="kageCatalogSeed"> block. Reading it
+    // here paints the grid instantly; the network revalidation in
+    // loadProductsFromAPI() still runs (ETag usually answers 304) and owns
+    // productsLoadedFromApi, so nothing renders from stale data for long.
+    function readCatalogSeed() {
+      try {
+        const el = document.getElementById('kageCatalogSeed');
+        if (!el) return null;
+        const data = JSON.parse(el.textContent);
+        if (data && Array.isArray(data.products)) return data;
+        return null;
+      } catch (e) { return null; }
+    }
+
+    function refreshCatalogViews() {
+      renderCollectionGrid();
+      initHomePageSections();
+      syncCollectionVisibility();
+      syncCategoryCardPhotos();
+      updateCartUI();
+      renderWishlistDrawer();
+    }
+
+    // Applies one envelope page from /api/products?page=N. Page 1 replaces,
+    // later pages merge by id. Returns true when the catalog is complete.
+    function applyCatalogEnvelope(env, replace) {
+      const list = mapApiProducts(env.products || []);
+      if (replace) {
+        allProducts = list;
+        imageVariantsByUrl = mergeVariantMap({}, env.products || []);
+      } else {
+        const seen = new Set(allProducts.map(p => p.id));
+        for (const p of list) if (!seen.has(p.id)) allProducts.push(p);
+        imageVariantsByUrl = mergeVariantMap(imageVariantsByUrl, env.products || []);
+      }
+      catalogTotal = Number(env.total) || allProducts.length;
+      catalogNextPage = (Number(env.page) || 1) + 1;
+      catalogExhausted = env.hasMore === false || list.length === 0 || allProducts.length >= catalogTotal;
+      return catalogExhausted;
+    }
+
+    // Fetches remaining server pages sequentially and appends them. Memoized:
+    // concurrent callers share one walk. Tolerates an array response (an older
+    // server, or a test double answering /api/products wholesale) as meaning
+    // "the full catalog".
+    function loadRemainingCatalogPages() {
+      if (catalogLoadPromise) return catalogLoadPromise;
+      catalogLoadPromise = (async () => {
+        try {
+          while (!catalogExhausted) {
+            const page = catalogNextPage;
+            const res = await fetch('/api/products?page=' + page);
+            if (!res.ok) break;
+            const data = await res.json();
+            if (Array.isArray(data)) {
+              allProducts = mapApiProducts(data);
+              imageVariantsByUrl = mergeVariantMap({}, data);
+              catalogTotal = allProducts.length;
+              catalogExhausted = true;
+              break;
+            }
+            applyCatalogEnvelope(data, false);
+            refreshCatalogViews();
+          }
+        } catch (e) {
+          console.error('Background catalog load stopped:', e);
+        } finally {
+          catalogLoadPromise = null;
+        }
+      })();
+      return catalogLoadPromise;
+    }
+
+    // Searching, filtering or sorting a partially loaded catalog would miss
+    // products, so those paths finish the load first. Synchronous when the
+    // catalog is already complete (the common case after boot).
+    function withFullCatalog(render) {
+      if (catalogExhausted) { render(); return; }
+      loadRemainingCatalogPages().then(render);
+    }
+
+    // Paints from the inlined seed (no network), then finishes the catalog in
+    // the background. Returns true when a seed was applied.
+    function paintCatalogSeed() {
+      const seed = readCatalogSeed();
+      if (!seed) return false;
+      applyCatalogEnvelope(seed, true);
+      refreshCatalogViews();
+      loadRemainingCatalogPages();
+      return true;
+    }
+
     async function loadProductsFromAPI() {
       if (productsFetchInFlight) return;
       productsFetchInFlight = true;
@@ -2192,45 +2302,10 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
         if (!res.ok) throw new Error('Catalog request failed');
         const data = await res.json();
         if (!Array.isArray(data)) throw new Error('Invalid catalog');
-        // Map server products onto the hardcoded catalog art by name so
-        // seeded items keep their rich visuals (SVG tees) instead of grey tiles.
-        const artByAlt = {};
-        for (const p of allProducts) artByAlt[p.name.trim().toLowerCase()] = p;
-        const nextVariants = {};
-        for (const p of data) { if (p && p.image_variants && typeof p.image_variants === 'object') Object.assign(nextVariants, p.image_variants); }
-        imageVariantsByUrl = nextVariants;
-        allProducts = data.map(p => {
-          const imgs = [p.front_image, p.back_image, ...(p.extra_images || [])].filter(Boolean);
-          const art = artByAlt[(p.name || '').trim().toLowerCase()];
-          const effective = p.sale_price && p.sale_price < p.price ? p.sale_price : p.price;
-          return {
-            id: p.id,
-            name: p.name,
-            price: effective,
-            original_price: p.price,
-            fit: p.fit || 'Regular',
-            collection: p.category,
-            drop: p.drop || '',
-            style: p.style || (art ? art.style : ['Anime-Inspired','Japanese Art','Typography'][Math.abs(p.id) % 3]),
-            rating: (p.avg_rating != null && p.review_count > 0) ? p.avg_rating : null, // real, from approved reviews only
-            variants: art ? art.variants : null,
-            desc: p.description || '',
-            fabric_care: p.fabric_care || null,
-            fit_guide: p.fit_guide || null,
-            sizes: p.sizes || ['S','M','L','XL','XXL'],
-            images: imgs.length ? imgs : (art ? art.images : [placeholderImg(p.name)]),
-            in_stock: p.in_stock !== false && (p.stock_qty == null || Number(p.stock_qty) > 0),
-            on_sale: !!(p.sale_price && p.sale_price < p.price),
-            sale_price: p.sale_price && p.sale_price < p.price ? p.sale_price : null,
-            created_at: p.created_at || null,
-            order_count: p.order_count || 0,
-            stock_qty: p.stock_qty,
-            size_stock: p.size_stock || null,
-            sold_count: p.sold_count || 0,
-            avg_rating: (p.avg_rating != null && p.review_count > 0) ? p.avg_rating : null,
-            review_count: p.review_count || 0
-          };
-        });
+        allProducts = mapApiProducts(data);
+        imageVariantsByUrl = mergeVariantMap({}, data);
+        catalogTotal = allProducts.length;
+        catalogExhausted = true;
         productsLoadedFromApi = true;
         document.getElementById('productLoadError').hidden = true;
         restoreShopState();
@@ -2254,8 +2329,10 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       } catch(e) {
         console.error('Could not load catalog:', e);
         productsLoadedFromApi = false;
-        allProducts = [];
-        document.getElementById('productLoadError').hidden = false;
+        // Keep a seed-painted catalog on screen rather than blanking it.
+        if (!allProducts.length) {
+          document.getElementById('productLoadError').hidden = false;
+        }
         renderCollectionGrid();
         initHomePageSections();
         syncCollectionVisibility();
@@ -2632,6 +2709,10 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
     if (requestedPath === '/confirmation' && !lastOrder) history.replaceState(null, '', '/');
     const initialPath = location.pathname;
     setupFilters(); updateCartUI();
+    // Paint instantly from the inlined catalog seed (server-rendered first
+    // page) if one is present — no network wait for the first paint. The
+    // seed is public catalog data only; loadProductsFromAPI() revalidates it.
+    paintCatalogSeed();
     if (initialPath === '/tracking') navigateTo('tracking', null, { skipHistory: true });
     else if (initialPath === '/confirmation' && lastOrder) navigateTo('confirmation', null, { skipHistory: true });
     else navigateTo('home', null, { skipHistory: true });
@@ -2724,13 +2805,13 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       'toggle-wishlist': () => toggleWishlistFilter(),
       'open-filter': () => openFilterDrawer(),
       'close-filter': () => closeFilterDrawer(),
-      'close-filter-render': () => { closeFilterDrawer(); renderCollectionGrid(); },
+      'close-filter-render': () => { closeFilterDrawer(); visibleCount = GRID_PAGE; withFullCatalog(renderCollectionGrid); },
       'reset-filters': () => resetFilters(),
       'detail-add': () => detailAddToCart(),
       'detail-qty': (el) => detailChangeQty(Number(el.dataset.delta || 1)),
       'start-checkout': () => startCheckout(),
       'place-order': () => placeOrder(),
-      'next-page': () => nextPage(),
+      'load-more': () => loadMore(),
       'load-products': () => loadProductsFromAPI(),
       'account': () => handleAccountClick(),
       'go-track': () => goTrackOrder(),

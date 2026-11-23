@@ -1215,6 +1215,7 @@
     }
     .pagination .progress-bar .progress-fill {
       height: 100%;
+      width: 100%;
       background: var(--text-primary);
       transition: width var(--transition-fast);
     }
@@ -1226,6 +1227,10 @@
     .pagination .page-info {
       font-size: 0.8rem;
       color: var(--text-muted);
+    }
+    .pagination .load-more-btn[disabled] {
+      opacity: 0.55;
+      cursor: progress;
     }
     .pagination .next-btn {
       display: flex;
