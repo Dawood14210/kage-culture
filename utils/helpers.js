@@ -44,7 +44,7 @@ async function persistImage(buffer, originalName) {
   if (blobToken) {
     try {
       const { put } = require('@vercel/blob');
-      const key = `kage/${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`;
+      const key = `kage/${Date.now()}-${require('crypto').randomBytes(6).toString('hex')}${ext}`;
       const blob = await put(key, buffer, { access: 'public', token: blobToken });
       return blob.url;
     } catch (cause) {
@@ -57,7 +57,7 @@ async function persistImage(buffer, originalName) {
     }
   }
 
-  const filename = Date.now() + '-' + Math.round(Math.random() * 1e9) + ext;
+  const filename = Date.now() + '-' + require('crypto').randomBytes(6).toString('hex') + ext;
   try {
     fs.writeFileSync(path.join(uploadsDir, filename), buffer);
   } catch (cause) {
@@ -73,14 +73,24 @@ async function persistImage(buffer, originalName) {
 
 async function removeImage(url) {
   if (!url) return;
+  // F7: delete the 400/800/1200 WebP derivatives alongside the original
+  // (best-effort; missing variants are fine).
+  const { variantUrlFor } = require('./imageVariants');
+  const variantUrls = [400, 800, 1200].map(w => variantUrlFor(url, w)).filter(Boolean);
   const blobToken = getBlobReadWriteToken();
   if (blobToken && /^https?:\/\//.test(url)) {
     const { del } = require('@vercel/blob');
-    try { await del(url, { token: blobToken }); } catch (e) { /* already gone */ }
+    for (const target of [url, ...variantUrls]) {
+      try { await del(target, { token: blobToken }); } catch (e) { /* already gone */ }
+    }
     return;
   }
   const p = path.join(__dirname, '..', url);
   if (fs.existsSync(p)) fs.unlinkSync(p);
+  for (const vu of variantUrls) {
+    const vp = path.join(__dirname, '..', vu);
+    if (fs.existsSync(vp)) fs.unlinkSync(vp);
+  }
 }
 
 function parseCookies(cookieHeader) {
@@ -109,6 +119,14 @@ function escapeHtml(value) {
 // (e.g. "\r\nBcc: victim@example.com").
 function stripHeaderChars(value) {
   return String(value == null ? '' : value).replace(/[\r\n\u0000]+/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+// Pakistani mobile numbers: 03XXXXXXXXX, +923XXXXXXXXX or 923XXXXXXXXX.
+// Spaces and dashes are allowed in the submitted value and stripped before
+// checking. Used for checkout validation (and any future phone entry point).
+function isValidPkMobile(value) {
+  const stripped = String(value == null ? '' : value).replace(/[\s-]/g, '');
+  return /^(\+92|92|0)3\d{9}$/.test(stripped);
 }
 
 // One email rule for the whole app (signup, login, order placement): a single
@@ -154,4 +172,4 @@ function signCsrfToken(token) {
   return crypto.createHmac('sha256', getSessionSecret()).update(token).digest('hex');
 }
 
-module.exports = { persistImage, removeImage, parseCookies, hashToken, generateCsrfToken, signCsrfToken, escapeHtml, stripHeaderChars, hasControlChars, isValidEmail, csvCell };
+module.exports = { persistImage, removeImage, parseCookies, hashToken, generateCsrfToken, signCsrfToken, escapeHtml, stripHeaderChars, hasControlChars, isValidEmail, isValidPkMobile, csvCell };

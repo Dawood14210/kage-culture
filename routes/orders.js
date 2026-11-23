@@ -2,6 +2,7 @@
 // KAGE Culture — Order routes
 // ================================================================
 const express = require('express');
+const crypto = require('crypto');
 const config = require('../config');
 const { requireCsrf } = require('../middleware/csrf');
 const { requireAuth, requireCustomerAuth, optionalCustomerId } = require('../middleware/auth');
@@ -9,7 +10,7 @@ const { orderLimiter, strictLimiter } = require('../middleware/rateLimit');
 const { sendOrderConfirmation, sendStatusUpdate } = require('../utils/email');
 const sizeStock = require('../utils/sizes');
 const productShape = require('../utils/productShape');
-const { hasControlChars, isValidEmail, csvCell } = require('../utils/helpers');
+const { hasControlChars, isValidEmail, isValidPkMobile, csvCell } = require('../utils/helpers');
 
 module.exports = function createOrderRoutes(db) {
   const router = express.Router();
@@ -81,6 +82,11 @@ module.exports = function createOrderRoutes(db) {
       if (!isValidEmail(cleanEmail)) {
         return res.status(400).json({ error: 'Please enter a valid email address.' });
       }
+      // Pakistani mobile only — the delivery rider calls this number, so a
+      // landline or a typo'd digit is a failed delivery. Spaces/dashes are OK.
+      if (!isValidPkMobile(phone)) {
+        return res.status(400).json({ error: 'Enter a valid mobile number, e.g. 0300 1234567.' });
+      }
       // Order fields are single-line. Control characters (CR/LF/NUL/tab) are
       // how email header injection and display spoofing start, so reject them
       // outright instead of trying to clean them up.
@@ -112,11 +118,14 @@ module.exports = function createOrderRoutes(db) {
       if (skipped.length > 0) return res.status(400).json({ error: 'Some items in your cart are unavailable or out of stock. Please review your cart.' });
       if (lineItems.length === 0) return res.status(400).json({ error: 'Your cart is empty.' });
 
-      // D1: customers see the published Rs. 250–450 band; the exact fee is
-      // confirmed by phone before dispatch, so no flat fee enters the total.
+      // D1: customers see the published Rs. 250–500 band; the exact fee
+      // (DELIVERY_FEES per city, F3) is confirmed by phone before dispatch,
+      // so no flat fee enters the total.
       const shipping = 0; const shippingPending = 1; const total = Math.round(subtotal);
       let orderNumber;
-      do { orderNumber = 'KAGE-' + Math.random().toString(36).replace(/[^a-z0-9]/g, '').slice(2, 10).toUpperCase().padEnd(8, 'Z'); } while (await db.prepare('SELECT id FROM orders WHERE order_number = ?').get(orderNumber));
+      // F30: unguessable, collision-checked order numbers from CSPRNG bytes
+      // (Math.random is predictable and too weak for an order identifier).
+      do { orderNumber = 'KAGE-' + crypto.randomBytes(4).toString('hex').toUpperCase(); } while (await db.prepare('SELECT id FROM orders WHERE order_number = ?').get(orderNumber));
       const now = new Date().toISOString().replace('T', ' ').slice(0, 19);
       const initialStatus = method === 'cod' ? 'pending' : 'awaiting_verification';
       // Attribute the order to the signed-in customer when there is one; the
@@ -185,10 +194,13 @@ module.exports = function createOrderRoutes(db) {
     } catch (err) { console.error('order placement failed:', err.message); res.status(500).json({ error: 'Something went wrong placing your order. Please try again.' }); }
   });
 
-  // GET track order (public) — requires order number + matching phone
-  router.get('/api/orders/track', strictLimiter, async (req, res) => {
+  // POST track order (public) — requires order number + matching phone.
+  // F16: POST + CSRF + strict rate limit. Order numbers and phone numbers
+  // no longer travel in the URL (browser history, shared caches, CDN and
+  // proxy logs), and a cross-site page cannot replay the lookup as a GET.
+  router.post('/api/orders/track', strictLimiter, requireCsrf, async (req, res) => {
     try {
-      const { number, phone } = req.query;
+      const { number, phone } = req.body || {};
       if (!number || !phone) return res.status(400).json({ error: 'Order number and phone are required.' });
       const order = await db.prepare('SELECT * FROM orders WHERE order_number = ?').get(String(number).trim().toUpperCase());
       if (!order || normPhone(order.phone) !== normPhone(phone)) return res.status(404).json({ error: "We couldn't find an order with that number and phone." });
@@ -202,7 +214,7 @@ module.exports = function createOrderRoutes(db) {
   router.get('/api/orders/:orderNumber', strictLimiter, async (req, res) => {
     try {
       const { phone } = req.query;
-      if (!phone) return res.status(401).json({ error: 'Phone verification required. Use /api/orders/track?number=...&phone=... instead.' });
+      if (!phone) return res.status(401).json({ error: 'Phone verification required. Use POST /api/orders/track with { number, phone } instead.' });
       const order = await db.prepare('SELECT * FROM orders WHERE order_number = ?').get(String(req.params.orderNumber).trim().toUpperCase());
       if (!order || normPhone(order.phone) !== normPhone(phone)) return res.status(404).json({ error: "We couldn't find an order with that number and phone." });
       const { email, address, notes, items_json, ...safe } = order; safe.items = JSON.parse(order.items_json || '[]'); safe.shipping_pending = !!safe.shipping_pending; res.json(safe);
@@ -222,7 +234,10 @@ module.exports = function createOrderRoutes(db) {
       } else {
         orders = await db.prepare('SELECT * FROM orders ORDER BY created_at DESC, id DESC').all();
       }
-      orders.forEach(o => { o.items = JSON.parse(o.items_json || '[]'); }); res.json(orders);
+      // F3: the fee we will confirm by phone before dispatch. Placeholder
+      // rates from config.DELIVERY_FEES until the owner confirms them —
+      // admin-only, the customer-facing total contract is unchanged.
+      orders.forEach(o => { o.items = JSON.parse(o.items_json || '[]'); o.delivery_fee_expected = config.deliveryFeeForCity(o.city); }); res.json(orders);
     } catch (err) { console.error('orders list failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
   });
 

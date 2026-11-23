@@ -26,6 +26,23 @@ const REPO_ROOT = path.join(__dirname, '..');
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
+// Each track request needs its own CSRF double (F16: POST + CSRF). The pair is
+// valid for that server instance only (each child has its own secret), but the
+// strict limiter counts by client IP, so the per-IP assertions still hold.
+async function csrfHeaders(port, forwardedIp) {
+  const headers = forwardedIp ? { 'X-Forwarded-For': forwardedIp } : {};
+  const res = await request(port, 'GET', '/api/csrf', { headers });
+  const setCookie = (res.headers['set-cookie'] || []).find(c => c.startsWith('kage.csrf='));
+  if (!setCookie) throw new Error('no CSRF cookie issued');
+  const cookie = setCookie.split(';')[0];
+  return { Cookie: cookie, 'X-CSRF-Token': cookie.split('=')[1], ...(forwardedIp ? { 'X-Forwarded-For': forwardedIp } : {}) };
+}
+
+function trackRequest(port, number, phone, forwardedIp) {
+  return csrfHeaders(port, forwardedIp).then(headers =>
+    request(port, 'POST', '/api/orders/track', { body: { number, phone }, headers }));
+}
+
 function request(port, method, pathname, { body, headers } = {}) {
   return new Promise((resolve, reject) => {
     const payload = body === undefined ? null : Buffer.from(JSON.stringify(body));
@@ -171,13 +188,12 @@ async function run() {
     // prove req.ip follows X-Forwarded-For, and ipKeyGenerator normalizes IPv6
     // to the same /56 bucket used by express-rate-limit's default keyGenerator.
     const forwardedIp = '198.51.100.42';
-    const trackPath = '/api/orders/track?number=KAGE-DOESNOTEXIST&phone=03000000000';
     let last;
     for (let i = 0; i < 10; i++) {
-      last = await request(localPort, 'GET', trackPath, { headers: { 'X-Forwarded-For': forwardedIp } });
+      last = await trackRequest(localPort, 'KAGE-DOESNOTEXIST', '03000000000', forwardedIp);
       assert.equal(last.status, 404, `track request ${i + 1} should reach the not-found response`);
     }
-    last = await request(localPort, 'GET', trackPath, { headers: { 'X-Forwarded-For': forwardedIp } });
+    last = await trackRequest(localPort, 'KAGE-DOESNOTEXIST', '03000000000', forwardedIp);
     assert.equal(last.status, 429, 'the tracking endpoint must enforce strictLimiter');
     const forwardedCounter = await db.getRateLimit(`strict:${forwardedIp}`);
     assert.equal(forwardedCounter.count, 11, 'req.ip should be the forwarded client address');
@@ -195,7 +211,7 @@ async function run() {
     const ipv6Key = ipKeyGenerator(ipv6a);
     assert.equal(ipKeyGenerator(ipv6b), ipv6Key, 'express-rate-limit must bucket this IPv6 /56 together');
     for (const forwarded of [ipv6a, ipv6b]) {
-      last = await request(localPort, 'GET', trackPath, { headers: { 'X-Forwarded-For': forwarded } });
+      last = await trackRequest(localPort, 'KAGE-DOESNOTEXIST', '03000000000', forwarded);
       assert.equal(last.status, 404);
     }
     const ipv6Counter = await db.getRateLimit(`strict:${ipv6Key}`);
@@ -265,7 +281,7 @@ async function run() {
 
     const trackStatuses = [];
     for (let attempt = 0; attempt < 11; attempt++) {
-      const response = await request(ports[attempt % 2], 'GET', '/api/orders/track?number=KAGE-UNKNOWN&phone=03000000000');
+      const response = await trackRequest(ports[attempt % 2], 'KAGE-UNKNOWN', '03000000000');
       trackStatuses.push(response.status);
     }
     assert.deepEqual(trackStatuses.slice(0, 10), Array(10).fill(404));

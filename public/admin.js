@@ -323,8 +323,8 @@
         errEl.style.display = 'block';
         return;
       }
-      if (nw.length < 6) {
-        errEl.textContent = 'New password must be at least 6 characters.';
+      if (nw.length < 14) {
+        errEl.textContent = 'New password must be at least 14 characters.';
         errEl.style.display = 'block';
         return;
       }
@@ -1356,7 +1356,10 @@
         const statusLabel = { pending:'Pending', awaiting_verification:'Awaiting Payment', confirmed:'Confirmed', shipped:'Shipped', delivered:'Delivered', cancelled:'Cancelled' }[st] || st;
         const payRef = o.payment_ref ? `<div class="p-category" style="font-size:0.65rem;color:var(--text-accent);">Ref: ${esc(o.payment_ref)}</div>` : '';
         const codBadge = o.payment_method === 'cod' && o.cod_confirmed ? `<div class="p-category" style="font-size:0.62rem;color:var(--text-success);">${icon('check')} COD Confirmed</div>` : '';
-        const shippingPendingBadge = o.shipping_pending && o.status !== 'cancelled' ? `<div class="p-category" style="font-size:0.62rem;color:var(--text-accent);">Delivery charge pending</div>` : '';
+        const expectedFee = Number(o.delivery_fee_expected);
+        const shippingPendingBadge = o.shipping_pending && o.status !== 'cancelled'
+          ? `<div class="p-category" style="font-size:0.62rem;color:var(--text-accent);">Delivery pending${Number.isFinite(expectedFee) && expectedFee > 0 ? ` · expected Rs. ${expectedFee}` : ''}</div>`
+          : '';
         const verifiedBadge = o.payment_method !== 'cod' && o.payment_verified ? `<div class="p-category" style="font-size:0.62rem;color:var(--text-success);">${icon('check')} Payment Verified</div>` : '';
         const payOpts = o.payment_method !== 'cod'
           ? `<button data-action="verify-payment" data-id="${o.id}" data-value="${o.payment_verified ? 'false' : 'true'}" class="status-opt status-opt-confirmed">${icon('credit-card')} ${o.payment_verified ? 'Remove Verification' : 'Verify Payment'}</button>`

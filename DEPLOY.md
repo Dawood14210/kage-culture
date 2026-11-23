@@ -99,6 +99,7 @@ In the Vercel project: **Settings → Environment Variables**, add for **Product
 | `EMAIL_FROM` | Optional sender address/name. Defaults to `SMTP_USER` for SMTP, or the existing KAGE Culture sender for Resend. |
 | `EMAIL_API_KEY` | Optional Resend API key; used only when `SMTP_HOST` is unset. With neither provider configured, emails are logged in dev mode and not delivered. |
 | `RATE_LIMIT_STORE` | Optional: set to `db` for a non-Turso deployment using a database shared by its instances. Turso enables the DB store automatically. |
+| `UMAMI_WEBSITE_ID` | Optional: analytics. Create a site in the [Umami Cloud](https://cloud.umami.is) dashboard (Add website) and set its website id here; the privacy-friendly, cookieless tracker then renders on the storefront only. Blank = no tag, no tracking. No inline JavaScript is involved; the storefront fires an anonymous `purchase` event (value + currency only) on order placement. |
 
 `SITE_URL` is the single source for page canonical/Open Graph URLs, structured data,
 `/sitemap.xml`, `/robots.txt`, and password-reset/verification email links. If it is

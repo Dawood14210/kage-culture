@@ -706,14 +706,14 @@ async function ready(win) {
 
     const shippingCopy = d.querySelector('#page-shipping .content-page-body').textContent;
     assert.match(shippingCopy, /Delivery Charges/);
-    assert.match(shippingCopy, /Delivery charges depend on your delivery location: Rs\. 250 – Rs\. 450 nationwide\. We confirm the exact fee by phone before dispatch\./);
+    assert.match(shippingCopy, /Delivery charges depend on your delivery location: Rs\. 250 – Rs\. 500 nationwide\. We confirm the exact fee by phone before dispatch\./);
     assert.doesNotMatch(shippingCopy, /Location-based rates|Rs\. 150/, 'shipping policy no longer promises an unconfigured fee');
     assert.doesNotMatch(shippingCopy, /Free-shipping threshold|\bTODO\b|\[/, 'unconfirmed free-shipping rules are omitted rather than published as placeholders');
-    assert.equal(d.getElementById('coShipping').textContent.trim(), 'Rs. 250 – Rs. 450', 'checkout shows the published band, not an unconfirmed charge');
+    assert.equal(d.getElementById('coShipping').textContent.trim(), 'Rs. 250 – Rs. 500', 'checkout shows the published band, not an unconfirmed charge');
     assert.equal(d.querySelector('#page-checkout .co-grand span').textContent.trim(), 'Total before delivery');
     assert.match(d.querySelector('#page-checkout .co-safe').textContent, /confirm the exact fee by phone before dispatch/);
     assert.ok(d.getElementById('confShipping'), 'order confirmation has a pending delivery-charge field');
-    assert.match(d.querySelector('#page-confirmation .confirm-next').textContent, /Rs\. 250 – Rs\. 450/);
+    assert.match(d.querySelector('#page-confirmation .confirm-next').textContent, /Rs\. 250 – Rs\. 500/);
     assert.doesNotMatch(storeHtml, /const shipping = 150/, 'checkout no longer hardcodes the old flat charge');
 
     const checkoutPaymentValues = [...d.querySelectorAll('#page-checkout input[name="payMethod"]')].map(input => input.value);
@@ -721,7 +721,7 @@ async function ready(win) {
     assert.match(storeHtml, /payment_method:\s*'cod'/, 'checkout submits Cash on Delivery only');
     assert.equal(d.getElementById('paymentRefGroup'), null, 'non-COD payment reference controls are removed');
     assert.equal(d.getElementById('coPaymentRef'), null, 'non-COD payment reference input is removed');
-    assert.equal(d.querySelector('#page-checkout .co-safe').textContent.trim(), 'Cash on Delivery accepted. Delivery is Rs. 250 – Rs. 450 depending on your city — we confirm the exact fee by phone before dispatch.');
+    assert.equal(d.querySelector('#page-checkout .co-safe').textContent.trim(), 'Cash on Delivery accepted. Delivery is Rs. 250 – Rs. 500 depending on your city — we confirm the exact fee by phone before dispatch.');
     const checkoutTrust = d.querySelector('#page-checkout .co-trust-strip');
     assert.equal(checkoutTrust.getAttribute('aria-label'), 'Checkout reassurance');
     assert.deepEqual([...checkoutTrust.querySelectorAll('li')].map(item => item.textContent.trim()), [
@@ -848,7 +848,7 @@ async function ready(win) {
     assert.match(socialCss, /\.social-icon:hover,\s*\.social-icon:focus-visible\s*\{[^}]*background:\s*var\(--accent-glow\);/, 'social hover/focus accent remains subtle and theme-colored');
     assert.doesNotMatch(socialCss, /\.social-(?:instagram|snapchat|email|etsy|whatsapp)(?::hover)?\s*\{/, 'no per-brand rainbow overrides remain');
     const whatsappStart = storeHtml.indexOf('FLOATING WHATSAPP BUTTON');
-    const whatsappEnd = storeHtml.indexOf('    .footer-newsletter h4 {', whatsappStart);
+    const whatsappEnd = storeHtml.indexOf('    .footer-newsletter h3 {', whatsappStart);
     const whatsappCss = storeHtml.slice(whatsappStart, whatsappEnd);
     assert.ok(whatsappStart >= 0 && whatsappEnd > whatsappStart, 'WhatsApp/footer spacing rules exist');
     assert.match(whatsappCss, /\.whatsapp-float \{\s*position: fixed;[\s\S]*?bottom: 24px;[\s\S]*?width: 60px;[\s\S]*?height: 60px;/, 'wide floating button dimensions and edge offset are known');
@@ -2268,7 +2268,7 @@ async function ready(win) {
     const pantsTileNavCheck = d.getElementById('catTilePants');
     assert.ok(pantsTileNavCheck && pantsTileNavCheck.tagName === 'A' && !pantsTileNavCheck.hasAttribute('aria-disabled'), 'Pants tile is a real link');
     assert.equal(pantsNavItem.getAttribute('href'), pantsTileNavCheck.getAttribute('href'), 'Pants nav and card share the same collection route');
-    const footerHeadings = [...d.querySelectorAll('.site-footer h4')].map(h => h.textContent.trim());
+    const footerHeadings = [...d.querySelectorAll('.site-footer h3')].map(h => h.textContent.trim());
     assert.ok(!footerHeadings.includes('Shop'), 'footer has no Shop column');
     assert.equal(d.querySelectorAll('.site-footer a[href^="/collection/"]').length, 1, 'Pants is the only stock-aware footer collection link');
     assert.notEqual(d.getElementById('footerPantsItem').style.display, 'none', 'Pants footer link is always shown');
@@ -2497,8 +2497,16 @@ async function ready(win) {
     assert.equal(fd.getElementById('page-confirmation').classList.contains('active'), true, 'the order completes and the confirmation page shows');
     assert.match(fd.getElementById('confNumber').textContent, /^KAGE-[A-Z0-9]{8}$/, 'the confirmation shows a real order number');
 
-    // The shop really has that order.
-    const tracked = await fetch(`${origin}/api/orders/track?number=${encodeURIComponent(fd.getElementById('confNumber').textContent.trim())}&phone=03001234500`);
+    // The shop really has that order. F16: the lookup is a CSRF-protected
+    // POST whose body carries number + phone.
+    const trackCsrfResponse = await fetch(`${origin}/api/csrf`);
+    const trackCookie = (trackCsrfResponse.headers.getSetCookie() || []).map(c => c.split(';')[0]).join('; ');
+    const trackToken = JSON.parse(await trackCsrfResponse.text()).token;
+    const tracked = await fetch(`${origin}/api/orders/track`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: trackCookie, 'X-CSRF-Token': trackToken },
+      body: JSON.stringify({ number: fd.getElementById('confNumber').textContent.trim(), phone: '03001234500' })
+    });
     assert.equal(tracked.status, 200, 'the placed order must be trackable');
     assert.equal((await tracked.json()).status, 'pending', 'a COD order starts pending');
 

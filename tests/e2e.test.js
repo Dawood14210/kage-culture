@@ -258,9 +258,25 @@ async function main() {
     assert.strictEqual(image.headers['cache-control'], 'public, max-age=86400, must-revalidate');
   });
 
-  await check('HTML remains no-store', async () => {
+  await check('HTML is shared-cacheable for 60s with instant browser revalidation (F9)', async () => {
     const page = await request(PORT, 'GET', '/');
-    assert.match(page.headers['cache-control'] || '', /no-store/);
+    assert.strictEqual(page.headers['cache-control'], 'public, max-age=0, s-maxage=60, stale-while-revalidate=600');
+  });
+
+  await check('the checkout city list matches config.DELIVERY_FEES (F3)', async () => {
+    const config = require('../config');
+    const page = await request(PORT, 'GET', '/');
+    for (const city of Object.keys(config.DELIVERY_FEES)) {
+      assert.ok(page.text.includes(`<option value="${city}">${city}</option>`), `the checkout select must offer ${city}`);
+    }
+    assert.ok(page.text.includes('<option value="__other__">'), 'the select must keep an Other option');
+    for (const [city, fee] of Object.entries(config.DELIVERY_FEES)) {
+      assert.ok(Number.isFinite(fee) && fee >= 250 && fee <= 500, `${city} fee ${fee} must stay within Rs. 250–500`);
+    }
+    assert.ok(config.DELIVERY_FEE_FALLBACK >= 250 && config.DELIVERY_FEE_FALLBACK <= 500, 'the fallback fee stays within the band');
+    assert.equal(config.DELIVERY_FEE_BAND, 'Rs. 250 – Rs. 500');
+    assert.equal(config.deliveryFeeForCity('Lahore'), config.DELIVERY_FEES.Lahore);
+    assert.equal(config.deliveryFeeForCity('peshawar'), config.DELIVERY_FEE_FALLBACK, 'unknown cities quote the ceiling');
   });
 
   await check('canonical, Open Graph and JSON-LD tags use SITE_URL; sitemap and robots are dynamic', async () => {
@@ -277,7 +293,7 @@ async function main() {
     const homeDocument = new JSDOM(page.text).window.document;
     assert.strictEqual(homeDocument.title, 'KAGE CULTURE — Engineered Fit. Original Art.');
     assert.strictEqual(homeDocument.querySelector('meta[name="description"]').content,
-      'KAGE Culture — Premium streetwear. Anime inspired. Built for everyday. Shop oversized tees, graphic tees, and compression gear.');
+      'KAGE Culture — Premium streetwear. Anime inspired. Built for everyday. Shop oversized tees and graphic tees.');
     assert.strictEqual(homeDocument.querySelector('meta[property="og:title"]').content,
       'KAGE Culture — Engineered Fit. Original Art.');
     assert.strictEqual(homeDocument.querySelector('meta[property="og:description"]').content,
@@ -289,7 +305,8 @@ async function main() {
     assert.strictEqual(website.url, rootUrl);
     assert.ok(sitemap.text.includes(`<loc>${rootUrl}</loc>`));
     assert.ok(robots.text.includes(`Sitemap: ${process.env.SITE_URL}/sitemap.xml`));
-    assert.match(robots.text, /^User-agent: \*\nAllow: \/\nDisallow: \/admin\nDisallow: \/api\n/m);
+    assert.match(robots.text, /^User-agent: \*\nAllow: \/\nDisallow: \/admin\n/m);
+    assert.doesNotMatch(robots.text, /Disallow: \/api/);
   });
 
   await check('product and collection routes server-render safe metadata and structured data', async () => {
@@ -411,13 +428,13 @@ async function main() {
     assert.ok(locations.includes(`${process.env.SITE_URL}/product/${soldOut.id}`), 'sold-out products remain listed');
 
     for (const route of [
-      '/', '/about', '/contact', '/custom-stickers', '/returns', '/shipping', '/terms', '/privacy', '/tracking',
+      '/', '/about', '/contact', '/custom-stickers', '/returns', '/shipping', '/terms', '/privacy',
       '/collection/all', '/collection/new', '/collection/anime', '/collection/graphic-tees', '/collection/sale'
     ]) {
       const url = route === '/' ? `${process.env.SITE_URL}/` : `${process.env.SITE_URL}${route}`;
       assert.ok(locations.includes(url), `missing expected public URL ${url}`);
     }
-    for (const forbidden of ['/admin', '/admin.html', '/api', '/cart', '/checkout', '/account', '/reset-password', '/verify-email', '/confirmation']) {
+    for (const forbidden of ['/admin', '/admin.html', '/api', '/cart', '/checkout', '/account', '/reset-password', '/verify-email', '/confirmation', '/tracking']) {
       assert.ok(!locations.some(location => new URL(location).pathname === forbidden || new URL(location).pathname.startsWith(`${forbidden}/`)),
         `private route must not appear: ${forbidden}`);
     }
@@ -532,29 +549,33 @@ async function main() {
     assert.strictEqual(again.json.token, fresh.json.token);
   });
 
-  await check('HTML page responses still issue the CSRF cookie', async () => {
+  await check('storefront HTML is shared-cacheable (no cookie); /admin still issues the CSRF cookie', async () => {
+    // F9: the storefront shell opts into s-maxage, so a shared cache may store
+    // it — it must therefore NOT carry Set-Cookie. The browser picks the token
+    // up from the no-store GET /api/csrf endpoint before its first POST.
     const page = await request(PORT, 'GET', '/');
     assert.strictEqual(page.status, 200);
-    assert.match(page.headers['cache-control'] || '', /no-store/);
-    assert.ok((page.headers['set-cookie'] || []).some(cookie => cookie.startsWith('kage.csrf=')),
-      'the storefront page must hand a fresh visitor its CSRF cookie');
+    assert.strictEqual(page.headers['cache-control'], 'public, max-age=0, s-maxage=60, stale-while-revalidate=600');
+    assert.strictEqual(page.headers['set-cookie'], undefined,
+      'shared-cacheable HTML must not send Set-Cookie (a CDN would replay it to every visitor)');
     const admin = await request(PORT, 'GET', '/admin');
+    assert.match(admin.headers['cache-control'] || '', /no-store/);
     assert.ok((admin.headers['set-cookie'] || []).some(cookie => cookie.startsWith('kage.csrf=')),
-      'the admin page must hand a fresh visitor its CSRF cookie');
+      'the admin page must hand a fresh visitor its CSRF cookie (it is no-store)');
     // Publicly cached static assets are not page responses either.
     const asset = await request(PORT, 'GET', '/images/hero.jpg');
     assert.strictEqual(asset.headers['set-cookie'], undefined, 'cached static assets must not send Set-Cookie');
 
-    // …and the cookie that page just handed out is usable for a later POST
+    // …and the token the browser got from /api/csrf is usable for a later POST
     // (the primary browser path). A valid token reaches the handler, which
     // rejects the deliberately empty order body with a validation 400 — not a
     // CSRF 403.
-    const pageCookie = (page.headers['set-cookie'] || []).find(c => c.startsWith('kage.csrf=')).split(';')[0];
+    const csrf = await getCsrf();
     const emptyOrder = await request(PORT, 'POST', '/api/orders', {
       body: {},
-      headers: { 'X-CSRF-Token': pageCookie.split('=')[1], Cookie: pageCookie }
+      headers: { 'X-CSRF-Token': csrf.token, Cookie: csrf.cookie }
     });
-    assert.strictEqual(emptyOrder.status, 400, `a page-issued token must pass requireCsrf: ${JSON.stringify(emptyOrder.json)}`);
+    assert.strictEqual(emptyOrder.status, 400, `a fresh /api/csrf token must pass requireCsrf: ${JSON.stringify(emptyOrder.json)}`);
   });
 
   // ---------------------------------------------------------------
@@ -601,8 +622,9 @@ async function main() {
     assert.strictEqual(placed.status, 201, JSON.stringify(placed.json));
     assert.match(String(placed.json.order_number), /^KAGE-[A-Z0-9]{8}$/);
 
-    // 5. …and the shop can track it as a real order.
-    const tracked = await request(PORT, 'GET', `/api/orders/track?number=${encodeURIComponent(placed.json.order_number)}&phone=03001234500`);
+    // 5. …and the shop can track it as a real order (F16: POST + CSRF).
+    const trackCsrf = await getCsrf();
+    const tracked = await request(PORT, 'POST', '/api/orders/track', { body: { number: placed.json.order_number, phone: '03001234500' }, headers: { 'X-CSRF-Token': trackCsrf.token, Cookie: trackCsrf.cookie } });
     assert.strictEqual(tracked.status, 200, JSON.stringify(tracked.json));
     assert.strictEqual(tracked.json.order_number, placed.json.order_number);
     assert.strictEqual(tracked.json.status, 'pending', 'COD orders start pending');
@@ -613,16 +635,16 @@ async function main() {
   // ---------------------------------------------------------------
   console.log('Auth middleware:');
   await check('admin login sets a signed session cookie', async () => {
-    const r = await request(PORT, 'POST', '/api/admin/setup', { body: { email: 'root@kage.test', password: 'supersecret1' } });
+    const r = await request(PORT, 'POST', '/api/admin/setup', { body: { email: 'root@kage.test', password: 'supersecret-admin-1' } });
     assert.strictEqual(r.status, 200, JSON.stringify(r.json));
-    const r2 = await request(PORT, 'POST', '/api/admin/login', { body: { email: 'root@kage.test', password: 'supersecret1' } });
+    const r2 = await request(PORT, 'POST', '/api/admin/login', { body: { email: 'root@kage.test', password: 'supersecret-admin-1' } });
     assert.strictEqual(r2.status, 200, JSON.stringify(r2.json));
     assert.ok(cookieHeader(r2).includes('kage.session='), 'expected kage.session cookie');
   });
 
   let adminCookie = '';
   {
-    const r = await request(PORT, 'POST', '/api/admin/login', { body: { email: 'root@kage.test', password: 'supersecret1' } });
+    const r = await request(PORT, 'POST', '/api/admin/login', { body: { email: 'root@kage.test', password: 'supersecret-admin-1' } });
     adminCookie = cookieHeader(r);
   }
 
@@ -658,8 +680,8 @@ async function main() {
 
   await check('customer session on admin route → 401; customer session data is no-store', async () => {
     const csrf = await getCsrf();
-    await request(PORT, 'POST', '/api/customers/signup', { body: { email: 'cust@kage.test', password: 'custpass1', name: 'Cust' }, headers: { 'X-CSRF-Token': csrf.token, Cookie: csrf.cookie } });
-    const login = await request(PORT, 'POST', '/api/customers/login', { body: { email: 'cust@kage.test', password: 'custpass1' }, headers: { 'X-CSRF-Token': csrf.token, Cookie: csrf.cookie } });
+    await request(PORT, 'POST', '/api/customers/signup', { body: { email: 'cust@kage.test', password: 'custpass-e2e-1', name: 'Cust' }, headers: { 'X-CSRF-Token': csrf.token, Cookie: csrf.cookie } });
+    const login = await request(PORT, 'POST', '/api/customers/login', { body: { email: 'cust@kage.test', password: 'custpass-e2e-1' }, headers: { 'X-CSRF-Token': csrf.token, Cookie: csrf.cookie } });
     const custCookie = cookieHeader(login);
     const adminResponse = await request(PORT, 'GET', '/api/admin/me', { headers: { Cookie: custCookie } });
     assert.strictEqual(adminResponse.status, 401);
@@ -682,7 +704,7 @@ async function main() {
   // ---------------------------------------------------------------
   console.log('\nAdmin setup gate:');
   await check('setup with wrong secret email reuse → 400 (account exists)', async () => {
-    const r = await request(PORT, 'POST', '/api/admin/setup', { body: { email: 'root@kage.test', password: 'whatever1' } });
+    const r = await request(PORT, 'POST', '/api/admin/setup', { body: { email: 'root@kage.test', password: 'whatever-admin-1' } });
     assert.strictEqual(r.status, 400, JSON.stringify(r.json));
   });
 
@@ -727,7 +749,8 @@ async function main() {
   });
 
   await check('/track with matching phone → 200', async () => {
-    const r = await request(PORT, 'GET', `/api/orders/track?number=${encodeURIComponent(orderNumber)}&phone=03001234567`);
+    const trackCsrf = await getCsrf();
+    const r = await request(PORT, 'POST', '/api/orders/track', { body: { number: orderNumber, phone: '03001234567' }, headers: { 'X-CSRF-Token': trackCsrf.token, Cookie: trackCsrf.cookie } });
     assert.strictEqual(r.status, 200);
     assert.ok(r.json && r.json.order_number === orderNumber);
     assert.strictEqual(r.json.shipping_pending, true, 'tracking exposes the pending delivery charge');
@@ -878,7 +901,7 @@ async function main() {
   let custCookie = '';
   {
     const csrf = await getCsrf();
-    const login = await request(PORT, 'POST', '/api/customers/login', { body: { email: 'cust@kage.test', password: 'custpass1' }, headers: { 'X-CSRF-Token': csrf.token, Cookie: csrf.cookie } });
+    const login = await request(PORT, 'POST', '/api/customers/login', { body: { email: 'cust@kage.test', password: 'custpass-e2e-1' }, headers: { 'X-CSRF-Token': csrf.token, Cookie: csrf.cookie } });
     assert.strictEqual(login.status, 200, JSON.stringify(login.json));
     custCookie = cookieHeader(login);
   }
@@ -911,7 +934,7 @@ async function main() {
   await check('PUT password change with wrong current password → 401', async () => {
     const csrf = await getCsrf();
     const r = await request(PORT, 'PUT', '/api/customers/me', {
-      body: { currentPassword: 'wrongpass', newPassword: 'newpass456' },
+      body: { currentPassword: 'wrongpass', newPassword: 'newpass-customer-1' },
       headers: { 'X-CSRF-Token': csrf.token, Cookie: custCookie + '; ' + csrf.cookie }
     });
     assert.strictEqual(r.status, 401);
@@ -921,13 +944,13 @@ async function main() {
   await check('PUT password change → old login fails, new login works', async () => {
     const csrf = await getCsrf();
     const r = await request(PORT, 'PUT', '/api/customers/me', {
-      body: { currentPassword: 'custpass1', newPassword: 'newpass456' },
+      body: { currentPassword: 'custpass-e2e-1', newPassword: 'newpass-customer-1' },
       headers: { 'X-CSRF-Token': csrf.token, Cookie: custCookie + '; ' + csrf.cookie }
     });
     assert.strictEqual(r.status, 200, JSON.stringify(r.json));
-    const oldLogin = await request(PORT, 'POST', '/api/customers/login', { body: { email: 'cust@kage.test', password: 'custpass1' }, headers: { 'X-CSRF-Token': csrf.token, Cookie: csrf.cookie } });
+    const oldLogin = await request(PORT, 'POST', '/api/customers/login', { body: { email: 'cust@kage.test', password: 'custpass-e2e-1' }, headers: { 'X-CSRF-Token': csrf.token, Cookie: csrf.cookie } });
     assert.strictEqual(oldLogin.status, 401, 'old password must stop working');
-    const newLogin = await request(PORT, 'POST', '/api/customers/login', { body: { email: 'cust@kage.test', password: 'newpass456' }, headers: { 'X-CSRF-Token': csrf.token, Cookie: csrf.cookie } });
+    const newLogin = await request(PORT, 'POST', '/api/customers/login', { body: { email: 'cust@kage.test', password: 'newpass-customer-1' }, headers: { 'X-CSRF-Token': csrf.token, Cookie: csrf.cookie } });
     assert.strictEqual(newLogin.status, 200, 'new password must work');
   });
 
@@ -936,7 +959,7 @@ async function main() {
   // ---------------------------------------------------------------
   console.log('\nPassword reset (FE-C4):');
   await check('POST /api/auth/reset-password with bogus token → 400', async () => {
-    const r = await request(PORT, 'POST', '/api/auth/reset-password', { body: { token: 'deadbeef', password: 'whatever1' } });
+    const r = await request(PORT, 'POST', '/api/auth/reset-password', { body: { token: 'deadbeef', password: 'whatever-admin-1' } });
     assert.strictEqual(r.status, 400);
   });
 
@@ -999,6 +1022,12 @@ async function main() {
       const scriptSrc = /script-src[^;]*/.exec(csp)?.[0] || '';
       assert.equal(scriptSrc, "script-src 'self' https://cloud.umami.is", `${path}: scripts load only from same-origin bundles + Umami, got: ${scriptSrc}`);
       assert.match(csp, /script-src-attr 'none'/, 'injected inline handlers cannot execute');
+      // F22: fonts are self-hosted — no Google hosts anywhere in the policy,
+      // and no CDN leftovers.
+      assert.match(csp, /font-src 'self'(;|$)/, `fonts load only from same origin, got: ${csp.match(/font-src[^;]*/)?.[0]}`);
+      const styleSrc = /style-src[^;]*/.exec(csp)?.[0] || '';
+      assert.ok(!styleSrc.includes('fonts.googleapis.com'), `style-src must not allow Google Fonts, got: ${styleSrc}`);
+      assert.ok(!csp.includes('cdn.jsdelivr.net'), 'no CDN leftovers in the policy');
     }
   });
 
@@ -1936,10 +1965,14 @@ async function main() {
       const { persistImage, removeImage } = require('../utils/helpers');
       const url = await persistImage(Buffer.from('mock-image'), 'mock.webp');
       await removeImage(url);
-      assert.strictEqual(calls.length, 2);
+      // F7: removeImage deletes the derived 400/800/1200 WebP derivatives too —
+      // one put (original), then four dels (original + 400/800/1200).
+      assert.strictEqual(calls.length, 5);
       assert.strictEqual(calls[0][2].access, 'public');
       assert.strictEqual(calls[0][2].token, 'test-prefixed-store-token');
       assert.strictEqual(calls[1][2].token, 'test-prefixed-store-token');
+      const deleted = calls.filter(c => c[0] === 'del').map(c => c[1]);
+      assert.deepStrictEqual(deleted, [url, url.replace('.webp', '-400.webp'), url.replace('.webp', '-800.webp'), url.replace('.webp', '-1200.webp')]);
     } finally {
       Module._load = originalLoad;
       if (oldVercel === undefined) delete process.env.VERCEL;
@@ -2240,7 +2273,7 @@ async function main() {
     const victimOrder = await placeGuestOrder({ name: 'Phone Victim', email: 'victim.phone@kage.test', phone: '03009998881', address: 'Victim St 1', city: 'Karachi' });
     assert.strictEqual(victimOrder.status, 201, JSON.stringify(victimOrder.json));
 
-    const attacker = await signupCustomer('attacker.phone@kage.test', 'attackerpass1', 'Attacker');
+    const attacker = await signupCustomer('attacker.phone@kage.test', 'attacker-pass-e2e-1', 'Attacker');
     assert.strictEqual(attacker.res.status, 200, JSON.stringify(attacker.res.json));
     await dbModule.prepare('UPDATE customers SET email_verified = 1 WHERE id = ?').run(attacker.res.json.customer.id);
 
@@ -2266,14 +2299,14 @@ async function main() {
     assert.strictEqual(victimOrder.status, 201, JSON.stringify(victimOrder.json));
 
     // The attacker registers the victim's address (no account existed yet).
-    const attacker = await signupCustomer('victim.email@kage.test', 'attackerpass2', 'Not The Owner');
+    const attacker = await signupCustomer('victim.email@kage.test', 'attacker-pass-e2e-2', 'Not The Owner');
     assert.strictEqual(attacker.res.status, 200, JSON.stringify(attacker.res.json));
     assert.strictEqual(attacker.res.json.customer.email_verified, false, 'a new signup is unverified');
 
     // Unverified accounts can still log in and edit their profile…
     const csrf = await getCsrf();
     const login = await request(PORT, 'POST', '/api/customers/login', {
-      body: { email: 'victim.email@kage.test', password: 'attackerpass2' },
+      body: { email: 'victim.email@kage.test', password: 'attacker-pass-e2e-2' },
       headers: { 'X-CSRF-Token': csrf.token, Cookie: csrf.cookie }
     });
     assert.strictEqual(login.status, 200, JSON.stringify(login.json));
@@ -2301,7 +2334,7 @@ async function main() {
     assert.strictEqual(stored.email, 'mixed.case@kage.test', 'order emails are stored lowercased');
 
     // The real owner signs up for the same address (lowercase).
-    const signup = await captureEmailLog(async () => signupCustomer('mixed.case@kage.test', 'ownerpass1', 'Real Owner'));
+    const signup = await captureEmailLog(async () => signupCustomer('mixed.case@kage.test', 'owner-pass-e2e-1', 'Real Owner'));
     assert.strictEqual(signup.result.res.status, 200, JSON.stringify(signup.result.res.json));
     assert.ok(signup.result.res.json.message && /verify/i.test(signup.result.res.json.message), 'signup must tell the user to verify');
     const verifyUrl = extractVerifyUrl(signup.logged);
@@ -2341,7 +2374,7 @@ async function main() {
     const anon = await request(PORT, 'POST', '/api/customers/resend-verification', { headers: { Cookie: csrfAnon.cookie, 'X-CSRF-Token': csrfAnon.token } });
     assert.strictEqual(anon.status, 401, 'resend requires a signed-in customer');
 
-    const first = await captureEmailLog(async () => signupCustomer('resend.probe@kage.test', 'resendpass1', 'Resend Probe'));
+    const first = await captureEmailLog(async () => signupCustomer('resend.probe@kage.test', 'resend-pass-e2e-1', 'Resend Probe'));
     const firstUrl = extractVerifyUrl(first.logged);
     assert.ok(firstUrl, 'signup email must carry a link');
     const cookie = first.result.cookie;
@@ -2424,7 +2457,7 @@ async function main() {
     assert.ok(!html.includes('<script>'), 'no script tag may appear in the email');
     assert.ok(!/<a\s/i.test(html), 'the confirmation template carries no links at all');
     assert.ok(html.includes(order.json.order_number), 'the real order number is still present');
-    assert.ok(html.includes('Rs. 250 – Rs. 450'), 'the pending email shows the published delivery band (D1)');
+    assert.ok(html.includes('Rs. 250 – Rs. 500'), 'the pending email shows the published delivery band (D1)');
   });
 
   await check('the status update email escapes the stored customer name', async () => {
@@ -2798,6 +2831,95 @@ async function main() {
   await check('the CSV export still requires an admin session', async () => {
     const r = await request(PORT, 'GET', '/api/orders/export/csv');
     assert.strictEqual(r.status, 401);
+  });
+
+  // ---------------------------------------------------------------
+  // Product image variants (F7): responsive WebP next to every original
+  // ---------------------------------------------------------------
+  console.log('\nProduct image variants (F7):');
+
+  await check('product upload generates 400/800/1200 WebP variants', async () => {
+    const sharp = require('sharp');
+    // A real 1600x1200 image — variant generation needs decodable bytes, and
+    // sharp is installed for exactly this path.
+    const png = await sharp({ create: { width: 1600, height: 1200, channels: 3, background: { r: 74, g: 68, b: 51 } } }).png().toBuffer();
+    const csrfLocal = await getCsrf();
+    const form = new FormData();
+    form.append('name', 'Variant Probe Tee');
+    form.append('category', 'graphic-tees');
+    form.append('price', '3299');
+    form.append('sizes', JSON.stringify(['L']));
+    form.append('front_image', new Blob([png], { type: 'image/png' }), 'variant-probe.png');
+    const created = await fetch(`http://127.0.0.1:${PORT}/api/products`, {
+      method: 'POST',
+      headers: { Cookie: `${adminCookie}; ${csrfLocal.cookie}`, 'X-CSRF-Token': csrfLocal.token },
+      body: form
+    });
+    const product = await created.json();
+    assert.strictEqual(created.status, 201, JSON.stringify(product));
+    assert.ok(product.front_image, 'front image persisted');
+    const variants = product.image_variants && product.image_variants[product.front_image];
+    assert.ok(variants, 'the payload exposes the variant map for the front image');
+    assert.deepStrictEqual(Object.keys(variants).sort(), ['1200', '400', '800']);
+    for (const [width, url] of Object.entries(variants)) {
+      const r = await fetch(`http://127.0.0.1:${PORT}${url}`);
+      assert.strictEqual(r.status, 200, `variant ${width} must be fetchable at ${url}`);
+      const bytes = Buffer.from(await r.arrayBuffer());
+      assert.equal(bytes.subarray(0, 4).toString('latin1'), 'RIFF', 'variant is a RIFF container');
+      assert.equal(bytes.subarray(8, 12).toString('latin1'), 'WEBP', 'variant is WebP');
+      const meta = await sharp(bytes).metadata();
+      assert.equal(meta.format, 'webp');
+      assert.equal(meta.width, Number(width), 'variant width matches the key');
+    }
+  });
+
+  await check('product upload with undecodable bytes still succeeds and ships no variants', async () => {
+    const csrfLocal = await getCsrf();
+    const form = new FormData();
+    form.append('name', 'Variant Fallback Tee');
+    form.append('category', 'anime');
+    form.append('price', '2799');
+    form.append('sizes', JSON.stringify(['M']));
+    form.append('front_image', new Blob([Buffer.from('not-a-real-image')], { type: 'image/png' }), 'broken.png');
+    const created = await fetch(`http://127.0.0.1:${PORT}/api/products`, {
+      method: 'POST',
+      headers: { Cookie: `${adminCookie}; ${csrfLocal.cookie}`, 'X-CSRF-Token': csrfLocal.token },
+      body: form
+    });
+    const product = await created.json();
+    assert.strictEqual(created.status, 201, JSON.stringify(product));
+    assert.ok(product.front_image, 'the original is stored even when variants are skipped');
+    assert.deepStrictEqual(product.image_variants, {}, 'no variants for undecodable bytes — upload must still succeed');
+  });
+
+  await check('removing an image deletes its WebP derivatives', async () => {
+    const sharp = require('sharp');
+    const png = await sharp({ create: { width: 900, height: 1200, channels: 3, background: { r: 153, g: 27, b: 27 } } }).png().toBuffer();
+    const csrfLocal = await getCsrf();
+    const form = new FormData();
+    form.append('name', 'Variant Cleanup Tee');
+    form.append('category', 'pants');
+    form.append('price', '3499');
+    form.append('sizes', JSON.stringify(['L']));
+    form.append('front_image', new Blob([png], { type: 'image/png' }), 'cleanup-probe.png');
+    const created = await fetch(`http://127.0.0.1:${PORT}/api/products`, {
+      method: 'POST',
+      headers: { Cookie: `${adminCookie}; ${csrfLocal.cookie}`, 'X-CSRF-Token': csrfLocal.token },
+      body: form
+    });
+    const product = await created.json();
+    assert.strictEqual(created.status, 201, JSON.stringify(product));
+    const variants = Object.values((product.image_variants || {})[product.front_image] || {});
+    assert.ok(variants.length >= 2, 'expect at least two variants to exist before cleanup');
+    for (const url of variants) {
+      assert.ok(fs.existsSync(path.join(__dirname, '..', url)), `variant exists on disk: ${url}`);
+    }
+    const csrfDelete = await getCsrf();
+    const removed = await request(PORT, 'DELETE', `/api/products/${product.id}`, { headers: { Cookie: `${adminCookie}; ${csrfDelete.cookie}`, 'X-CSRF-Token': csrfDelete.token } });
+    assert.strictEqual(removed.status, 200, JSON.stringify(removed.json));
+    for (const url of [...variants, product.front_image]) {
+      assert.ok(!fs.existsSync(path.join(__dirname, '..', url)), `image file removed from storage: ${url}`);
+    }
   });
 
   // ---------------------------------------------------------------
@@ -3252,11 +3374,11 @@ async function main() {
     });
 
     applyCookies(await request(PORT, 'GET', '/api/products'));           // CSRF cookie
-    applyCookies(await request(PORT, 'POST', '/api/admin/login', { body: { email: 'root@kage.test', password: 'supersecret1' } }));
+    applyCookies(await request(PORT, 'POST', '/api/admin/login', { body: { email: 'root@kage.test', password: 'supersecret-admin-1' } }));
     assert.strictEqual((await request(PORT, 'GET', '/api/admin/me', { headers: jarHeaders() })).status, 200, 'admin login must work');
 
     // The customer signs in in the same browser — one shared kage.session.
-    applyCookies(await request(PORT, 'POST', '/api/customers/login', { body: { email: 'cust@kage.test', password: 'newpass456' }, headers: jarHeaders() }));
+    applyCookies(await request(PORT, 'POST', '/api/customers/login', { body: { email: 'cust@kage.test', password: 'newpass-customer-1' }, headers: jarHeaders() }));
     assert.strictEqual((await request(PORT, 'GET', '/api/admin/me', { headers: jarHeaders() })).status, 200, 'both identities must be live');
     assert.strictEqual((await request(PORT, 'GET', '/api/customers/me', { headers: jarHeaders() })).status, 200, 'both identities must be live');
 
@@ -3273,9 +3395,9 @@ async function main() {
     assert.deepStrictEqual(signedOutCustomer.json, { customer: null }, 'the customer session must be gone');
 
     // Admin logs out → the customer session must survive.
-    applyCookies(await request(PORT, 'POST', '/api/customers/login', { body: { email: 'cust@kage.test', password: 'newpass456' }, headers: jarHeaders() }));
+    applyCookies(await request(PORT, 'POST', '/api/customers/login', { body: { email: 'cust@kage.test', password: 'newpass-customer-1' }, headers: jarHeaders() }));
     assert.strictEqual((await request(PORT, 'GET', '/api/customers/me', { headers: jarHeaders() })).status, 200);
-    applyCookies(await request(PORT, 'POST', '/api/admin/login', { body: { email: 'root@kage.test', password: 'supersecret1' }, headers: jarHeaders() }));
+    applyCookies(await request(PORT, 'POST', '/api/admin/login', { body: { email: 'root@kage.test', password: 'supersecret-admin-1' }, headers: jarHeaders() }));
     const adminLogout = await request(PORT, 'POST', '/api/admin/logout', { headers: jarHeaders() });
     assert.strictEqual(adminLogout.status, 200, JSON.stringify(adminLogout.json));
     applyCookies(adminLogout);

@@ -75,6 +75,20 @@ function setHtmlNoStore(res) {
   res.setHeader('Pragma', 'no-cache');
   res.setHeader('Expires', '0');
 }
+
+// F9 (PERF-1): the storefront shell is byte-identical for every visitor on a
+// route — personalisation and cart state all happen client-side — so a
+// shared CDN cache may keep it for 60s and serve a stale-while-revalidate
+// copy for up to 10 minutes while it refreshes. max-age=0 means browsers
+// still revalidate with ETag instead of trusting a stale local copy.
+// Because this response opts into s-maxage, the CSRF middleware deliberately
+// withholds the kage.csrf cookie from it (a shared cache must never replay
+// one visitor's cookie) — browsers pick one up from GET /api/csrf instead.
+// /admin keeps the no-store header set with the admin route — admin markup
+// is not cacheable content and may carry operator-specific behaviour.
+function setStorefrontHtmlCache(res) {
+  res.setHeader('Cache-Control', 'public, max-age=0, s-maxage=60, stale-while-revalidate=600');
+}
 function escapeXml(value) {
   return String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
 }
@@ -86,8 +100,7 @@ const SITEMAP_STATIC_URLS = [
   { path: '/returns', changefreq: 'monthly', priority: '0.4' },
   { path: '/shipping', changefreq: 'monthly', priority: '0.4' },
   { path: '/terms', changefreq: 'yearly', priority: '0.3' },
-  { path: '/privacy', changefreq: 'yearly', priority: '0.3' },
-  { path: '/tracking', changefreq: 'monthly', priority: '0.4' }
+  { path: '/privacy', changefreq: 'yearly', priority: '0.3' }
 ];
 // These slugs are routable collection filters. Only emit a category URL when
 // at least one public product is actually assigned to it.
@@ -222,6 +235,47 @@ const COLLECTION_SEO = Object.freeze({
     description: 'Shop oversized KAGE Culture streetwear with relaxed silhouettes, premium fabrics, and original art.'
   }
 });
+
+// Static content pages — served as the SPA shell at these URLs, each with
+// its own title/description instead of the homepage metadata. Titles must
+// match STATIC_PAGE_TITLES in public/storefront.js.
+const STATIC_PAGE_SEO = Object.freeze({
+  '/about': {
+    title: 'About | KAGE CULTURE',
+    description: 'The story behind KAGE Culture: original art, heavyweight cotton, and drops made for people who wear the shadow.'
+  },
+  '/contact': {
+    title: 'Contact | KAGE CULTURE',
+    description: 'Get in touch with KAGE Culture: order support, WhatsApp, email and working hours. Monday to Saturday, 11am to 8pm (Pakistan time).'
+  },
+  '/shipping': {
+    title: 'Shipping & Delivery | KAGE CULTURE',
+    description: 'Orders processed in 1-2 business days; delivery in 3-5 business days for major cities and 5-7 for other areas across Pakistan. Cash on delivery available.'
+  },
+  '/returns': {
+    title: 'Returns & Refunds | KAGE CULTURE',
+    description: 'Return eligible items within 7 days of delivery. See how to request a return, what is covered, and how refunds are processed.'
+  },
+  '/privacy': {
+    title: 'Privacy Policy | KAGE CULTURE',
+    description: 'How KAGE Culture collects, uses and protects your personal data: orders, accounts, the newsletter, cookies and analytics.'
+  },
+  '/terms': {
+    title: 'Terms of Service | KAGE CULTURE',
+    description: 'The terms that govern the KAGE Culture store: pricing, orders and Cash on Delivery, intellectual property, returns and governing law.'
+  },
+  '/custom-stickers': {
+    title: 'Custom Stickers | KAGE CULTURE',
+    description: 'Send us your design — a sketch, a name, a meme — and we print it on premium peel-proof, rain-proof vinyl stickers.'
+  },
+  '/tracking': {
+    title: 'Track Your Order | KAGE CULTURE',
+    description: 'Track your KAGE Culture order with your order number and phone number. No account needed.'
+  }
+});
+
+// Private/functional views: never indexed, never followed.
+const PRIVATE_PATHS = new Set(['/checkout', '/account', '/confirmation', '/reset-password', '/verify-email']);
 
 function escapeHtml(value) {
   return String(value == null ? '' : value)
@@ -547,7 +601,7 @@ async function resolveSeoPage(req, siteUrl) {
   const slug = collectionSlugFromPath(req.path);
   if (slug !== null) {
     const collection = COLLECTION_SEO[slug];
-    if (!collection) return { status: 200 };
+    if (!collection) return { status: 404 };
     const canonical = new URL(`/collection/${slug}`, `${siteUrl}/`).href;
     return {
       status: 200,
@@ -563,6 +617,20 @@ async function resolveSeoPage(req, siteUrl) {
         { name: 'Home', url: new URL('/', `${siteUrl}/`).href },
         { name: collection.name, url: canonical }
       ])]
+    };
+  }
+  const staticPage = STATIC_PAGE_SEO[req.path];
+  if (staticPage) {
+    return {
+      status: 200,
+      seo: {
+        title: staticPage.title,
+        description: trimSeoDescription(staticPage.description),
+        url: new URL(req.path, `${siteUrl}/`).href,
+        image: new URL('/images/og-image.jpg', `${siteUrl}/`).href,
+        imageAlt: 'KAGE Culture',
+        type: 'website'
+      }
     };
   }
   return { status: 200 };
@@ -585,7 +653,8 @@ async function renderStorefrontHtml(req) {
 }
 
 async function sendStorefrontHtml(req, res, status) {
-  setHtmlNoStore(res);
+  setStorefrontHtmlCache(res);
+  if (PRIVATE_PATHS.has(req.path)) res.setHeader('X-Robots-Tag', 'noindex, nofollow');
   const rendered = await renderStorefrontHtml(req);
   res.status(status == null ? rendered.status : status).type('html').send(rendered.html);
 }
@@ -618,8 +687,11 @@ app.use(loadHelmet()({
       // (History: omitting this defaulted to 'none' while inline handlers
       // still existed and silently blocked every click, 2026-09-23.)
       scriptSrcAttr: ["'none'"],
-      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://cdn.jsdelivr.net"],
-      fontSrc: ["'self'", "https://fonts.gstatic.com", "https://cdn.jsdelivr.net"],
+      // F22: fonts are self-hosted from /fonts (variable Archivo for storefront
+      // + admin, Anton for admin display type) — no third-party font hosts.
+      // 'unsafe-inline' stays for style attributes until Phase 3.
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      fontSrc: ["'self'"],
       imgSrc: ["'self'", "data:", "https:", "blob:"],
       connectSrc: ["'self'", "https://*.blob.vercel-storage.com", "https://cloud.umami.is"],
       frameSrc: ["'none'"]
@@ -656,8 +728,12 @@ app.get(CSRF_ENDPOINT, (req, res) => {
 app.use(loadCompression()({ level: 6, threshold: 1024 }));
 
 // ── Body Parsers ──────────────────────────────────────────────
-app.use(express.json({ limit: '8mb' }));
-app.use(express.urlencoded({ extended: true, limit: '8mb' }));
+// F28: JSON/urlencoded payloads carry checkouts, logins and small order notes —
+// 100 KB is generous. Admin product forms with 8 MB of image bytes arrive as
+// multipart/form-data, which multer handles separately (middleware limits
+// still apply there). Anything bigger as JSON is an attack or a bug.
+app.use(express.json({ limit: '100kb' }));
+app.use(express.urlencoded({ extended: true, limit: '100kb' }));
 
 // ── Sessions ──────────────────────────────────────────────────
 app.use(loadCookieSession()({
@@ -702,7 +778,7 @@ app.get('/sitemap.xml', async (req, res) => {
 app.get('/robots.txt', (req, res) => {
   const siteUrl = getSiteUrlForRequest(req);
   res.setHeader('Cache-Control', 'no-store');
-  res.type('text/plain').send(`User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /api\n\nSitemap: ${siteUrl}/sitemap.xml\n`);
+  res.type('text/plain').send(`User-agent: *\nAllow: /\nDisallow: /admin\n\nSitemap: ${siteUrl}/sitemap.xml\n`);
 });
 app.get(['/', '/index.html'], (req, res, next) => {
   sendStorefrontHtml(req, res).catch(next);
@@ -981,7 +1057,8 @@ async function ensureReady() {
     app.get('*', (req, res, next) => {
       if (req.path.startsWith('/api/')) return res.status(404).json({ error: 'Not found.' });
       const isProductRoute = productIdFromPath(req.path) !== null;
-      const known = spaPages.has(req.path) || isProductRoute || collectionSlugFromPath(req.path) !== null;
+      const collectionSlug = collectionSlugFromPath(req.path);
+      const known = spaPages.has(req.path) || isProductRoute || (collectionSlug !== null && Boolean(COLLECTION_SEO[collectionSlug]));
       // Product status comes from the public DB lookup: known products are 200,
       // missing products are 404, and lookup failures remain the SPA shell.
       const statusOverride = isProductRoute ? undefined : (known ? 200 : 404);

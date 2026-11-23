@@ -284,7 +284,30 @@
     // D1 (CONV-1): published delivery band — the exact fee depends on the
     // city and is confirmed by phone before dispatch, but the customer
     // always sees the bounded range up front instead of "to be confirmed".
-    const DELIVERY_FEE_BAND = 'Rs. 250 – Rs. 450';
+    // Published band (D1) — per-city fees live in config.DELIVERY_FEES on the
+    // server (F3); the customer-facing contract stays the band + phone call.
+    const DELIVERY_FEE_BAND = 'Rs. 250 – Rs. 500';
+    // Pakistani mobile numbers: 03XXXXXXXXX, +923XXXXXXXXX or 923XXXXXXXXX
+    // (spaces and dashes allowed in the input, stripped before checking).
+    const isValidPkMobile = (value) => /^(\+92|92|0)3\d{9}$/.test(String(value || '').replace(/[\s-]/g, ''));
+    // F8: the same capitalised titles the server renders for the static pages.
+    const STATIC_PAGE_TITLES = {
+      'about': 'About | KAGE CULTURE',
+      'contact': 'Contact | KAGE CULTURE',
+      'shipping': 'Shipping & Delivery | KAGE CULTURE',
+      'returns': 'Returns & Refunds | KAGE CULTURE',
+      'privacy': 'Privacy Policy | KAGE CULTURE',
+      'terms': 'Terms of Service | KAGE CULTURE',
+      'custom-stickers': 'Custom Stickers | KAGE CULTURE',
+      'tracking': 'Track Your Order | KAGE CULTURE',
+      'checkout': 'Checkout | KAGE CULTURE',
+      'confirmation': 'Order Confirmed | KAGE CULTURE',
+      'account': 'My Account | KAGE CULTURE',
+      'reset-password': 'Reset Your Password | KAGE CULTURE',
+      'verify-email': 'Verify Your Email | KAGE CULTURE',
+      'coming-soon': 'Coming Soon | KAGE CULTURE'
+    };
+    const titleCaseFallback = (slug) => String(slug || '').replace(/-/g, ' ').trim().replace(/\b\w/g, (c) => c.toUpperCase());
     // Mirrors config.js / admin CATEGORY_OPTIONS for test inspection.
     const CATEGORY_OPTIONS = [
       { value: 'graphic-tees', label: 'Graphic Tees' },
@@ -411,11 +434,25 @@
             history.replaceState(null, '', '/collection/all');
             navigateTo('collection', 'all');
           }
+        } else if (path === '/checkout') {
+          // Deep link straight into checkout (boot or back/forward). With a
+          // cart, render it — the checkout page already disables Place Order
+          // for unavailable lines. Without a cart there is nothing to check
+          // out, so land on the home page with the (empty) cart drawer open
+          // instead of the "Page not found" dead end.
+          if (cart.length) navigateTo('checkout');
+          else {
+            history.replaceState(null, '', '/');
+            navigateTo('home', null, { skipHistory: true });
+            toggleCart(true);
+          }
         } else if (path === '/confirmation') {
           if (lastOrder) navigateTo('confirmation');
           else {
-            history.replaceState(null, '', '/tracking');
-            navigateTo('tracking', null, { skipHistory: true });
+            // No order exists in this browser session — the confirmation page
+            // has nothing to show, so land on the home page.
+            history.replaceState(null, '', '/');
+            navigateTo('home', null, { skipHistory: true });
           }
         } else if (path === '/reset-password') { navigateTo('reset'); initPasswordReset(); }
         else if (path === '/verify-email') { navigateTo('verify'); initEmailVerification(); }
@@ -443,7 +480,7 @@
     // shell <head> — the SEO-4 regression test enforces parity on a '/' boot.
     const HOME_SOCIAL_META = {
       title: 'KAGE CULTURE \u2014 Engineered Fit. Original Art.',
-      description: 'KAGE Culture \u2014 Premium streetwear. Anime inspired. Built for everyday. Shop oversized tees, graphic tees, and compression gear.',
+      description: 'KAGE Culture \u2014 Premium streetwear. Anime inspired. Built for everyday. Shop oversized tees and graphic tees.',
       imageAlt: 'KAGE Culture campaign: a model in a white oversized tee printed with EVERYONE, mid-kick in front of a light wall covered in graffiti lettering',
       type: 'website'
     };
@@ -573,7 +610,7 @@
           : (CATEGORY_NAMES[filter] || String(filter || '').replace(/-/g, ' '));
       document.title = isCollectionRoute ? `${collectionTitleName} | KAGE CULTURE`
         : target === 'home' ? 'KAGE CULTURE — Engineered Fit. Original Art.'
-          : ((target === 'product' && currentProduct) ? `${String(currentProduct.name || '').replace(/\s+/g, ' ').trim()} | KAGE CULTURE` : target.replace(/-/g, ' ') + ' | KAGE CULTURE');
+          : ((target === 'product' && currentProduct) ? `${String(currentProduct.name || '').replace(/\s+/g, ' ').trim()} | KAGE CULTURE` : (STATIC_PAGE_TITLES[target] || titleCaseFallback(target) + ' | KAGE CULTURE'));
       syncSocialMetaForRoute(page, filter, target);
       window.scrollTo({ top: 0 });
       closeFilterDrawer();
@@ -649,12 +686,56 @@
       const phoneEl = document.getElementById('coPhone');
       const addrEl = document.getElementById('coAddress');
       const cityEl = document.getElementById('coCity');
+      const otherCityEl = document.getElementById('coCityOther');
       if (nameEl && !nameEl.value && currentCustomer.name) nameEl.value = currentCustomer.name;
       if (emailEl && !emailEl.value && currentCustomer.email) emailEl.value = currentCustomer.email;
       if (phoneEl && !phoneEl.value && currentCustomer.phone) phoneEl.value = currentCustomer.phone;
       if (addrEl && !addrEl.value && currentCustomer.address) addrEl.value = currentCustomer.address;
-      if (cityEl && !cityEl.value && currentCustomer.city) cityEl.value = currentCustomer.city;
+      if (cityEl && currentCustomer.city) {
+        const match = [...cityEl.options].find(o => o.value && o.value !== '__other__' && o.value.toLowerCase() === String(currentCustomer.city).trim().toLowerCase());
+        if (match) cityEl.value = match.value;
+        else { cityEl.value = '__other__'; if (otherCityEl) otherCityEl.value = currentCustomer.city; }
+        syncOtherCityVisibility();
+      }
     }
+
+    // ---------- F12: per-field checkout validation ----------
+    const CO_FIELD_IDS = ['coName', 'coEmail', 'coPhone', 'coAddress', 'coCity', 'coCityOther'];
+    function fieldErrorEl(id) { return document.getElementById('err-' + id); }
+    function setFieldError(id, message) {
+      const el = document.getElementById(id);
+      const err = fieldErrorEl(id);
+      if (!el || !err) return;
+      if (message) { err.textContent = message; err.hidden = false; el.setAttribute('aria-invalid', 'true'); }
+      else { err.textContent = ''; err.hidden = true; el.removeAttribute('aria-invalid'); }
+    }
+    function clearFieldErrors() { CO_FIELD_IDS.forEach(id => setFieldError(id, '')); }
+    function coCitySelectValue() {
+      const sel = document.getElementById('coCity');
+      return sel ? sel.value : '';
+    }
+    function checkoutCityValue() {
+      if (coCitySelectValue() === '__other__') {
+        const other = document.getElementById('coCityOther');
+        return other ? other.value.trim() : '';
+      }
+      return coCitySelectValue();
+    }
+    function syncOtherCityVisibility() {
+      const wrap = document.getElementById('coCityOtherWrap');
+      if (!wrap) return;
+      wrap.hidden = coCitySelectValue() !== '__other__';
+      if (wrap.hidden) setFieldError('coCityOther', '');
+    }
+    // Typing in any checkout field clears its inline error immediately.
+    CO_FIELD_IDS.forEach(id => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.addEventListener('input', () => setFieldError(id, ''));
+      el.addEventListener('change', () => setFieldError(id, ''));
+    });
+    const citySel = document.getElementById('coCity');
+    if (citySel) citySel.addEventListener('change', syncOtherCityVisibility);
 
     function renderCheckout() {
       const wrap = document.getElementById('coItems');
@@ -663,7 +744,7 @@
         const unavailable = cartItemUnavailable(item);
         const t = item.price * item.qty; sub += t;
         return `<div class="co-item">
-          <div class="co-item-img"><img src="${esc(item.images && item.images[0] ? item.images[0] : '')}" alt="${esc(item.name)}" width="52" height="60" sizes="52px" loading="lazy" decoding="async" /></div>
+          <div class="co-item-img"><img src="${esc(item.images && item.images[0] ? item.images[0] : '')}" alt="${esc(item.name)}" width="52" height="60"${srcsetAttr((item.images && item.images[0]) || '')} sizes="52px" loading="lazy" decoding="async" /></div>
           <div class="co-item-info"><div class="co-item-name">${esc(item.name)}</div><div class="co-item-meta">Size ${esc(item.size)} · Qty ${item.qty}${unavailable ? ' · Unavailable' : ''}</div></div>
           <div class="co-item-price">Rs. ${t}</div>
         </div>`;
@@ -678,6 +759,7 @@
     async function placeOrder() {
       const errEl = document.getElementById('checkoutError');
       errEl.style.display = 'none';
+      clearFieldErrors();
       if (!productsLoadedFromApi) { errEl.textContent = 'Shop temporarily unavailable. Please retry loading products.'; errEl.style.display = 'block'; return; }
       if (!cart.length || cartHasUnavailableItems()) {
         errEl.textContent = 'Some items are unavailable. Remove them before checkout.';
@@ -689,18 +771,28 @@
         email: document.getElementById('coEmail').value.trim(),
         phone: document.getElementById('coPhone').value.trim(),
         address: document.getElementById('coAddress').value.trim(),
-        city: document.getElementById('coCity').value.trim(),
+        city: checkoutCityValue(),
         notes: document.getElementById('coNotes').value.trim(),
         payment_method: 'cod'
       };
-      if (!f.name || !f.email || !f.phone || !f.address || !f.city) {
-        errEl.textContent = 'Please fill in all required fields (name, email, phone, address, city).';
+      // F12: every invalid field is marked inline, and the first one takes
+      // focus — no more hunting for which of six fields the banner meant.
+      const problems = [];
+      if (!f.name) problems.push(['coName', 'Please enter your full name.']);
+      if (!f.email) problems.push(['coEmail', 'Please enter your email address.']);
+      else if (!/^\S+@\S+\.\S+$/.test(f.email)) problems.push(['coEmail', 'Please enter a valid email address.']);
+      if (!f.phone) problems.push(['coPhone', 'Please enter your phone number.']);
+      else if (!isValidPkMobile(f.phone)) problems.push(['coPhone', 'Enter a valid mobile number, e.g. 0300 1234567.']);
+      if (!f.address) problems.push(['coAddress', 'Please enter your delivery address.']);
+      if (coCitySelectValue() === '') problems.push(['coCity', 'Select your city, or choose Other and type it in.']);
+      else if (coCitySelectValue() === '__other__' && !f.city) problems.push(['coCityOther', 'Please type your city.']);
+      if (problems.length) {
+        for (const [id, message] of problems) setFieldError(id, message);
+        errEl.textContent = 'Please fix the highlighted field' + (problems.length > 1 ? 's' : '') + ' and try again.';
         errEl.style.display = 'block';
-        return;
-      }
-      if (!/^\S+@\S+\.\S+$/.test(f.email)) {
-        errEl.textContent = 'Please enter a valid email address.';
-        errEl.style.display = 'block';
+        const firstInvalid = document.getElementById(problems[0][0]);
+        if (firstInvalid && firstInvalid.focus) firstInvalid.focus();
+        if (firstInvalid && firstInvalid.scrollIntoView) firstInvalid.scrollIntoView({ block: 'center' });
         return;
       }
       const btn = document.getElementById('coPlaceBtn');
@@ -718,13 +810,26 @@
           cart = [];
           updateCartUI();
           navigateTo('confirmation');
+          // F15 (D2): anonymous purchase event for the Umami Cloud dashboard.
+          // Value + currency only — no order number, no PII. No-ops when the
+          // owner has not set UMAMI_WEBSITE_ID (window.umami is undefined).
+          if (typeof window !== 'undefined' && window.umami && typeof window.umami.track === 'function') {
+            window.umami.track('purchase', { value: Math.round(Number(data.total) || 0), currency: 'PKR' });
+          }
           announce('Order ' + (data.order_number || '') + ' placed. Thank you for shopping with KAGE Culture.');
         } else {
-          errEl.textContent = data.error || 'Could not place the order. Please try again.';
+          const serverError = data.error || 'Could not place the order. Please try again.';
+          errEl.textContent = serverError;
           errEl.style.display = 'block';
+          const mappedField = /mobile number/i.test(serverError) ? 'coPhone'
+            : /email/i.test(serverError) ? 'coEmail'
+              : /city/i.test(serverError) ? 'coCity' : null;
+          if (mappedField) setFieldError(mappedField, serverError);
         }
       } catch (err) {
-        errEl.textContent = 'Connection error. Make sure the server is running.';
+        // F12: COD on Pakistani mobile networks — when the API is
+        // unreachable the quickest path is WhatsApp, not a prettier error.
+        errEl.textContent = 'Connection problem — check your network and try again, or WhatsApp us at +92 322 804 2633 and we will place the order for you.';
         errEl.style.display = 'block';
       }
       btn.disabled = !cart.length || cartHasUnavailableItems();
@@ -995,7 +1100,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
         if (!p) return;
         var img = (p.images && p.images[0]) || p.image || '';
         var available = anySizeAvailable(p);
-        html += '<div class="cart-item"><div class="cart-item-image">' + (img ? '<img src="' + esc(img) + '" alt="' + esc(p.name) + '" />' : '') + '</div><div class="cart-item-info"><h4>' + esc(p.name) + '</h4><div class="cart-item-meta">' + esc(p.fit || '') + (available ? '' : ' · Sold Out — unavailable') + '</div><div class="cart-item-price">Rs. ' + (p.sale_price || p.price) + '</div></div><div style="display:flex;flex-direction:column;gap:0.3rem;"><button class="btn btn-sm btn-outline"' + (available ? '' : ' disabled') + ' data-action="quick-add" data-pid="' + p.id + '" style="font-size:0.7rem;">' + (available ? 'Add to Cart' : 'Sold Out') + '</button><button style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:0.7rem;min-height:36px;" data-action="wishlist-remove" data-pid="' + p.id + '">Remove</button></div></div>';
+        html += '<div class="cart-item"><div class="cart-item-image">' + (img ? '<img src="' + esc(img) + '" alt="' + esc(p.name) + '" width="55" height="55"' + srcsetAttr(img) + ' sizes="55px" loading="lazy" decoding="async" />' : '') + '</div><div class="cart-item-info"><h4>' + esc(p.name) + '</h4><div class="cart-item-meta">' + esc(p.fit || '') + (available ? '' : ' · Sold Out — unavailable') + '</div><div class="cart-item-price">Rs. ' + (p.sale_price || p.price) + '</div></div><div style="display:flex;flex-direction:column;gap:0.3rem;"><button class="btn btn-sm btn-outline"' + (available ? '' : ' disabled') + ' data-action="quick-add" data-pid="' + p.id + '" style="font-size:0.7rem;">' + (available ? 'Add to Cart' : 'Sold Out') + '</button><button style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:0.7rem;min-height:36px;" data-action="wishlist-remove" data-pid="' + p.id + '">Remove</button></div></div>';
       });
       container.innerHTML = html;
     }
@@ -1120,7 +1225,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       return `
         <div class="product-card" data-pid="${p.id}" role="link" tabindex="0" aria-label="View ${esc(p.name)}" data-action="open-product" data-pid="${p.id}" data-key="enter">
           <div class="product-card-image${anySizeAvailable(p) ? '' : ' sold-out'}">
-            ${img ? `<img src="${esc(img)}" alt="${esc(p.name)}" width="600" height="800" sizes="(max-width: 768px) calc((100vw - 40px) / 2), (max-width: 1024px) calc((100vw - 80px) / 3), (max-width: 1279px) calc((100vw - 112px) / 4), 296px" loading="lazy" decoding="async" />` : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:var(--text-dim);font-size:0.8rem;">No Image</div>`}
+            ${img ? `<img src="${esc(img)}" alt="${esc(p.name)}" width="600" height="800"${srcsetAttr(img)} sizes="(max-width: 768px) calc((100vw - 40px) / 2), (max-width: 1024px) calc((100vw - 80px) / 3), (max-width: 1279px) calc((100vw - 112px) / 4), 296px" loading="lazy" decoding="async" />` : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:var(--text-dim);font-size:0.8rem;">No Image</div>`}
             <button class="product-wishlist ${isWishlisted ? 'active' : ''}" data-action="toggle-wish" data-pid="${p.id}" aria-label="Wishlist">
               ${HEART_SVG}
             </button>
@@ -1194,13 +1299,13 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
           <div class="slider-container">
             <div class="slider-track"></div>
             <div class="slider-range"></div>
-            <input type="range" class="price-min" min="0" max="10000" value="0" step="50" />
-            <input type="range" class="price-max" min="0" max="10000" value="10000" step="50" />
+            <input type="range" class="price-min" min="0" max="10000" value="0" step="50" aria-label="Minimum price" />
+            <input type="range" class="price-max" min="0" max="10000" value="10000" step="50" aria-label="Maximum price" />
           </div>
         </div>
         <div class="filter-section" data-group="size">
           <h4>Size</h4>
-          <select class="sort-select fp-size">
+          <select class="sort-select fp-size" aria-label="Filter by size">
             <option value="">All Sizes</option>
             <option value="S">S</option>
             <option value="M">M</option>
@@ -1353,7 +1458,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       loadReviews(p.id);
       document.getElementById('detailQty').textContent = '1';
       const track = document.getElementById('galleryTrack');
-      track.innerHTML = p.images.map((img,i) => `<img src="${esc(img)}" alt="${esc(p.name)} view ${i+1}" width="900" height="1200" sizes="(max-width: 768px) 92vw, (max-width: 1279px) 45vw, 600px" loading="${i>0?'lazy':'eager'}" decoding="async"${i===0?' fetchpriority="high"':''} />`).join('');
+      track.innerHTML = p.images.map((img,i) => `<img src="${esc(img)}" alt="${esc(p.name)} view ${i+1}" width="900" height="1200"${srcsetAttr(img)} sizes="(max-width: 768px) 92vw, (max-width: 1279px) 45vw, 600px" loading="${i>0?'lazy':'eager'}" decoding="async"${i===0?' fetchpriority="high"':''} />`).join('');
       track.style.transform = 'translateX(0)';
       const dc = document.getElementById('detailDots');
       if (p.images.length > 1) {
@@ -1361,7 +1466,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
         dc.style.display = 'flex';
       } else dc.style.display = 'none';
       const th = document.getElementById('detailThumbnails');
-      th.innerHTML = p.images.map((img,i) => `<div class="detail-thumb ${i===0?'active':''}" role="button" tabindex="0" aria-label="View image ${i+1}" data-action="detail-angle" data-index="${i}" data-key><img src="${esc(img)}" alt="View ${i+1}" width="56" height="56" sizes="56px" loading="lazy" decoding="async" /></div>`).join('');
+      th.innerHTML = p.images.map((img,i) => `<div class="detail-thumb ${i===0?'active':''}" role="button" tabindex="0" aria-label="View image ${i+1}" data-action="detail-angle" data-index="${i}" data-key><img src="${esc(img)}" alt="View ${i+1}" width="56" height="56"${srcsetAttr(img)} sizes="56px" loading="lazy" decoding="async" /></div>`).join('');
       renderSizePicker(p);
       renderDetailTabs(p);
       setupGallerySwipe();
@@ -1845,7 +1950,13 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       const btn = e.target.querySelector('button[type=submit]');
       btn.disabled = true;
       try {
-        const res = await fetch('/api/orders/track?number=' + encodeURIComponent(number) + '&phone=' + encodeURIComponent(phone));
+        // F16: POST body (the global fetch wrapper attaches X-CSRF-Token) —
+        // order number and phone stay out of URLs and logs.
+        const res = await fetch('/api/orders/track', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ number, phone })
+        });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
           err.textContent = data.error || 'Could not find that order. Please check and try again.';
@@ -1980,7 +2091,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       items.innerHTML = cart.map((item,i) => {
         const unavailable = cartItemUnavailable(item);
         const t = item.price * item.qty; sub += t;
-        return `<div class="cart-item"><div class="cart-item-image"><img src="${esc(item.images[0])}" alt="${esc(item.name)}" width="55" height="55" sizes="55px" loading="lazy" decoding="async" /></div><div class="cart-item-info"><h4>${esc(item.name)}</h4><div class="cart-item-meta">Size: ${esc(item.size)} · ${esc(item.fit)}${unavailable ? ' · Sold Out — unavailable' : ''}</div><div class="cart-item-price">Rs. ${t}</div></div><div style="display:flex;flex-direction:column;align-items:flex-end;gap:0.3rem;"><div class="cart-item-qty"><button data-action="cart-qty" data-index="${i}" data-delta="-1"${unavailable ? ' disabled' : ''}>−</button><span>${item.qty}</span><button data-action="cart-qty" data-index="${i}" data-delta="1"${unavailable ? ' disabled' : ''}>+</button></div><button class="cart-item-remove" data-action="cart-remove" data-index="${i}">Remove</button></div></div>`;
+        return `<div class="cart-item"><div class="cart-item-image"><img src="${esc(item.images[0])}" alt="${esc(item.name)}" width="55" height="55"${srcsetAttr(item.images[0])} sizes="55px" loading="lazy" decoding="async" /></div><div class="cart-item-info"><h4>${esc(item.name)}</h4><div class="cart-item-meta">Size: ${esc(item.size)} · ${esc(item.fit)}${unavailable ? ' · Sold Out — unavailable' : ''}</div><div class="cart-item-price">Rs. ${t}</div></div><div style="display:flex;flex-direction:column;align-items:flex-end;gap:0.3rem;"><div class="cart-item-qty"><button data-action="cart-qty" data-index="${i}" data-delta="-1"${unavailable ? ' disabled' : ''}>−</button><span>${item.qty}</span><button data-action="cart-qty" data-index="${i}" data-delta="1"${unavailable ? ' disabled' : ''}>+</button></div><button class="cart-item-remove" data-action="cart-remove" data-index="${i}">Remove</button></div></div>`;
       }).join('');
       document.getElementById('cartSubtotal').textContent = 'Rs. ' + fmt(sub);
     }
@@ -2056,6 +2167,20 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
     // Load products from API (overrides hardcoded defaults when server is running)
     let lastProductsFetchAt = 0;
     let productsFetchInFlight = false;
+    // F7: {original url: {400,800,1200}} rebuilt on every catalog load.
+    let imageVariantsByUrl = {};
+    // srcset candidates for a product image URL, or null when the image
+    // predates variant generation (they all still render via src).
+    function srcsetFor(url) {
+      const v = url && imageVariantsByUrl[url];
+      if (!v) return null;
+      return Object.keys(v).sort((a, b) => Number(a) - Number(b)).map(w => v[w] + ' ' + w + 'w').join(', ');
+    }
+    function srcsetAttr(url) {
+      const s = srcsetFor(url);
+      return s ? ' srcset="' + esc(s) + '"' : '';
+    }
+
     async function loadProductsFromAPI() {
       if (productsFetchInFlight) return;
       productsFetchInFlight = true;
@@ -2071,7 +2196,10 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
         // seeded items keep their rich visuals (SVG tees) instead of grey tiles.
         const artByAlt = {};
         for (const p of allProducts) artByAlt[p.name.trim().toLowerCase()] = p;
-        allProducts = data.map(p => {
+        const nextVariants = {};
+        for (const p of data) { if (p && p.image_variants && typeof p.image_variants === 'object') Object.assign(nextVariants, p.image_variants); }
+        imageVariantsByUrl = nextVariants;
+        allProducts = data.map(p => {
           const imgs = [p.front_image, p.back_image, ...(p.extra_images || [])].filter(Boolean);
           const art = artByAlt[(p.name || '').trim().toLowerCase()];
           const effective = p.sale_price && p.sale_price < p.price ? p.sale_price : p.price;
@@ -2232,6 +2360,8 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
         const params = new URLSearchParams(window.location.search);
         resetToken = params.get('token') || '';
         resetUserType = params.get('type') === 'admin' ? 'admin' : 'customer';
+        const rstPw = document.getElementById('rstPassword');
+        if (rstPw) rstPw.placeholder = 'New password (min. ' + (resetUserType === 'admin' ? 14 : 10) + ' characters)';
       } catch (e) { resetToken = ''; }
       const err = document.getElementById('rstError');
       if (!resetToken && err) {
@@ -2248,7 +2378,8 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       const password = document.getElementById('rstPassword').value;
       const confirm = document.getElementById('rstConfirm').value;
       if (!resetToken) { err.textContent = 'Reset token missing — use the link from your reset email.'; err.style.display = 'block'; return; }
-      if (!password || password.length < 6) { err.textContent = 'Password must be at least 6 characters.'; err.style.display = 'block'; return; }
+      const resetMin = resetUserType === 'admin' ? 14 : 10;
+      if (!password || password.length < resetMin) { err.textContent = 'Password must be at least ' + resetMin + ' characters.'; err.style.display = 'block'; return; }
       if (password !== confirm) { err.textContent = 'Passwords do not match.'; err.style.display = 'block'; return; }
       try {
         const res = await fetch('/api/auth/reset-password', {
@@ -2355,7 +2486,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       const errEl = document.getElementById('custSignupError');
       const btn = document.getElementById('custSignupBtn');
       if (!email || !password) { errEl.textContent = 'Email and password are required.'; errEl.style.display = 'block'; return; }
-      if (password.length < 6) { errEl.textContent = 'Password must be at least 6 characters.'; errEl.style.display = 'block'; return; }
+      if (password.length < 10) { errEl.textContent = 'Password must be at least 10 characters.'; errEl.style.display = 'block'; return; }
       btn.disabled = true; btn.textContent = 'Creating…';
       try {
         const res = await fetch('/api/customers/signup', {
@@ -2458,7 +2589,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       const currentPassword = document.getElementById('acctCurrentPw').value;
       const newPassword = document.getElementById('acctNewPw').value;
       if (!currentPassword || !newPassword) { msg.textContent = 'Both fields are required.'; msg.className = 'acct-msg error'; return; }
-      if (newPassword.length < 6) { msg.textContent = 'New password must be at least 6 characters.'; msg.className = 'acct-msg error'; return; }
+      if (newPassword.length < 10) { msg.textContent = 'New password must be at least 10 characters.'; msg.className = 'acct-msg error'; return; }
       try {
         const res = await fetch('/api/customers/me', {
           method: 'PUT', headers: { 'Content-Type': 'application/json' },
@@ -2498,7 +2629,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       else if (!e.shiftKey && (document.activeElement === last || !open.el.contains(document.activeElement))) { e.preventDefault(); first.focus(); }
     });
     const requestedPath = location.pathname;
-    if (requestedPath === '/confirmation' && !lastOrder) history.replaceState(null, '', '/tracking');
+    if (requestedPath === '/confirmation' && !lastOrder) history.replaceState(null, '', '/');
     const initialPath = location.pathname;
     setupFilters(); updateCartUI();
     if (initialPath === '/tracking') navigateTo('tracking', null, { skipHistory: true });

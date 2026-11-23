@@ -1,8 +1,18 @@
 
+    /* Self-hosted variable Archivo (F22): one weight-axis woff2 for the whole
+       shop, served from /fonts. The kanji glyphs fall back to the system
+       serif stack — the external JP serif is gone. */
+    @font-face {
+      font-family: 'Archivo';
+      src: url('/fonts/archivo-latin-wght-normal.woff2') format('woff2-variations');
+      font-weight: 100 900;
+      font-style: normal;
+      font-display: swap;
+    }
+
     /* ================================================================
        DESIGN SYSTEM — WARM EDITORIAL THEME
        Beige/taupe canvas, charcoal type, deep olive-brown accent.
-       Bold sans (Archivo) for wordmark moments; Noto Serif JP for kanji.
        ================================================================ */
     :root {
       --bg-primary: #D9D4C8;
@@ -15,7 +25,7 @@
       --accent: #4A4433;
       --accent-hover: #5A5240;
       --accent-glow: rgba(74,68,51,0.12);
-      --heart-red: #DC2626;
+      --heart-red: #991B1B;
       --text-primary: #1A1815;
       --text-secondary: #3D3931;
       --text-muted: #4F493F;
@@ -29,7 +39,7 @@
       --text-accent-hover: #423C2D;
       --font-display: 'Archivo', sans-serif;
       --font-body: 'Archivo', sans-serif;
-      --font-kanji: 'Noto Serif JP', serif;
+      --font-kanji: Georgia, 'Times New Roman', serif;
       --spacing-xs: 0.25rem;
       --spacing-sm: 0.5rem;
       --spacing-md: 1rem;
@@ -228,8 +238,9 @@
         }
         .kage-logo {
           display: flex; flex-direction: column; align-items: center;
-          font-family: 'Noto Serif JP', 'Archivo', sans-serif;
+          font-family: var(--font-kanji), 'Archivo', sans-serif;
           line-height: 1; user-select: none; cursor: pointer; flex-shrink: 0;
+          text-decoration: none; color: inherit;
         }
     /* The mark is a 1:1 emblem, so one dimension is enough: the height is
        pinned and the width follows from the image's own ratio. */
@@ -365,7 +376,7 @@
     .watermark::before {
       content: '影';
       position: absolute;
-      font-family: 'Noto Serif JP', serif;
+      font-family: var(--font-kanji);
       font-weight: 900;
       font-size: clamp(20rem, 40vw, 50rem);
       color: #4A4433;
@@ -559,9 +570,12 @@
       font-size: 0.85rem;
     }
     .vibes-cta {
+      display: inline-block;
       background: var(--text-primary);
       color: #FFF;
       border: 2px solid var(--text-primary);
+      text-decoration: none;
+      text-align: center;
       font-family: var(--font-body);
       font-weight: 800;
       font-size: 0.72rem;
@@ -866,7 +880,7 @@
       background: var(--accent-glow);
       transform: translateY(-2px);
     }
-    .why-item h4 {
+    .why-item h3 {
       font-family: var(--font-body);
       font-size: 0.75rem;
       font-weight: 700;
@@ -1685,7 +1699,7 @@
     .footer-newsletter { text-align: right; }
     .footer-newsletter .newsletter-form { justify-content: flex-end; }
     .footer-brand p { color: var(--text-muted); font-size: 0.8rem; line-height: 1.5; }
-    .footer-col h4 { font-size: 0.65rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: var(--spacing-sm); }
+    .footer-col h3 { font-size: 0.65rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: var(--spacing-sm); }
     .footer-col ul { list-style: none; display: flex; flex-direction: column; gap: 0.4rem; }
     .footer-col ul a { color: var(--text-muted); font-size: 0.78rem; cursor: pointer; transition: color var(--transition-fast); min-height: 44px; display: flex; align-items: center; }
     .footer-col ul a:hover { color: var(--accent); }
@@ -1829,6 +1843,7 @@
     }
     .hero-media img {
       width: 100%;
+      max-height: 56vh;
       aspect-ratio: 16 / 9;
       object-fit: cover;
       object-position: center;
@@ -2264,6 +2279,15 @@
     /* ================================================================
        FOCUS VISIBLE STYLES (accessibility)
        ================================================================ */
+    /* F32 — global safety net: any control that can hold focus gets the shop's
+       standard 2px ring when it matches :focus-visible. Specific rules below
+       (e.g. the white ring on .cat-tile) win on specificity. Pointer modality
+       still suppresses rings via the :root[data-focus-modality="pointer"] rule
+       at the end of this file (!important, deliberate). */
+    :focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
     .btn:focus-visible,
     .size-btn:focus-visible,
     .qty-btn:focus-visible,
@@ -2295,7 +2319,7 @@
        FOOTER SOCIAL + NEWSLETTER
        ================================================================ */
     .footer-social { text-align: center; }
-    .footer-social h4 { text-align: center; }
+    .footer-social h3 { text-align: center; }
     .social-icons {
       display: flex;
       justify-content: center;
@@ -2376,7 +2400,19 @@
       .site-footer { padding-bottom: calc(var(--spacing-md) + env(safe-area-inset-bottom, 0px)); }
       body:has(#page-product.active) .site-footer { padding-bottom: calc(var(--spacing-md) + 70px + env(safe-area-inset-bottom, 0px)); }
     }
-    .footer-newsletter h4 {
+    /* F23 — tiny screens (≤390px, e.g. iPhone SE / older Androids): the float
+       drops to a 48px target with tighter insets so it still meets the 44px
+       minimum without eating the corner. Commerce pages hide it entirely above. */
+    @media (max-width: 390px) {
+      .whatsapp-float {
+        bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+        right: calc(12px + env(safe-area-inset-right, 0px));
+        width: 48px;
+        height: 48px;
+      }
+      .whatsapp-float svg { width: 22px; height: 22px; }
+    }
+    .footer-newsletter h3 {
       font-family: var(--font-display);
       font-size: 1rem;
       letter-spacing: 0.08em;
@@ -2558,12 +2594,19 @@
       display: block; font-size: 0.68rem; font-weight: 600;
       letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 0.3rem;
     }
-    .co-field input, .co-field textarea {
+    .co-field input, .co-field textarea, .co-field select {
       width: 100%; padding: 0.7rem 0.85rem; border: 1.5px solid var(--border-color);
       border-radius: 10px; font-family: var(--font-body); font-size: 0.9rem;
       transition: border-color var(--transition-fast); resize: vertical;
+      background: var(--bg-primary); color: var(--text-primary);
     }
-    .co-field input:focus, .co-field textarea:focus { outline: none; border-color: var(--accent); }
+    .co-field select { cursor: pointer; appearance: auto; min-height: 46px; }
+    .co-field input:focus, .co-field textarea:focus, .co-field select:focus { outline: none; border-color: var(--accent); }
+    /* F12: per-field validation — the control is marked, the message sits
+       right under it, and the first invalid control receives focus. */
+    .field-error { display: block; color: #991B1B; font-size: 0.78rem; margin-top: 0.3rem; font-weight: 600; }
+    .field-error[hidden] { display: none; }
+    .co-field [aria-invalid="true"] { border-color: #991B1B !important; }
     .co-payment { display: flex; flex-direction: column; gap: 0.6rem; }
     .co-pay-option {
       display: flex; align-items: center; gap: 0.8rem; padding: 0.85rem 1rem;
@@ -3315,7 +3358,7 @@
       #page-home .why-grid {
         gap: 40px;
       }
-      #page-home .why-item h4 {
+      #page-home .why-item h3 {
         font-size: 0.9rem;
         letter-spacing: 0.1em;
         color: var(--text-primary);
@@ -3403,7 +3446,7 @@
         line-height: 1.4;
         max-width: none;
       }
-      #page-home .why-item h4 {
+      #page-home .why-item h3 {
         font-size: 13px;
       }
       #page-home .bestsellers-head { margin-bottom: 4px; }
@@ -3688,6 +3731,7 @@
     .newsletter-form input:focus-visible,
     .co-field input:focus-visible,
     .co-field textarea:focus-visible,
+    .co-field select:focus-visible,
     .notify-form input[type=email]:focus-visible,
     .review-form input:focus-visible,
     .review-form textarea:focus-visible,
