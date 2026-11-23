@@ -89,6 +89,32 @@ module.exports = function createReviewRoutes(db) {
     } catch (err) { console.error('reviews route failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
   });
 
+  // GET featured reviews for the home strip (public). Newest three APPROVED
+  // reviews that carry a real comment — nothing invented, nothing pending or
+  // rejected. When there are none (fresh stores), returns [] and the strip
+  // stays hidden. Cache mirrors the other public review read.
+  router.get('/api/reviews/featured', async (req, res) => {
+    try {
+      const rows = await db.prepare(
+        `SELECT r.id, r.customer_name, r.rating, r.comment, r.created_at, r.product_id, p.name AS product_name
+           FROM reviews r JOIN products p ON p.id = r.product_id
+          WHERE r.status = 'approved' AND TRIM(COALESCE(r.comment, '')) != ''
+          ORDER BY r.created_at DESC, r.id DESC
+          LIMIT 3`
+      ).all();
+      res.setHeader('Cache-Control', 'public, max-age=120, s-maxage=120');
+      res.json(rows.map(rv => ({
+        id: rv.id,
+        customer_name: rv.customer_name || 'Verified Buyer',
+        rating: Number(rv.rating) || 0,
+        comment: String(rv.comment || ''),
+        created_at: rv.created_at,
+        product_id: rv.product_id,
+        product_name: rv.product_name || ''
+      })));
+    } catch (err) { console.error('reviews route failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
+  });
+
   // GET all reviews (admin only)
   router.get('/api/reviews/all', requireAuth, async (req, res) => {
     try { const rows = await db.prepare('SELECT * FROM reviews ORDER BY id DESC').all(); res.json(rows); } catch (err) { console.error('reviews route failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }

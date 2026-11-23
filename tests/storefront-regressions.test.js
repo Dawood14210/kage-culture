@@ -25,7 +25,7 @@ async function check(name, fn) {
   }
 }
 
-function makePage(pathname = '/') {
+function makePage(pathname = '/', { cart } = {}) {
   const virtualConsole = new VirtualConsole();
   virtualConsole.on('jsdomError', error => {
     if (!String(error).includes('Could not parse CSS stylesheet')) console.error(error);
@@ -40,6 +40,7 @@ function makePage(pathname = '/') {
       window.IntersectionObserver = class { observe() {} unobserve() {} disconnect() {} };
       window.HTMLMediaElement.prototype.play = () => Promise.resolve();
       window.HTMLMediaElement.prototype.pause = () => {};
+      if (cart) window.localStorage.setItem('kageCart', JSON.stringify(cart));
       window.fetch = (url, options) => fetch(origin + url, options);
     }
   });
@@ -74,26 +75,22 @@ async function waitForCatalog(window) {
     const { document: d } = w;
     await waitForCatalog(w);
 
-    await check('both pages keep swap/preconnect font hints and never request unused Zen Brush', () => {
+    await check('fonts are fully self-hosted with font-display swap (F22)', () => {
+      // F22: no third-party font hosts anywhere — pages, CSS or the CSP.
+      const storeCss = readFileSync(require.resolve('../public/storefront.css'), 'utf8');
+      const adminCss = readFileSync(require.resolve('../public/admin.css'), 'utf8');
+      assert.match(storeCss, /@font-face\s*{[^}]*url\('\/fonts\/archivo-latin-wght-normal\.woff2'\)[^}]*font-weight:\s*100 900[^}]*font-display:\s*swap/s, 'storefront @font-face: variable Archivo, swap');
+      assert.match(adminCss, /url\('\/fonts\/archivo-latin-wght-normal\.woff2'\)/, 'admin @font-face: variable Archivo');
+      assert.match(adminCss, /url\('\/fonts\/anton-latin-400-normal\.woff2'\)/, 'admin @font-face: Anton');
+      for (const css of [storeCss, adminCss]) assert.match(css, /font-display:\s*swap/);
+      assert.ok(!storeCss.includes('Noto Serif JP'), 'kanji falls back to system serif — Noto Serif JP is gone');
       for (const source of [html, readFileSync(require.resolve('../public/admin.html'), 'utf8')]) {
-        // Base URL so the relative PERF-1 bundle links resolve (only the
-        // absolute font/preconnect hints are asserted below).
-        const dom = new JSDOM(source, { url: 'http://localhost/' });
-        try {
-          const links = [...dom.window.document.querySelectorAll('link')];
-          const fonts = links.filter(link => link.rel === 'stylesheet' && new URL(link.href).hostname === 'fonts.googleapis.com');
-          assert.ok(fonts.length > 0);
-          fonts.forEach(link => {
-            const url = new URL(link.href);
-            assert.equal(url.searchParams.get('display'), 'swap');
-            assert.ok(url.searchParams.getAll('family').every(family => !family.includes('Zen Brush')));
-          });
-          for (const host of ['fonts.googleapis.com', 'fonts.gstatic.com']) {
-            const hint = links.find(link => link.rel === 'preconnect' && new URL(link.href).origin === `https://${host}`);
-            assert.ok(hint, `missing preconnect to ${host}`);
-            if (host === 'fonts.gstatic.com') assert.ok(hint.hasAttribute('crossorigin'));
-          }
-        } finally { dom.window.close(); }
+        assert.ok(!source.includes('fonts.googleapis.com'), 'no Google Fonts stylesheet/preconnect');
+        assert.ok(!source.includes('fonts.gstatic.com'), 'no Google Fonts preconnect');
+      }
+      for (const woff2 of ['archivo-latin-wght-normal.woff2', 'anton-latin-400-normal.woff2']) {
+        const bytes = readFileSync(require.resolve(`../public/fonts/${woff2}`));
+        assert.equal(bytes.subarray(0, 4).toString('latin1'), 'wOF2', `${woff2} is a real woff2 (starts with wOF2 magic)`);
       }
     });
 
@@ -439,6 +436,61 @@ async function waitForCatalog(window) {
       assert.doesNotMatch(html, /function\s+notifyMe\s*\(\s*btn\s*,\s*category\s*\)/);
     });
 
+    await check('grid cards render srcset from the image_variants map (F7)', async () => {
+      const db = require('../database');
+      const variantMap = JSON.stringify({
+        '/uploads/f7-probe.webp': { 400: '/uploads/f7-probe-400.webp', 800: '/uploads/f7-probe-800.webp' }
+      });
+      const result = await db.prepare(`INSERT INTO products
+        (name, category, price, sizes, stock_qty, in_stock, front_image, image_variants, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+        .run('F7 Variant Probe', 'graphic-tees', 2199, '["L"]', 5, 1, '/uploads/f7-probe.webp', variantMap, '2099-06-01 00:00:00');
+      const id = result.lastInsertRowid;
+      try {
+        const probePage = makePage('/collection/graphic-tees');
+        windows.push(probePage);
+        const pw = probePage.window, pd = pw.document;
+        await waitForCatalog(pw);
+        await wait(50);
+        const card = pd.querySelector(`#collectionGrid .product-card[data-pid="${id}"]`);
+        assert.ok(card, 'the probe product is listed in the grid');
+        const img = card.querySelector('img');
+        assert.ok(img, 'the card renders an <img>');
+        const srcset = img.getAttribute('srcset') || '';
+        assert.ok(srcset.includes('/uploads/f7-probe-400.webp 400w'), `srcset carries the 400w candidate, got: "${srcset}"`);
+        assert.ok(srcset.includes('/uploads/f7-probe-800.webp 800w'), `srcset carries the 800w candidate, got: "${srcset}"`);
+        assert.ok(img.getAttribute('sizes'), 'a sizes attribute is present for responsive selection');
+      } finally {
+        await db.prepare('DELETE FROM products WHERE id = ?').run(id);
+      }
+    });
+
+    await check('direct /checkout without a cart lands on home with the empty cart drawer, not a 404', async () => {
+      const p = makePage('/checkout');
+      windows.push(p);
+      await waitForCatalog(p.window);
+      for (let i = 0; i < 40 && !p.window.eval('bootNavComplete'); i++) await wait(25);
+      assert.equal(p.window.location.pathname, '/');
+      assert.equal(p.window.document.getElementById('page-home').classList.contains('active'), true);
+      assert.equal(p.window.document.getElementById('page-not-found').classList.contains('active'), false);
+      assert.equal(p.window.document.getElementById('cartDrawer').classList.contains('open'), true, 'the empty cart drawer explains where the visitor landed');
+    });
+
+    await check('direct /checkout with a seeded cart renders the checkout page directly', async () => {
+      const seedResponse = await fetch(origin + '/api/products');
+      const seed = await seedResponse.json();
+      const list = Array.isArray(seed) ? seed : (seed.products || []);
+      const first = list.find(p => p.in_stock !== false && (p.stock_qty == null || Number(p.stock_qty) > 0));
+      assert.ok(first && first.id, 'the catalogue exposes at least one in-stock product to seed the cart');
+      const size = Array.isArray(first.sizes) && first.sizes.length ? first.sizes[0] : 'M';
+      const p = makePage('/checkout', { cart: [{ id: first.id, name: first.name, price: first.price, size, qty: 1, image: first.image || '' }] });
+      windows.push(p);
+      await waitForCatalog(p.window);
+      for (let i = 0; i < 40 && !p.window.eval('bootNavComplete'); i++) await wait(25);
+      assert.equal(p.window.document.getElementById('page-checkout').classList.contains('active'), true, 'a shopper with items lands on checkout, not home');
+      assert.equal(p.window.document.getElementById('coPlaceBtn').disabled, false, 'place order is enabled for an in-stock cart');
+    });
+
     await check('customer-facing Contact and Shipping copy contains no TODOs or bracket placeholders', () => {
       const text = ['#page-contact', '#page-shipping']
         .map(selector => d.querySelector(selector).textContent)
@@ -451,9 +503,9 @@ async function waitForCatalog(window) {
     windows.push(confirmation);
     await waitForCatalog(confirmation.window);
     await wait(75);
-    await check('direct /confirmation without an in-memory order replaces to /tracking without showing 404', () => {
-      assert.equal(confirmation.window.location.pathname, '/tracking');
-      assert.equal(confirmation.window.document.getElementById('page-tracking').classList.contains('active'), true);
+    await check('direct /confirmation without an in-memory order lands on home without showing 404', () => {
+      assert.equal(confirmation.window.location.pathname, '/');
+      assert.equal(confirmation.window.document.getElementById('page-home').classList.contains('active'), true);
       assert.equal(confirmation.window.document.getElementById('page-not-found').classList.contains('active'), false);
     });
 
@@ -467,7 +519,7 @@ async function waitForCatalog(window) {
     hw.dispatchEvent(new hw.PopStateEvent('popstate'));
     await wait(25);
     await check('confirmation redirect uses replaceState so browser Back returns to the prior page', async () => {
-      assert.equal(hw.location.pathname, '/tracking');
+      assert.equal(hw.location.pathname, '/');
       assert.equal(hw.history.length, historyLength);
       hw.history.back();
       await wait(100);

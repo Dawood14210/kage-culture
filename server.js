@@ -14,6 +14,7 @@ const { csrfMiddleware, CSRF_ENDPOINT } = require('./middleware/csrf');
 const { requireAuth } = require('./middleware/auth');
 const { getSessionSecret } = require('./utils/secret');
 const { getSiteUrlForRequest } = require('./utils/siteUrl');
+const { CATALOG_PAGE_SIZE, buildPublicProductList, catalogEnvelope } = require('./utils/publicCatalog');
 const productShape = require('./utils/productShape');
 const sizeStock = require('./utils/sizes');
 const demoProducts = require('./utils/demoProducts');
@@ -75,6 +76,20 @@ function setHtmlNoStore(res) {
   res.setHeader('Pragma', 'no-cache');
   res.setHeader('Expires', '0');
 }
+
+// F9 (PERF-1): the storefront shell is byte-identical for every visitor on a
+// route — personalisation and cart state all happen client-side — so a
+// shared CDN cache may keep it for 60s and serve a stale-while-revalidate
+// copy for up to 10 minutes while it refreshes. max-age=0 means browsers
+// still revalidate with ETag instead of trusting a stale local copy.
+// Because this response opts into s-maxage, the CSRF middleware deliberately
+// withholds the kage.csrf cookie from it (a shared cache must never replay
+// one visitor's cookie) — browsers pick one up from GET /api/csrf instead.
+// /admin keeps the no-store header set with the admin route — admin markup
+// is not cacheable content and may carry operator-specific behaviour.
+function setStorefrontHtmlCache(res) {
+  res.setHeader('Cache-Control', 'public, max-age=0, s-maxage=60, stale-while-revalidate=600');
+}
 function escapeXml(value) {
   return String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
 }
@@ -86,8 +101,7 @@ const SITEMAP_STATIC_URLS = [
   { path: '/returns', changefreq: 'monthly', priority: '0.4' },
   { path: '/shipping', changefreq: 'monthly', priority: '0.4' },
   { path: '/terms', changefreq: 'yearly', priority: '0.3' },
-  { path: '/privacy', changefreq: 'yearly', priority: '0.3' },
-  { path: '/tracking', changefreq: 'monthly', priority: '0.4' }
+  { path: '/privacy', changefreq: 'yearly', priority: '0.3' }
 ];
 // These slugs are routable collection filters. Only emit a category URL when
 // at least one public product is actually assigned to it.
@@ -222,6 +236,47 @@ const COLLECTION_SEO = Object.freeze({
     description: 'Shop oversized KAGE Culture streetwear with relaxed silhouettes, premium fabrics, and original art.'
   }
 });
+
+// Static content pages — served as the SPA shell at these URLs, each with
+// its own title/description instead of the homepage metadata. Titles must
+// match STATIC_PAGE_TITLES in public/storefront.js.
+const STATIC_PAGE_SEO = Object.freeze({
+  '/about': {
+    title: 'About | KAGE CULTURE',
+    description: 'The story behind KAGE Culture: original art, heavyweight cotton, and drops made for people who wear the shadow.'
+  },
+  '/contact': {
+    title: 'Contact | KAGE CULTURE',
+    description: 'Get in touch with KAGE Culture: order support, WhatsApp, email and working hours. Monday to Saturday, 11am to 8pm (Pakistan time).'
+  },
+  '/shipping': {
+    title: 'Shipping & Delivery | KAGE CULTURE',
+    description: 'Orders processed in 1-2 business days; delivery in 3-5 business days for major cities and 5-7 for other areas across Pakistan. Cash on delivery available.'
+  },
+  '/returns': {
+    title: 'Returns & Refunds | KAGE CULTURE',
+    description: 'Return eligible items within 7 days of delivery. See how to request a return, what is covered, and how refunds are processed.'
+  },
+  '/privacy': {
+    title: 'Privacy Policy | KAGE CULTURE',
+    description: 'How KAGE Culture collects, uses and protects your personal data: orders, accounts, the newsletter, cookies and analytics.'
+  },
+  '/terms': {
+    title: 'Terms of Service | KAGE CULTURE',
+    description: 'The terms that govern the KAGE Culture store: pricing, orders and Cash on Delivery, intellectual property, returns and governing law.'
+  },
+  '/custom-stickers': {
+    title: 'Custom Stickers | KAGE CULTURE',
+    description: 'Send us your design — a sketch, a name, a meme — and we print it on premium peel-proof, rain-proof vinyl stickers.'
+  },
+  '/tracking': {
+    title: 'Track Your Order | KAGE CULTURE',
+    description: 'Track your KAGE Culture order with your order number and phone number. No account needed.'
+  }
+});
+
+// Private/functional views: never indexed, never followed.
+const PRIVATE_PATHS = new Set(['/checkout', '/account', '/confirmation', '/reset-password', '/verify-email']);
 
 function escapeHtml(value) {
   return String(value == null ? '' : value)
@@ -393,6 +448,82 @@ function serializeJsonLd(data) {
     .split(String.fromCharCode(0x2029)).join(`${backslash}u2029`);
 }
 
+// ── F1: server-rendered content for SEO ────────────────────────────────
+// Crawlers that do not run JavaScript (and users on slow networks, before
+// boot) see the product name, price, description/availability — or a plain
+// link list for a collection — instead of an empty shell. The SPA removes
+// #ssrContent once it hydrates, so there is nothing to duplicate and no
+// flicker: the block IS the pre-hydration paint.
+function ssrPriceHtml(p) {
+  const effective = p.sale_price != null && Number(p.sale_price) > 0 && Number(p.sale_price) < Number(p.price) ? Number(p.sale_price) : Number(p.price);
+  const onSale = effective !== Number(p.price);
+  const fmtNum = n => Number(n).toLocaleString('en-IN');
+  if (onSale) return `Rs. ${fmtNum(effective)} <s>Rs. ${fmtNum(p.price)}</s>`;
+  return `Rs. ${fmtNum(effective)}`;
+}
+
+function buildProductSsr(product) {
+  const name = normalizeSeoName(product.name);
+  const description = String(product.description || '').trim();
+  const price = ssrPriceHtml(product);
+  const availability = product.in_stock ? 'In stock' : 'Sold out';
+  return [
+    '<section class="ssr-content" id="ssrContent" aria-label="Product summary">',
+    `  <p class="ssr-eyebrow">KAGE Culture</p>`,
+    `  <h1 class="ssr-title">${escapeHtml(name)}</h1>`,
+    `  <p class="ssr-price">${price}</p>`,
+    description ? `  <p class="ssr-description">${escapeHtml(description)}</p>` : '',
+    `  <p class="ssr-availability">${escapeHtml(availability)}</p>`,
+    '  <p><a class="ssr-link" href="/collection/all">Browse the full catalog</a></p>',
+    '</section>'
+  ].filter(Boolean).join('\n');
+}
+
+async function buildCollectionSsr(slug, siteUrl) {
+  const collection = COLLECTION_SEO[slug];
+  if (!collection) return '';
+  let rows = [];
+  try {
+    const columns = productShape.PUBLIC_PRODUCT_SELECT;
+    if (config.PRODUCT_CATEGORY_VALUES.has(slug)) {
+      rows = await db.prepare(`SELECT ${columns} FROM products WHERE category = ? ORDER BY created_at DESC, id DESC LIMIT 24`).all(slug);
+    } else if (slug === 'sale') {
+      rows = await db.prepare(`SELECT ${columns} FROM products WHERE sale_price > 0 AND sale_price < price ORDER BY created_at DESC, id DESC LIMIT 24`).all();
+      rows = (rows || []).filter(r => Number(r.sale_price) > 0 && Number(r.sale_price) < Number(r.price));
+    } else {
+      // all / new: the newest drops.
+      rows = await db.prepare(`SELECT ${columns} FROM products ORDER BY created_at DESC, id DESC LIMIT 24`).all();
+    }
+  } catch (_) {
+    rows = [];
+  }
+  const items = (rows || []).map(row => {
+    try {
+      const p = productShape.shapePublicProduct(row);
+      const name = normalizeSeoName(p.name);
+      return `  <li><a href="/product/${Number(p.id)}">${escapeHtml(name)}</a> — ${ssrPriceHtml(p)}</li>`;
+    } catch (_) { return null; }
+  }).filter(Boolean);
+  return [
+    '<section class="ssr-content" id="ssrContent" aria-label="Collection">',
+    `  <h1 class="ssr-collection-title">${escapeHtml(collection.name)}</h1>`,
+    `  <p class="ssr-description">${escapeHtml(collection.description)}</p>`,
+    '  <ul class="ssr-product-list">',
+    ...items,
+    '  </ul>',
+    '</section>'
+  ].join('\n');
+}
+
+const SSR_MAIN_OPEN = '<main id="mainContent" tabindex="-1" aria-label="Main content">';
+function injectSsrContent(html, ssr) {
+  if (!ssr) return html;
+  const marker = html.indexOf(SSR_MAIN_OPEN);
+  if (marker < 0) return html;
+  const insertAt = marker + SSR_MAIN_OPEN.length;
+  return `${html.slice(0, insertAt)}\n${ssr}\n${html.slice(insertAt)}`;
+}
+
 function appendJsonLd(html, schemas) {
   const newline = String.fromCharCode(10);
   const scripts = schemas.map(schema => `  <script type="application/ld+json" data-seo-generated="true">${serializeJsonLd(schema)}</script>`).join(newline);
@@ -505,7 +636,32 @@ async function resolveSeoPage(req, siteUrl) {
         priceCurrency: 'PKR',
         price: offerPrice,
         availability: product.in_stock ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
-        itemCondition: 'https://schema.org/NewCondition'
+        itemCondition: 'https://schema.org/NewCondition',
+        // F27: mirror the published Shipping page exactly. Delivery is
+        // 3–5 business days for major cities, 5–7 elsewhere; a single
+        // transitTime window is the honest way to express both in one
+        // OfferShippingDetails. Charges Rs. 250–500, confirmed by phone.
+        shippingDetails: {
+          '@type': 'OfferShippingDetails',
+          shippingDestination: { '@type': 'DefinedRegion', addressCountry: 'PK' },
+          shippingRate: { '@type': 'MonetaryAmount', minValue: config.DELIVERY_FEE_MIN, maxValue: config.DELIVERY_FEE_MAX, currency: 'PKR' },
+          deliveryTime: {
+            '@type': 'ShippingDeliveryTime',
+            handlingTime: { '@type': 'QuantitativeValue', minValue: 1, maxValue: 2, unitCode: 'DAY' },
+            transitTime: { '@type': 'QuantitativeValue', minValue: 3, maxValue: 7, unitCode: 'DAY' }
+          }
+        },
+        // F27: mirror the Returns page exactly — request within 7 days of
+        // delivery, item shipped back by the customer (unless defective).
+        hasMerchantReturnPolicy: {
+          '@type': 'MerchantReturnPolicy',
+          applicableCountry: 'PK',
+          returnPolicyCategory: 'https://schema.org/MerchantReturnFiniteReturnWindow',
+          merchantReturnDays: 7,
+          returnMethod: 'https://schema.org/ReturnByMail',
+          returnFees: 'https://schema.org/ReturnFeesCustomerResponsibility',
+          merchantReturnLink: new URL('/returns', `${siteUrl}/`).href
+        }
       }
     };
     const reviewData = await loadApprovedReviewSchema(product.id);
@@ -525,6 +681,7 @@ async function resolveSeoPage(req, siteUrl) {
     const categoryUrl = new URL(`/collection/${categorySlug}`, `${siteUrl}/`).href;
     return {
       status: 200,
+      ssr: buildProductSsr(product),
       seo: {
         title: `${name} | KAGE CULTURE`,
         description,
@@ -547,10 +704,11 @@ async function resolveSeoPage(req, siteUrl) {
   const slug = collectionSlugFromPath(req.path);
   if (slug !== null) {
     const collection = COLLECTION_SEO[slug];
-    if (!collection) return { status: 200 };
+    if (!collection) return { status: 404 };
     const canonical = new URL(`/collection/${slug}`, `${siteUrl}/`).href;
     return {
       status: 200,
+      ssr: await buildCollectionSsr(slug, siteUrl),
       seo: {
         title: `${collection.name} | KAGE CULTURE`,
         description: trimSeoDescription(collection.description),
@@ -565,7 +723,42 @@ async function resolveSeoPage(req, siteUrl) {
       ])]
     };
   }
+  const staticPage = STATIC_PAGE_SEO[req.path];
+  if (staticPage) {
+    return {
+      status: 200,
+      seo: {
+        title: staticPage.title,
+        description: trimSeoDescription(staticPage.description),
+        url: new URL(req.path, `${siteUrl}/`).href,
+        image: new URL('/images/og-image.jpg', `${siteUrl}/`).href,
+        imageAlt: 'KAGE Culture',
+        type: 'website'
+      }
+    };
+  }
   return { status: 200 };
+}
+
+// F21: inline the first page of the public catalog as an inert
+// application/json block so the storefront can paint the grid without
+// waiting for /api/products. The block carries the same envelope as
+// GET /api/products?page=1; serializeJsonLd escapes `<`, U+2028 and
+// U+2029 so a product description can never break out of the tag.
+// Failure (e.g. the DB is down for a crawler cold start) injects
+// nothing and the client fetches the catalog the old way.
+async function injectCatalogSeed(html) {
+  try {
+    const list = await buildPublicProductList(db);
+    const envelope = catalogEnvelope(list, 1, CATALOG_PAGE_SIZE, list.length);
+    const tag = `  <script type="application/json" id="kageCatalogSeed">${serializeJsonLd(envelope)}</script>\n`;
+    const bodyEnd = html.lastIndexOf('</body>');
+    if (bodyEnd < 0) return html;
+    return `${html.slice(0, bodyEnd)}${tag}${html.slice(bodyEnd)}`;
+  } catch (err) {
+    console.error('catalog seed skipped:', err && err.message ? err.message : err);
+    return html;
+  }
 }
 
 async function renderStorefrontHtml(req) {
@@ -581,11 +774,14 @@ async function renderStorefrontHtml(req) {
     html = applySeoMetadata(html, resolved.seo);
     html = appendJsonLd(html, resolved.schemas || []);
   }
+  html = injectSsrContent(html, resolved.ssr);
+  html = await injectCatalogSeed(html);
   return { html, status: resolved.status || 200 };
 }
 
 async function sendStorefrontHtml(req, res, status) {
-  setHtmlNoStore(res);
+  setStorefrontHtmlCache(res);
+  if (PRIVATE_PATHS.has(req.path)) res.setHeader('X-Robots-Tag', 'noindex, nofollow');
   const rendered = await renderStorefrontHtml(req);
   res.status(status == null ? rendered.status : status).type('html').send(rendered.html);
 }
@@ -618,8 +814,11 @@ app.use(loadHelmet()({
       // (History: omitting this defaulted to 'none' while inline handlers
       // still existed and silently blocked every click, 2026-09-23.)
       scriptSrcAttr: ["'none'"],
-      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://cdn.jsdelivr.net"],
-      fontSrc: ["'self'", "https://fonts.gstatic.com", "https://cdn.jsdelivr.net"],
+      // F22 + F31: fonts are self-hosted — no third-party font hosts.
+      // 'unsafe-inline' is gone: every style attribute moved into the
+      // bundles' CSS, so no inline style can run.
+      styleSrc: ["'self'"],
+      fontSrc: ["'self'"],
       imgSrc: ["'self'", "data:", "https:", "blob:"],
       connectSrc: ["'self'", "https://*.blob.vercel-storage.com", "https://cloud.umami.is"],
       frameSrc: ["'none'"]
@@ -636,6 +835,15 @@ app.use((req, res, next) => {
   // documents from their static fallback.
   if (req.crawlerDatabaseUnavailable) return next();
   return globalLimiter(req, res, next);
+});
+
+// F31: deny the browser features this site never uses. Camera, microphone and
+// geolocation are hard-denied; everything else unused is off too. (Nothing
+// under public/ references getUserMedia, geolocation, Payment Request,
+// fullscreen, clipboard, share, audio or video — verified by grep.)
+app.use((req, res, next) => {
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=(), usb=(), serial=(), bluetooth=(), hid=(), magnetometer=(), accelerometer=(), gyroscope=(), idle-detection=(), browsing-topics=(), clipboard-read=(), clipboard-write=(), fullscreen=(self), picture-in-picture=()');
+  next();
 });
 
 // ── CSRF ──────────────────────────────────────────────────────
@@ -656,8 +864,12 @@ app.get(CSRF_ENDPOINT, (req, res) => {
 app.use(loadCompression()({ level: 6, threshold: 1024 }));
 
 // ── Body Parsers ──────────────────────────────────────────────
-app.use(express.json({ limit: '8mb' }));
-app.use(express.urlencoded({ extended: true, limit: '8mb' }));
+// F28: JSON/urlencoded payloads carry checkouts, logins and small order notes —
+// 100 KB is generous. Admin product forms with 8 MB of image bytes arrive as
+// multipart/form-data, which multer handles separately (middleware limits
+// still apply there). Anything bigger as JSON is an attack or a bug.
+app.use(express.json({ limit: '100kb' }));
+app.use(express.urlencoded({ extended: true, limit: '100kb' }));
 
 // ── Sessions ──────────────────────────────────────────────────
 app.use(loadCookieSession()({
@@ -702,7 +914,7 @@ app.get('/sitemap.xml', async (req, res) => {
 app.get('/robots.txt', (req, res) => {
   const siteUrl = getSiteUrlForRequest(req);
   res.setHeader('Cache-Control', 'no-store');
-  res.type('text/plain').send(`User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /api\n\nSitemap: ${siteUrl}/sitemap.xml\n`);
+  res.type('text/plain').send(`User-agent: *\nAllow: /\nDisallow: /admin\n\nSitemap: ${siteUrl}/sitemap.xml\n`);
 });
 app.get(['/', '/index.html'], (req, res, next) => {
   sendStorefrontHtml(req, res).catch(next);
@@ -981,7 +1193,8 @@ async function ensureReady() {
     app.get('*', (req, res, next) => {
       if (req.path.startsWith('/api/')) return res.status(404).json({ error: 'Not found.' });
       const isProductRoute = productIdFromPath(req.path) !== null;
-      const known = spaPages.has(req.path) || isProductRoute || collectionSlugFromPath(req.path) !== null;
+      const collectionSlug = collectionSlugFromPath(req.path);
+      const known = spaPages.has(req.path) || isProductRoute || (collectionSlug !== null && Boolean(COLLECTION_SEO[collectionSlug]));
       // Product status comes from the public DB lookup: known products are 200,
       // missing products are 404, and lookup failures remain the SPA shell.
       const statusOverride = isProductRoute ? undefined : (known ? 200 : 404);

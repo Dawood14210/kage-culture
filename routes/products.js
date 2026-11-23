@@ -9,9 +9,11 @@ const config = require('../config');
 const { requireCsrf } = require('../middleware/csrf');
 const { requireAuth } = require('../middleware/auth');
 const { persistImage, removeImage } = require('../utils/helpers');
+const { persistImageVariants, readVariantMap, pruneVariantMap } = require('../utils/imageVariants');
 const categoryCards = require('../utils/categoryCards');
 const sizeStock = require('../utils/sizes');
 const productShape = require('../utils/productShape');
+const { CATALOG_PAGE_SIZE, buildPublicProductList, catalogEnvelope } = require('../utils/publicCatalog');
 
 // Hash the complete public representation, including stock/review aggregates.
 // Unlike timestamps alone, this also detects deletes and same-second edits.
@@ -75,19 +77,40 @@ module.exports = function createProductRoutes(db) {
   // GET all products (public)
   // Payload is built from the public allow-list in utils/productShape.js —
   // `unit_cost` (cost of goods) and the other internal columns stay out of it.
+  //
+  // Pagination (F21): ?page=N (1-based, otherwise 400) and ?category=<slug>
+  // (graphic-tees | anime | pants | sale) return a JSON envelope
+  //   { products, page, limit, total, totalPages, hasMore }
+  // with CATALOG_PAGE_SIZE (24) items per page. Called with NO query
+  // parameters the endpoint is exactly what it always was: the full catalog
+  // as a plain array. That backwards-compatible default keeps every existing
+  // consumer — including the sitemap and this shop's own tests — working
+  // without changes. The Cache-Control/ETag policy is unchanged either way
+  // (the cache middleware keys on the path, not the query), and the envelope
+  // gets the same SHA-256 weak ETag treatment as the legacy array.
   router.get('/api/products', async (req, res) => {
     try {
-      const products = await db.prepare(`SELECT ${productShape.PUBLIC_PRODUCT_SELECT} FROM products ORDER BY created_at DESC, id DESC`).all();
-      const sold = await productShape.getSoldCounts(db);
-      const revAgg = await productShape.loadReviewAggregates(db);
-      const sizeStockById = await sizeStock.loadAllSizeStock(db);
-      const parsed = products.map(p => productShape.shapePublicProduct(p, {
-        size_stock: sizeStockById.get(Number(p.id)) || null,
-        sold_count: sold.get(Number(p.id)) || 0,
-        order_count: sold.get(Number(p.id)) || 0, // unchanged: mirrors sold_count
-        ...productShape.ratingFields(revAgg.get(Number(p.id)))
-      }));
-      sendPublicProductPayload(res, parsed);
+      const parsed = await buildPublicProductList(db);
+      const rawPage = typeof req.query.page === 'string' ? req.query.page.trim() : undefined;
+      const rawCategory = typeof req.query.category === 'string' ? req.query.category.trim().toLowerCase() : undefined;
+      if (rawPage === undefined && rawCategory === undefined) return sendPublicProductPayload(res, parsed);
+      let page = 1;
+      if (rawPage !== undefined) {
+        if (!/^\d+$/.test(rawPage)) return res.status(400).json({ error: 'The page parameter must be a positive whole number.' });
+        page = Math.floor(Number(rawPage));
+        if (!Number.isSafeInteger(page) || page < 1) return res.status(400).json({ error: 'The page parameter must be a positive whole number.' });
+      }
+      let filtered = parsed;
+      if (rawCategory) {
+        if (PRODUCT_CATEGORY_VALUES.has(rawCategory)) {
+          filtered = parsed.filter(p => p.category === rawCategory);
+        } else if (rawCategory === 'sale') {
+          filtered = parsed.filter(p => p.sale_price != null && Number(p.sale_price) > 0 && Number(p.sale_price) < Number(p.price));
+        } else {
+          return res.status(400).json({ error: `Unknown category "${rawCategory}". Use one of: ${[...PRODUCT_CATEGORY_VALUES, 'sale'].join(', ')}.` });
+        }
+      }
+      sendPublicProductPayload(res, catalogEnvelope(filtered, page, CATALOG_PAGE_SIZE, filtered.length));
     } catch (err) { console.error('products route failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
   });
 
@@ -141,9 +164,15 @@ module.exports = function createProductRoutes(db) {
       if (sizeStockInput.error) return res.status(400).json({ error: sizeStockInput.error });
       if (sizeStockInput.value) stockQty = sizeStock.totalOf(sizeStockInput.value);
       // Persist images only AFTER the body validates, so a 400 never orphans uploads.
-      const frontImage = req.files?.front_image?.[0] ? await persistImage(req.files.front_image[0].buffer, req.files.front_image[0].originalname) : null;
-      const backImage = req.files?.back_image?.[0] ? await persistImage(req.files.back_image[0].buffer, req.files.back_image[0].originalname) : null;
-      const extraImages = []; if (req.files?.extra_images) { for (const f of req.files.extra_images) { extraImages.push(await persistImage(f.buffer, f.originalname)); } }
+      // F7: best-effort 400/800/1200 WebP derivatives; failures keep the original only.
+      const imageVariants = {};
+      const frontUpload = req.files?.front_image?.[0] ? await persistImageVariants(req.files.front_image[0].buffer, req.files.front_image[0].originalname) : null;
+      const backUpload = req.files?.back_image?.[0] ? await persistImageVariants(req.files.back_image[0].buffer, req.files.back_image[0].originalname) : null;
+      const frontImage = frontUpload ? frontUpload.url : null;
+      const backImage = backUpload ? backUpload.url : null;
+      if (frontUpload?.variants) imageVariants[frontImage] = frontUpload.variants;
+      if (backUpload?.variants) imageVariants[backImage] = backUpload.variants;
+      const extraImages = []; if (req.files?.extra_images) { for (const f of req.files.extra_images) { const saved = await persistImageVariants(f.buffer, f.originalname); extraImages.push(saved.url); if (saved.variants) imageVariants[saved.url] = saved.variants; } }
       const onSale = salePriceVal != null ? 1 : 0;
       const requestedInStock = in_stock !== undefined ? (in_stock === 'true' || in_stock === true ? 1 : 0) : 1;
       const inStock = stockQty === 0 ? 0 : requestedInStock;
@@ -155,7 +184,7 @@ module.exports = function createProductRoutes(db) {
       // bloat the row. Empty stays NULL so the storefront can fall back.
       const cleanFabric = cleanDetailCopy(fabric_care);
       const cleanFitGuide = cleanDetailCopy(fit_guide);
-      const result = await db.prepare('INSERT INTO products (name, category, fit, price, sale_price, on_sale, description, fabric_care, fit_guide, sizes, front_image, back_image, extra_images, in_stock, unit_cost, stock_qty) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(cleanName, cleanCategory, String(fit || '').trim().slice(0, 60), priceVal, salePriceVal, onSale, String(description || '').slice(0, 2000), cleanFabric, cleanFitGuide, JSON.stringify(sizesParsed), frontImage, backImage, JSON.stringify(extraImages), inStock, estCost, stockQty);
+      const result = await db.prepare('INSERT INTO products (name, category, fit, price, sale_price, on_sale, description, fabric_care, fit_guide, sizes, front_image, back_image, extra_images, in_stock, unit_cost, stock_qty, image_variants) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(cleanName, cleanCategory, String(fit || '').trim().slice(0, 60), priceVal, salePriceVal, onSale, String(description || '').slice(0, 2000), cleanFabric, cleanFitGuide, JSON.stringify(sizesParsed), frontImage, backImage, JSON.stringify(extraImages), inStock, estCost, stockQty, JSON.stringify(imageVariants));
       productShape.invalidateProductAggregates();
       if (sizeStockInput.value) await sizeStock.replaceSizeStock(db, result.lastInsertRowid, sizeStockInput.value);
       const product = await db.prepare(`SELECT ${productShape.ADMIN_PRODUCT_SELECT} FROM products WHERE id = ?`).get(result.lastInsertRowid);
@@ -241,13 +270,17 @@ module.exports = function createProductRoutes(db) {
       if (in_stock === undefined && existing.stock_qty != null && Number(existing.stock_qty) <= 0
           && finalStockQty > 0) finalInStock = 1;
       let frontImage = existing.front_image ?? null; let backImage = existing.back_image ?? null;
-      if (req.files?.front_image?.[0]) { const newUrl = await persistImage(req.files.front_image[0].buffer, req.files.front_image[0].originalname); if (existing.front_image) await removeImage(existing.front_image); frontImage = newUrl; } else if (remove_front === 'true') { if (existing.front_image) await removeImage(existing.front_image); frontImage = null; }
-      if (req.files?.back_image?.[0]) { const newUrl = await persistImage(req.files.back_image[0].buffer, req.files.back_image[0].originalname); if (existing.back_image) await removeImage(existing.back_image); backImage = newUrl; } else if (remove_back === 'true') { if (existing.back_image) await removeImage(existing.back_image); backImage = null; }
+      // F7: merge the existing variant map with any freshly generated ones;
+      // drop entries whose original went away.
+      const imageVariants = readVariantMap(existing.image_variants);
+      if (req.files?.front_image?.[0]) { const saved = await persistImageVariants(req.files.front_image[0].buffer, req.files.front_image[0].originalname); if (existing.front_image) { await removeImage(existing.front_image); pruneVariantMap(imageVariants, [existing.front_image]); } frontImage = saved.url; if (saved.variants) imageVariants[frontImage] = saved.variants; } else if (remove_front === 'true') { if (existing.front_image) { await removeImage(existing.front_image); pruneVariantMap(imageVariants, [existing.front_image]); } frontImage = null; }
+      if (req.files?.back_image?.[0]) { const saved = await persistImageVariants(req.files.back_image[0].buffer, req.files.back_image[0].originalname); if (existing.back_image) { await removeImage(existing.back_image); pruneVariantMap(imageVariants, [existing.back_image]); } backImage = saved.url; if (saved.variants) imageVariants[backImage] = saved.variants; } else if (remove_back === 'true') { if (existing.back_image) { await removeImage(existing.back_image); pruneVariantMap(imageVariants, [existing.back_image]); } backImage = null; }
       let extraImages = []; try { extraImages = JSON.parse(existing.extra_images || '[]'); } catch (e) { extraImages = []; }
       // Drop any gallery photos the admin removed; ignore URLs that don't
       // belong to this product so a stale form can't delete other files.
       const removedExtras = extraImages.filter(u => u && removeExtraUrls.includes(u));
       extraImages = extraImages.filter(u => !u || !removeExtraUrls.includes(u));
+      pruneVariantMap(imageVariants, removedExtras);
       // Enforce the gallery cap BEFORE persisting anything, so a rejected
       // request neither orphans uploads nor deletes kept images. Only checked
       // when new photos arrive, so legacy products already over the cap can
@@ -256,10 +289,10 @@ module.exports = function createProductRoutes(db) {
       if (incomingExtras && extraImages.length + incomingExtras > config.MAX_EXTRA_IMAGES) {
         return res.status(400).json({ error: `A product can have at most ${config.MAX_EXTRA_IMAGES} extra photos.` });
       }
-      if (req.files?.extra_images) { for (const f of req.files.extra_images) { extraImages.push(await persistImage(f.buffer, f.originalname)); } }
+      if (req.files?.extra_images) { for (const f of req.files.extra_images) { const saved = await persistImageVariants(f.buffer, f.originalname); extraImages.push(saved.url); if (saved.variants) imageVariants[saved.url] = saved.variants; } }
       for (const url of removedExtras) { try { await removeImage(url); } catch (err) { console.error('extra image cleanup failed:', err && err.message ? err.message : err); } }
       const now = new Date().toISOString().replace('T', ' ').slice(0, 19);
-      await db.prepare('UPDATE products SET name=?, category=?, fit=?, price=?, sale_price=?, on_sale=?, description=?, fabric_care=?, fit_guide=?, sizes=?, front_image=?, back_image=?, extra_images=?, in_stock=?, unit_cost=?, stock_qty=?, updated_at=? WHERE id=?').run(finalName, finalCategory, finalFit, finalPrice, salePriceVal, onSale, finalDesc, finalFabric, finalFitGuide, JSON.stringify(sizesParsed), frontImage, backImage, JSON.stringify(extraImages), finalStockQty === 0 ? 0 : finalInStock, finalUnitCost, finalStockQty, now, req.params.id);
+      await db.prepare('UPDATE products SET name=?, category=?, fit=?, price=?, sale_price=?, on_sale=?, description=?, fabric_care=?, fit_guide=?, sizes=?, front_image=?, back_image=?, extra_images=?, in_stock=?, unit_cost=?, stock_qty=?, image_variants=?, updated_at=? WHERE id=?').run(finalName, finalCategory, finalFit, finalPrice, salePriceVal, onSale, finalDesc, finalFabric, finalFitGuide, JSON.stringify(sizesParsed), frontImage, backImage, JSON.stringify(extraImages), finalStockQty === 0 ? 0 : finalInStock, finalUnitCost, finalStockQty, JSON.stringify(imageVariants), now, req.params.id);
       if (nextSizeStock) await sizeStock.replaceSizeStock(db, existing.id, nextSizeStock);
       productShape.invalidateProductAggregates();
       const updated = await db.prepare(`SELECT ${productShape.ADMIN_PRODUCT_SELECT} FROM products WHERE id = ?`).get(req.params.id);

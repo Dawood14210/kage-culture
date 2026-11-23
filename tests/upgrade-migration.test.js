@@ -65,7 +65,7 @@ const EXPECTED_INDEXES = [
 
 // Columns the migrations must add to a legacy database.
 const EXPECTED_COLUMNS = {
-  products: ['unit_cost', 'drop'],
+  products: ['unit_cost', 'drop', 'image_variants'],
   orders: ['payment_ref', 'payment_verified', 'cod_confirmed', 'shipping_pending', 'customer_id'],
   customers: ['email_verified'],
   reviews: ['viewer_token'],

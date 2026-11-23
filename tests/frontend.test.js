@@ -175,11 +175,12 @@ async function ready(win) {
     console.log('✅ Shop grid visibility follows collection routes and search');
 
     w.navigateTo('home');
-    w.nextPage();
+    w.loadMore();
     const size = d.querySelector('#filterSidebar .fp-size');
     size.value = 'XL';
     size.dispatchEvent(new w.Event('change', { bubbles: true }));
-    assert.equal(d.querySelector('#pageInfo').textContent, 'Page 1 of 1');
+    assert.match(d.querySelector('#catalogShowing').textContent, /^Showing (\d+) of \1$/, 'a fully-visible filtered grid reports "Showing N of N"');
+    assert.equal(d.getElementById('loadMoreBtn').style.display, 'none', 'no Load more when everything fits');
     assert.ok(d.querySelector('#collectionGrid .product-card'));
     assert.ok(w.eval('renderProductCard(allProducts.find(p => p.name === "Wrath Silhouette"))').includes('class="product-discount-badge"'));
     console.log('✅ Filters clamp pagination; homepage sale badge is displayed');
@@ -706,14 +707,14 @@ async function ready(win) {
 
     const shippingCopy = d.querySelector('#page-shipping .content-page-body').textContent;
     assert.match(shippingCopy, /Delivery Charges/);
-    assert.match(shippingCopy, /Delivery charges depend on your delivery location: Rs\. 250 – Rs\. 450 nationwide\. We confirm the exact fee by phone before dispatch\./);
+    assert.match(shippingCopy, /Delivery charges are Rs\. 250 – Rs\. 500 depending on your city and are confirmed by phone before dispatch\./);
     assert.doesNotMatch(shippingCopy, /Location-based rates|Rs\. 150/, 'shipping policy no longer promises an unconfigured fee');
     assert.doesNotMatch(shippingCopy, /Free-shipping threshold|\bTODO\b|\[/, 'unconfirmed free-shipping rules are omitted rather than published as placeholders');
-    assert.equal(d.getElementById('coShipping').textContent.trim(), 'Rs. 250 – Rs. 450', 'checkout shows the published band, not an unconfirmed charge');
-    assert.equal(d.querySelector('#page-checkout .co-grand span').textContent.trim(), 'Total before delivery');
-    assert.match(d.querySelector('#page-checkout .co-safe').textContent, /confirm the exact fee by phone before dispatch/);
-    assert.ok(d.getElementById('confShipping'), 'order confirmation has a pending delivery-charge field');
-    assert.match(d.querySelector('#page-confirmation .confirm-next').textContent, /Rs\. 250 – Rs\. 450/);
+    assert.equal(d.getElementById('coShipping').textContent.trim(), 'Rs. 250 – Rs. 500 (confirmed by phone)', 'checkout shows the published band with the phone-confirmation wording, not an unconfirmed charge');
+    assert.equal(d.querySelector('#page-checkout .co-grand span').textContent.trim(), 'Total (before delivery)');
+    assert.match(d.querySelector('#page-checkout .co-callnote').textContent, /We'll call you to confirm your order and the exact delivery charge before dispatch/);
+    assert.equal(d.getElementById('confShipping').textContent.trim(), 'Rs. 250 – Rs. 500 (confirmed by phone)', 'confirmation shows the published band with phone-confirmation wording');
+    assert.match(d.querySelector('#page-confirmation .confirm-next').textContent, /We'll call you to confirm your order and the exact delivery charge before dispatch\. You pay the total plus delivery in cash when it arrives\./, 'confirmation view carries the phone-confirmation wording');
     assert.doesNotMatch(storeHtml, /const shipping = 150/, 'checkout no longer hardcodes the old flat charge');
 
     const checkoutPaymentValues = [...d.querySelectorAll('#page-checkout input[name="payMethod"]')].map(input => input.value);
@@ -721,7 +722,8 @@ async function ready(win) {
     assert.match(storeHtml, /payment_method:\s*'cod'/, 'checkout submits Cash on Delivery only');
     assert.equal(d.getElementById('paymentRefGroup'), null, 'non-COD payment reference controls are removed');
     assert.equal(d.getElementById('coPaymentRef'), null, 'non-COD payment reference input is removed');
-    assert.equal(d.querySelector('#page-checkout .co-safe').textContent.trim(), 'Cash on Delivery accepted. Delivery is Rs. 250 – Rs. 450 depending on your city — we confirm the exact fee by phone before dispatch.');
+    assert.equal(d.querySelector('#page-checkout .co-callnote').textContent.trim(), "We'll call you to confirm your order and the exact delivery charge before dispatch. You pay the total plus delivery in cash when it arrives.");
+    assert.equal(d.getElementById('coPlaceBtn').getAttribute('aria-describedby'), 'coDeliveryNote', 'Place Order points at the note beside it');
     const checkoutTrust = d.querySelector('#page-checkout .co-trust-strip');
     assert.equal(checkoutTrust.getAttribute('aria-label'), 'Checkout reassurance');
     assert.deepEqual([...checkoutTrust.querySelectorAll('li')].map(item => item.textContent.trim()), [
@@ -826,6 +828,20 @@ async function ready(win) {
     assert.match(storeHtml, /\.contact-card-icon svg\s*\{[^}]*stroke:\s*currentColor;[^}]*stroke-width:\s*1\.7;[^}]*stroke-linecap:\s*round;[^}]*stroke-linejoin:\s*round;/, 'contact SVGs share a consistent themed stroke style');
     assert.match(storeHtml, /\.tracking-form \.btn \{ align-self: flex-start; \}/, 'desktop Track Order button retains its original alignment');
     assert.match(storeHtml, /@media \(max-width: 768px\) \{\s*#page-tracking \.tracking-form \.btn \{ width: 100%; align-self: stretch; \}/, 'Track Order button expands to the form width on mobile');
+    // Mobile tracking timeline regression: an @media (max-width: 540px) block used to
+    // sit ABOVE the base .track-* rules. Same specificity, so the base
+    // `.track-step { flex-direction: column }` won the cascade, the steps rendered
+    // as centred columns and the horizontal connector's left: -50% bled outside the
+    // result card. The override must come after the base rules it overrides.
+    const storeCssLf = storeHtml.replace(/\r\n/g, '\n'); // the bundle is CRLF on disk
+    const baseTrackStep = storeCssLf.indexOf('.track-step { display: flex; flex-direction: column;');
+    const narrowTrackStep = storeCssLf.indexOf('.track-step {\n        flex-direction: row;');
+    assert.ok(baseTrackStep !== -1, 'base tracking step rule exists');
+    assert.ok(narrowTrackStep !== -1, 'narrow-screen tracking step override exists');
+    assert.ok(narrowTrackStep > baseTrackStep, 'narrow-screen tracking override comes after the base rule it overrides (source order decides at equal specificity)');
+    const narrowTrackBlock = storeCssLf.slice(storeCssLf.lastIndexOf('@media (max-width: 540px)', narrowTrackStep), narrowTrackStep + 400);
+    assert.match(narrowTrackBlock, /\.track-timeline \{ flex-direction: column;/, 'narrow screens stack the timeline vertically');
+    assert.match(narrowTrackBlock, /\.track-step::before \{[^}]*left: 11px;[^}]*width: 2px;/, 'narrow-screen connector is a vertical rail beside the dots, inside the card (never left: -50%)');
     for (const width of [360, 414, 768, 1440]) {
       const pageOuterWidth = Math.min(width, 720);
       const pageGutter = width < 600 ? 16 : 20;
@@ -848,7 +864,7 @@ async function ready(win) {
     assert.match(socialCss, /\.social-icon:hover,\s*\.social-icon:focus-visible\s*\{[^}]*background:\s*var\(--accent-glow\);/, 'social hover/focus accent remains subtle and theme-colored');
     assert.doesNotMatch(socialCss, /\.social-(?:instagram|snapchat|email|etsy|whatsapp)(?::hover)?\s*\{/, 'no per-brand rainbow overrides remain');
     const whatsappStart = storeHtml.indexOf('FLOATING WHATSAPP BUTTON');
-    const whatsappEnd = storeHtml.indexOf('    .footer-newsletter h4 {', whatsappStart);
+    const whatsappEnd = storeHtml.indexOf('    .footer-newsletter h3 {', whatsappStart);
     const whatsappCss = storeHtml.slice(whatsappStart, whatsappEnd);
     assert.ok(whatsappStart >= 0 && whatsappEnd > whatsappStart, 'WhatsApp/footer spacing rules exist');
     assert.match(whatsappCss, /\.whatsapp-float \{\s*position: fixed;[\s\S]*?bottom: 24px;[\s\S]*?width: 60px;[\s\S]*?height: 60px;/, 'wide floating button dimensions and edge offset are known');
@@ -935,6 +951,45 @@ async function ready(win) {
     assert.match(storeHtml, /#page-home \.product-grid \.quick-view-btn \{[^}]*margin-top: auto;/, 'the storefront override keeps Quick View pinned too');
     assert.match(storeHtml, /\.card-rating \{[^}]*min-height: 1\.15rem;[^}]*\}/, 'the rating row keeps its line when there are no reviews');
     console.log('✅ Product cards keep a reserved rating row and pin their button to the card bottom');
+
+    // ---- "What customers say" home strip (F34) -----------------------
+    {
+      const strip = d.getElementById('sectionHomeReviews');
+      assert.ok(strip, 'the reviews strip exists in the shell');
+      assert.ok(strip.classList.contains('is-hidden'), 'strip ships hidden until real reviews exist');
+      assert.equal(d.getElementById('homeReviewsGrid').children.length, 0);
+      const realFetch = w.fetch;
+      w.fetch = (url, options) => {
+        if (String(url).startsWith('/api/reviews/featured')) {
+          return Promise.resolve({ ok: true, json: async () => ([
+            { id: 1, customer_name: 'Eve <script>alert(1)</script>', rating: 5, comment: 'Love it <img src=x onerror=alert(1)>', created_at: '2026-10-01 09:00:00', product_id: 1, product_name: 'Shadow <b>Fit</b>' },
+            { id: 2, customer_name: 'Kai', rating: 4, comment: 'Great fit', created_at: '2026-09-30 09:00:00', product_id: 2, product_name: 'Oni Muscle Tee' },
+            { id: 3, customer_name: 'Ada', rating: 5, comment: 'Third review', created_at: '2026-09-29 09:00:00', product_id: 3, product_name: 'Kage Core Compression' },
+            { id: 4, customer_name: 'Extra', rating: 5, comment: 'Would be fourth — must not render', created_at: '2026-09-28 09:00:00', product_id: 4, product_name: 'Blade Wolf' }
+          ]) });
+        }
+        return realFetch(url, options);
+      };
+      await w.loadHomeReviews();
+      const grid = d.getElementById('homeReviewsGrid');
+      assert.equal(grid.querySelectorAll('.home-review-card').length, 3, 'caps at three cards');
+      assert.equal(strip.classList.contains('is-hidden'), false, 'strip reveals with real reviews');
+      assert.ok(!grid.innerHTML.includes('<script>alert'), 'names are escaped');
+      assert.ok(!/<img src=x/.test(grid.innerHTML), 'comments are escaped');
+      assert.ok(grid.innerHTML.includes('&lt;img'), 'comment markup is entity-escaped');
+      assert.ok(!grid.textContent.includes('Would be fourth'), 'only three render');
+      d.querySelector('.home-review-product').click();
+      assert.equal(w.location.pathname, '/product/1', 'the product link opens the product page');
+      w.navigateTo('home');
+      w.fetch = (url, options) => String(url).startsWith('/api/reviews/featured')
+        ? Promise.resolve({ ok: true, json: async () => [] })
+        : realFetch(url, options);
+      await w.loadHomeReviews();
+      assert.equal(d.getElementById('sectionHomeReviews').classList.contains('is-hidden'), true, 'an empty feed hides the strip again');
+      w.fetch = realFetch;
+      await w.loadHomeReviews();
+      console.log('✅ What customers say: hidden without approved reviews, real escaped data with them, product link opens the product');
+    }
 
     // ---- ONE card renderer for every product grid. The /collection/* and
     // ---- search grid (#collectionGrid) used to render its own big single-column
@@ -1908,7 +1963,7 @@ async function ready(win) {
           ['pants (empty state)', "navigateTo('collection', 'pants')"],
           ['sale', "navigateTo('collection', 'sale')"],
           ['search results', "onSearchInput('wolf')"],
-          ['page 2', "onSearchInput(''); navigateTo('collection', 'all'); nextPage()"]
+          ['load more page', "onSearchInput(''); navigateTo('collection', 'all'); loadMore()"]
         ];
         for (const [state, action] of states) {
           if (action) await rp.evaluate(action);
@@ -1932,7 +1987,7 @@ async function ready(win) {
         }
         assert.equal(await fp.$eval('#collectionTitle', (el) => el.textContent), 'FEATURED DROPS | NEW ARRIVALS');
         assert.equal(await fp.$eval('#resultCount', (el) => el.textContent), '10 results');
-        assert.equal(await fp.$eval('#pageInfo', (el) => el.textContent), 'Page 1 of 2');
+        assert.equal(await fp.$eval('#catalogShowing', (el) => el.textContent), 'Showing 8 of 10');
         // Sort: cheapest first (price range → its lowest price), and the grid really re-renders.
         await fp.select('#sortSelect', 'price-low');
         const sortedMins = await fp.evaluate(() => [...document.querySelectorAll('#collectionGrid .product-card')]
@@ -1949,16 +2004,18 @@ async function ready(win) {
         await fp.click('#filterDrawer .filter-drawer-footer .btn');
         await fp.waitForFunction(() => !document.getElementById('filterDrawer').classList.contains('open'));
         await settleLayout(fp);   // the drawer is a fixed layer until it has finished sliding out
-        // Pagination: Next shows the last two products.
-        await fp.click('#nextBtn');
-        await fp.waitForFunction(() => document.getElementById('pageInfo').textContent === 'Page 2 of 2');
-        assert.equal(await fp.$$eval('#collectionGrid .product-card', (cards) => cards.length), 2, 'page 2 holds the remaining two products');
-        assert.equal(await fp.$eval('#nextBtn', (el) => getComputedStyle(el).display), 'none', 'there is no Next on the last page');
+        // Load more: reveals the remaining two products.
+        await fp.click('#loadMoreBtn');
+        await fp.waitForFunction(() => document.getElementById('catalogShowing').textContent === 'Showing 10 of 10');
+        assert.equal(await fp.$$eval('#collectionGrid .product-card', (cards) => cards.length), 10, 'load more reveals the remaining two products');
+        assert.equal(await fp.$eval('#loadMoreBtn', (el) => getComputedStyle(el).display), 'none', 'there is no Load more once everything is shown');
         await fp.mouse.move(0, 0);   // park the pointer: a card under it would show its hover lift
         await settleLayout(fp);
         const last = await measureGrid(fp, '#collectionGrid');
-        assert.equal(groupRows(last.cards).length, 1, 'the two cards of the last page share one row');
-        assert.ok(spread(last.cards.map((c) => c.h)) <= 1 && spread(last.cards.map((c) => c.btnTop)) <= 1, 'and line up too');
+        const tail = last.cards.filter((card) => card.id === '9' || card.id === '10');
+        assert.equal(tail.length, 2, 'both remaining products are rendered');
+        assert.equal(groupRows(tail).length, 1, 'the two cards revealed by Load more share one row');
+        assert.ok(spread(tail.map((c) => c.h)) <= 1 && spread(tail.map((c) => c.btnTop)) <= 1, 'and line up too');
         console.log('✅ 320px real Chromium — page header, result count, sort, Filter drawer and pagination all work');
         await fp.close();
       }
@@ -2268,7 +2325,7 @@ async function ready(win) {
     const pantsTileNavCheck = d.getElementById('catTilePants');
     assert.ok(pantsTileNavCheck && pantsTileNavCheck.tagName === 'A' && !pantsTileNavCheck.hasAttribute('aria-disabled'), 'Pants tile is a real link');
     assert.equal(pantsNavItem.getAttribute('href'), pantsTileNavCheck.getAttribute('href'), 'Pants nav and card share the same collection route');
-    const footerHeadings = [...d.querySelectorAll('.site-footer h4')].map(h => h.textContent.trim());
+    const footerHeadings = [...d.querySelectorAll('.site-footer h3')].map(h => h.textContent.trim());
     assert.ok(!footerHeadings.includes('Shop'), 'footer has no Shop column');
     assert.equal(d.querySelectorAll('.site-footer a[href^="/collection/"]').length, 1, 'Pants is the only stock-aware footer collection link');
     assert.notEqual(d.getElementById('footerPantsItem').style.display, 'none', 'Pants footer link is always shown');
@@ -2497,8 +2554,16 @@ async function ready(win) {
     assert.equal(fd.getElementById('page-confirmation').classList.contains('active'), true, 'the order completes and the confirmation page shows');
     assert.match(fd.getElementById('confNumber').textContent, /^KAGE-[A-Z0-9]{8}$/, 'the confirmation shows a real order number');
 
-    // The shop really has that order.
-    const tracked = await fetch(`${origin}/api/orders/track?number=${encodeURIComponent(fd.getElementById('confNumber').textContent.trim())}&phone=03001234500`);
+    // The shop really has that order. F16: the lookup is a CSRF-protected
+    // POST whose body carries number + phone.
+    const trackCsrfResponse = await fetch(`${origin}/api/csrf`);
+    const trackCookie = (trackCsrfResponse.headers.getSetCookie() || []).map(c => c.split(';')[0]).join('; ');
+    const trackToken = JSON.parse(await trackCsrfResponse.text()).token;
+    const tracked = await fetch(`${origin}/api/orders/track`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: trackCookie, 'X-CSRF-Token': trackToken },
+      body: JSON.stringify({ number: fd.getElementById('confNumber').textContent.trim(), phone: '03001234500' })
+    });
     assert.equal(tracked.status, 200, 'the placed order must be trackable');
     assert.equal((await tracked.json()).status, 'pending', 'a COD order starts pending');
 

@@ -157,10 +157,15 @@
   and cart images retain lazy loading, while the first detail-gallery image is
   eager. Only the first visible grid image and first detail image get high fetch
   priority.
-- Product image uploads are intentionally stored unchanged: `routes/products.js`
-  uses 8MB in-memory raster uploads and `persistImage()` writes the original
-  buffer to local `/uploads` or Vercel Blob. No image resizer is installed;
-  avoid adding a heavy native dependency or rewriting image URLs without an
-  explicit storage/migration plan. See `AUDIT.md` for measured byte savings.
+- Product images are normalized on upload (F7): `routes/products.js` persists
+  the original via `persistImage()` (local `/uploads` or Vercel Blob) and
+  `utils/imageVariants.js#persistImageVariants()` best-effort generates
+  400/800/1200px WebP derivatives next to it (sharp, quality 78, never
+  upscaling). Any failure logs and continues with the original only — the
+  upload contract never breaks. The `products.image_variants` column (additive
+  migration) stores a `{url: {400,800,1200}}` map; the public payload ships a
+  sanitised copy and the storefront emits `srcset` on product images (grid,
+  detail gallery/thumbs, cart, wishlist, checkout). `removeImage()` deletes
+  derivatives alongside the original. sharp is only on the upload path.
 - Verification: `PORT=3999 npm test` passes all six scripts, including the
   new 31/31 frontend + Chromium scenario set.

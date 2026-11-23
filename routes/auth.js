@@ -73,7 +73,7 @@ module.exports = function createAuthRoutes(db, SESSION_SECRET = getSessionSecret
       }
       const { email, password } = req.body;
       if (!email || !password) return res.status(400).json({ error: 'Email and password are required.' });
-      if (password.length < config.MIN_PASSWORD_LENGTH) return res.status(400).json({ error: `Password must be at least ${config.MIN_PASSWORD_LENGTH} characters.` });
+      if (password.length < config.MIN_ADMIN_PASSWORD_LENGTH) return res.status(400).json({ error: `Password must be at least ${config.MIN_ADMIN_PASSWORD_LENGTH} characters.` });
       const existing = await db.prepare('SELECT id FROM admin LIMIT 1').get();
       if (existing) return res.status(400).json({ error: 'Admin account already exists.' });
       const hash = await bcrypt.hash(password, 12);
@@ -145,7 +145,7 @@ module.exports = function createAuthRoutes(db, SESSION_SECRET = getSessionSecret
     try {
       const { currentPassword, newPassword } = req.body;
       if (!currentPassword || !newPassword) return res.status(400).json({ error: 'Current and new passwords are required.' });
-      if (newPassword.length < config.MIN_PASSWORD_LENGTH) return res.status(400).json({ error: `New password must be at least ${config.MIN_PASSWORD_LENGTH} characters.` });
+      if (newPassword.length < config.MIN_ADMIN_PASSWORD_LENGTH) return res.status(400).json({ error: `New password must be at least ${config.MIN_ADMIN_PASSWORD_LENGTH} characters.` });
       const admin = await db.prepare('SELECT * FROM admin WHERE id = ?').get(req.adminId);
       if (!admin) return res.status(404).json({ error: 'Admin not found.' });
       const match = await bcrypt.compare(currentPassword, admin.password_hash);
@@ -161,7 +161,7 @@ module.exports = function createAuthRoutes(db, SESSION_SECRET = getSessionSecret
     try {
       const { email, password } = req.body;
       if (!email || !password) return res.status(400).json({ error: 'Email and password are required.' });
-      if (password.length < config.MIN_PASSWORD_LENGTH) return res.status(400).json({ error: `Password must be at least ${config.MIN_PASSWORD_LENGTH} characters.` });
+      if (password.length < config.MIN_ADMIN_PASSWORD_LENGTH) return res.status(400).json({ error: `Password must be at least ${config.MIN_ADMIN_PASSWORD_LENGTH} characters.` });
       const existing = await db.prepare('SELECT id FROM admin WHERE email = ?').get(email);
       if (existing) return res.status(400).json({ error: 'An admin with that email already exists.' });
       const hash = await bcrypt.hash(password, 12);
@@ -211,10 +211,13 @@ module.exports = function createAuthRoutes(db, SESSION_SECRET = getSessionSecret
     try {
       const { token, password, user_type } = req.body;
       if (!token || !password) return res.status(400).json({ error: 'Token and new password are required.' });
-      if (password.length < config.MIN_PASSWORD_LENGTH) return res.status(400).json({ error: `Password must be at least ${config.MIN_PASSWORD_LENGTH} characters.` });
       const tokenHash = hashToken(token);
       const record = await db.prepare('SELECT * FROM password_reset_tokens WHERE token_hash = ? AND used = 0').get(tokenHash);
       if (!record) return res.status(400).json({ error: 'Invalid or expired reset token.' });
+      // The token names the account type — customers get the customer policy,
+      // admins the admin one.
+      const minLength = record.user_type === 'customer' ? config.MIN_CUSTOMER_PASSWORD_LENGTH : config.MIN_ADMIN_PASSWORD_LENGTH;
+      if (password.length < minLength) return res.status(400).json({ error: `Password must be at least ${minLength} characters.` });
       if (Date.now() > new Date(record.expires_at).getTime()) {
         await db.prepare('UPDATE password_reset_tokens SET used = 1 WHERE id = ?').run(record.id);
         return res.status(400).json({ error: 'Reset token has expired. Please request a new one.' });
@@ -276,7 +279,7 @@ module.exports = function createAuthRoutes(db, SESSION_SECRET = getSessionSecret
     try {
       const { email, password, name } = req.body;
       if (!email || !password) return res.status(400).json({ error: 'Email and password are required.' });
-      if (password.length < config.MIN_PASSWORD_LENGTH) return res.status(400).json({ error: `Password must be at least ${config.MIN_PASSWORD_LENGTH} characters.` });
+      if (password.length < config.MIN_CUSTOMER_PASSWORD_LENGTH) return res.status(400).json({ error: `Password must be at least ${config.MIN_CUSTOMER_PASSWORD_LENGTH} characters.` });
       const clean = email.trim().toLowerCase();
       if (!isValidEmail(clean)) return res.status(400).json({ error: 'Please enter a valid email address.' });
       const existing = await db.prepare('SELECT id FROM customers WHERE LOWER(TRIM(email)) = ?').get(clean);
@@ -367,7 +370,7 @@ module.exports = function createAuthRoutes(db, SESSION_SECRET = getSessionSecret
       if (currentPassword !== undefined || newPassword !== undefined) {
         // Password change path (account page "Update Password")
         if (!currentPassword || !newPassword) return res.status(400).json({ error: 'Current and new passwords are required.' });
-        if (String(newPassword).length < config.MIN_PASSWORD_LENGTH) return res.status(400).json({ error: `New password must be at least ${config.MIN_PASSWORD_LENGTH} characters.` });
+        if (String(newPassword).length < config.MIN_CUSTOMER_PASSWORD_LENGTH) return res.status(400).json({ error: `New password must be at least ${config.MIN_CUSTOMER_PASSWORD_LENGTH} characters.` });
         const c = await db.prepare('SELECT id, password_hash FROM customers WHERE id = ?').get(req.customerId);
         if (!c) return res.status(404).json({ error: 'Account not found.' });
         const match = await bcrypt.compare(currentPassword, c.password_hash);

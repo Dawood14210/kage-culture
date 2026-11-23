@@ -1,8 +1,18 @@
 
+    /* Self-hosted variable Archivo (F22): one weight-axis woff2 for the whole
+       shop, served from /fonts. The kanji glyphs fall back to the system
+       serif stack — the external JP serif is gone. */
+    @font-face {
+      font-family: 'Archivo';
+      src: url('/fonts/archivo-latin-wght-normal.woff2') format('woff2-variations');
+      font-weight: 100 900;
+      font-style: normal;
+      font-display: swap;
+    }
+
     /* ================================================================
        DESIGN SYSTEM — WARM EDITORIAL THEME
        Beige/taupe canvas, charcoal type, deep olive-brown accent.
-       Bold sans (Archivo) for wordmark moments; Noto Serif JP for kanji.
        ================================================================ */
     :root {
       --bg-primary: #D9D4C8;
@@ -15,7 +25,7 @@
       --accent: #4A4433;
       --accent-hover: #5A5240;
       --accent-glow: rgba(74,68,51,0.12);
-      --heart-red: #DC2626;
+      --heart-red: #991B1B;
       --text-primary: #1A1815;
       --text-secondary: #3D3931;
       --text-muted: #4F493F;
@@ -29,7 +39,7 @@
       --text-accent-hover: #423C2D;
       --font-display: 'Archivo', sans-serif;
       --font-body: 'Archivo', sans-serif;
-      --font-kanji: 'Noto Serif JP', serif;
+      --font-kanji: Georgia, 'Times New Roman', serif;
       --spacing-xs: 0.25rem;
       --spacing-sm: 0.5rem;
       --spacing-md: 1rem;
@@ -228,8 +238,9 @@
         }
         .kage-logo {
           display: flex; flex-direction: column; align-items: center;
-          font-family: 'Noto Serif JP', 'Archivo', sans-serif;
+          font-family: var(--font-kanji), 'Archivo', sans-serif;
           line-height: 1; user-select: none; cursor: pointer; flex-shrink: 0;
+          text-decoration: none; color: inherit;
         }
     /* The mark is a 1:1 emblem, so one dimension is enough: the height is
        pinned and the width follows from the image's own ratio. */
@@ -365,7 +376,7 @@
     .watermark::before {
       content: '影';
       position: absolute;
-      font-family: 'Noto Serif JP', serif;
+      font-family: var(--font-kanji);
       font-weight: 900;
       font-size: clamp(20rem, 40vw, 50rem);
       color: #4A4433;
@@ -559,9 +570,12 @@
       font-size: 0.85rem;
     }
     .vibes-cta {
+      display: inline-block;
       background: var(--text-primary);
       color: #FFF;
       border: 2px solid var(--text-primary);
+      text-decoration: none;
+      text-align: center;
       font-family: var(--font-body);
       font-weight: 800;
       font-size: 0.72rem;
@@ -866,7 +880,7 @@
       background: var(--accent-glow);
       transform: translateY(-2px);
     }
-    .why-item h4 {
+    .why-item h3 {
       font-family: var(--font-body);
       font-size: 0.75rem;
       font-weight: 700;
@@ -1201,6 +1215,7 @@
     }
     .pagination .progress-bar .progress-fill {
       height: 100%;
+      width: 100%;
       background: var(--text-primary);
       transition: width var(--transition-fast);
     }
@@ -1212,6 +1227,10 @@
     .pagination .page-info {
       font-size: 0.8rem;
       color: var(--text-muted);
+    }
+    .pagination .load-more-btn[disabled] {
+      opacity: 0.55;
+      cursor: progress;
     }
     .pagination .next-btn {
       display: flex;
@@ -1685,7 +1704,7 @@
     .footer-newsletter { text-align: right; }
     .footer-newsletter .newsletter-form { justify-content: flex-end; }
     .footer-brand p { color: var(--text-muted); font-size: 0.8rem; line-height: 1.5; }
-    .footer-col h4 { font-size: 0.65rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: var(--spacing-sm); }
+    .footer-col h3 { font-size: 0.65rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: var(--spacing-sm); }
     .footer-col ul { list-style: none; display: flex; flex-direction: column; gap: 0.4rem; }
     .footer-col ul a { color: var(--text-muted); font-size: 0.78rem; cursor: pointer; transition: color var(--transition-fast); min-height: 44px; display: flex; align-items: center; }
     .footer-col ul a:hover { color: var(--accent); }
@@ -1829,6 +1848,7 @@
     }
     .hero-media img {
       width: 100%;
+      max-height: 56vh;
       aspect-ratio: 16 / 9;
       object-fit: cover;
       object-position: center;
@@ -1843,6 +1863,8 @@
       height: 100%;
       z-index: 2;
       pointer-events: none;
+      /* Match the old preserveAspectRatio="xMidYMid meet" letterboxing */
+      object-fit: contain;
     }
 
 
@@ -2091,6 +2113,27 @@
       white-space: nowrap;
       color: var(--accent);
     }
+    .star-rating .stars-fg.w-0 { width: 0%; }
+    .star-rating .stars-fg.w-5 { width: 5%; }
+    .star-rating .stars-fg.w-10 { width: 10%; }
+    .star-rating .stars-fg.w-15 { width: 15%; }
+    .star-rating .stars-fg.w-20 { width: 20%; }
+    .star-rating .stars-fg.w-25 { width: 25%; }
+    .star-rating .stars-fg.w-30 { width: 30%; }
+    .star-rating .stars-fg.w-35 { width: 35%; }
+    .star-rating .stars-fg.w-40 { width: 40%; }
+    .star-rating .stars-fg.w-45 { width: 45%; }
+    .star-rating .stars-fg.w-50 { width: 50%; }
+    .star-rating .stars-fg.w-55 { width: 55%; }
+    .star-rating .stars-fg.w-60 { width: 60%; }
+    .star-rating .stars-fg.w-65 { width: 65%; }
+    .star-rating .stars-fg.w-70 { width: 70%; }
+    .star-rating .stars-fg.w-75 { width: 75%; }
+    .star-rating .stars-fg.w-80 { width: 80%; }
+    .star-rating .stars-fg.w-85 { width: 85%; }
+    .star-rating .stars-fg.w-90 { width: 90%; }
+    .star-rating .stars-fg.w-95 { width: 95%; }
+    .star-rating .stars-fg.w-100 { width: 100%; }
     /* Rating row on product cards: keeps its line even when a product has no
        reviews yet, so titles, prices and buttons stay on one baseline across
        every card in a row. */
@@ -2264,6 +2307,15 @@
     /* ================================================================
        FOCUS VISIBLE STYLES (accessibility)
        ================================================================ */
+    /* F32 — global safety net: any control that can hold focus gets the shop's
+       standard 2px ring when it matches :focus-visible. Specific rules below
+       (e.g. the white ring on .cat-tile) win on specificity. Pointer modality
+       still suppresses rings via the :root[data-focus-modality="pointer"] rule
+       at the end of this file (!important, deliberate). */
+    :focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
     .btn:focus-visible,
     .size-btn:focus-visible,
     .qty-btn:focus-visible,
@@ -2295,7 +2347,7 @@
        FOOTER SOCIAL + NEWSLETTER
        ================================================================ */
     .footer-social { text-align: center; }
-    .footer-social h4 { text-align: center; }
+    .footer-social h3 { text-align: center; }
     .social-icons {
       display: flex;
       justify-content: center;
@@ -2376,7 +2428,19 @@
       .site-footer { padding-bottom: calc(var(--spacing-md) + env(safe-area-inset-bottom, 0px)); }
       body:has(#page-product.active) .site-footer { padding-bottom: calc(var(--spacing-md) + 70px + env(safe-area-inset-bottom, 0px)); }
     }
-    .footer-newsletter h4 {
+    /* F23 — tiny screens (≤390px, e.g. iPhone SE / older Androids): the float
+       drops to a 48px target with tighter insets so it still meets the 44px
+       minimum without eating the corner. Commerce pages hide it entirely above. */
+    @media (max-width: 390px) {
+      .whatsapp-float {
+        bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+        right: calc(12px + env(safe-area-inset-right, 0px));
+        width: 48px;
+        height: 48px;
+      }
+      .whatsapp-float svg { width: 22px; height: 22px; }
+    }
+    .footer-newsletter h3 {
       font-family: var(--font-display);
       font-size: 1rem;
       letter-spacing: 0.08em;
@@ -2468,16 +2532,6 @@
        that way rather than piling on generic overrides.
        ================================================================ */
     @media (max-width: 540px) {
-      /* Track timeline: 4 labels in a flex row overflow narrow screens;
-         the horizontal connector line breaks anyway once labels wrap. */
-      .track-timeline { flex-direction: column; align-items: flex-start; gap: 1.1rem; }
-      .track-step { flex-direction: row; align-items: center; width: 100%; }
-      .track-step::before {
-        top: auto; left: 10px; width: 2px; height: 100%; min-height: 24px;
-      }
-      .track-step:first-child::before { display: none; }
-      .track-label { font-size: 0.78rem; }
-
       /* Horizontal row-limits so min-height:44px nav buttons can't
          stretch to the header's full height. */
       .nav-links li { min-height: 0; }
@@ -2558,12 +2612,19 @@
       display: block; font-size: 0.68rem; font-weight: 600;
       letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 0.3rem;
     }
-    .co-field input, .co-field textarea {
+    .co-field input, .co-field textarea, .co-field select {
       width: 100%; padding: 0.7rem 0.85rem; border: 1.5px solid var(--border-color);
       border-radius: 10px; font-family: var(--font-body); font-size: 0.9rem;
       transition: border-color var(--transition-fast); resize: vertical;
+      background: var(--bg-primary); color: var(--text-primary);
     }
-    .co-field input:focus, .co-field textarea:focus { outline: none; border-color: var(--accent); }
+    .co-field select { cursor: pointer; appearance: auto; min-height: 46px; }
+    .co-field input:focus, .co-field textarea:focus, .co-field select:focus { outline: none; border-color: var(--accent); }
+    /* F12: per-field validation — the control is marked, the message sits
+       right under it, and the first invalid control receives focus. */
+    .field-error { display: block; color: #991B1B; font-size: 0.78rem; margin-top: 0.3rem; font-weight: 600; }
+    .field-error[hidden] { display: none; }
+    .co-field [aria-invalid="true"] { border-color: #991B1B !important; }
     .co-payment { display: flex; flex-direction: column; gap: 0.6rem; }
     .co-pay-option {
       display: flex; align-items: center; gap: 0.8rem; padding: 0.85rem 1rem;
@@ -2624,7 +2685,8 @@
       outline-offset: 2px;
       border-radius: 2px;
     }
-    .co-safe { font-size: 0.7rem; color: var(--text-gray); margin-top: 0.7rem; text-align: center; }
+    /* Task A: the required phone-confirmation note — visible, readable at 390px. */
+    .co-callnote { font-size: 0.8rem; color: var(--text-primary); margin: 0 0 0.6rem; line-height: 1.5; text-align: left; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 10px; padding: 0.55rem 0.75rem; }
     @media (max-width: 380px) {
       .co-trust-strip { grid-template-columns: 1fr; }
     }
@@ -2892,6 +2954,24 @@
     .track-step.done::before { background: var(--accent); }
     .track-label { font-size: 0.68rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-gray); }
     .track-step.active .track-label, .track-step.done .track-label { color: var(--text-primary); }
+
+    /* Narrow screens: stack the four tracking stages vertically. The
+       connector rails become vertical segments beside the dots (the
+       horizontal rail's left:-50% bled outside the result card here).
+       This block must stay AFTER the base .track-* rules above: same
+       specificity, so source order decides. */
+    @media (max-width: 540px) {
+      .track-timeline { flex-direction: column; align-items: flex-start; gap: 0; }
+      .track-step {
+        flex-direction: row; align-items: center; width: 100%;
+        gap: 0.75rem; padding: 0.55rem 0 0.55rem 0;
+      }
+      .track-step::before {
+        top: auto; bottom: 50%; left: 11px; width: 2px; height: 100%;
+      }
+      .track-step:first-child::before { display: none; }
+      .track-label { font-size: 0.78rem; }
+    }
     .track-details { display: flex; flex-direction: column; gap: 0.4rem; font-size: 0.82rem; margin-bottom: var(--spacing-md); }
     .track-details div { display: flex; justify-content: space-between; }
     .track-details span:first-child { color: var(--text-gray); }
@@ -3268,6 +3348,7 @@
       #page-home #sectionVibes,
       #page-home #sectionWhy,
       #page-home #sectionBestSellers,
+      #page-home #sectionHomeReviews,
       #page-home #sectionRecentlyViewed { margin-top: -72px; }
       /* The trust-section hairline moves down to the boundary (72px into its box). */
       #page-home #sectionWhy {
@@ -3315,7 +3396,7 @@
       #page-home .why-grid {
         gap: 40px;
       }
-      #page-home .why-item h4 {
+      #page-home .why-item h3 {
         font-size: 0.9rem;
         letter-spacing: 0.1em;
         color: var(--text-primary);
@@ -3403,7 +3484,7 @@
         line-height: 1.4;
         max-width: none;
       }
-      #page-home .why-item h4 {
+      #page-home .why-item h3 {
         font-size: 13px;
       }
       #page-home .bestsellers-head { margin-bottom: 4px; }
@@ -3423,6 +3504,7 @@
       #page-home .category-band { position: relative; z-index: 1; }
       #page-home #sectionVibes,
       #page-home #sectionWhy,
+      #page-home #sectionHomeReviews,
       #page-home #sectionRecentlyViewed { margin-top: -48px; }
       /* Best Sellers keeps its own 48px padding-top, so dropping the overlap
          leaves a clear 48px between the trust badges and MOST POPULAR. */
@@ -3688,6 +3770,7 @@
     .newsletter-form input:focus-visible,
     .co-field input:focus-visible,
     .co-field textarea:focus-visible,
+    .co-field select:focus-visible,
     .notify-form input[type=email]:focus-visible,
     .review-form input:focus-visible,
     .review-form textarea:focus-visible,
@@ -3701,3 +3784,173 @@
     :root[data-focus-modality="pointer"] :focus,
     :root[data-focus-modality="pointer"] :focus-within { outline: none !important; }
   
+/* F1: server-rendered summary/list shown before the SPA boots (and to
+   non-JS crawlers). The bundle removes #ssrContent right after hydration. */
+.ssr-content {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: calc(var(--spacing-md, 1rem) * 2) var(--spacing-md, 1rem);
+  color: var(--text-primary);
+  font-family: var(--font-body, inherit);
+}
+.ssr-content .ssr-eyebrow {
+  font-size: 0.72rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin: 0 0 0.35rem;
+}
+.ssr-content .ssr-title,
+.ssr-content .ssr-collection-title {
+  font-family: var(--font-display, inherit);
+  font-size: clamp(1.6rem, 4.5vw, 2.25rem);
+  line-height: 1.15;
+  margin: 0 0 0.6rem;
+  color: var(--text-primary);
+}
+.ssr-content .ssr-price {
+  font-size: 1.15rem;
+  font-weight: 700;
+  margin: 0 0 0.75rem;
+}
+.ssr-content .ssr-price s {
+  color: var(--text-muted);
+  font-weight: 400;
+  margin-left: 0.4rem;
+}
+.ssr-content .ssr-description {
+  color: var(--text-muted);
+  line-height: 1.6;
+  margin: 0 0 0.75rem;
+  white-space: pre-line;
+}
+.ssr-content .ssr-availability {
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin: 0 0 0.75rem;
+}
+.ssr-content .ssr-link {
+  color: var(--text-primary);
+  text-decoration: underline;
+}
+.ssr-content .ssr-product-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  columns: 1;
+}
+.ssr-content .ssr-product-list li {
+  border-bottom: 1px solid var(--border-color);
+  padding: 0.55rem 0;
+}
+.ssr-content .ssr-product-list a {
+  color: var(--text-primary);
+  text-decoration: underline;
+}
+@media (min-width: 720px) {
+  .ssr-content .ssr-product-list { columns: 2; column-gap: 2rem; }
+}
+
+/* F31: classes that replaced inline style attributes (CSP style-src 'self') */
+.is-hidden { display: none; } /* JS toggles el.style.display, which outranks this class */
+.catalog-error { padding: 1rem 2rem; background: #FFF1EE; color: #75251C; text-align: center; }
+.form-note-accent { display: none; margin-top: 0.8rem; font-size: 0.85rem; color: var(--accent); }
+.mt-16 { margin-top: 1rem; }
+.mt-10 { margin-top: 0.6rem; }
+.mt-sm2 { margin-top: var(--spacing-sm); }
+.mb-md { margin-bottom: var(--spacing-md); }
+.link-accent { color: var(--accent); }
+.link-accent-pointer { color: var(--accent); cursor: pointer; }
+.link-accent-sm { color: var(--accent); cursor: pointer; font-size: 0.85rem; }
+.text-strong { color: var(--text-primary); }
+.list-plain { list-style: none; padding: 0; }
+.list-plain-2col { list-style: none; padding: 0; columns: 2; }
+.list-indent { padding-left: 1.2rem; }
+.policy-item { padding: 0.3rem 0; }
+.field-label-caps { font-size: 0.7rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; display: block; margin-bottom: 0.4rem; }
+.field-hint { font-size: 0.7rem; color: var(--text-gray); margin-top: 0.3rem; }
+.hint-block-sm { font-size: 0.75rem; margin-top: 0.3rem; display: block; }
+.flex-row-gap-sm { display: flex; align-items: center; gap: 0.6rem; }
+.qty-value { font-weight: 600; font-size: 1rem; min-width: 24px; text-align: center; }
+.text-muted-block { text-align: center; padding: 1rem; color: var(--text-muted); font-size: 0.82rem; }
+.text-center-fineprint { text-align: center; margin-top: 0.5rem; font-size: 0.72rem; }
+.text-center-mb-xs { text-align: center; margin-bottom: 0.3rem; }
+.text-center-mb-sm { text-align: center; margin-bottom: 0.6rem; }
+.footer-clip { position: relative; overflow: hidden; }
+.footer-wordmark { font-family: Georgia, 'Times New Roman', serif; font-size: 1.8rem; font-weight: 900; color: var(--accent); }
+/* F31: classes for markup storefront.js builds (style-src 'self') */
+.no-results-note { font-size: 0.8rem; margin-top: 0.5rem; color: var(--text-gray); }
+.no-results-action { margin-top: 1rem; }
+.no-image-cell { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; color: var(--text-dim); font-size: 0.8rem; }
+.reset-filters-btn { width: 100%; margin-top: 0.25rem; }
+.text-gray-sm { font-size: 0.85rem; color: var(--text-gray); }
+.mt-4px { margin-top: 0.4rem; }
+.wishlist-item-actions { display: flex; flex-direction: column; gap: 0.3rem; }
+.wishlist-item-actions-end { display: flex; flex-direction: column; align-items: flex-end; gap: 0.3rem; }
+.btn-xxs { font-size: 0.7rem; }
+.wishlist-remove-btn { background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 0.7rem; min-height: 36px; }
+.link-accent-underline { color: var(--accent); font-weight: 700; text-decoration: underline; }
+/* Newsletter unsubscribe link — matches the surrounding msg text style */
+.auth-link-muted { display: block; margin-top: 0.4rem; font-size: 0.7rem; color: var(--text-muted); }
+
+    /* ================================================================
+       WHAT CUSTOMERS SAY — home strip of up to three approved reviews
+       (F34). The section itself stays .is-hidden until real data loads.
+       ================================================================ */
+    .home-reviews-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 20px;
+      margin-top: 24px;
+    }
+    .home-review-card {
+      display: flex;
+      flex-direction: column;
+      gap: 0.6rem;
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 1rem 1.1rem;
+      margin: 0;
+    }
+    .home-review-stars .star-rating { font-size: 0.9rem; margin: 0; }
+    .home-review-text {
+      margin: 0;
+      font-size: 0.92rem;
+      line-height: 1.6;
+      color: var(--text-primary);
+    }
+    /* Decorative quote mark — the comment text itself is esc()'d on injection */
+    .home-review-text::before {
+      content: '“';
+      color: var(--accent);
+      font-family: Georgia, 'Times New Roman', serif;
+      font-size: 1.4em;
+      line-height: 0;
+      vertical-align: -0.1em;
+      margin-right: 0.15em;
+    }
+    .home-review-meta {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      margin-top: auto;
+      padding-top: 0.4rem;
+    }
+    .home-review-name { font-weight: 700; font-size: 0.85rem; color: var(--text-primary); }
+    .home-review-product {
+      align-self: flex-start;
+      background: none;
+      border: none;
+      padding: 0;
+      font-size: 0.75rem;
+      color: var(--accent);
+      cursor: pointer;
+      text-align: left;
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+    .home-review-product:hover { text-underline-offset: 3px; }
+    @media (max-width: 640px) {
+      .home-reviews-grid { grid-template-columns: 1fr; }
+    }

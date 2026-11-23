@@ -696,7 +696,9 @@ const ADDITIVE_COLUMN_MIGRATIONS = [
   // newsletter_subscribers: one-click unsubscribe (token backfilled by a
   // one-time bootstrap step in server.js, not here).
   ['newsletter_subscribers', 'unsubscribed', 'INTEGER NOT NULL DEFAULT 0'],
-  ['newsletter_subscribers', 'unsubscribe_token', 'TEXT']
+  ['newsletter_subscribers', 'unsubscribe_token', 'TEXT'],
+  // products: F7 WebP variant map {url: {400: u, 800: u, 1200: u}}.
+  ['products', 'image_variants', "TEXT DEFAULT '{}'"]
 ];
 
 function isDuplicateColumnError(error) {

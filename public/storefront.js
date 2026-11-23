@@ -23,59 +23,12 @@
     
 // ---- main storefront script (was the end-of-body inline block) ----
 
-    let allProducts = [
-      { id:1, name:'Shadow Fit', price:1499, fit:'Compression', collection:'compression', style:'Japanese Art', rating:4.6,
-        desc:'4-way stretch muscle-fit compression shirt. Second-skin feel with maximum mobility.',
-        sizes:['S','M','L','XL','XXL'],
-        images:['data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 300 400%22%3E%3Crect fill=%22%23C4BEB0%22 width=%22300%22 height=%22400%22/%3E%3Ctext x=%22150%22 y=%22200%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2224%22%3E%E2%86%91%3C/text%3E%3Ctext x=%22150%22 y=%22220%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2210%22%3EShadow Fit%3C/text%3E%3C/svg%3E',
-        'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 300 400%22%3E%3Crect fill=%22%23C4BEB0%22 width=%22300%22 height=%22400%22/%3E%3Ctext x=%22150%22 y=%22200%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2224%22%3E%E2%86%93%3C/text%3E%3Ctext x=%22150%22 y=%22220%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2210%22%3EShadow Back%3C/text%3E%3C/svg%3E'] },
-      { id:2, name:'Oni Muscle Tee', price:1599, fit:'Compression', collection:'compression', style:'Anime-Inspired', rating:4.8, variants:[{label:'Black',price:1599},{label:'White',price:1699}],
-        desc:'Sleeveless compression with bold contrast panels. For those who train until the mask drops.',
-        sizes:['S','M','L','XL','XXL'],
-        images:['data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 300 400%22%3E%3Crect fill=%22%23C4BEB0%22 width=%22300%22 height=%22400%22/%3E%3Ctext x=%22150%22 y=%22200%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2224%22%3E%E2%86%91%3C/text%3E%3Ctext x=%22150%22 y=%22220%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2210%22%3EOni Front%3C/text%3E%3C/svg%3E',
-        'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 300 400%22%3E%3Crect fill=%22%23C4BEB0%22 width=%22300%22 height=%22400%22/%3E%3Ctext x=%22150%22 y=%22200%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2224%22%3E%E2%86%93%3C/text%3E%3Ctext x=%22150%22 y=%22220%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2210%22%3EOni Back%3C/text%3E%3C/svg%3E',
-        'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 300 400%22%3E%3Crect fill=%22%23C4BEB0%22 width=%22300%22 height=%22400%22/%3E%3Ctext x=%22150%22 y=%22200%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2224%22%3E%E2%96%B2%3C/text%3E%3Ctext x=%22150%22 y=%22220%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2210%22%3ESide%3C/text%3E%3C/svg%3E'] },
-      { id:3, name:'Kage Core Compression', price:1399, fit:'Compression', collection:'compression', style:'Typography', rating:4.4,
-        desc:'Core compression layer — seamless, breathable, built for combat-level intensity.',
-        sizes:['S','M','L','XL','XXL'],
-        images:['data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 300 400%22%3E%3Crect fill=%22%23C4BEB0%22 width=%22300%22 height=%22400%22/%3E%3Ctext x=%22150%22 y=%22200%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2224%22%3E%E2%86%91%3C/text%3E%3Ctext x=%22150%22 y=%22220%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2210%22%3ECore%3C/text%3E%3C/svg%3E',
-        'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 300 400%22%3E%3Crect fill=%22%23C4BEB0%22 width=%22300%22 height=%22400%22/%3E%3Ctext x=%22150%22 y=%22200%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2224%22%3E%E2%86%93%3C/text%3E%3Ctext x=%22150%22 y=%22220%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2210%22%3ECore Back%3C/text%3E%3C/svg%3E'] },
-      { id:4, name:'Rising Vermillion', price:999, fit:'Regular', collection:'graphic-tees', style:'Japanese Art', rating:4.7, on_sale:true, sale_price:799,
-        desc:'Heavyweight 220GSM cotton tee. A gradient sky turned crimson.',
-        sizes:['S','M','L','XL','XXL'],
-        images:['data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 300 400%22%3E%3Crect fill=%22%23C4BEB0%22 width=%22300%22 height=%22400%22/%3E%3Ctext x=%22150%22 y=%22200%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2224%22%3E%E2%86%91%3C/text%3E%3Ctext x=%22150%22 y=%22220%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2210%22%3EVermillion%3C/text%3E%3C/svg%3E',
-        'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 300 400%22%3E%3Crect fill=%22%23C4BEB0%22 width=%22300%22 height=%22400%22/%3E%3Ctext x=%22150%22 y=%22200%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2224%22%3E%E2%86%93%3C/text%3E%3Ctext x=%22150%22 y=%22220%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2210%22%3EBack%3C/text%3E%3C/svg%3E'] },
-      { id:5, name:'Blade Wolf', price:1149, fit:'Regular', collection:'graphic-tees', style:'Anime-Inspired', rating:4.9, variants:[{label:'Black',price:1149},{label:'Crimson',price:1199}],
-        desc:'Silver ink on black — a lone wolf under a crescent moon.',
-        sizes:['S','M','L','XL','XXL'],
-        images:['data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 300 400%22%3E%3Crect fill=%22%23C4BEB0%22 width=%22300%22 height=%22400%22/%3E%3Ctext x=%22150%22 y=%22200%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2224%22%3E%E2%86%91%3C/text%3E%3Ctext x=%22150%22 y=%22220%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2210%22%3EBlade Wolf%3C/text%3E%3C/svg%3E',
-        'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 300 400%22%3E%3Crect fill=%22%23C4BEB0%22 width=%22300%22 height=%22400%22/%3E%3Ctext x=%22150%22 y=%22200%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2224%22%3E%E2%86%93%3C/text%3E%3Ctext x=%22150%22 y=%22220%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2210%22%3EWolf Back%3C/text%3E%3C/svg%3E'] },
-      { id:6, name:'Neon Fangs', price:1049, fit:'Regular', collection:'graphic-tees', style:'Anime-Inspired', rating:4.3,
-        desc:'Electric strike — neon clash across heavyweight cotton.',
-        sizes:['S','M','L','XL','XXL'],
-        images:['data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 300 400%22%3E%3Crect fill=%22%23C4BEB0%22 width=%22300%22 height=%22400%22/%3E%3Ctext x=%22150%22 y=%22200%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2224%22%3E%E2%86%91%3C/text%3E%3Ctext x=%22150%22 y=%22220%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2210%22%3ENeon%3C/text%3E%3C/svg%3E',
-        'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 300 400%22%3E%3Crect fill=%22%23C4BEB0%22 width=%22300%22 height=%22400%22/%3E%3Ctext x=%22150%22 y=%22200%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2224%22%3E%E2%86%93%3C/text%3E%3Ctext x=%22150%22 y=%22220%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2210%22%3EFangs Back%3C/text%3E%3C/svg%3E'] },
-      { id:7, name:'Shinobi Mark', price:999, fit:'Regular', collection:'graphic-tees', style:'Japanese Art', rating:4.5,
-        desc:'Minimalist shinobi crest. High-contrast placement on premium 220GSM cotton.',
-        sizes:['S','M','L','XL','XXL'],
-        images:['data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 300 400%22%3E%3Crect fill=%22%23C4BEB0%22 width=%22300%22 height=%22400%22/%3E%3Ctext x=%22150%22 y=%22200%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2224%22%3E%E2%86%91%3C/text%3E%3Ctext x=%22150%22 y=%22220%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2210%22%3EShinobi%3C/text%3E%3C/svg%3E',
-        'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 300 400%22%3E%3Crect fill=%22%23C4BEB0%22 width=%22300%22 height=%22400%22/%3E%3Ctext x=%22150%22 y=%22200%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2224%22%3E%E2%86%93%3C/text%3E%3Ctext x=%22150%22 y=%22220%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2210%22%3EShinobi Back%3C/text%3E%3C/svg%3E'] },
-      { id:8, name:'Drift Oversized', price:1199, fit:'Oversized', collection:'oversized', style:'Typography', rating:4.2, variants:[{label:'Black',price:1199},{label:'Ash',price:1249}],
-        desc:'Drop-shoulder, relaxed fit — heavyweight cotton.',
-        sizes:['S','M','L','XL','XXL'],
-        images:['data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 300 400%22%3E%3Crect fill=%22%23C4BEB0%22 width=%22300%22 height=%22400%22/%3E%3Ctext x=%22150%22 y=%22200%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2224%22%3E%E2%86%91%3C/text%3E%3Ctext x=%22150%22 y=%22220%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2210%22%3EDrift%3C/text%3E%3C/svg%3E',
-        'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 300 400%22%3E%3Crect fill=%22%23C4BEB0%22 width=%22300%22 height=%22400%22/%3E%3Ctext x=%22150%22 y=%22200%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2224%22%3E%E2%86%93%3C/text%3E%3Ctext x=%22150%22 y=%22220%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2210%22%3EDrift Back%3C/text%3E%3C/svg%3E'] },
-      { id:9, name:'Wrath Silhouette', price:1249, fit:'Oversized', collection:'oversized', style:'Anime-Inspired', rating:4.7, on_sale:true, sale_price:1099,
-        desc:'Boxy, cropped oversized fit. Built for those who take up space.',
-        sizes:['S','M','L','XL','XXL'],
-        images:['data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 300 400%22%3E%3Crect fill=%22%23C4BEB0%22 width=%22300%22 height=%22400%22/%3E%3Ctext x=%22150%22 y=%22200%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2224%22%3E%E2%86%91%3C/text%3E%3Ctext x=%22150%22 y=%22220%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2210%22%3EWrath%3C/text%3E%3C/svg%3E',
-        'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 300 400%22%3E%3Crect fill=%22%23C4BEB0%22 width=%22300%22 height=%22400%22/%3E%3Ctext x=%22150%22 y=%22200%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2224%22%3E%E2%86%93%3C/text%3E%3Ctext x=%22150%22 y=%22220%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2210%22%3EWrath Back%3C/text%3E%3C/svg%3E'] },
-      { id:10, name:'Hollow Gaze', price:1149, fit:'Oversized', collection:'oversized', style:'Japanese Art', rating:4.6,
-        desc:'Extended drop-shoulder with raw hem. Unsettling and calm.',
-        sizes:['S','M','L','XL','XXL'],
-        images:['data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 300 400%22%3E%3Crect fill=%22%23C4BEB0%22 width=%22300%22 height=%22400%22/%3E%3Ctext x=%22150%22 y=%22200%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2224%22%3E%E2%86%91%3C/text%3E%3Ctext x=%22150%22 y=%22220%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2210%22%3EHollow%3C/text%3E%3C/svg%3E',
-        'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 300 400%22%3E%3Crect fill=%22%23C4BEB0%22 width=%22300%22 height=%22400%22/%3E%3Ctext x=%22150%22 y=%22200%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2224%22%3E%E2%86%93%3C/text%3E%3Ctext x=%22150%22 y=%22220%22 text-anchor=%22middle%22 fill=%22%237A7468%22 font-family=%22sans-serif%22 font-size=%2210%22%3EHollow Back%3C/text%3E%3C/svg%3E'] }
-    ];
+    // The catalog arrives from the server: page 1 is inlined in the HTML shell
+    // (#kageCatalogSeed) so the grid paints without waiting, and the rest loads
+    // via /api/products?page=N (see loadRemainingCatalogPages). The old bundled
+    // demo catalogue and its data-URI art were removed in Phase 3 — no product
+    // ships in the JS bundle any more.
+    let allProducts = [];
 
     let cart = [];
     let shopStateReady = false;
@@ -114,8 +67,15 @@
     let detailSize = 'L';
     let detailAngle = 0;
     let currentCollectionFilter = 'all';
-    let currentPage = 1;
-    const perPage = 8;
+    // Server-side pagination state (F21). The grid reveals GRID_PAGE more
+    // cards per "Load more" click; when the loaded set is exhausted but the
+    // server still has pages, the next page is fetched first.
+    const GRID_PAGE = 8;
+    let visibleCount = GRID_PAGE;
+    let catalogNextPage = 2;        // next page of /api/products to append
+    let catalogTotal = 0;           // full catalog size, from the seed/envelope
+    let catalogExhausted = false;   // every page is loaded into allProducts
+    let catalogLoadPromise = null;  // memoized sequential page loader
 
     // The shop grid (#shopSection) replaces the marketing homepage while a
     // collection is open or a search is active. `shopCollectionMode` is set by
@@ -226,7 +186,8 @@
 
     function starsOnlyHtml(r) {
       const pct = Math.max(0, Math.min(5, r || 0)) / 5 * 100;
-      return `<span class="star-rating" title="${(r || 0).toFixed(1)} / 5"><span class="stars-bg">★★★★★</span><span class="stars-fg" style="width:${pct}%">★★★★★</span></span>`;
+      const bucket = Math.round(pct / 5) * 5;
+      return `<span class="star-rating" title="${(r || 0).toFixed(1)} / 5"><span class="stars-bg">★★★★★</span><span class="stars-fg w-${bucket}">★★★★★</span></span>`;
     }
 
     function starsHtml(r, count) {
@@ -284,7 +245,30 @@
     // D1 (CONV-1): published delivery band — the exact fee depends on the
     // city and is confirmed by phone before dispatch, but the customer
     // always sees the bounded range up front instead of "to be confirmed".
-    const DELIVERY_FEE_BAND = 'Rs. 250 – Rs. 450';
+    // Published band (D1) — per-city fees live in config.DELIVERY_FEES on the
+    // server (F3); the customer-facing contract stays the band + phone call.
+    const DELIVERY_FEE_BAND = 'Rs. 250 – Rs. 500';
+    // Pakistani mobile numbers: 03XXXXXXXXX, +923XXXXXXXXX or 923XXXXXXXXX
+    // (spaces and dashes allowed in the input, stripped before checking).
+    const isValidPkMobile = (value) => /^(\+92|92|0)3\d{9}$/.test(String(value || '').replace(/[\s-]/g, ''));
+    // F8: the same capitalised titles the server renders for the static pages.
+    const STATIC_PAGE_TITLES = {
+      'about': 'About | KAGE CULTURE',
+      'contact': 'Contact | KAGE CULTURE',
+      'shipping': 'Shipping & Delivery | KAGE CULTURE',
+      'returns': 'Returns & Refunds | KAGE CULTURE',
+      'privacy': 'Privacy Policy | KAGE CULTURE',
+      'terms': 'Terms of Service | KAGE CULTURE',
+      'custom-stickers': 'Custom Stickers | KAGE CULTURE',
+      'tracking': 'Track Your Order | KAGE CULTURE',
+      'checkout': 'Checkout | KAGE CULTURE',
+      'confirmation': 'Order Confirmed | KAGE CULTURE',
+      'account': 'My Account | KAGE CULTURE',
+      'reset-password': 'Reset Your Password | KAGE CULTURE',
+      'verify-email': 'Verify Your Email | KAGE CULTURE',
+      'coming-soon': 'Coming Soon | KAGE CULTURE'
+    };
+    const titleCaseFallback = (slug) => String(slug || '').replace(/-/g, ' ').trim().replace(/\b\w/g, (c) => c.toUpperCase());
     // Mirrors config.js / admin CATEGORY_OPTIONS for test inspection.
     const CATEGORY_OPTIONS = [
       { value: 'graphic-tees', label: 'Graphic Tees' },
@@ -411,11 +395,25 @@
             history.replaceState(null, '', '/collection/all');
             navigateTo('collection', 'all');
           }
+        } else if (path === '/checkout') {
+          // Deep link straight into checkout (boot or back/forward). With a
+          // cart, render it — the checkout page already disables Place Order
+          // for unavailable lines. Without a cart there is nothing to check
+          // out, so land on the home page with the (empty) cart drawer open
+          // instead of the "Page not found" dead end.
+          if (cart.length) navigateTo('checkout');
+          else {
+            history.replaceState(null, '', '/');
+            navigateTo('home', null, { skipHistory: true });
+            toggleCart(true);
+          }
         } else if (path === '/confirmation') {
           if (lastOrder) navigateTo('confirmation');
           else {
-            history.replaceState(null, '', '/tracking');
-            navigateTo('tracking', null, { skipHistory: true });
+            // No order exists in this browser session — the confirmation page
+            // has nothing to show, so land on the home page.
+            history.replaceState(null, '', '/');
+            navigateTo('home', null, { skipHistory: true });
           }
         } else if (path === '/reset-password') { navigateTo('reset'); initPasswordReset(); }
         else if (path === '/verify-email') { navigateTo('verify'); initEmailVerification(); }
@@ -443,7 +441,7 @@
     // shell <head> — the SEO-4 regression test enforces parity on a '/' boot.
     const HOME_SOCIAL_META = {
       title: 'KAGE CULTURE \u2014 Engineered Fit. Original Art.',
-      description: 'KAGE Culture \u2014 Premium streetwear. Anime inspired. Built for everyday. Shop oversized tees, graphic tees, and compression gear.',
+      description: 'KAGE Culture \u2014 Premium streetwear. Anime inspired. Built for everyday. Shop oversized tees and graphic tees.',
       imageAlt: 'KAGE Culture campaign: a model in a white oversized tee printed with EVERYONE, mid-kick in front of a light wall covered in graffiti lettering',
       type: 'website'
     };
@@ -573,7 +571,7 @@
           : (CATEGORY_NAMES[filter] || String(filter || '').replace(/-/g, ' '));
       document.title = isCollectionRoute ? `${collectionTitleName} | KAGE CULTURE`
         : target === 'home' ? 'KAGE CULTURE — Engineered Fit. Original Art.'
-          : ((target === 'product' && currentProduct) ? `${String(currentProduct.name || '').replace(/\s+/g, ' ').trim()} | KAGE CULTURE` : target.replace(/-/g, ' ') + ' | KAGE CULTURE');
+          : ((target === 'product' && currentProduct) ? `${String(currentProduct.name || '').replace(/\s+/g, ' ').trim()} | KAGE CULTURE` : (STATIC_PAGE_TITLES[target] || titleCaseFallback(target) + ' | KAGE CULTURE'));
       syncSocialMetaForRoute(page, filter, target);
       window.scrollTo({ top: 0 });
       closeFilterDrawer();
@@ -649,12 +647,56 @@
       const phoneEl = document.getElementById('coPhone');
       const addrEl = document.getElementById('coAddress');
       const cityEl = document.getElementById('coCity');
+      const otherCityEl = document.getElementById('coCityOther');
       if (nameEl && !nameEl.value && currentCustomer.name) nameEl.value = currentCustomer.name;
       if (emailEl && !emailEl.value && currentCustomer.email) emailEl.value = currentCustomer.email;
       if (phoneEl && !phoneEl.value && currentCustomer.phone) phoneEl.value = currentCustomer.phone;
       if (addrEl && !addrEl.value && currentCustomer.address) addrEl.value = currentCustomer.address;
-      if (cityEl && !cityEl.value && currentCustomer.city) cityEl.value = currentCustomer.city;
+      if (cityEl && currentCustomer.city) {
+        const match = [...cityEl.options].find(o => o.value && o.value !== '__other__' && o.value.toLowerCase() === String(currentCustomer.city).trim().toLowerCase());
+        if (match) cityEl.value = match.value;
+        else { cityEl.value = '__other__'; if (otherCityEl) otherCityEl.value = currentCustomer.city; }
+        syncOtherCityVisibility();
+      }
     }
+
+    // ---------- F12: per-field checkout validation ----------
+    const CO_FIELD_IDS = ['coName', 'coEmail', 'coPhone', 'coAddress', 'coCity', 'coCityOther'];
+    function fieldErrorEl(id) { return document.getElementById('err-' + id); }
+    function setFieldError(id, message) {
+      const el = document.getElementById(id);
+      const err = fieldErrorEl(id);
+      if (!el || !err) return;
+      if (message) { err.textContent = message; err.hidden = false; el.setAttribute('aria-invalid', 'true'); }
+      else { err.textContent = ''; err.hidden = true; el.removeAttribute('aria-invalid'); }
+    }
+    function clearFieldErrors() { CO_FIELD_IDS.forEach(id => setFieldError(id, '')); }
+    function coCitySelectValue() {
+      const sel = document.getElementById('coCity');
+      return sel ? sel.value : '';
+    }
+    function checkoutCityValue() {
+      if (coCitySelectValue() === '__other__') {
+        const other = document.getElementById('coCityOther');
+        return other ? other.value.trim() : '';
+      }
+      return coCitySelectValue();
+    }
+    function syncOtherCityVisibility() {
+      const wrap = document.getElementById('coCityOtherWrap');
+      if (!wrap) return;
+      wrap.hidden = coCitySelectValue() !== '__other__';
+      if (wrap.hidden) setFieldError('coCityOther', '');
+    }
+    // Typing in any checkout field clears its inline error immediately.
+    CO_FIELD_IDS.forEach(id => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.addEventListener('input', () => setFieldError(id, ''));
+      el.addEventListener('change', () => setFieldError(id, ''));
+    });
+    const citySel = document.getElementById('coCity');
+    if (citySel) citySel.addEventListener('change', syncOtherCityVisibility);
 
     function renderCheckout() {
       const wrap = document.getElementById('coItems');
@@ -663,13 +705,13 @@
         const unavailable = cartItemUnavailable(item);
         const t = item.price * item.qty; sub += t;
         return `<div class="co-item">
-          <div class="co-item-img"><img src="${esc(item.images && item.images[0] ? item.images[0] : '')}" alt="${esc(item.name)}" width="52" height="60" sizes="52px" loading="lazy" decoding="async" /></div>
+          <div class="co-item-img"><img src="${esc(item.images && item.images[0] ? item.images[0] : '')}" alt="${esc(item.name)}" width="52" height="60"${srcsetAttr((item.images && item.images[0]) || '')} sizes="52px" loading="lazy" decoding="async" /></div>
           <div class="co-item-info"><div class="co-item-name">${esc(item.name)}</div><div class="co-item-meta">Size ${esc(item.size)} · Qty ${item.qty}${unavailable ? ' · Unavailable' : ''}</div></div>
           <div class="co-item-price">Rs. ${t}</div>
         </div>`;
       }).join('');
       document.getElementById('coSubtotal').textContent = 'Rs. ' + fmt(sub);
-      document.getElementById('coShipping').textContent = DELIVERY_FEE_BAND;
+      document.getElementById('coShipping').textContent = DELIVERY_FEE_BAND + ' (confirmed by phone)';
       document.getElementById('coTotal').textContent = 'Rs. ' + fmt(sub);
       document.getElementById('coPlaceBtn').disabled = !cart.length || cartHasUnavailableItems();
     }
@@ -678,6 +720,7 @@
     async function placeOrder() {
       const errEl = document.getElementById('checkoutError');
       errEl.style.display = 'none';
+      clearFieldErrors();
       if (!productsLoadedFromApi) { errEl.textContent = 'Shop temporarily unavailable. Please retry loading products.'; errEl.style.display = 'block'; return; }
       if (!cart.length || cartHasUnavailableItems()) {
         errEl.textContent = 'Some items are unavailable. Remove them before checkout.';
@@ -689,18 +732,28 @@
         email: document.getElementById('coEmail').value.trim(),
         phone: document.getElementById('coPhone').value.trim(),
         address: document.getElementById('coAddress').value.trim(),
-        city: document.getElementById('coCity').value.trim(),
+        city: checkoutCityValue(),
         notes: document.getElementById('coNotes').value.trim(),
         payment_method: 'cod'
       };
-      if (!f.name || !f.email || !f.phone || !f.address || !f.city) {
-        errEl.textContent = 'Please fill in all required fields (name, email, phone, address, city).';
+      // F12: every invalid field is marked inline, and the first one takes
+      // focus — no more hunting for which of six fields the banner meant.
+      const problems = [];
+      if (!f.name) problems.push(['coName', 'Please enter your full name.']);
+      if (!f.email) problems.push(['coEmail', 'Please enter your email address.']);
+      else if (!/^\S+@\S+\.\S+$/.test(f.email)) problems.push(['coEmail', 'Please enter a valid email address.']);
+      if (!f.phone) problems.push(['coPhone', 'Please enter your phone number.']);
+      else if (!isValidPkMobile(f.phone)) problems.push(['coPhone', 'Enter a valid mobile number, e.g. 0300 1234567.']);
+      if (!f.address) problems.push(['coAddress', 'Please enter your delivery address.']);
+      if (coCitySelectValue() === '') problems.push(['coCity', 'Select your city, or choose Other and type it in.']);
+      else if (coCitySelectValue() === '__other__' && !f.city) problems.push(['coCityOther', 'Please type your city.']);
+      if (problems.length) {
+        for (const [id, message] of problems) setFieldError(id, message);
+        errEl.textContent = 'Please fix the highlighted field' + (problems.length > 1 ? 's' : '') + ' and try again.';
         errEl.style.display = 'block';
-        return;
-      }
-      if (!/^\S+@\S+\.\S+$/.test(f.email)) {
-        errEl.textContent = 'Please enter a valid email address.';
-        errEl.style.display = 'block';
+        const firstInvalid = document.getElementById(problems[0][0]);
+        if (firstInvalid && firstInvalid.focus) firstInvalid.focus();
+        if (firstInvalid && firstInvalid.scrollIntoView) firstInvalid.scrollIntoView({ block: 'center' });
         return;
       }
       const btn = document.getElementById('coPlaceBtn');
@@ -718,13 +771,26 @@
           cart = [];
           updateCartUI();
           navigateTo('confirmation');
+          // F15 (D2): anonymous purchase event for the Umami Cloud dashboard.
+          // Value + currency only — no order number, no PII. No-ops when the
+          // owner has not set UMAMI_WEBSITE_ID (window.umami is undefined).
+          if (typeof window !== 'undefined' && window.umami && typeof window.umami.track === 'function') {
+            window.umami.track('purchase', { value: Math.round(Number(data.total) || 0), currency: 'PKR' });
+          }
           announce('Order ' + (data.order_number || '') + ' placed. Thank you for shopping with KAGE Culture.');
         } else {
-          errEl.textContent = data.error || 'Could not place the order. Please try again.';
+          const serverError = data.error || 'Could not place the order. Please try again.';
+          errEl.textContent = serverError;
           errEl.style.display = 'block';
+          const mappedField = /mobile number/i.test(serverError) ? 'coPhone'
+            : /email/i.test(serverError) ? 'coEmail'
+              : /city/i.test(serverError) ? 'coCity' : null;
+          if (mappedField) setFieldError(mappedField, serverError);
         }
       } catch (err) {
-        errEl.textContent = 'Connection error. Make sure the server is running.';
+        // F12: COD on Pakistani mobile networks — when the API is
+        // unreachable the quickest path is WhatsApp, not a prettier error.
+        errEl.textContent = 'Connection problem — check your network and try again, or WhatsApp us at +92 322 804 2633 and we will place the order for you.';
         errEl.style.display = 'block';
       }
       btn.disabled = !cart.length || cartHasUnavailableItems();
@@ -739,7 +805,7 @@
       const payLabel = order.payment_method === 'bank' ? 'Bank Transfer' : order.payment_method === 'jazzcash' ? 'JazzCash' : 'Cash on Delivery';
       document.getElementById('confPayment').textContent = order.payment_ref ? `${payLabel} (Ref: ${order.payment_ref})` : payLabel;
       document.getElementById('confAddress').textContent = order.address + ', ' + order.city;
-      document.getElementById('confShipping').textContent = order.shipping_pending ? DELIVERY_FEE_BAND : 'Rs. ' + fmt(order.shipping);
+      document.getElementById('confShipping').textContent = order.shipping_pending ? DELIVERY_FEE_BAND + ' (confirmed by phone)' : 'Rs. ' + fmt(order.shipping);
       document.getElementById('confTotal').textContent = 'Rs. ' + fmt(order.total);
       document.getElementById('confItems').innerHTML = (order.items || []).map(it => `
         <div class="conf-item">
@@ -752,7 +818,7 @@
 
     function initShop(filter, opts = {}) {
       currentCollectionFilter = filter || 'all';
-      currentPage = 1;
+      visibleCount = GRID_PAGE;
       // Only a collection route (or an active search) surfaces the grid — the
       // plain homepage keeps it hidden.
       shopCollectionMode = opts.collection === true;
@@ -818,32 +884,37 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       const filtered = getFilteredProducts();
       const grid = document.getElementById('collectionGrid');
       const total = filtered.length;
-      const totalPages = Math.max(1, Math.ceil(total / perPage));
-      currentPage = Math.min(currentPage, totalPages);
-      const start = (currentPage - 1) * perPage;
-      const pageItems = filtered.slice(start, start + perPage);
+      visibleCount = Math.max(GRID_PAGE, Math.min(visibleCount, Math.max(total, GRID_PAGE)));
+      const pageItems = filtered.slice(0, visibleCount);
 
       document.getElementById('resultCount').textContent = total + ' result' + (total !== 1 ? 's' : '');
       document.getElementById('filterBadge').textContent = countActiveFilters();
 
-      const progress = total > 0 ? ((start + pageItems.length) / total) * 100 : 100;
+      const progress = total > 0 ? (pageItems.length / total) * 100 : 100;
       document.getElementById('progressFill').style.width = Math.min(100, progress) + '%';
-      document.getElementById('pageInfo').textContent = 'Page ' + currentPage + ' of ' + totalPages;
-      document.getElementById('nextBtn').style.display = currentPage < totalPages ? 'flex' : 'none';
+      // "Showing X of Y" doubles as the accessible live status; the same
+      // numbers drive the Load more button's visibility.
+      document.getElementById('catalogShowing').textContent = total === 0 ? 'Showing 0 of 0' : 'Showing ' + pageItems.length + ' of ' + total;
+      const moreAvailable = pageItems.length < total || !catalogExhausted;
+      const loadMoreBtn = document.getElementById('loadMoreBtn');
+      loadMoreBtn.style.display = moreAvailable && total > 0 ? 'inline-flex' : 'none';
+      loadMoreBtn.disabled = false;
 
       // A category is empty only when there are no matching products.
       // Sold-out products remain browsable, including when every item is sold out.
       const isBrowsingCategory = currentCollectionFilter && ['anime','graphic-tees','pants','sale'].includes(currentCollectionFilter) && !searchQuery.trim() && !wishlistOnly && filterState.cats.size === 3 && filterState.priceMin === 0 && filterState.priceMax === 10000 && !filterState.size;
       if (isBrowsingCategory && filtered.length === 0) {
         const name = CATEGORY_NAMES[currentCollectionFilter] || currentCollectionFilter;
-        grid.innerHTML = '<div class="no-results"><p>No ' + esc(name.toLowerCase()) + ' available right now.</p><p style="font-size:0.8rem;margin-top:0.5rem;color:var(--text-gray);">Check back soon for new drops.</p><p style="margin-top:1rem;"><button class="btn btn-primary btn-sm" data-route="collection" data-filter="all">Browse all shirts</button></p></div>';
+        grid.innerHTML = '<div class="no-results"><p>No ' + esc(name.toLowerCase()) + ' available right now.</p><p class="no-results-note">Check back soon for new drops.</p><p class="no-results-action"><button class="btn btn-primary btn-sm" data-route="collection" data-filter="all">Browse all shirts</button></p></div>';
         document.getElementById('resultCount').textContent = '0 results';
-        document.getElementById('pageInfo').textContent = 'Page 1 of 1';
-        document.getElementById('nextBtn').style.display = 'none';
+        document.getElementById('catalogShowing').textContent = 'Showing 0 of 0';
+        document.getElementById('loadMoreBtn').style.display = 'none';
         return;
       }
       if (pageItems.length === 0) {
-        grid.innerHTML = '<div class="no-results"><p>No products match your filters.</p><p style="font-size:0.8rem;margin-top:0.5rem;color:var(--text-gray);">Try adjusting your selections.</p></div>';
+        grid.innerHTML = '<div class="no-results"><p>No products match your filters.</p><p class="no-results-note">Try adjusting your selections.</p></div>';
+        document.getElementById('catalogShowing').textContent = 'Showing 0 of 0';
+        document.getElementById('loadMoreBtn').style.display = 'none';
         return;
       }
 
@@ -852,10 +923,18 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       prioritizeFirstVisibleProductImage(grid);
     }
 
-    function nextPage() {
-      const total = getFilteredProducts().length;
-      const totalPages = Math.max(1, Math.ceil(total / perPage));
-      if (currentPage < totalPages) { currentPage++; renderCollectionGrid(); window.scrollTo({ top: document.getElementById('collectionGrid').offsetTop - 80, behavior: 'auto' }); }
+    // "Load more" reveals the next GRID_PAGE loaded cards; when everything
+    // currently in memory is visible but the server still has pages, the next
+    // page is fetched first (and the button reports progress via aria-busy).
+    async function loadMore() {
+      if (!catalogExhausted && visibleCount >= allProducts.length) {
+        const btn = document.getElementById('loadMoreBtn');
+        if (btn) { btn.disabled = true; btn.setAttribute('aria-busy', 'true'); }
+        try { await loadRemainingCatalogPages(); }
+        finally { const b = document.getElementById('loadMoreBtn'); if (b) b.removeAttribute('aria-busy'); }
+      }
+      visibleCount += GRID_PAGE;
+      renderCollectionGrid();
     }
 
     // ---------- Search ----------
@@ -929,12 +1008,12 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       document.querySelectorAll('#searchInput, #mobileSearch').forEach(inp => {
         if (inp && inp.value !== searchQuery) inp.value = searchQuery;
       });
-      currentPage = 1;
+      visibleCount = GRID_PAGE;
       if (searchQuery.trim() && !document.getElementById('page-home').classList.contains('active')) navigateTo('home', null, { keepSearch: true });
       // Typing shows the grid with the results; clearing the box on the plain
       // homepage brings the marketing sections back.
       applyShopVisibility();
-      renderCollectionGrid();
+      withFullCatalog(renderCollectionGrid);
     }
 
     // ---------- Wishlist ----------
@@ -986,7 +1065,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
     function renderWishlistDrawer() {
       var container = document.getElementById('wishlistItems');
       if (wishlist.size === 0) {
-        container.innerHTML = '<div class="cart-empty"><span class="cart-empty-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg></span>No favourite picks yet.<br><span style="font-size:0.75rem;margin-top:0.3rem;display:block;">Tap the heart icon on any product to save it here.</span></div>';
+        container.innerHTML = '<div class="cart-empty"><span class="cart-empty-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg></span>No favourite picks yet.<br><span class="hint-block-sm">Tap the heart icon on any product to save it here.</span></div>';
         return;
       }
       var html = '';
@@ -995,7 +1074,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
         if (!p) return;
         var img = (p.images && p.images[0]) || p.image || '';
         var available = anySizeAvailable(p);
-        html += '<div class="cart-item"><div class="cart-item-image">' + (img ? '<img src="' + esc(img) + '" alt="' + esc(p.name) + '" />' : '') + '</div><div class="cart-item-info"><h4>' + esc(p.name) + '</h4><div class="cart-item-meta">' + esc(p.fit || '') + (available ? '' : ' · Sold Out — unavailable') + '</div><div class="cart-item-price">Rs. ' + (p.sale_price || p.price) + '</div></div><div style="display:flex;flex-direction:column;gap:0.3rem;"><button class="btn btn-sm btn-outline"' + (available ? '' : ' disabled') + ' data-action="quick-add" data-pid="' + p.id + '" style="font-size:0.7rem;">' + (available ? 'Add to Cart' : 'Sold Out') + '</button><button style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:0.7rem;min-height:36px;" data-action="wishlist-remove" data-pid="' + p.id + '">Remove</button></div></div>';
+        html += '<div class="cart-item"><div class="cart-item-image">' + (img ? '<img src="' + esc(img) + '" alt="' + esc(p.name) + '" width="55" height="55"' + srcsetAttr(img) + ' sizes="55px" loading="lazy" decoding="async" />' : '') + '</div><div class="cart-item-info"><h4>' + esc(p.name) + '</h4><div class="cart-item-meta">' + esc(p.fit || '') + (available ? '' : ' · Sold Out — unavailable') + '</div><div class="cart-item-price">Rs. ' + (p.sale_price || p.price) + '</div></div><div class="wishlist-item-actions"><button class="btn btn-sm btn-outline btn-xxs"' + (available ? '' : ' disabled') + ' data-action="quick-add" data-pid="' + p.id + '">' + (available ? 'Add to Cart' : 'Sold Out') + '</button><button class="wishlist-remove-btn" data-action="wishlist-remove" data-pid="' + p.id + '">Remove</button></div></div>';
       });
       container.innerHTML = html;
     }
@@ -1056,7 +1135,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
               const link = document.createElement('a');
               link.href = data.unsubscribe_url;
               link.textContent = 'Private unsubscribe link (bookmark this page to leave anytime)';
-              link.style.cssText = 'display:block;margin-top:0.4rem;font-size:0.7rem;color:var(--text-muted);';
+              link.classList.add('auth-link-muted');
               msg.appendChild(link);
             }
           }
@@ -1120,7 +1199,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       return `
         <div class="product-card" data-pid="${p.id}" role="link" tabindex="0" aria-label="View ${esc(p.name)}" data-action="open-product" data-pid="${p.id}" data-key="enter">
           <div class="product-card-image${anySizeAvailable(p) ? '' : ' sold-out'}">
-            ${img ? `<img src="${esc(img)}" alt="${esc(p.name)}" width="600" height="800" sizes="(max-width: 768px) calc((100vw - 40px) / 2), (max-width: 1024px) calc((100vw - 80px) / 3), (max-width: 1279px) calc((100vw - 112px) / 4), 296px" loading="lazy" decoding="async" />` : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:var(--text-dim);font-size:0.8rem;">No Image</div>`}
+            ${img ? `<img src="${esc(img)}" alt="${esc(p.name)}" width="600" height="800"${srcsetAttr(img)} sizes="(max-width: 768px) calc((100vw - 40px) / 2), (max-width: 1024px) calc((100vw - 80px) / 3), (max-width: 1279px) calc((100vw - 112px) / 4), 296px" loading="lazy" decoding="async" />` : `<div class="no-image-cell">No Image</div>`}
             <button class="product-wishlist ${isWishlisted ? 'active' : ''}" data-action="toggle-wish" data-pid="${p.id}" aria-label="Wishlist">
               ${HEART_SVG}
             </button>
@@ -1168,9 +1247,45 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       prioritizeFirstVisibleProductImage(grid);
     }
 
+    // ---------- "What customers say" home strip ----------
+    // Up to three real APPROVED reviews (those with an actual comment).
+    // Nothing is invented and nothing is a placeholder: with zero approved
+    // reviews the endpoint returns [] and the whole section stays hidden.
+    async function loadHomeReviews() {
+      const section = document.getElementById('sectionHomeReviews');
+      const grid = document.getElementById('homeReviewsGrid');
+      if (!section || !grid) return;
+      try {
+        const res = await fetch('/api/reviews/featured');
+        const rows = res.ok ? await res.json() : [];
+        const items = Array.isArray(rows) ? rows.slice(0, 3) : [];
+        if (!items.length) { section.classList.add('is-hidden'); grid.innerHTML = ''; return; }
+        grid.innerHTML = items.map(rv => {
+          const name = esc(rv.customer_name || 'Verified Buyer');
+          const comment = esc(rv.comment || '');
+          const rating = Number(rv.rating) || 0;
+          const pid = Number(rv.product_id) || 0;
+          const productName = esc(rv.product_name || '');
+          return `
+          <figure class="home-review-card">
+            <div class="home-review-stars">${starsOnlyHtml(rating)}</div>
+            <blockquote class="home-review-text">${comment}</blockquote>
+            <figcaption class="home-review-meta">
+              <span class="home-review-name">${name}</span>
+              ${pid ? `<button type="button" class="home-review-product" data-action="open-product" data-pid="${pid}">${productName}</button>` : ''}
+            </figcaption>
+          </figure>`;
+        }).join('');
+        section.classList.remove('is-hidden');
+      } catch (e) {
+        section.classList.add('is-hidden');
+      }
+    }
+
     // Initialize all homepage sections after products load
     function initHomePageSections() {
       loadBestSellers();
+      loadHomeReviews();
       loadRecentlyViewed();
     }
 
@@ -1194,13 +1309,13 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
           <div class="slider-container">
             <div class="slider-track"></div>
             <div class="slider-range"></div>
-            <input type="range" class="price-min" min="0" max="10000" value="0" step="50" />
-            <input type="range" class="price-max" min="0" max="10000" value="10000" step="50" />
+            <input type="range" class="price-min" min="0" max="10000" value="0" step="50" aria-label="Minimum price" />
+            <input type="range" class="price-max" min="0" max="10000" value="10000" step="50" aria-label="Maximum price" />
           </div>
         </div>
         <div class="filter-section" data-group="size">
           <h4>Size</h4>
-          <select class="sort-select fp-size">
+          <select class="sort-select fp-size" aria-label="Filter by size">
             <option value="">All Sizes</option>
             <option value="S">S</option>
             <option value="M">M</option>
@@ -1209,7 +1324,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
             <option value="XXL">XXL</option>
           </select>
         </div>
-        <button class="btn btn-outline btn-sm" data-action="reset-filters" style="width:100%;margin-top:0.25rem;">Reset Filters</button>`;
+        <button class="btn btn-outline btn-sm reset-filters-btn" data-action="reset-filters">Reset Filters</button>`;
     }
 
     function readFiltersFromPanel(panel) {
@@ -1261,7 +1376,8 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
         if (t.classList.contains('fp-cat') || t.classList.contains('fp-size') || t.classList.contains('price-min') || t.classList.contains('price-max')) {
           readFiltersFromPanel(panel);
           syncFiltersToPanels();
-          renderCollectionGrid();
+          visibleCount = GRID_PAGE;
+          withFullCatalog(renderCollectionGrid);
         }
       });
       document.addEventListener('input', function(e) {
@@ -1280,7 +1396,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
         }
       });
       const sort = document.getElementById('sortSelect');
-      if (sort) sort.addEventListener('change', () => renderCollectionGrid());
+      if (sort) sort.addEventListener('change', () => { visibleCount = GRID_PAGE; withFullCatalog(renderCollectionGrid); });
       syncFiltersToPanels();
     }
 
@@ -1297,9 +1413,10 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       if (sort) sort.value = 'featured';
       document.querySelectorAll('#searchInput, #mobileSearch').forEach(inp => { if (inp) inp.value = ''; });
       searchQuery = '';
+      visibleCount = GRID_PAGE;
       applyShopVisibility();
       syncFiltersToPanels();
-      renderCollectionGrid();
+      withFullCatalog(renderCollectionGrid);
     }
 
     // ---------- Filter drawer (mobile) ----------
@@ -1353,7 +1470,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       loadReviews(p.id);
       document.getElementById('detailQty').textContent = '1';
       const track = document.getElementById('galleryTrack');
-      track.innerHTML = p.images.map((img,i) => `<img src="${esc(img)}" alt="${esc(p.name)} view ${i+1}" width="900" height="1200" sizes="(max-width: 768px) 92vw, (max-width: 1279px) 45vw, 600px" loading="${i>0?'lazy':'eager'}" decoding="async"${i===0?' fetchpriority="high"':''} />`).join('');
+      track.innerHTML = p.images.map((img,i) => `<img src="${esc(img)}" alt="${esc(p.name)} view ${i+1}" width="900" height="1200"${srcsetAttr(img)} sizes="(max-width: 768px) 92vw, (max-width: 1279px) 45vw, 600px" loading="${i>0?'lazy':'eager'}" decoding="async"${i===0?' fetchpriority="high"':''} />`).join('');
       track.style.transform = 'translateX(0)';
       const dc = document.getElementById('detailDots');
       if (p.images.length > 1) {
@@ -1361,7 +1478,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
         dc.style.display = 'flex';
       } else dc.style.display = 'none';
       const th = document.getElementById('detailThumbnails');
-      th.innerHTML = p.images.map((img,i) => `<div class="detail-thumb ${i===0?'active':''}" role="button" tabindex="0" aria-label="View image ${i+1}" data-action="detail-angle" data-index="${i}" data-key><img src="${esc(img)}" alt="View ${i+1}" width="56" height="56" sizes="56px" loading="lazy" decoding="async" /></div>`).join('');
+      th.innerHTML = p.images.map((img,i) => `<div class="detail-thumb ${i===0?'active':''}" role="button" tabindex="0" aria-label="View image ${i+1}" data-action="detail-angle" data-index="${i}" data-key><img src="${esc(img)}" alt="View ${i+1}" width="56" height="56"${srcsetAttr(img)} sizes="56px" loading="lazy" decoding="async" /></div>`).join('');
       renderSizePicker(p);
       renderDetailTabs(p);
       setupGallerySwipe();
@@ -1575,10 +1692,10 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       const list = document.getElementById('reviewsList');
       const summary = document.getElementById('reviewSummary');
       if (!section || !list || !summary) return;
-      section.style.display = '';
+      section.classList.remove('is-hidden');
       if (!reviews.length) {
         summary.innerHTML = '<span class="review-no">No reviews yet.</span>';
-        list.innerHTML = '<p style="font-size:0.85rem;color:var(--text-gray);">Be the first to share your experience.</p>';
+        list.innerHTML = '<p class="text-gray-sm">Be the first to share your experience.</p>';
         return;
       }
       const sorted = [...reviews].sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
@@ -1805,11 +1922,11 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
         }
         const fresh = items.filter(p => !bsIds.has(String(p.id)));
         if (!fresh.length) { section.style.display = 'none'; return; }
-        section.style.display = '';
+        section.classList.remove('is-hidden');
         grid.innerHTML = fresh.map(renderProductCard).join('');
         return;
       }
-      section.style.display = '';
+      section.classList.remove('is-hidden');
       grid.innerHTML = items.map(renderProductCard).join('');
     }
 
@@ -1845,7 +1962,13 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       const btn = e.target.querySelector('button[type=submit]');
       btn.disabled = true;
       try {
-        const res = await fetch('/api/orders/track?number=' + encodeURIComponent(number) + '&phone=' + encodeURIComponent(phone));
+        // F16: POST body (the global fetch wrapper attaches X-CSRF-Token) —
+        // order number and phone stay out of URLs and logs.
+        const res = await fetch('/api/orders/track', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ number, phone })
+        });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
           err.textContent = data.error || 'Could not find that order. Please check and try again.';
@@ -1888,8 +2011,8 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
             </div>
             <div class="track-details">
               <div><span>Placed</span><span>${esc(formatTrackDate(o.created_at))}</span></div>
-              <div><span>Delivery charge</span><span>${o.status === 'cancelled' ? 'Not charged' : o.shipping_pending ? DELIVERY_FEE_BAND : 'Rs. ' + fmt(o.shipping)}</span></div>
-              <div><span>${o.shipping_pending || o.status === 'cancelled' ? 'Items subtotal' : 'Total'}</span><span>Rs. ${o.total}</span></div>
+              <div><span>Delivery charge</span><span>${o.status === 'cancelled' ? 'Not charged' : o.shipping_pending ? DELIVERY_FEE_BAND + ' (confirmed by phone)' : 'Rs. ' + fmt(o.shipping)}</span></div>
+              <div><span>${o.shipping_pending || o.status === 'cancelled' ? 'Total (before delivery)' : 'Total'}</span><span>Rs. ${o.total}</span></div>
             </div>
             <div class="track-items">${(o.items || []).map(it => `
               <div class="conf-item">
@@ -1922,17 +2045,17 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
           <div class="track-top">
             <strong>Order ${esc(o.order_number)}</strong>
             <span class="track-status">${esc(TRACK_STATUS_LABELS[o.status] || o.status)}</span>
-            ${o.status === 'awaiting_verification' ? '<p class="track-help" style="margin-top:0.4rem;">We\'re verifying your payment — this usually takes a few hours. You\'ll get a confirmation email once it\'s confirmed.</p>' : ''}
+            ${o.status === 'awaiting_verification' ? '<p class="track-help mt-4px">We\'re verifying your payment — this usually takes a few hours. You\'ll get a confirmation email once it\'s confirmed.</p>' : ''}
           </div>
           <div class="track-timeline">${timeline}</div>
           <div class="track-details">
             <div><span>Placed</span><span>${esc(formatTrackDate(o.created_at))}</span></div>
             <div><span>Payment</span><span>${o.payment_method === 'bank' ? 'Bank Transfer' : o.payment_method === 'jazzcash' ? 'JazzCash' : 'Cash on Delivery'}</span></div>
-            <div><span>Delivery charge</span><span>${o.status === 'cancelled' ? 'Not charged' : o.shipping_pending ? DELIVERY_FEE_BAND : 'Rs. ' + fmt(o.shipping)}</span></div>
-              <div><span>${o.shipping_pending || o.status === 'cancelled' ? 'Items subtotal' : 'Total'}</span><span>Rs. ${o.total}</span></div>
+            <div><span>Delivery charge</span><span>${o.status === 'cancelled' ? 'Not charged' : o.shipping_pending ? DELIVERY_FEE_BAND + ' (confirmed by phone)' : 'Rs. ' + fmt(o.shipping)}</span></div>
+              <div><span>${o.shipping_pending || o.status === 'cancelled' ? 'Total (before delivery)' : 'Total'}</span><span>Rs. ${o.total}</span></div>
           </div>
           <div class="track-items">${items}</div>
-          <p class="track-help">${o.shipping_pending ? 'Delivery is ' + DELIVERY_FEE_BAND + ' depending on your city; we confirm the exact fee by phone before dispatch. ' : ''}Questions about your order? WhatsApp us at +92 322 804 2633 with your order number.</p>
+          <p class="track-help">${o.shipping_pending ? 'Delivery is ' + DELIVERY_FEE_BAND + ' depending on your city and is confirmed by phone before dispatch. ' : ''}Questions about your order? WhatsApp us at +92 322 804 2633 with your order number.</p>
         </div>`;
       document.getElementById('trkResult').style.display = 'block';
     }
@@ -1980,7 +2103,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       items.innerHTML = cart.map((item,i) => {
         const unavailable = cartItemUnavailable(item);
         const t = item.price * item.qty; sub += t;
-        return `<div class="cart-item"><div class="cart-item-image"><img src="${esc(item.images[0])}" alt="${esc(item.name)}" width="55" height="55" sizes="55px" loading="lazy" decoding="async" /></div><div class="cart-item-info"><h4>${esc(item.name)}</h4><div class="cart-item-meta">Size: ${esc(item.size)} · ${esc(item.fit)}${unavailable ? ' · Sold Out — unavailable' : ''}</div><div class="cart-item-price">Rs. ${t}</div></div><div style="display:flex;flex-direction:column;align-items:flex-end;gap:0.3rem;"><div class="cart-item-qty"><button data-action="cart-qty" data-index="${i}" data-delta="-1"${unavailable ? ' disabled' : ''}>−</button><span>${item.qty}</span><button data-action="cart-qty" data-index="${i}" data-delta="1"${unavailable ? ' disabled' : ''}>+</button></div><button class="cart-item-remove" data-action="cart-remove" data-index="${i}">Remove</button></div></div>`;
+        return `<div class="cart-item"><div class="cart-item-image"><img src="${esc(item.images[0])}" alt="${esc(item.name)}" width="55" height="55"${srcsetAttr(item.images[0])} sizes="55px" loading="lazy" decoding="async" /></div><div class="cart-item-info"><h4>${esc(item.name)}</h4><div class="cart-item-meta">Size: ${esc(item.size)} · ${esc(item.fit)}${unavailable ? ' · Sold Out — unavailable' : ''}</div><div class="cart-item-price">Rs. ${t}</div></div><div class="wishlist-item-actions-end"><div class="cart-item-qty"><button data-action="cart-qty" data-index="${i}" data-delta="-1"${unavailable ? ' disabled' : ''}>−</button><span>${item.qty}</span><button data-action="cart-qty" data-index="${i}" data-delta="1"${unavailable ? ' disabled' : ''}>+</button></div><button class="cart-item-remove" data-action="cart-remove" data-index="${i}">Remove</button></div></div>`;
       }).join('');
       document.getElementById('cartSubtotal').textContent = 'Rs. ' + fmt(sub);
     }
@@ -2056,6 +2179,155 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
     // Load products from API (overrides hardcoded defaults when server is running)
     let lastProductsFetchAt = 0;
     let productsFetchInFlight = false;
+    // F7: {original url: {400,800,1200}} rebuilt on every catalog load.
+    let imageVariantsByUrl = {};
+    // srcset candidates for a product image URL, or null when the image
+    // predates variant generation (they all still render via src).
+    function srcsetFor(url) {
+      const v = url && imageVariantsByUrl[url];
+      if (!v) return null;
+      return Object.keys(v).sort((a, b) => Number(a) - Number(b)).map(w => v[w] + ' ' + w + 'w').join(', ');
+    }
+    function srcsetAttr(url) {
+      const s = srcsetFor(url);
+      return s ? ' srcset="' + esc(s) + '"' : '';
+    }
+
+    // Shared mapper: API product objects → storefront product view models.
+    // The old bundled demo art is gone — images come from the database, with
+    // a generated placeholder when a product has none.
+    function mapApiProducts(data) {
+      return data.map(p => {
+        const imgs = [p.front_image, p.back_image, ...(p.extra_images || [])].filter(Boolean);
+        const effective = p.sale_price && p.sale_price < p.price ? p.sale_price : p.price;
+        return {
+          id: p.id,
+          name: p.name,
+          price: effective,
+          original_price: p.price,
+          fit: p.fit || 'Regular',
+          collection: p.category,
+          drop: p.drop || '',
+          style: p.style || ['Anime-Inspired','Japanese Art','Typography'][Math.abs(p.id) % 3],
+          rating: (p.avg_rating != null && p.review_count > 0) ? p.avg_rating : null, // real, from approved reviews only
+          variants: null,
+          desc: p.description || '',
+          fabric_care: p.fabric_care || null,
+          fit_guide: p.fit_guide || null,
+          sizes: p.sizes || ['S','M','L','XL','XXL'],
+          images: imgs.length ? imgs : [placeholderImg(p.name)],
+          in_stock: p.in_stock !== false && (p.stock_qty == null || Number(p.stock_qty) > 0),
+          on_sale: !!(p.sale_price && p.sale_price < p.price),
+          sale_price: p.sale_price && p.sale_price < p.price ? p.sale_price : null,
+          created_at: p.created_at || null,
+          order_count: p.order_count || 0,
+          stock_qty: p.stock_qty,
+          size_stock: p.size_stock || null,
+          sold_count: p.sold_count || 0,
+          avg_rating: (p.avg_rating != null && p.review_count > 0) ? p.avg_rating : null,
+          review_count: p.review_count || 0
+        };
+      });
+    }
+
+    function mergeVariantMap(into, data) {
+      for (const p of data) { if (p && p.image_variants && typeof p.image_variants === 'object') Object.assign(into, p.image_variants); }
+      return into;
+    }
+
+    // The HTML shell inlines page 1 of the catalog in an inert
+    // <script type="application/json" id="kageCatalogSeed"> block. Reading it
+    // here paints the grid instantly; the network revalidation in
+    // loadProductsFromAPI() still runs (ETag usually answers 304) and owns
+    // productsLoadedFromApi, so nothing renders from stale data for long.
+    function readCatalogSeed() {
+      try {
+        const el = document.getElementById('kageCatalogSeed');
+        if (!el) return null;
+        const data = JSON.parse(el.textContent);
+        if (data && Array.isArray(data.products)) return data;
+        return null;
+      } catch (e) { return null; }
+    }
+
+    function refreshCatalogViews() {
+      renderCollectionGrid();
+      initHomePageSections();
+      syncCollectionVisibility();
+      syncCategoryCardPhotos();
+      updateCartUI();
+      renderWishlistDrawer();
+    }
+
+    // Applies one envelope page from /api/products?page=N. Page 1 replaces,
+    // later pages merge by id. Returns true when the catalog is complete.
+    function applyCatalogEnvelope(env, replace) {
+      const list = mapApiProducts(env.products || []);
+      if (replace) {
+        allProducts = list;
+        imageVariantsByUrl = mergeVariantMap({}, env.products || []);
+      } else {
+        const seen = new Set(allProducts.map(p => p.id));
+        for (const p of list) if (!seen.has(p.id)) allProducts.push(p);
+        imageVariantsByUrl = mergeVariantMap(imageVariantsByUrl, env.products || []);
+      }
+      catalogTotal = Number(env.total) || allProducts.length;
+      catalogNextPage = (Number(env.page) || 1) + 1;
+      catalogExhausted = env.hasMore === false || list.length === 0 || allProducts.length >= catalogTotal;
+      return catalogExhausted;
+    }
+
+    // Fetches remaining server pages sequentially and appends them. Memoized:
+    // concurrent callers share one walk. Tolerates an array response (an older
+    // server, or a test double answering /api/products wholesale) as meaning
+    // "the full catalog".
+    function loadRemainingCatalogPages() {
+      if (catalogLoadPromise) return catalogLoadPromise;
+      catalogLoadPromise = (async () => {
+        try {
+          while (!catalogExhausted) {
+            const page = catalogNextPage;
+            const res = await fetch('/api/products?page=' + page);
+            if (!res.ok) break;
+            const data = await res.json();
+            if (Array.isArray(data)) {
+              allProducts = mapApiProducts(data);
+              imageVariantsByUrl = mergeVariantMap({}, data);
+              catalogTotal = allProducts.length;
+              catalogExhausted = true;
+              break;
+            }
+            applyCatalogEnvelope(data, false);
+            refreshCatalogViews();
+          }
+        } catch (e) {
+          console.error('Background catalog load stopped:', e);
+        } finally {
+          catalogLoadPromise = null;
+        }
+      })();
+      return catalogLoadPromise;
+    }
+
+    // Searching, filtering or sorting a partially loaded catalog would miss
+    // products, so those paths finish the load first. Synchronous when the
+    // catalog is already complete (the common case after boot).
+    function withFullCatalog(render) {
+      if (catalogExhausted) { render(); return; }
+      loadRemainingCatalogPages().then(render);
+    }
+
+    // Paints from the inlined seed (no network), then finishes the catalog in
+    // the background. Returns true when a seed was applied.
+    function paintCatalogSeed() {
+      const seed = readCatalogSeed();
+      if (!seed) return false;
+      applyCatalogEnvelope(seed, true);
+      refreshCatalogViews();
+      loadRemainingCatalogPages();
+      return true;
+    }
+
     async function loadProductsFromAPI() {
       if (productsFetchInFlight) return;
       productsFetchInFlight = true;
@@ -2067,42 +2339,10 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
         if (!res.ok) throw new Error('Catalog request failed');
         const data = await res.json();
         if (!Array.isArray(data)) throw new Error('Invalid catalog');
-        // Map server products onto the hardcoded catalog art by name so
-        // seeded items keep their rich visuals (SVG tees) instead of grey tiles.
-        const artByAlt = {};
-        for (const p of allProducts) artByAlt[p.name.trim().toLowerCase()] = p;
-        allProducts = data.map(p => {
-          const imgs = [p.front_image, p.back_image, ...(p.extra_images || [])].filter(Boolean);
-          const art = artByAlt[(p.name || '').trim().toLowerCase()];
-          const effective = p.sale_price && p.sale_price < p.price ? p.sale_price : p.price;
-          return {
-            id: p.id,
-            name: p.name,
-            price: effective,
-            original_price: p.price,
-            fit: p.fit || 'Regular',
-            collection: p.category,
-            drop: p.drop || '',
-            style: p.style || (art ? art.style : ['Anime-Inspired','Japanese Art','Typography'][Math.abs(p.id) % 3]),
-            rating: (p.avg_rating != null && p.review_count > 0) ? p.avg_rating : null, // real, from approved reviews only
-            variants: art ? art.variants : null,
-            desc: p.description || '',
-            fabric_care: p.fabric_care || null,
-            fit_guide: p.fit_guide || null,
-            sizes: p.sizes || ['S','M','L','XL','XXL'],
-            images: imgs.length ? imgs : (art ? art.images : [placeholderImg(p.name)]),
-            in_stock: p.in_stock !== false && (p.stock_qty == null || Number(p.stock_qty) > 0),
-            on_sale: !!(p.sale_price && p.sale_price < p.price),
-            sale_price: p.sale_price && p.sale_price < p.price ? p.sale_price : null,
-            created_at: p.created_at || null,
-            order_count: p.order_count || 0,
-            stock_qty: p.stock_qty,
-            size_stock: p.size_stock || null,
-            sold_count: p.sold_count || 0,
-            avg_rating: (p.avg_rating != null && p.review_count > 0) ? p.avg_rating : null,
-            review_count: p.review_count || 0
-          };
-        });
+        allProducts = mapApiProducts(data);
+        imageVariantsByUrl = mergeVariantMap({}, data);
+        catalogTotal = allProducts.length;
+        catalogExhausted = true;
         productsLoadedFromApi = true;
         document.getElementById('productLoadError').hidden = true;
         restoreShopState();
@@ -2126,8 +2366,10 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       } catch(e) {
         console.error('Could not load catalog:', e);
         productsLoadedFromApi = false;
-        allProducts = [];
-        document.getElementById('productLoadError').hidden = false;
+        // Keep a seed-painted catalog on screen rather than blanking it.
+        if (!allProducts.length) {
+          document.getElementById('productLoadError').hidden = false;
+        }
         renderCollectionGrid();
         initHomePageSections();
         syncCollectionVisibility();
@@ -2203,6 +2445,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
     }
     function showCustSignup() {
       document.getElementById('custLoginView').style.display = 'none';
+      document.getElementById('custSignupView').classList.remove('is-hidden');
       document.getElementById('custSignupView').style.display = '';
       document.getElementById('custSignupError').style.display = 'none';
     }
@@ -2232,6 +2475,8 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
         const params = new URLSearchParams(window.location.search);
         resetToken = params.get('token') || '';
         resetUserType = params.get('type') === 'admin' ? 'admin' : 'customer';
+        const rstPw = document.getElementById('rstPassword');
+        if (rstPw) rstPw.placeholder = 'New password (min. ' + (resetUserType === 'admin' ? 14 : 10) + ' characters)';
       } catch (e) { resetToken = ''; }
       const err = document.getElementById('rstError');
       if (!resetToken && err) {
@@ -2248,7 +2493,8 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       const password = document.getElementById('rstPassword').value;
       const confirm = document.getElementById('rstConfirm').value;
       if (!resetToken) { err.textContent = 'Reset token missing — use the link from your reset email.'; err.style.display = 'block'; return; }
-      if (!password || password.length < 6) { err.textContent = 'Password must be at least 6 characters.'; err.style.display = 'block'; return; }
+      const resetMin = resetUserType === 'admin' ? 14 : 10;
+      if (!password || password.length < resetMin) { err.textContent = 'Password must be at least ' + resetMin + ' characters.'; err.style.display = 'block'; return; }
       if (password !== confirm) { err.textContent = 'Passwords do not match.'; err.style.display = 'block'; return; }
       try {
         const res = await fetch('/api/auth/reset-password', {
@@ -2355,7 +2601,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       const errEl = document.getElementById('custSignupError');
       const btn = document.getElementById('custSignupBtn');
       if (!email || !password) { errEl.textContent = 'Email and password are required.'; errEl.style.display = 'block'; return; }
-      if (password.length < 6) { errEl.textContent = 'Password must be at least 6 characters.'; errEl.style.display = 'block'; return; }
+      if (password.length < 10) { errEl.textContent = 'Password must be at least 10 characters.'; errEl.style.display = 'block'; return; }
       btn.disabled = true; btn.textContent = 'Creating…';
       try {
         const res = await fetch('/api/customers/signup', {
@@ -2411,8 +2657,8 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
         // SECURITY: until the email is confirmed the history stays hidden, so
         // the empty state explains why instead of looking like "no orders".
         wrap.innerHTML = verified === false
-          ? '<div style="text-align:center;padding:1rem;color:var(--text-muted);font-size:0.82rem;">Verify your email to see your orders.<br><a href="#" data-action="resend-verification" style="color:var(--accent);font-weight:700;text-decoration:underline;">Resend verification email</a></div>'
-          : '<div style="text-align:center;padding:1rem;color:var(--text-muted);font-size:0.82rem;">No orders yet. Time to shop!</div>';
+          ? '<div class="text-muted-block">Verify your email to see your orders.<br><a href="#" data-action="resend-verification" class="link-accent-underline">Resend verification email</a></div>'
+          : '<div class="text-muted-block">No orders yet. Time to shop!</div>';
         return;
       }
       wrap.innerHTML = orders.map(o => {
@@ -2458,7 +2704,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       const currentPassword = document.getElementById('acctCurrentPw').value;
       const newPassword = document.getElementById('acctNewPw').value;
       if (!currentPassword || !newPassword) { msg.textContent = 'Both fields are required.'; msg.className = 'acct-msg error'; return; }
-      if (newPassword.length < 6) { msg.textContent = 'New password must be at least 6 characters.'; msg.className = 'acct-msg error'; return; }
+      if (newPassword.length < 10) { msg.textContent = 'New password must be at least 10 characters.'; msg.className = 'acct-msg error'; return; }
       try {
         const res = await fetch('/api/customers/me', {
           method: 'PUT', headers: { 'Content-Type': 'application/json' },
@@ -2498,16 +2744,31 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       else if (!e.shiftKey && (document.activeElement === last || !open.el.contains(document.activeElement))) { e.preventDefault(); first.focus(); }
     });
     const requestedPath = location.pathname;
-    if (requestedPath === '/confirmation' && !lastOrder) history.replaceState(null, '', '/tracking');
+    if (requestedPath === '/confirmation' && !lastOrder) history.replaceState(null, '', '/');
     const initialPath = location.pathname;
     setupFilters(); updateCartUI();
+    // Paint instantly from the inlined catalog seed (server-rendered first
+    // page) if one is present — no network wait for the first paint. The
+    // seed is public catalog data only; loadProductsFromAPI() revalidates it.
+    paintCatalogSeed();
     if (initialPath === '/tracking') navigateTo('tracking', null, { skipHistory: true });
     else if (initialPath === '/confirmation' && lastOrder) navigateTo('confirmation', null, { skipHistory: true });
     else navigateTo('home', null, { skipHistory: true });
     // Deep-link restore runs after the catalog loads; only then is boot routing
     // done. Resolve AND reject paths flip the flag so a failed boot fetch can
     // never wedge later navigations out of focus management.
+    // F1: the server renders a plain #ssrContent block (product summary or
+    // collection list) into the shell for crawlers and pre-boot paint. Now
+    // that the SPA has routed, drop it — otherwise users would see two copies.
+    const removeSsrContent = () => {
+      const el = document.getElementById('ssrContent');
+      if (el && el.parentNode) el.parentNode.removeChild(el);
+    };
     const finishBootRouting = () => {
+      // Drop the SSR block BEFORE routing so the first post-hydration render
+      // measures the settled layout (e.g. first-image promotion needs the
+      // card in view).
+      removeSsrContent();
       if (location.pathname === initialPath && initialPath !== '/') restoreRouteFromLocation();
       bootNavComplete = true;
     };
@@ -2593,13 +2854,13 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       'toggle-wishlist': () => toggleWishlistFilter(),
       'open-filter': () => openFilterDrawer(),
       'close-filter': () => closeFilterDrawer(),
-      'close-filter-render': () => { closeFilterDrawer(); renderCollectionGrid(); },
+      'close-filter-render': () => { closeFilterDrawer(); visibleCount = GRID_PAGE; withFullCatalog(renderCollectionGrid); },
       'reset-filters': () => resetFilters(),
       'detail-add': () => detailAddToCart(),
       'detail-qty': (el) => detailChangeQty(Number(el.dataset.delta || 1)),
       'start-checkout': () => startCheckout(),
       'place-order': () => placeOrder(),
-      'next-page': () => nextPage(),
+      'load-more': () => loadMore(),
       'load-products': () => loadProductsFromAPI(),
       'account': () => handleAccountClick(),
       'go-track': () => goTrackOrder(),

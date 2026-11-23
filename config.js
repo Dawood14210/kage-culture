@@ -49,11 +49,34 @@ module.exports = {
   // KAGE Clan
   CLAN_THRESHOLD: 5, // shirts needed to join the clan
 
-  // Password
-  MIN_PASSWORD_LENGTH: 6,
+  // Password policy (F17): customers need at least 10 characters, admins at
+  // least 14. There is deliberately no single fallback constant — a route
+  // must opt into one of the two explicitly.
+  MIN_CUSTOMER_PASSWORD_LENGTH: 10,
+  MIN_ADMIN_PASSWORD_LENGTH: 14,
 
-  // Admin auto-create: requires at least 8 chars in production
-  ADMIN_AUTO_CREATE_MIN_LENGTH: 8,
+  // The AUTO_CREATE_ADMIN escape hatch obeys the same admin policy.
+  ADMIN_AUTO_CREATE_MIN_LENGTH: 14,
+
+  // Delivery charges (F3) — flat city fees in PKR. Every value stays within
+  // Rs. 250–500 and is TODO(owner): these placeholders are NOT confirmed
+  // business values; the owner must confirm the real courier rate per city
+  // before they carry any money. Orders still ship with shipping = 0 and
+  // shipping_pending = 1; the exact fee is confirmed by phone (D1).
+  DELIVERY_FEE_BAND: 'Rs. 250 – Rs. 500',
+  DELIVERY_FEE_MIN: 250,
+  DELIVERY_FEE_MAX: 500,
+  DELIVERY_FEES: {
+    Islamabad: 250,    // TODO(owner): confirm with courier
+    Rawalpindi: 250,   // TODO(owner): confirm with courier
+    Karachi: 300,      // TODO(owner): confirm with courier
+    Lahore: 300,       // TODO(owner): confirm with courier
+    Faisalabad: 350,   // TODO(owner): confirm with courier
+    Multan: 400        // TODO(owner): confirm with courier
+  },
+  // Cities not in the table — the checkout "Other" option and any unmatched
+  // value — are quoted at the ceiling until the owner confirms their rates.
+  DELIVERY_FEE_FALLBACK: 500, // TODO(owner): confirm with courier
 
   // Rate limiting
   RATE_LIMIT_GLOBAL: 120, // per minute
@@ -85,3 +108,18 @@ module.exports = {
   // Payment methods
   PAYMENT_METHODS: ['cod', 'jazzcash', 'bank'],
 };
+
+// Server-side delivery fee for a city (F3). Exact, case-insensitive match on
+// the submitted city; anything unrecognised falls back to the ceiling. The
+// result is clamped to the published Rs. 250–500 band no matter what the
+// table says. Used for the fee the admin confirms by phone before dispatch.
+function deliveryFeeForCity(city) {
+  const clean = String(city == null ? '' : city).replace(/[\u0000-\u001F\u007F]/g, ' ').trim().toLowerCase().replace(/\s+/g, ' ');
+  let fee = module.exports.DELIVERY_FEE_FALLBACK;
+  for (const [name, value] of Object.entries(module.exports.DELIVERY_FEES)) {
+    if (name.toLowerCase() === clean) { fee = value; break; }
+  }
+  return Math.min(module.exports.DELIVERY_FEE_MAX, Math.max(module.exports.DELIVERY_FEE_MIN, Number(fee) || module.exports.DELIVERY_FEE_FALLBACK));
+}
+
+module.exports.deliveryFeeForCity = deliveryFeeForCity;

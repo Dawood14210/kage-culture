@@ -25,6 +25,7 @@
 // ================================================================
 const config = require('../config');
 const sizeStock = require('./sizes');
+const { sanitizeVariantMapForPublic } = require('./imageVariants');
 
 // Every products-table column a public response is allowed to carry.
 // (The legacy `collections` column is deliberately NOT listed: the themed
@@ -33,7 +34,7 @@ const PUBLIC_PRODUCT_COLUMNS = [
   'id', 'name', 'category', 'fit', 'price', 'sale_price', 'description',
   'fabric_care', 'fit_guide',
   'sizes', 'front_image', 'back_image', 'extra_images', 'in_stock',
-  'stock_qty', 'created_at'
+  'stock_qty', 'created_at', 'image_variants'
 ];
 // Admin responses add the internal columns the panel needs (edit form +
 // P&L unit cost, sale flag, audit timestamp).
@@ -86,6 +87,8 @@ function shapePublicProduct(row, extras) {
     front_image: row.front_image,
     back_image: row.back_image,
     extra_images: jsonArray(row.extra_images),
+    // F7: {original url: {400,800,1200}} map (sanitised; {} when none).
+    image_variants: sanitizeVariantMapForPublic(row.image_variants),
     in_stock: Boolean(row.in_stock) && (stock == null || stock > 0),
     stock_qty: stock,
     created_at: row.created_at,
