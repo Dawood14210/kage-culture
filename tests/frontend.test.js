@@ -1164,6 +1164,17 @@ async function ready(win) {
       assert.ok(existsSync(require.resolve('../public/images/' + file)), `${file} exists for its srcset candidate`);
     }
     assert.match(storeHtml, /hero-700\.webp 700w/, 'the existing hero 700px variant stays in its responsive srcset');
+    // Task 2 (2026-11-23): a 390px phone at 2.6x DPR used to pull the 1363px
+    // hero (96 KB) because `100vw` asked for ~1024 device px. The mobile-only
+    // sources cap that at the 700px art (37 KB) — same crop, same look.
+    assert.match(storeHtml, /<source media="\(max-width: 640px\)" srcset="\/images\/hero-700\.webp" type="image\/webp"/,
+      'phones get the 700px hero as the only candidate');
+    assert.match(storeHtml, /<source media="\(max-width: 640px\)" srcset="\/images\/hero-700\.jpg" type="image\/jpeg"/,
+      'the JPEG fallback for phones is the 700px file too');
+    const heroImgTag = (storeHtml.match(/<img src="\/images\/hero\.jpg"[^>]*>/) || [''])[0];
+    assert.match(heroImgTag, /fetchpriority="high"/, 'the hero stays the highest-priority image');
+    assert.match(heroImgTag, /width="1363" height="768"/, 'the hero reserves its intrinsic size');
+    assert.match(storeHtml, /\.hero-media img \{[^}]*?height: auto;/, 'height:auto keeps aspect-ratio in charge, so the hero cannot grow to 56vh');
     assert.match(storeHtml, /about-hero-500\.webp 600w/, 'the existing about 500px variant stays in its responsive srcset');
     console.log('✅ Category strip shows four Explore links: 2×2 phone grid + 4-col tablet/desktop layouts with aligned, pinned labels');
 

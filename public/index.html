@@ -154,9 +154,14 @@
     <section class="hero-strip" aria-labelledby="heroTitle">
       <div class="hero-frame">
       <picture class="hero-media">
+        <!-- Phones: the hero is cropped by `object-fit: cover`, so the 700px
+             art is indistinguishable at 390px while being ~60 KB lighter than
+             the 1363px file a 2.6x DPR screen would otherwise pull down. -->
+        <source media="(max-width: 640px)" srcset="/images/hero-700.webp" type="image/webp" />
+        <source media="(max-width: 640px)" srcset="/images/hero-700.jpg" type="image/jpeg" />
         <source srcset="/images/hero-700.webp 700w, /images/hero.webp 1376w" sizes="100vw" type="image/webp" />
         <source srcset="/images/hero-700.jpg 700w, /images/hero.jpg 1376w" sizes="100vw" type="image/jpeg" />
-        <img src="/images/hero.jpg" alt="KAGE Culture campaign: a model in a white oversized tee printed with EVERYONE, mid-kick in front of a light wall covered in graffiti lettering" fetchpriority="high" />
+        <img src="/images/hero.jpg" alt="KAGE Culture campaign: a model in a white oversized tee printed with EVERYONE, mid-kick in front of a light wall covered in graffiti lettering" width="1363" height="768" fetchpriority="high" />
       </picture>
 
       <!-- Spray-paint border around the hero photo — pre-rendered (F25).
