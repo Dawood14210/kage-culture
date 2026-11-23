@@ -442,10 +442,20 @@ async function ready(win) {
       const defaultThumb = thumbOf('pants').innerHTML;
       assert.ok(/<picture>/.test(defaultThumb), 'the fixture ships a <picture> with WebP crops');
 
-      cw.applyCategoryCardPhotos([{ id: 'pants', label: 'Pants', image: '/uploads/pants-custom.png', alt: 'Custom pants art', isCustom: true }]);
+      cw.applyCategoryCardPhotos([{
+        id: 'pants', label: 'Pants', image: '/uploads/pants-custom.webp', alt: 'Custom pants art', isCustom: true,
+        srcset: '/uploads/pants-custom-300.webp 300w, /uploads/pants-custom.webp 600w', width: 600, height: 600
+      }]);
       assert.equal(/<picture>/.test(thumbOf('pants').innerHTML), false, 'a custom photo drops the bundled <picture> so its crops cannot win');
-      assert.equal(thumbOf('pants').querySelector('img').getAttribute('src'), '/uploads/pants-custom.png');
+      assert.equal(thumbOf('pants').querySelector('img').getAttribute('src'), '/uploads/pants-custom.webp');
       assert.equal(thumbOf('pants').querySelector('img').getAttribute('alt'), 'Custom pants art');
+      // Uploaded photos ship their own candidates + a sizes value that matches
+      // the circle, so a phone never downloads the 600px file for a 104px box.
+      assert.equal(thumbOf('pants').querySelector('img').getAttribute('srcset'),
+        '/uploads/pants-custom-300.webp 300w, /uploads/pants-custom.webp 600w', 'the server srcset is rendered verbatim');
+      assert.equal(thumbOf('pants').querySelector('img').getAttribute('sizes'), '(min-width: 1024px) 150px, 104px');
+      assert.equal(thumbOf('pants').querySelector('img').getAttribute('width'), '600', 'pixel attributes keep the aspect ratio');
+      assert.equal(thumbOf('pants').querySelector('img').getAttribute('height'), '600');
       // The card still links to the real collection route.
       assert.equal(cd.querySelector('#categoryStrip .cat-tile[data-cat="pants"]').getAttribute('href'), '/collection/pants');
 
@@ -1140,7 +1150,10 @@ async function ready(win) {
       const image = picture.querySelector('img');
       assert.equal(source.getAttribute('type'), 'image/webp');
       assert.match(source.getAttribute('srcset'), /-200\.webp 200w, [^,]+-500\.webp 500w/);
-      assert.equal(source.getAttribute('sizes'), '116px');
+      // `sizes` now describes the real circle (150px at >=1024px, 104px below)
+      // instead of a flat 116px, so the browser can drop to the 200w candidate
+      // where it used to always take 500w. Task 1, 2026-11-23.
+      assert.equal(source.getAttribute('sizes'), '(min-width: 1024px) 150px, 104px');
       assert.match(image.getAttribute('src'), /^\/images\/(?:graphic-tees|anime-shirts|pants|custom-stickers)\.jpg$/, 'JPEG fallback path remains intact');
       assert.equal(image.getAttribute('width'), '600');
       assert.equal(image.getAttribute('height'), '600');

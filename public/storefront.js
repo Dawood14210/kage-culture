@@ -393,6 +393,10 @@
     // any override can replace it, so "reset to default" can put it back
     // exactly — including the WebP sources a custom photo has no crops for.
     const categoryThumbDefaults = {};
+    // The circle is 150px wide at >=1024px, 104px at 600-1023px and
+    // 88-104px below that (see .cat-thumb in storefront.css). One `sizes`
+    // value describes all three without a media-query-per-tile.
+    const CATEGORY_TILE_SIZES = '(min-width: 1024px) 150px, 104px';
     function applyCategoryCardPhotos(cards) {
       if (!Array.isArray(cards)) return;
       const byId = {};
@@ -414,10 +418,16 @@
         const img = document.createElement('img');
         img.src = card.image;
         img.alt = card.alt || (source ? source.alt : '');
-        img.width = 600;
-        img.height = 600;
+        // Pixel attributes only carry the aspect ratio (CSS forces the circle
+        // size); take the real size when the server reports it.
+        img.width = Number(card.width) > 0 ? Number(card.width) : 600;
+        img.height = Number(card.height) > 0 ? Number(card.height) : 600;
         img.setAttribute('data-cat-photo', '');
-        img.setAttribute('sizes', '116px');
+        // Uploaded photos are stored at <=600 px with a 300 px variant, so the
+        // browser can pick one. `sizes` matches the CSS circle: 150 px from
+        // 1024 px up, 104 px below that (88–104 px on phones).
+        if (card.srcset) img.setAttribute('srcset', card.srcset);
+        img.setAttribute('sizes', CATEGORY_TILE_SIZES);
         img.setAttribute('loading', 'lazy');
         img.setAttribute('decoding', 'async');
         thumb.innerHTML = '';

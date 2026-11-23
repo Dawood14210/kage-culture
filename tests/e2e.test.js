@@ -1733,6 +1733,78 @@ async function main() {
     }
   });
 
+  await check('category card uploads are optimised to a <=600px WebP with a 300px variant', async () => {
+    // The live Pants card was a 1122x1126 PNG of 2.7 MB rendered inside a
+    // 104-150px circle, because this route stored uploads byte-for-byte.
+    // Uploads must now come out as WebP no larger than 600px on the long edge,
+    // with a 300px variant, and the public payload must describe both so the
+    // storefront can emit a srcset.
+    const sharp = require('sharp');
+    const oldVercel = process.env.VERCEL;
+    const oldBlobToken = process.env.BLOB_READ_WRITE_TOKEN;
+    const oldKageBlobToken = process.env.kage_READ_WRITE_TOKEN;
+    delete process.env.VERCEL;
+    delete process.env.BLOB_READ_WRITE_TOKEN;
+    delete process.env.kage_READ_WRITE_TOKEN;
+    try {
+      const bigPng = await sharp({
+        create: { width: 1122, height: 1126, channels: 3, background: { r: 90, g: 80, b: 60 } }
+      }).png({ compressionLevel: 0 }).toBuffer();
+
+      const csrf = await getCsrf();
+      const form = new FormData();
+      form.append('image', new Blob([bigPng], { type: 'image/png' }), 'pants-phone.png');
+      const up = await fetch(`http://127.0.0.1:${PORT}/api/admin/category-cards/pants/image`, {
+        method: 'POST',
+        headers: { Cookie: `${adminCookie}; ${csrf.cookie}`, 'X-CSRF-Token': csrf.token },
+        body: form
+      });
+      const upBody = await up.json();
+      assert.strictEqual(up.status, 200, JSON.stringify(upBody));
+      const pants = upBody.cards.find(c => c.id === 'pants');
+      assert.match(pants.image, /\.webp$/, 'an uploaded PNG is re-encoded to WebP');
+      assert.ok(pants.width > 0 && pants.width <= 600, `width must be <=600, got ${pants.width}`);
+      assert.ok(pants.height > 0 && pants.height <= 600, `height must be <=600, got ${pants.height}`);
+      assert.match(pants.srcset, /-300\.webp 300w, .+\.webp \d+w$/, 'the payload carries a 300w candidate and the main file');
+
+      const main = await fetch(`http://127.0.0.1:${PORT}${pants.image}`);
+      assert.strictEqual(main.status, 200);
+      assert.match(String(main.headers.get('content-type')), /^image\/webp/, 'served as WebP');
+      const mainBytes = (await main.arrayBuffer()).byteLength;
+      assert.ok(mainBytes < 100 * 1024, `main file must stay under 100 KB, got ${mainBytes}`);
+
+      const variantUrl = pants.srcset.split(',')[0].trim().split(' ')[0];
+      const variant = await fetch(`http://127.0.0.1:${PORT}${variantUrl}`);
+      assert.strictEqual(variant.status, 200, 'the 300px variant must be served');
+      const variantBytes = (await variant.arrayBuffer()).byteLength;
+      assert.ok(variantBytes < 60 * 1024, `the phone-sized file must stay under 60 KB, got ${variantBytes}`);
+
+      // Replacing the photo again removes the previous pair (no orphaned 300w).
+      const csrf2 = await getCsrf();
+      const form2 = new FormData();
+      form2.append('image', new Blob([bigPng], { type: 'image/png' }), 'pants-phone-2.png');
+      const up2 = await fetch(`http://127.0.0.1:${PORT}/api/admin/category-cards/pants/image`, {
+        method: 'POST',
+        headers: { Cookie: `${adminCookie}; ${csrf2.cookie}`, 'X-CSRF-Token': csrf2.token },
+        body: form2
+      });
+      assert.strictEqual(up2.status, 200);
+      const oldMain = await fetch(`http://127.0.0.1:${PORT}${pants.image}`);
+      assert.strictEqual(oldMain.status, 404, 'the replaced photo and its variant are deleted');
+    } finally {
+      try {
+        const csrf = await getCsrf();
+        await fetch(`http://127.0.0.1:${PORT}/api/admin/category-cards/pants/image`, {
+          method: 'DELETE',
+          headers: { Cookie: `${adminCookie}; ${csrf.cookie}`, 'X-CSRF-Token': csrf.token }
+        });
+      } catch (e) { /* best effort */ }
+      if (oldVercel === undefined) delete process.env.VERCEL; else process.env.VERCEL = oldVercel;
+      if (oldBlobToken === undefined) delete process.env.BLOB_READ_WRITE_TOKEN; else process.env.BLOB_READ_WRITE_TOKEN = oldBlobToken;
+      if (oldKageBlobToken === undefined) delete process.env.kage_READ_WRITE_TOKEN; else process.env.kage_READ_WRITE_TOKEN = oldKageBlobToken;
+    }
+  });
+
   await check('admin can create a product with an image, unit cost and stock', async () => {
     const oldVercel = process.env.VERCEL;
     const oldBlobToken = process.env.BLOB_READ_WRITE_TOKEN;
@@ -2178,14 +2250,24 @@ async function main() {
       const { persistImage, removeImage } = require('../utils/helpers');
       const url = await persistImage(Buffer.from('mock-image'), 'mock.webp');
       await removeImage(url);
-      // F7: removeImage deletes the derived 400/800/1200 WebP derivatives too —
-      // one put (original), then four dels (original + 400/800/1200).
-      assert.strictEqual(calls.length, 5);
+      // F7: removeImage deletes the derived WebP derivatives too — one put
+      // (original), then six dels (original + 300/400/600/800/1200). 300 and
+      // 600 were added with the category-card pipeline (2026-11-23): those
+      // cards store a 600px main file plus a 300px variant, and both must go
+      // when the photo is replaced or reset.
+      assert.strictEqual(calls.length, 7);
       assert.strictEqual(calls[0][2].access, 'public');
       assert.strictEqual(calls[0][2].token, 'test-prefixed-store-token');
       assert.strictEqual(calls[1][2].token, 'test-prefixed-store-token');
       const deleted = calls.filter(c => c[0] === 'del').map(c => c[1]);
-      assert.deepStrictEqual(deleted, [url, url.replace('.webp', '-400.webp'), url.replace('.webp', '-800.webp'), url.replace('.webp', '-1200.webp')]);
+      assert.deepStrictEqual(deleted, [
+        url,
+        url.replace('.webp', '-300.webp'),
+        url.replace('.webp', '-400.webp'),
+        url.replace('.webp', '-600.webp'),
+        url.replace('.webp', '-800.webp'),
+        url.replace('.webp', '-1200.webp')
+      ]);
     } finally {
       Module._load = originalLoad;
       if (oldVercel === undefined) delete process.env.VERCEL;

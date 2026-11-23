@@ -144,4 +144,4 @@ function sanitizeVariantMapForPublic(raw) {
   return out;
 }
 
-module.exports = { variantUrlFor, generateVariants, persistImageVariants, readVariantMap, mergeVariantMap, pruneVariantMap, sanitizeVariantMapForPublic, WIDTHS, QUALITY };
+module.exports = { variantUrlFor, generateVariants, persistImageVariants, persistVariant, readVariantMap, mergeVariantMap, pruneVariantMap, sanitizeVariantMapForPublic, WIDTHS, QUALITY };
