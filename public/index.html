@@ -157,23 +157,11 @@
         <img src="/images/hero.jpg" alt="KAGE Culture campaign: a model in a white oversized tee printed with EVERYONE, mid-kick in front of a light wall covered in graffiti lettering" fetchpriority="high" />
       </picture>
 
-      <!-- Spray-paint border around the hero photo -->
-      <svg class="hero-spray" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid meet" aria-hidden="true" focusable="false">
-        <defs>
-          <filter id="heroSprayFx" x="-4%" y="-4%" width="108%" height="108%">
-            <feTurbulence type="fractalNoise" baseFrequency="0.04 0.06" numOctaves="3" seed="11" result="sprayNoise" />
-            <feDisplacementMap in="SourceGraphic" in2="sprayNoise" scale="12" xChannelSelector="R" yChannelSelector="G" />
-          </filter>
-        </defs>
-        <rect x="14" y="14" width="1572" height="872" fill="none" stroke="#1A1815" stroke-width="10" opacity="0.88" filter="url(#heroSprayFx)" />
-        <circle cx="26" cy="14" r="3" fill="#1A1815" opacity="0.6" filter="url(#heroSprayFx)" />
-        <circle cx="1574" cy="34" r="2.4" fill="#1A1815" opacity="0.55" filter="url(#heroSprayFx)" />
-        <circle cx="1536" cy="882" r="3.2" fill="#1A1815" opacity="0.6" filter="url(#heroSprayFx)" />
-        <circle cx="48" cy="880" r="2.2" fill="#1A1815" opacity="0.5" filter="url(#heroSprayFx)" />
-        <circle cx="800" cy="10" r="2.6" fill="#1A1815" opacity="0.5" filter="url(#heroSprayFx)" />
-        <circle cx="62" cy="470" r="1.8" fill="#1A1815" opacity="0.4" filter="url(#heroSprayFx)" />
-        <circle cx="1552" cy="640" r="2.8" fill="#1A1815" opacity="0.55" filter="url(#heroSprayFx)" />
-      </svg>
+      <!-- Spray-paint border around the hero photo — pre-rendered (F25).
+           The old feTurbulence/feDisplacementMap filter cost a full-surface
+           displacement on every first paint; the identical border now ships
+           as an 8 KB alpha WebP (32 KB for 2x screens). -->
+      <img class="hero-spray" src="/images/hero-spray-1600.webp" srcset="/images/hero-spray-1600.webp 1600w, /images/hero-spray-3200.webp 3200w" sizes="100vw" width="1600" height="900" alt="" aria-hidden="true" decoding="async" />
       </div>
 
       <div class="hero-copy">

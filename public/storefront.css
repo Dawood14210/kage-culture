@@ -1863,6 +1863,8 @@
       height: 100%;
       z-index: 2;
       pointer-events: none;
+      /* Match the old preserveAspectRatio="xMidYMid meet" letterboxing */
+      object-fit: contain;
     }
 
 
