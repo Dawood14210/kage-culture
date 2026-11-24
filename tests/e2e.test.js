@@ -872,6 +872,77 @@ async function main() {
     assert.deepStrictEqual(legacyCookie.json, { customer: null }, 'the removed kage.cust cookie must not authorize a customer');
   });
 
+  // PERF (2026-11-23): anonymous visitors must not pay for /api/customers/me.
+  // The session cookie is httpOnly, so a readable, identity-free hint cookie is
+  // what lets the storefront skip that probe and still recognise a real session.
+  await check('login sets the readable session hint cookie; logout clears it; nothing else does', async () => {
+    const csrf = await getCsrf();
+    const login = await request(PORT, 'POST', '/api/customers/login', { body: { email: 'cust@kage.test', password: 'custpass-e2e-1' }, headers: { 'X-CSRF-Token': csrf.token, Cookie: csrf.cookie } });
+    assert.strictEqual(login.status, 200);
+    const hint = (login.headers['set-cookie'] || []).find((c) => c.startsWith('kage.signed_in=')) || '';
+    assert.ok(hint, 'a customer login must set kage.signed_in');
+    assert.match(hint, /^kage\.signed_in=1;/, 'the hint carries no identity, just "1"');
+    assert.doesNotMatch(hint, /httponly/i, 'the hint must be readable by the storefront script');
+    assert.match(hint, /samesite=lax/i);
+    assert.match(hint, /path=\//i);
+
+    const loginCookies = cookieHeader(login);
+    const logout = await request(PORT, 'POST', '/api/customers/logout', { headers: { 'X-CSRF-Token': csrf.token, Cookie: `${loginCookies}; ${csrf.cookie}` } });
+    assert.strictEqual(logout.status, 200);
+    const cleared = (logout.headers['set-cookie'] || []).find((c) => c.startsWith('kage.signed_in=')) || '';
+    assert.ok(cleared, 'a customer logout must clear kage.signed_in');
+    assert.match(cleared, /Expires=Thu, 01 Jan 1970|Max-Age=0/i);
+
+    const anonMe = await request(PORT, 'GET', '/api/customers/me');
+    assert.ok(!(anonMe.headers['set-cookie'] || []).some((c) => c.startsWith('kage.signed_in=')), 'an anonymous probe must not set the hint');
+    assert.deepStrictEqual(anonMe.json, { customer: null });
+  });
+
+  await check('the shell preconnects to the blob store only when one is configured, and never leaks a token', async () => {
+    const before = { ...process.env };
+    try {
+      delete process.env.BLOB_PUBLIC_HOST;
+      delete process.env.BLOB_READ_WRITE_TOKEN;
+      delete process.env.kage_READ_WRITE_TOKEN;
+      const local = await request(PORT, 'GET', '/');
+      assert.ok(!local.text.includes('__BLOB_PRECONNECT__'), 'the template token is always substituted');
+      assert.ok(!local.text.includes('rel="preconnect"'), 'local uploads are same-origin: no hint');
+
+      process.env.BLOB_PUBLIC_HOST = 'store123.public.blob.vercel-storage.com';
+      const hosted = await request(PORT, 'GET', '/');
+      assert.ok(hosted.text.includes('<link rel="preconnect" href="https://store123.public.blob.vercel-storage.com" crossorigin />'),
+        'a configured blob host is preconnected to');
+      assert.ok(!hosted.text.includes('store123.public.blob.vercel-storage.com/'), 'only the origin is hinted, never a path');
+
+      delete process.env.BLOB_PUBLIC_HOST;
+      process.env.BLOB_READ_WRITE_TOKEN = 'vercel_blob_rw_abc123store_s3cret';
+      const derived = await request(PORT, 'GET', '/');
+      assert.ok(derived.text.includes('href="https://abc123store.public.blob.vercel-storage.com"'),
+        'the store id in the read-write token supplies the origin');
+      assert.ok(!derived.text.includes('s3cret'), 'the token itself never reaches the page');
+
+      process.env.BLOB_PUBLIC_HOST = 'not a url';
+      const broken = await request(PORT, 'GET', '/');
+      assert.ok(!broken.text.includes('rel="preconnect"'), 'an unusable host simply gets no hint');
+      // The hints must travel with every storefront page, not only the home page.
+      const product = await request(PORT, 'GET', '/product/1');
+      assert.ok(!product.text.includes('__BLOB_PRECONNECT__'), 'product pages substitute the token too');
+    } finally {
+      for (const key of ['BLOB_PUBLIC_HOST', 'BLOB_READ_WRITE_TOKEN', 'kage_READ_WRITE_TOKEN']) {
+        if (before[key] === undefined) delete process.env[key]; else process.env[key] = before[key];
+      }
+    }
+  });
+
+  await check('category cards cache for a minute at the edge and are still revalidated by browsers', async () => {
+    const cards = await request(PORT, 'GET', '/api/category-cards');
+    assert.strictEqual(cards.status, 200);
+    assert.strictEqual(cards.headers['cache-control'], 'public, max-age=0, s-maxage=60, stale-while-revalidate=300');
+    assert.ok(!(cards.headers['set-cookie'] || []).some((c) => c.startsWith('kage.signed_in=')), 'the hint is only ever set by a login');
+    assert.ok(Array.isArray(cards.json) && cards.json.length === 4, 'all four cards come back');
+    assert.ok(cards.json.every((card) => card.id && card.image && card.label));
+  });
+
   // ---------------------------------------------------------------
   // 2. Admin setup gating (C1)
   // ---------------------------------------------------------------
@@ -1248,18 +1319,55 @@ async function main() {
   // PERF-1 — split bundles: hashed, immutable, shell stays small
   // ---------------------------------------------------------------
   console.log('\nSplit bundles (PERF-1):');
-  await check('pages reference hashed CSS/JS bundles and stay small', async () => {
-    const pages = { '/': ['storefront.css', 'storefront.js'], '/admin': ['admin.css', 'admin.js'] };
-    for (const [path, bundles] of Object.entries(pages)) {
-      const r = await request(PORT, 'GET', path);
-      assert.strictEqual(r.status, 200, path);
-      assert.ok(Buffer.byteLength(r.text, 'utf8') < 120000, `${path} shell must stay under 120KB, got ${Buffer.byteLength(r.text, 'utf8')}`);
-      assert.ok(!r.text.includes('__STORE_') && !r.text.includes('__ADMIN_'), `${path} must substitute every asset hash token`);
-      for (const bundle of bundles) {
-        const m = new RegExp(`/${bundle}\\?v=([0-9a-f]{10})`).exec(r.text);
-        assert.ok(m, `${path} must reference /${bundle} with a 10-hex content hash`);
-      }
+  await check('pages reference their bundles by content hash; the storefront stylesheet is inlined, not linked', async () => {
+    const admin = await request(PORT, 'GET', '/admin');
+    assert.strictEqual(admin.status, 200);
+    assert.ok(Buffer.byteLength(admin.text, 'utf8') < 120000, `the admin shell stays under 120KB, got ${Buffer.byteLength(admin.text, 'utf8')}`);
+    assert.ok(!admin.text.includes('__STORE_') && !admin.text.includes('__ADMIN_'), 'both shells substitute every asset hash token');
+    for (const bundle of ['admin.css', 'admin.js']) {
+      assert.ok(new RegExp(`/${bundle}\\?v=([0-9a-f]{10})`).test(admin.text), `the admin shell references /${bundle} with a 10-hex hash`);
     }
+
+    // PERF (2026-11-23): the storefront no longer links its stylesheet. The
+    // pre-paint guard and storefront.css are concatenated into one inline
+    // <style> block, so first paint waits for no CSS request at all.
+    const home = await request(PORT, 'GET', '/');
+    assert.strictEqual(home.status, 200);
+    // The document now carries the stylesheet, so it is bigger by exactly those
+    // bytes (235 KB raw / ~49 KB gzipped here). It is still one request that
+    // paints immediately, and repeat visits revalidate it (max-age=0) instead
+    // of re-downloading.
+    const homeBytes = Buffer.byteLength(home.text, 'utf8');
+    assert.ok(homeBytes < 260000, `the storefront shell stays under 260KB, got ${homeBytes}`);
+    assert.ok(!home.text.includes('/storefront.css?v='), 'no render-blocking stylesheet link');
+    assert.ok(!home.text.includes('href="/pre-paint.css"'), 'the guard is inlined too');
+    assert.ok(new RegExp('/storefront.js\\?v=([0-9a-f]{10})').test(home.text), 'the JS bundle is still referenced by hash');
+
+    const guard = fs.readFileSync(path.join(__dirname, '..', 'public', 'pre-paint.css'), 'utf8');
+    const store = fs.readFileSync(path.join(__dirname, '..', 'public', 'storefront.css'), 'utf8');
+    const inline = /<style>([\s\S]*?)<\/style>/.exec(home.text);
+    assert.ok(inline, 'the shell carries the inline stylesheet');
+    // The HTML parser turns CRLF into LF inside <style>, so the block is the
+    // two files normalised — the same bytes the CSP hash is taken over.
+    assert.strictEqual(inline[1], `${guard}\n${store}`.replace(/\r\n/g, '\n'),
+      'the inline block is exactly the guard + the bundle, normalised to LF');
+    assert.match(inline[1], /\.hero-media img \{/, 'the inline block really is the stylesheet');
+
+    // ... and the CSP allows exactly that block, by hash, and nothing else inline.
+    const csp = home.headers['content-security-policy'] || '';
+    const expected = `'sha256-${crypto.createHash('sha256').update(inline[1], 'utf8').digest('base64')}'`;
+    const styleSrc = /style-src[^;]*/.exec(csp)?.[0] || '';
+    assert.ok(styleSrc.includes(expected), `style-src must allow the inline block by hash, got: ${styleSrc}`);
+    assert.ok(!styleSrc.includes("'unsafe-inline'"), 'the hash replaces unsafe-inline, it does not join it');
+    const tampered = `'sha256-${crypto.createHash('sha256').update(inline[1] + ' ').digest('base64')}'`;
+    assert.ok(!styleSrc.includes(tampered), 'a single changed byte would not match the policy');
+
+    // The stylesheet still ships as a cacheable file: the admin bundle rules,
+    // the jsdom fixture and any rollback keep working.
+    const css = await request(PORT, 'GET', '/storefront.css?v=0123456789');
+    assert.strictEqual(css.status, 200);
+    assert.strictEqual(css.text.replace(/\r\n/g, '\n'), store.replace(/\r\n/g, '\n'),
+      'the served file is the same stylesheet that is inlined');
   });
 
   await check('Umami tag renders only when UMAMI_WEBSITE_ID is set (storefront only)', async () => {
@@ -1733,6 +1841,78 @@ async function main() {
     }
   });
 
+  await check('category card uploads are optimised to a <=600px WebP with a 300px variant', async () => {
+    // The live Pants card was a 1122x1126 PNG of 2.7 MB rendered inside a
+    // 104-150px circle, because this route stored uploads byte-for-byte.
+    // Uploads must now come out as WebP no larger than 600px on the long edge,
+    // with a 300px variant, and the public payload must describe both so the
+    // storefront can emit a srcset.
+    const sharp = require('sharp');
+    const oldVercel = process.env.VERCEL;
+    const oldBlobToken = process.env.BLOB_READ_WRITE_TOKEN;
+    const oldKageBlobToken = process.env.kage_READ_WRITE_TOKEN;
+    delete process.env.VERCEL;
+    delete process.env.BLOB_READ_WRITE_TOKEN;
+    delete process.env.kage_READ_WRITE_TOKEN;
+    try {
+      const bigPng = await sharp({
+        create: { width: 1122, height: 1126, channels: 3, background: { r: 90, g: 80, b: 60 } }
+      }).png({ compressionLevel: 0 }).toBuffer();
+
+      const csrf = await getCsrf();
+      const form = new FormData();
+      form.append('image', new Blob([bigPng], { type: 'image/png' }), 'pants-phone.png');
+      const up = await fetch(`http://127.0.0.1:${PORT}/api/admin/category-cards/pants/image`, {
+        method: 'POST',
+        headers: { Cookie: `${adminCookie}; ${csrf.cookie}`, 'X-CSRF-Token': csrf.token },
+        body: form
+      });
+      const upBody = await up.json();
+      assert.strictEqual(up.status, 200, JSON.stringify(upBody));
+      const pants = upBody.cards.find(c => c.id === 'pants');
+      assert.match(pants.image, /\.webp$/, 'an uploaded PNG is re-encoded to WebP');
+      assert.ok(pants.width > 0 && pants.width <= 600, `width must be <=600, got ${pants.width}`);
+      assert.ok(pants.height > 0 && pants.height <= 600, `height must be <=600, got ${pants.height}`);
+      assert.match(pants.srcset, /-300\.webp 300w, .+\.webp \d+w$/, 'the payload carries a 300w candidate and the main file');
+
+      const main = await fetch(`http://127.0.0.1:${PORT}${pants.image}`);
+      assert.strictEqual(main.status, 200);
+      assert.match(String(main.headers.get('content-type')), /^image\/webp/, 'served as WebP');
+      const mainBytes = (await main.arrayBuffer()).byteLength;
+      assert.ok(mainBytes < 100 * 1024, `main file must stay under 100 KB, got ${mainBytes}`);
+
+      const variantUrl = pants.srcset.split(',')[0].trim().split(' ')[0];
+      const variant = await fetch(`http://127.0.0.1:${PORT}${variantUrl}`);
+      assert.strictEqual(variant.status, 200, 'the 300px variant must be served');
+      const variantBytes = (await variant.arrayBuffer()).byteLength;
+      assert.ok(variantBytes < 60 * 1024, `the phone-sized file must stay under 60 KB, got ${variantBytes}`);
+
+      // Replacing the photo again removes the previous pair (no orphaned 300w).
+      const csrf2 = await getCsrf();
+      const form2 = new FormData();
+      form2.append('image', new Blob([bigPng], { type: 'image/png' }), 'pants-phone-2.png');
+      const up2 = await fetch(`http://127.0.0.1:${PORT}/api/admin/category-cards/pants/image`, {
+        method: 'POST',
+        headers: { Cookie: `${adminCookie}; ${csrf2.cookie}`, 'X-CSRF-Token': csrf2.token },
+        body: form2
+      });
+      assert.strictEqual(up2.status, 200);
+      const oldMain = await fetch(`http://127.0.0.1:${PORT}${pants.image}`);
+      assert.strictEqual(oldMain.status, 404, 'the replaced photo and its variant are deleted');
+    } finally {
+      try {
+        const csrf = await getCsrf();
+        await fetch(`http://127.0.0.1:${PORT}/api/admin/category-cards/pants/image`, {
+          method: 'DELETE',
+          headers: { Cookie: `${adminCookie}; ${csrf.cookie}`, 'X-CSRF-Token': csrf.token }
+        });
+      } catch (e) { /* best effort */ }
+      if (oldVercel === undefined) delete process.env.VERCEL; else process.env.VERCEL = oldVercel;
+      if (oldBlobToken === undefined) delete process.env.BLOB_READ_WRITE_TOKEN; else process.env.BLOB_READ_WRITE_TOKEN = oldBlobToken;
+      if (oldKageBlobToken === undefined) delete process.env.kage_READ_WRITE_TOKEN; else process.env.kage_READ_WRITE_TOKEN = oldKageBlobToken;
+    }
+  });
+
   await check('admin can create a product with an image, unit cost and stock', async () => {
     const oldVercel = process.env.VERCEL;
     const oldBlobToken = process.env.BLOB_READ_WRITE_TOKEN;
@@ -2178,14 +2358,24 @@ async function main() {
       const { persistImage, removeImage } = require('../utils/helpers');
       const url = await persistImage(Buffer.from('mock-image'), 'mock.webp');
       await removeImage(url);
-      // F7: removeImage deletes the derived 400/800/1200 WebP derivatives too —
-      // one put (original), then four dels (original + 400/800/1200).
-      assert.strictEqual(calls.length, 5);
+      // F7: removeImage deletes the derived WebP derivatives too — one put
+      // (original), then six dels (original + 300/400/600/800/1200). 300 and
+      // 600 were added with the category-card pipeline (2026-11-23): those
+      // cards store a 600px main file plus a 300px variant, and both must go
+      // when the photo is replaced or reset.
+      assert.strictEqual(calls.length, 7);
       assert.strictEqual(calls[0][2].access, 'public');
       assert.strictEqual(calls[0][2].token, 'test-prefixed-store-token');
       assert.strictEqual(calls[1][2].token, 'test-prefixed-store-token');
       const deleted = calls.filter(c => c[0] === 'del').map(c => c[1]);
-      assert.deepStrictEqual(deleted, [url, url.replace('.webp', '-400.webp'), url.replace('.webp', '-800.webp'), url.replace('.webp', '-1200.webp')]);
+      assert.deepStrictEqual(deleted, [
+        url,
+        url.replace('.webp', '-300.webp'),
+        url.replace('.webp', '-400.webp'),
+        url.replace('.webp', '-600.webp'),
+        url.replace('.webp', '-800.webp'),
+        url.replace('.webp', '-1200.webp')
+      ]);
     } finally {
       Module._load = originalLoad;
       if (oldVercel === undefined) delete process.env.VERCEL;

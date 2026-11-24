@@ -1855,3 +1855,372 @@ Unchanged non-token text on solid surfaces was also checked:
   *Also fixed:* the frontend suite's closing line hard-coded "37/37" while 79
   scenarios actually ran. It now counts the `✅` lines it prints, so the summary
   cannot drift again.
+
+## 2026-11-23 follow-up — skeleton loading screens + action spinners
+
+**Problem.** Every slow path was silent. The storefront painted empty grids while
+`/api/products` was in flight, the account page sat blank until order history
+arrived, tracking showed nothing between submit and result, and every action that
+took more than a moment only disabled its button (or, worse, closed its dropdown
+and left no trace at all). The CSS already shipped `.skeleton` /
+`skeleton-shimmer` primitives, but nothing used them; the admin panel had exactly
+one spinner, hard-wired to Quick Upload.
+
+**Storefront (`public/storefront.js`, `public/storefront.css`).**
+* `setButtonLoading(btn, on, label)` — the one spinner primitive. It disables the
+  button, sets `aria-busy`, swaps the label for `<span class="spinner">` + a
+  text label, and restores the **exact** original `innerHTML`/`disabled` state
+  afterwards, so no flow leaks a half-rendered button. Wired into: place order,
+  login, signup, logout, save profile, change password, resend verification,
+  request password reset, reset password, review submit, tracking submit each
+  newsletter/notify form, Load more, and the catalog Retry button.
+* Skeletons: `skeletonProductCards` / `skeletonReviewRows` / `skeletonOrderRows`
+  / `skeletonTrackCard`, painted into `#bestSellersGrid`, `#collectionGrid`,
+  `#reviewsList`, `#acctOrders` and `#trkResult`. The collection/best-seller
+  skeletons are only painted when nothing is on screen yet (first load, or a
+  retry after an outage) — a seed-painted or already-loaded grid keeps its real
+  cards, so the instant seed paint is never replaced by a flash of placeholders.
+  `withFullCatalog()` now marks the grid `aria-busy` and skeletons an *empty*
+  grid only, so a filter applied before the last catalog page lands no longer
+  blanks the page.
+* Photos decode asynchronously, so card and gallery `<img>` carry `.img-skel`
+  (the shimmer) until `load`/`error` fires; a capture-phase listener removes it
+  for every image, and a post-render sweep covers cache hits.
+* Detail reviews reveal the section immediately with two skeleton rows and swap
+  in real reviews (or the empty state) when the fetch settles. Tracking shows a
+  skeleton card under the form while the lookup runs.
+* `prefers-reduced-motion: reduce` stops both the shimmer and the ring.
+
+**Admin (`public/admin.js`, `public/admin.css`).**
+* `btnLoading()` (same restore-exact-markup contract) drives Save/Update Product
+  and bulk delete; `busyButton()` covers row-level icon buttons (stock toggle,
+  delete, order status/payment/COD, review approve/reject/delete) with an
+  in-place spinning ring, driven by a promise-aware `ASYNC_ACTIONS` allow-list in
+  the delegated click handler.
+* Skeletons for every list that starts empty: dashboard stat values and Recent
+  Orders, Products, Orders, Reviews, Homepage Cards, plus the sales-summary and
+  P&L numbers. `aria-busy` is set on the list and cleared in `finally`.
+* A 2px top progress bar (`#adminBusyBar`) is ticked by the existing `fetch`
+  wrapper for *every* API call, so actions whose button lived in a dropdown that
+  just closed still show activity. It appears after a 140 ms delay, so cache hits
+  never flash.
+* Homepage-card photo upload/reset now dims the card frame, spins a ring over it
+  and prints "Uploading…" / "Resetting…" in the card status line — client-side
+  compression makes those cycles the slowest in the panel.
+
+**Accessibility.** Decorative skeleton nodes are `aria-hidden` and text-free;
+loading state is conveyed with `aria-busy` on the container and the button, so a
+screen reader is not read a wall of empty boxes. Nothing relies on colour alone.
+
+**Verification.** All skeletons/spinners are pure decoration on top of the
+existing markup contracts: `npm test` **165/165** and the frontend suite
+**80/80** stay green, including the grid/card, lazy-image, offline-catalog and
+hidden-home-reviews assertions. Two static guards were kept honest (the served
+`#collectionGrid` must stay an empty `.product-grid`, and `trackOrder`'s
+`finally` must still contain `btn.disabled = false`). A jsdom probe with a held
+`/api/products` response confirmed 8 skeleton cards + `aria-busy="true"` on both
+grids, replaced by real cards with the attribute cleared on resolution, and a
+held tracking request confirmed the skeleton card plus a spinning
+`Tracking…` button.
+
+---
+
+## 2026-11-23 performance pass — Tasks 1–4 (photos, hero, data requests, first paint)
+
+Owner-supplied performance review, worked one task per commit. Baseline before
+this pass: home page **4105 KB**, with first paint at **1184 ms** on a throttled
+390x844 slow-4G profile; the PageSpeed report's headline complaints were a 3.6 MB homepage photo,
+a full-size desktop hero served to phones, and a 3.9 s data-request dependency
+chain.
+
+### ✅ Task 1 — Category-card photos are optimised on upload (`utils/categoryCardImage.js`)
+**Was.** The admin homepage-card uploader stored whatever the owner selected, and
+the homepage rendered it at 95–150 px. A 1122x1126 PNG (3.6 MB) was being served
+into a 95 px circle: `#sectionCategories` alone was 3.7 MB of the 4.0 MB page.
+
+**Fix.** A new `utils/categoryCardImage.js` shrinks the file at upload time —
+`sharp` re-encodes to WebP, longest edge ≤ 600 px, quality ladder 78 → 72 → 66 → 60
+until the main image is under 100 KB, plus a 300 px variant under 48 KB, both
+stored through `storeProcessedImage`. `routes/admin.js` uses it and records the
+real dimensions + variants in `app_settings` (`category_card.<id>.meta` =
+`{v, width, height, variants}`); `utils/categoryCards.js` turns that into
+`srcset`/`width`/`height` on the public card payload, and `public/storefront.js`
+renders them with `sizes="(min-width: 1024px) 150px, 104px"` (the CSS circle
+width). Unsupported/corrupt buffers fall back to the old `persistImage` path
+(upload still succeeds), and `scripts/convert-category-cards.js`
+(`npm run convert-cards`, `--dry-run` supported) backfills photos already stored
+the old way — idempotent, it skips cards that already have a `meta` row.
+
+**Verified.** Convert script: `3.62 MB → 21.3 KB (598x600, 99.4% saved)`, no-op on
+re-run. Live upload through the admin route: 3000x3000 input stored as a 300 px
+variant + ≤600 px main, both WebP. Phone profile: page **4105 KB → 403 KB**, the
+Pants tile **3709 KB → 7.2 KB** (`-300.webp`, 1122x1126 PNG into a 95 px box).
+Desktop pixel diff of the category band: identical.
+
+### ✅ Task 2 — Phones get the 700 px hero (`public/index.html`, `public/storefront.css`)
+**Was.** The hero shipped 700w/1376w candidates but no `(max-width: 640px)` source
+at all, so a 390 px phone downloaded the 1363 px `hero.webp` (96 KB) — and the
+`<img>` had no `width`/`height`, so the box was reserved by `aspect-ratio` alone.
+
+**Fix.** Two `(max-width: 640px)` `<source>`s (WebP + JPEG) for `hero-700.*`, and
+`width="1363" height="768"` on the `<img>` paired with `height: auto` in
+`.hero-media img` (a presentation height attribute otherwise beats
+`aspect-ratio` and stretches the picture to `56vh` — this was caught in review).
+
+**Verified (headless Chromium).** 390x844 and 360x800@3x now fetch
+`hero-700.webp` — natural 700x391, same rendered box (390x219 / 360x203),
+**96.2 KB → 37.3 KB**. 1440x900 still gets `hero.webp` and renders identically.
+Screenshots before/after are byte-for-byte the same look.
+
+### ✅ Task 3 — Data requests start with the bundle, anonymous visits skip the session probe
+**Was.** `Promise.all([loadProductsFromAPI(), checkCustomerAuth()])` ran at the
+*end* of a 45 KB bundle, and the category-card and featured-review fetches only
+started from the code paths that consumed them. On slow 4G the four API requests
+therefore began at 1589/1590/1877/1878 ms — effectively a chain — for a page whose
+catalog was already painted from the inlined seed.
+
+**Fix (four parts).**
+1. `public/storefront.js` now issues the three public GETs in its **first
+   statements** (`earlyFetch()` + `consumeEarlyFetch()`), and every consumer awaits
+   the existing promise instead of issuing its own; nothing is fetched twice and a
+   consumer that never runs cannot leave an unhandled rejection. Boot's two
+   category-card calls share one request until boot routing settles
+   (`settleBootCards()`), after which each refresh asks again so an admin photo
+   swap still appears without a reload.
+2. `GET /api/customers/me` is no longer called for anonymous visitors. The session
+   cookie is (correctly) httpOnly, so `routes/auth.js` now also sets a readable
+   companion cookie `kage.signed_in=1` on customer login/signup and clears it on
+   logout — it carries no identity, id or token. `checkCustomerAuth()` skips the
+   probe when the hint is absent, and `handleAccountClick()` forces one probe
+   before showing the sign-in form, so a lost hint can never strand a signed-in
+   shopper. Blocked/unknown cookies fail open (probe as before).
+3. `GET /api/category-cards` reads all twelve `category_card.*` settings in **one**
+   query instead of twelve sequential `getSetting()` round trips (twelve network
+   hops per page view on Turso), and its cache header moved from
+   `s-maxage=10, swr=30, must-revalidate` to `s-maxage=60, stale-while-revalidate=300`
+   — four rarely changed pictures, so a photo swap may take up to a minute.
+4. The shell preconnects to the Blob photo origin (`BLOB_PUBLIC_HOST`, else the
+   store id inside `BLOB_READ_WRITE_TOKEN`) — server-injected, absent locally
+   where uploads are same-origin, and the token itself never reaches the page.
+   `<link rel="preload" as="fetch">` was tried first and **dropped**: the three
+   endpoints are `must-revalidate`, so Chrome could not reuse the preload and the
+   later fetch revalidated anyway — the hints only competed with the CSS/JS for
+   bandwidth.
+
+**Verified.** Throttled 390x844 slow-4G: API requests go from five (1589, 1590,
+1877, 1878) to **three, all starting at ~1544 ms**, and the page is 344.6 KB;
+desktop 1440: 133.1 → 130.5 KB, three requests at ~38 ms. Paint metrics did not
+move in this step (first paint 1184 → 1184 ms, CLS 0.0040): the page still waits
+for 32 KB of render-blocking CSS, which is the next task.
+
+> Measurement note: the LCP numbers in this log come from a CDP harness that first
+> added `startTime + loadTime`, double-counting the image download and inflating
+> every value by ~800 ms on slow-4G. The harness now uses `renderTime ||
+> startTime`; the figures above are the corrected ones (LCP == FCP at 1184 ms,
+> because the whole page paints in one go when the stylesheet lands). CLS stays 0.0040. `npm test` **169/169** and the
+frontend suite **81/81** (new checks: the hint cookie is set by login, cleared by
+logout, never by an anonymous probe; the shell substitutes its preconnect token in
+every branch and never leaks the token; category cards keep their new header; a
+first-time visitor makes no `/api/customers/me` request while a hinted browser
+does, and each boot GET is requested exactly once).
+
+### ✅ Task 4 — First paint no longer waits for the stylesheet (`server.js`, `public/index.html`)
+**Was.** Two render-blocking requests (the 1.3 KB pre-paint guard and the 32 KB
+`storefront.css`) sat between the HTML and the first pixel. On a throttled
+390x844 slow-4G profile nothing painted until **1184 ms**, and FCP == LCP: the
+whole page appeared at once when the stylesheet landed. Blocking the stylesheet
+by hand dropped first paint to 232–412 ms, which is what this task recovers
+without giving up any styling.
+
+**Fix.** `renderStorefrontHtml()` now concatenates `pre-paint.css` and
+`storefront.css` into a single `<style>` block injected at the
+`<!--__INLINE_CSS__-->` token in the head. The CSP keeps `style-src 'self'` and
+adds exactly one `'sha256-<base64>'` for that block (computed at boot from the
+same bytes, so an edit can never drift), and the two `<link rel="stylesheet">`
+tags are gone. The standalone files are still served (immutable `?v=` caching,
+the jsdom fixture, and a rollback path). `/storefront.css` cannot be cached
+across documents any more, but the shell is an SPA: the second page view is a
+pushState navigation, and repeat visits revalidate the document with a 304, so
+no CSS bytes are re-sent.
+
+**Two traps found while verifying (both fixed):**
+1. The HTML parser normalises CRLF to LF *inside* `<style>`, so a hash taken over
+   the raw file bytes never matched the parsed block. Chrome silently dropped the
+   whole stylesheet and rendered an unstyled page — which is exactly what the
+   first measurement showed (FCP 388 ms, CLS 0). `INLINE_CSS` is normalised to LF
+   before hashing and injecting, and a headless check now asserts
+   `document.styleSheets.length === 1`, the brand canvas colour and a fixed
+   header on `/`, `/product/1` and `/about`.
+2. Painting before JavaScript revealed a 15 px jump: the hero clears the fixed
+   header with `padding-top: calc(var(--header-h, 80px) …)`, and `--header-h` is
+   only published by script — the header is actually 95 px at every breakpoint,
+   so the page shifted 15 px when that measurement landed (CLS 0.0199). `:root`
+   now declares `--header-h: 95px`; the ResizeObserver still re-measures for the
+   360 px wrap case. CLS is back to the pre-change 0.0040 (the remaining shift is
+   the pre-existing text/category swap when the catalog lands).
+
+**Verified.** Throttled 390x844 slow-4G: **first paint 1184 → 500 ms**, LCP
+**1184 → 832 ms** (the hero is now bandwidth-bound, not CSS-bound), CLS 0.0040,
+341 KB, no console errors, one stylesheet in `document.styleSheets`. Desktop
+1440x900: LCP 220 → ~150-280 ms. Full-page screenshots at 390 and 1440 are
+unchanged, `/product/1` and `/about` render styled and console-clean. `npm test`
+**169/169**, frontend **81/81** — including a new e2e contract that the inline
+block is byte-identical to `pre-paint.css` + `\n` + `storefront.css` normalised
+to LF, that the CSP allows exactly that hash (and never `'unsafe-inline'`), and
+that no render-blocking stylesheet link remains.
+
+### ✅ Task 5 — Dead-code audit of the storefront bundle (almost nothing was dead)
+**Method.** Three independent passes over `public/storefront.js` (166 functions,
+164 KB raw / 45 KB gzip):
+1. **Static reachability** — every function, top-level binding and `data-action` /
+   `data-route` key cross-checked against its declaration, the templates in
+   `public/index.html`, the strings the JS builds, and the two test suites.
+2. **Runtime coverage** — Chrome's precise JS coverage over three full passes:
+   a home-page load; every route (`/`, `/collection/anime`, `/product/1`,
+   `/about`, `/contact`, `/returns`, `/shipping`, `/terms`, `/privacy`,
+   `/tracking`, `/account`, `/checkout`, `/wishlist`) plus the JS-driven route
+   changes; and every overlay/flow that is not a route (mobile menu, search,
+   cart, wishlist, account modal, signup/login, review submission, tracking,
+   filter/sort/search on the grid).
+3. **DOM-liveness** — every `getElementById`/`querySelector('#…')` target checked
+   against the markup and the strings the JS builds; every id that no longer
+   exists exposes a dead branch.
+
+**Result: the bundle is live code.** 166/166 functions are referenced, 37/37
+delegated actions and all routes have handlers, every declared binding is read,
+and no function is unreachable. A home-page load executes ~68% of the file's
+bytes; the rest is the other routes' code, which is a *code-splitting*
+opportunity, not dead weight. `public/admin.js` (98 functions) audits the same.
+
+**Removed (the only genuinely dead code found):**
+* `window.renderHomeProductCard = renderProductCard` and its "the old name still
+  points at it" comment — a public alias left over from when the card renderer
+  was home-only. Nothing in the page, the templates or the suites called it; the
+  frontend suite now asserts it stays gone instead of asserting it equals the
+  renderer.
+* `|| document.getElementById('newsletterMsg')` in `subscribeNewsletter()` — a
+  fallback for an element that has not existed in the markup for a long time
+  (`form.parentElement.querySelector('.newsletter-msg')` is the live target).
+* `window.settleBootCards = function () {…}` — only ever called from inside the
+  bundle, so it is now a plain `function settleBootCards()` instead of a global.
+
+**Verified.** `npm test` **169/169**, frontend **81/81** after the removals; the
+diff is 2 insertions / 4 deletions in `public/storefront.js`. The measurement is
+the point of this entry: the next byte-class win in this bundle is splitting the
+route-specific half out of boot (rejected for this pass — too invasive for the
+risk budget), not deleting more code.
+
+### ✅ Task 6 — Accessibility: the tree is well-formed now, and the fixes were invisible
+**Why PageSpeed said "Accessibility tree is not well-formed".** That string is
+Lighthouse's `agent-accessibility-tree` audit
+(`core/audits/agentic/agent-accessibility-tree.js`). It is not a bespoke check:
+it re-runs axe-core and **fails if any of 34 specific rules fail** (`button-name`,
+`link-name`, `label`, all the `aria-*` name/role/attribute rules, `tabindex`,
+`duplicate-id-aria`, `svg-img-alt`, …). Two of them were failing on the live
+homepage, so the audit could not pass no matter what the rest of the tree looked
+like:
+* `button-name` (critical) — the two icon-only `.cart-close` buttons in the cart
+  and wishlist drawers had no accessible name.
+* `aria-prohibited-attr` (serious) — `#categoryStrip` carried `aria-label="Shop
+  categories"` but `aria-label` is **prohibited on a generic `div`**, so the name
+  was discarded. This is exactly the "ARIA attribute that does not match the
+  element" class of fault the task asked about.
+
+The rest of the candidate causes in the brief were already clean and stayed
+clean: no focusable element inside an `aria-hidden` subtree, exactly one `main`
+landmark, no `aria-labelledby`/`describedby`/`controls` pointing at a missing id,
+no invalid role parent/child pairs, no duplicate ids in ARIA references.
+
+**Method.** axe-core 4.14.1 (tags `wcag2a wcag2aa wcag21a wcag21aa
+best-practice`) at **390x844 (DPR 2.625) and 1440x900**, over 20 states: `/`,
+`/product/:id`, `/collection/:cat`, cart drawer (with items), wishlist drawer
+(with items), mobile menu, desktop search, `/checkout`, `/tracking`, `/account`
+(both the sign-in dialog and the forced signed-in view), `/reset-password`,
+`/verify-email`, `/order-confirmed`, `/returns`, `/shipping`, `/terms`,
+`/privacy`, `/contact`, `/about`, 404. Plus a CDP accessibility-tree probe
+(unnamed controls, focusable-in-`aria-hidden`, invalid roles, dangling ARIA
+references, landmark/`h1` structure), and the repo's own `tests/a11y.test.js`.
+
+**Before (homepage, identical at both widths).**
+
+| rule | impact | nodes |
+|---|---|---|
+| `button-name` | critical | `.cart-close[data-action="toggle-cart"]`, `.cart-close[data-action="toggle-wishlist"]` |
+| `label-content-name-mismatch` | serious | `#wishlistNav`, `button[title="Cart"]`, every `.product-card[aria-label="View …"]` |
+| `region` | moderate | `.whatsapp-float` (last floating action, outside every landmark) |
+| `aria-prohibited-attr` *(needs review)* | serious | `#categoryStrip` |
+| `color-contrast` *(needs review)* | serious | `.why-item h3/p` — axe cannot resolve a gradient background |
+
+Once the home page was clean, the same harness over the other routes added:
+`page-has-heading-one` (collection, checkout, tracking, reset, verify — no `h1`
+on those routes at all), `heading-order` (collection filter headings, content
+pages, contact cards, cart/wishlist drawer item names), `link-in-text-block`
+(returns/terms/privacy) and `aria-dialog-name` (the sign-in card).
+
+**Fixes — one line each.**
+1. `button-name` — the cart and wishlist close buttons now say "Close cart" /
+   "Close wishlist" (`type="button"`, decorative `<svg aria-hidden="true">`).
+2. `aria-prohibited-attr` — `#categoryStrip` is a `role="region"` labelled "Shop
+   categories", so the `aria-label` is legal and the strip is a named landmark
+   (its `tabindex="0"` is the scrollable-region keyboard affordance and stays).
+3. `region` — the WhatsApp button sits inside `<aside class="whatsapp-dock"
+   aria-label="WhatsApp support">`; the link keeps its class, so every
+   `body:has(…) .whatsapp-float` rule still applies and the fixed positioning is
+   unchanged.
+4. `label-content-name-mismatch` (nav) — the visible count badge is now part of
+   the name: "Wishlist, 0 items" / "Shopping cart, 0 items", re-synced by
+   `syncBadgeLabel()` whenever the count changes.
+5. `label-content-name-mismatch` (cards) — the card's `aria-label="View …"` is
+   gone; a `role="link"` card is named by its own content, so the announced name
+   now *is* the visible text (name, fit, rating, price).
+6. `aria-dialog-name` — the sign-in/sign-up card is `aria-label="Sign in or
+   create an account"`.
+7. `link-in-text-block` — inline body links (`.link-accent`) are underlined; this
+   is the **only visible pixel change** in the task. The storefront accent
+   `#4A4433` sits at **1.09:1** against the surrounding body copy `#4F493F`
+   (both pass 6.5:1 against the page background, so the text was readable — it
+   was only *unmarked*), and WCAG 1.4.1 needs a non-colour cue or a colour
+   change, which would have altered the palette.
+8. `page-has-heading-one` — every route now has exactly one `h1`: the collection,
+   tracking, reset, verify, checkout and confirmation titles were `h2`; the
+   account page gained an `sr-only` "Your account" `h1`.
+9. `heading-order` — the levels below those `h1`s were renumbered so no page
+   skips a level: filter sections `h4 → h2`, content-page sections
+   `h3 → h2` (27 headings), contact cards `h3 → h2`, checkout sections
+   `h3 → h2`, cart/wishlist drawer headers `h3 → h2` and their line items
+   `h4 → h3`, account cards `h3 → h2`. Every affected stylesheet selector was
+   retargeted with `:is(h2, h3)`/`:is(h2, h4)` in the same commit, so the
+   declarations that style them are byte-for-byte the same.
+10. `color-contrast` (needs review, 6 nodes) — verified by hand instead of
+    "fixed": the section's background is `--bg-secondary` `#C4BEB0` with a 1 px
+    `--border-subtle` hairline (that hairline is *why* axe cannot resolve a
+    gradient). `#1A1815` headings measure **9.57:1** and `#3D3931` body copy
+    **6.20:1** on that background — both pass AA.
+
+**No visual change — checked, not assumed.** The task's constraint was "fix
+without changing the visual design", so the change was verified by diffing every
+element's painted geometry and computed type between `ba934a7` and the working
+tree: 13 routes x 2 viewports, capturing tag-independent signatures (rect,
+font-size/weight/family/line-height/letter-spacing, colour, decoration, margins,
+padding, transform, display). Every route is identical except three known items:
+the intentional `.link-accent` underline, the new zero-height `.whatsapp-dock`
+aside, and the new `id="cartNav"`/`sr-only` nodes. The top-bar marquee was not
+touched (only skipped in the diff because its position is animation-dependent).
+
+**After.** axe-core **0 violations in all 20 states at both widths** (the two
+needs-review items are the manual contrast verification above and nothing else);
+accessibility-tree probe **0 problems** (one `h1` per rendered page, every
+control named, one `main`, no aria-hidden focus traps, no dangling references);
+`tests/a11y.test.js` unchanged and green (148/175/175 contrast pairs, every
+outline reset paired, 41 selectors re-tested by real click + Tab). Full suite
+before and after: `npm test` **169/169** API, rate-limit, regressions, upgrade
+migration and mail suites, frontend **81/81**, a11y **all green** (the two h3
+selectors in the frontend suite that referenced the renumbered content-page
+headings were widened to `h2, h3` in the same commit).
+
+**After deploying:** nothing to run — this is static markup and CSS, and the CSP
+`style-src` hash is recomputed from the CSS bytes at boot. Re-run PageSpeed
+Insights on the deployed URL to see Accessibility 100 and "Accessibility tree is
+well-formed"; the only thing to eyeball is the new underline on the five inline
+links in Returns/Terms/Privacy, in case the owner prefers a different
+non-colour cue.

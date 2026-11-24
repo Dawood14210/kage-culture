@@ -26,6 +26,127 @@
     }
 
     // ================================================================
+    // LOADING FEEDBACK (spinners + skeletons)
+    // ================================================================
+    // Every admin request ticks a top-of-page progress bar (see the fetch
+    // wrapper below), so an action always looks alive even when the control
+    // that triggered it is a row menu with nowhere to put a spinner. Shown
+    // only after a short delay so instant cache hits do not flash.
+    let busyRequests = 0;
+    let busyBarTimer = null;
+    function busyBar() {
+      let bar = document.getElementById('adminBusyBar');
+      if (!bar) {
+        bar = document.createElement('div');
+        bar.id = 'adminBusyBar';
+        bar.className = 'busy-bar';
+        bar.setAttribute('aria-hidden', 'true');
+        bar.innerHTML = '<span></span>';
+        document.body.appendChild(bar);
+      }
+      return bar;
+    }
+    function beginBusy() {
+      busyRequests++;
+      if (busyRequests !== 1) return;
+      busyBarTimer = setTimeout(function() {
+        busyBarTimer = null;
+        if (busyRequests > 0) busyBar().classList.add('on');
+      }, 140);
+    }
+    function endBusy() {
+      busyRequests = Math.max(0, busyRequests - 1);
+      if (busyRequests > 0) return;
+      if (busyBarTimer) { clearTimeout(busyBarTimer); busyBarTimer = null; }
+      busyBar().classList.remove('on');
+    }
+    // btnLoading() swaps a button's label for a spinner while a request runs
+    // and restores the exact original markup afterwards, so no action ever
+    // looks unresponsive. skeletonRows() gives lists their shape while the
+    // first page of data is in flight (rows are aria-hidden, the list gets
+    // aria-busy).
+    const SPINNER_HTML = '<span class="spinner" aria-hidden="true"></span>';
+    function btnLoading(btn, loading, label) {
+      if (!btn) return;
+      if (loading) {
+        if (btn.dataset._loading === '1') return;
+        btn.dataset._loading = '1';
+        btn.dataset._origHtml = btn.innerHTML;
+        btn.dataset._origDisabled = btn.disabled ? '1' : '0';
+        btn.disabled = true;
+        btn.setAttribute('aria-busy', 'true');
+        btn.classList.add('is-loading');
+        const text = label != null ? label : (btn.textContent || '').trim();
+        btn.innerHTML = SPINNER_HTML + (text ? '<span class="btn-loading-label">' + esc(text) + '</span>' : '');
+      } else {
+        if (btn.dataset._loading !== '1') return;
+        delete btn.dataset._loading;
+        if (btn.dataset._origHtml != null) btn.innerHTML = btn.dataset._origHtml;
+        delete btn.dataset._origHtml;
+        btn.disabled = btn.dataset._origDisabled === '1';
+        delete btn.dataset._origDisabled;
+        btn.removeAttribute('aria-busy');
+        btn.classList.remove('is-loading');
+      }
+    }
+    // Overlay spinner for icon/label buttons inside table rows: the label is
+    // hidden by CSS and a ring spins in its place, so the row shows *which*
+    // action is running.
+    function busyButton(btn, on) {
+      if (!btn || btn.tagName !== 'BUTTON') return;
+      if (on) {
+        btn.classList.add('btn-busy');
+        btn.disabled = true;
+        btn.setAttribute('aria-busy', 'true');
+      } else {
+        btn.classList.remove('btn-busy');
+        btn.disabled = false;
+        btn.removeAttribute('aria-busy');
+      }
+    }
+    function skeletonRows(n, opts) {
+      const withThumb = !opts || opts.thumb !== false;
+      let html = '';
+      for (let i = 0; i < (n || 4); i++) {
+        html += '<div class="skel-row" aria-hidden="true">'
+          + (withThumb ? '<div class="skeleton skel-thumb"></div>' : '')
+          + '<div class="skel-row-body">'
+          + '<div class="skeleton skel-line skel-line-wide"></div>'
+          + '<div class="skeleton skel-line skel-line-sm"></div>'
+          + '</div>'
+          + '<div class="skeleton skel-line skel-line-end"></div>'
+          + '</div>';
+      }
+      return html;
+    }
+    function setListLoading(el, html) {
+      if (!el) return;
+      el.innerHTML = html;
+      el.setAttribute('aria-busy', 'true');
+    }
+    function clearListBusy(el) {
+      if (el) el.removeAttribute('aria-busy');
+    }
+    // Shimmer over a set of value elements while their request is running.
+    // The previous text is stashed and restored on failure, replaced on success
+    // (call order matters: clear first, then write the real numbers).
+    function setValuesLoading(ids, on) {
+      (ids || []).forEach(function(id) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        if (on) {
+          if (el.dataset._stat === undefined) el.dataset._stat = el.textContent;
+          el.innerHTML = '<span class="skeleton skel-stat" aria-hidden="true"></span>';
+        } else if (el.dataset._stat !== undefined) {
+          el.textContent = el.dataset._stat;
+          delete el.dataset._stat;
+        }
+      });
+    }
+    const DASHBOARD_STAT_IDS = ['statProducts', 'statOrders', 'statRevenue', 'statPending', 'statLowStock'];
+    function setStatsLoading(on) { setValuesLoading(DASHBOARD_STAT_IDS, on); }
+
+    // ================================================================
     // STATE
     // ================================================================
     let isLoggedIn = false;
@@ -90,7 +211,15 @@
       }
       let apiPath = '';
       try { const u = typeof url === 'string' ? url : (url && url.url) || ''; apiPath = u.startsWith('/api/') ? u : ''; } catch (e) {}
-      const res = await _origFetch.call(this, url, opts);
+      // Progress bar for every API call, including ones whose button lives in
+      // a dropdown that closed on click.
+      if (apiPath) beginBusy();
+      let res;
+      try {
+        res = await _origFetch.call(this, url, opts);
+      } finally {
+        if (apiPath) endBusy();
+      }
       if (apiPath && res.status === 401 && isLoggedIn && typeof showLogin === 'function') showLogin();
       return res;
     };
@@ -122,10 +251,16 @@
     // DASHBOARD STATS
     // ================================================================
     async function loadDashboardStats() {
+      setStatsLoading(true);
+      const recentListEl = document.getElementById('recentOrdersList');
+      if (recentListEl && !recentListEl.querySelector('.recent-order-row')) {
+        setListLoading(recentListEl, skeletonRows(4, { thumb: false }));
+      }
       try {
         const res = await fetch('/api/admin/stats/dashboard');
-        if (!res.ok) return;
+        if (!res.ok) { setStatsLoading(false); clearListBusy(recentListEl); return; }
         const s = await res.json();
+        setStatsLoading(false);
         document.getElementById('statProducts').textContent = s.products;
         document.getElementById('statOrders').textContent = s.orders;
         document.getElementById('statRevenue').textContent = fmtRs(s.revenue);
@@ -162,7 +297,11 @@
         // Low stock
         const lowEl = document.getElementById('statLowStock');
         if (lowEl) lowEl.textContent = s.lowStockCount || 0;
-      } catch (err) {}
+      } catch (err) {
+        setStatsLoading(false);
+      } finally {
+        clearListBusy(document.getElementById('recentOrdersList'));
+      }
     }
     // Refresh dashboard stats after product/order changes
     function refreshStatsIfNeeded() { loadDashboardStats(); }
@@ -367,6 +506,8 @@
     // PRODUCTS
     // ================================================================
     async function loadProducts() {
+      const listEl = document.getElementById('productList');
+      if (!products.length) setListLoading(listEl, skeletonRows(5));
       try {
         // Admin-only endpoint: the public catalog omits internal columns such
         // as unit_cost, which the edit form and the P&L need.
@@ -380,6 +521,8 @@
         filterProducts();
       } catch (err) {
         document.getElementById('productList').innerHTML = '<div class="empty-state">Failed to load products. <button type="button" data-action="load-products">Retry</button></div>';
+      } finally {
+        clearListBusy(document.getElementById('productList'));
       }
     }
 
@@ -421,7 +564,7 @@
       if (!ids.length) return;
       if (!confirm('Delete ' + ids.length + ' selected product' + (ids.length === 1 ? '' : 's') + '? This cannot be undone.')) return;
       const button = document.getElementById('bulkDeleteProductsBtn');
-      if (button) { button.disabled = true; button.textContent = 'Deleting…'; }
+      btnLoading(button, true, 'Deleting…');
       try {
         const res = await fetch('/api/products/batch', {
           method: 'DELETE',
@@ -441,6 +584,7 @@
       } catch (err) {
         alert('Connection error while deleting selected products.');
       } finally {
+        btnLoading(button, false);
         updateProductSelectionUI();
       }
     }
@@ -1043,8 +1187,7 @@
         if (removedUrls.length) formData.append('remove_extra', JSON.stringify(removedUrls));
       }
 
-      btn.disabled = true;
-      btn.textContent = editId ? 'Updating…' : 'Adding…';
+      btnLoading(btn, true, editId ? 'Updating…' : 'Adding…');
 
       try {
         let res;
@@ -1084,8 +1227,7 @@
         errorEl.style.display = 'block';
       }
 
-      btn.disabled = false;
-      btn.textContent = editId ? 'Update Product' : 'Add Product';
+      btnLoading(btn, false);
     }
 
     // ================================================================
@@ -1303,6 +1445,8 @@
     // ORDERS
     // ================================================================
     async function loadOrders() {
+      const listEl = document.getElementById('ordersList');
+      if (!allOrders.length) setListLoading(listEl, skeletonRows(5, { thumb: false }));
       try {
         const res = await fetch('/api/orders');
         if (!res.ok) throw new Error('Orders request failed');
@@ -1311,6 +1455,8 @@
       } catch (err) {
         allOrders = [];
         document.getElementById('ordersList').innerHTML = '<div class="empty-state">Failed to load orders. <button type="button" data-action="load-orders">Retry</button></div>';
+      } finally {
+        clearListBusy(document.getElementById('ordersList'));
       }
     }
 
@@ -1553,11 +1699,14 @@
     // ================================================================
     // SALES SUMMARY
     // ================================================================
+    const SALES_VALUE_IDS = ['salesRevToday', 'salesRevWeek', 'salesRevMonth', 'salesBestProduct'];
     async function loadSalesSummary() {
+      setValuesLoading(SALES_VALUE_IDS, true);
       try {
         const res = await fetch('/api/admin/stats/sales');
-        if (!res.ok) return;
+        if (!res.ok) { setValuesLoading(SALES_VALUE_IDS, false); return; }
         const s = await res.json();
+        setValuesLoading(SALES_VALUE_IDS, false);
         document.getElementById('salesRevToday').textContent = fmtRs(s.revenueToday);
         document.getElementById('salesRevWeek').textContent = fmtRs(s.revenueWeek);
         document.getElementById('salesRevMonth').textContent = fmtRs(s.revenueMonth);
@@ -1568,7 +1717,9 @@
         const colors = {pending:'dot-pending',awaiting_verification:'dot-pending',confirmed:'dot-confirmed',shipped:'dot-shipped',delivered:'dot-delivered',cancelled:'dot-cancelled'};
         const labels = {pending:'Pending',awaiting_verification:'Awaiting Payment',confirmed:'Confirmed',shipped:'Shipped',delivered:'Delivered',cancelled:'Cancelled'};
         sc.innerHTML = statuses.map(st => { const count = (s.ordersByStatus && s.ordersByStatus[st]) || 0; return '<span class="status-chip"><span class="dot ' + colors[st] + '"></span>' + count + ' ' + labels[st] + '</span>'; }).join('');
-      } catch (err) {}
+      } catch (err) {
+        setValuesLoading(SALES_VALUE_IDS, false);
+      }
     }
 
     // ================================================================
@@ -1578,11 +1729,14 @@
     let reviewFilter = 'pending';
     function setReviewFilter(f) { reviewFilter = f; document.querySelectorAll('.reviews-toolbar .period-btn').forEach(b => b.classList.toggle('active', b.dataset.rf === f)); renderReviews(); }
     async function loadReviews() {
+      const listEl = document.getElementById('reviewsList');
+      if (listEl && !allReviews.length) setListLoading(listEl, skeletonRows(4, { thumb: false }));
       try {
         const res = await fetch('/api/reviews/all');
-        if (!res.ok) { document.getElementById('reviewsList').innerHTML = '<div class="empty-state">Failed to load reviews.</div>'; return; }
+        if (!res.ok) { listEl.innerHTML = '<div class="empty-state">Failed to load reviews.</div>'; return; }
         allReviews = await res.json(); renderReviews();
       } catch (e) { document.getElementById('reviewsList').innerHTML = '<div class="empty-state">Could not load reviews.</div>'; }
+      finally { clearListBusy(document.getElementById('reviewsList')); }
     }
     function productName(pid) { const p = products.find(x => String(x.id) === String(pid)); return p ? p.name : ('Product #' + pid); }
     function renderReviews() {
@@ -1627,13 +1781,16 @@
       return 'Rs. ' + Number(n || 0).toLocaleString('en-IN');
     }
 
+    const PNL_VALUE_IDS = ['pnlRevenue', 'pnlCost', 'pnlProfit'];
     async function loadPnlStats() {
       const emptyEl = document.getElementById('pnlEmpty');
       if (emptyEl) emptyEl.classList.remove('show');
+      setValuesLoading(PNL_VALUE_IDS, true);
       try {
         const res = await fetch('/api/admin/stats/pnl?period=' + pnlPeriod);
-        if (!res.ok) return;
+        if (!res.ok) { setValuesLoading(PNL_VALUE_IDS, false); return; }
         const data = await res.json();
+        setValuesLoading(PNL_VALUE_IDS, false);
 
         // Summary cards populate regardless of whether Chart.js loaded — the
         // old `if (!window.Chart) return` up-front blanked the whole tab.
@@ -1742,6 +1899,7 @@
         });
       } catch (err) {
         // Non-fatal: leave the chart empty rather than breaking the tab
+        setValuesLoading(PNL_VALUE_IDS, false);
       }
     }
 
@@ -1888,9 +2046,26 @@
       document.querySelectorAll('#cardPhotoGrid button').forEach(btn => { btn.disabled = disabled; });
     }
 
+    // Per-card feedback: the status line carries a spinner and the frame dims,
+    // because a photo upload/compress cycle can take several seconds.
+    function setCardStatus(cardId, html, busy) {
+      const grid = document.getElementById('cardPhotoGrid');
+      if (!grid) return;
+      const btn = grid.querySelector('button[data-card-id="' + cardId + '"]');
+      const card = btn && btn.closest ? btn.closest('.card-photo') : null;
+      if (!card) return;
+      const status = card.querySelector('.card-photo-status');
+      if (status) status.innerHTML = html || '';
+      const frame = card.querySelector('.card-photo-frame');
+      if (frame) frame.classList.toggle('busy', !!busy);
+    }
+
     async function loadCategoryCards() {
       const grid = document.getElementById('cardPhotoGrid');
       if (!grid) return;
+      if (!grid.querySelector('.card-photo')) {
+        setListLoading(grid, '<div class="skeleton skel-photo" aria-hidden="true"></div>'.repeat(3));
+      }
       try {
         const res = await fetch('/api/admin/category-cards?_=' + Date.now(), { cache: 'no-store' });
         if (!res.ok) throw new Error('Could not load the home page photos.');
@@ -1900,6 +2075,8 @@
         renderCategoryCards(cards);
       } catch (err) {
         showCardError(err.message || 'Could not load the home page photos.');
+      } finally {
+        clearListBusy(grid);
       }
     }
 
@@ -1907,6 +2084,7 @@
       if (!file || categoryCardsBusy) return;
       showCardError('');
       setCardBusy(true);
+      setCardStatus(cardId, SPINNER_HTML + ' Uploading…', true);
       try {
         const body = new FormData();
         body.append('image', file);
@@ -1925,6 +2103,7 @@
       } catch (err) {
         showCardError(err.message || 'Upload failed. Please try another photo.');
       } finally {
+        setCardStatus(cardId, '', false);
         setCardBusy(false);
       }
     }
@@ -1933,6 +2112,7 @@
       if (categoryCardsBusy) return;
       showCardError('');
       setCardBusy(true);
+      setCardStatus(cardId, SPINNER_HTML + ' Resetting…', true);
       try {
         const res = await fetch('/api/admin/category-cards/' + encodeURIComponent(cardId) + '/image', { method: 'DELETE' });
         if (!res.ok) {
@@ -1946,6 +2126,7 @@
       } catch (err) {
         showCardError(err.message || 'Could not reset that photo.');
       } finally {
+        setCardStatus(cardId, '', false);
         setCardBusy(false);
       }
     }
@@ -2040,6 +2221,13 @@
       'review-status': (el) => setReviewStatus(Number(el.dataset.id), el.dataset.status),
       'delete-review': (el) => deleteReview(Number(el.dataset.id)),
     };
+    // Actions that hit the network get an in-button spinner for their
+    // duration; the promise the handler returns clears it.
+    const ASYNC_ACTIONS = new Set([
+      'load-products', 'load-orders', 'toggle-stock', 'delete-product',
+      'verify-payment', 'cod-confirm', 'order-status', 'review-status',
+      'delete-review', 'delete-selected', 'export-csv'
+    ]);
     document.addEventListener('click', (e) => {
       if (!e.target || typeof e.target.closest !== 'function') return;
       const hit = e.target.closest('[data-action]');
@@ -2047,6 +2235,14 @@
       const fn = ADMIN_ACTIONS[hit.dataset.action];
       if (!fn) return;
       if (hit.tagName === 'A') e.preventDefault();
+      if (ASYNC_ACTIONS.has(hit.dataset.action) && hit.tagName === 'BUTTON') {
+        busyButton(hit, true);
+        Promise.resolve(fn(hit, e)).then(
+          () => busyButton(hit, false),
+          () => busyButton(hit, false)
+        );
+        return;
+      }
       fn(hit, e);
     });
     const ADMIN_CHANGES = {

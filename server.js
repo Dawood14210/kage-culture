@@ -55,12 +55,56 @@ for (const [token, file] of Object.entries({
   const bytes = fs.readFileSync(path.join(__dirname, 'public', file));
   ASSET_HASH[token] = crypto.createHash('sha256').update(bytes).digest('hex').slice(0, 10);
 }
+// PERF (2026-11-23): the storefront stylesheet used to be two render-blocking
+// requests (pre-paint guard + 32 KB bundle) ahead of the first paint: on a slow
+// phone nothing was painted until ~0.9 s. Both files are now concatenated into
+// one inline <style> block, hashed at boot and allowed by that exact hash in
+// the CSP — the guard still hides the raw document, the bundle still styles it,
+// but there is no request between the HTML and the first paint. The standalone
+// files stay served (tests, the jsdom fixture, and a rollback path), and the
+// HTML keeps its 60 s shared cache + revalidation, so repeat visits re-use the
+// cached document instead of re-downloading styles.
+// The HTML parser normalises CRLF to LF inside <style>, so a hash taken over
+// the raw file bytes would never match the parsed document (Chrome silently
+// drops the block and the whole page renders unstyled). Normalise first, then
+// hash exactly what the browser will see.
+const INLINE_CSS = [
+  fs.readFileSync(path.join(__dirname, 'public', 'pre-paint.css'), 'utf8'),
+  fs.readFileSync(path.join(__dirname, 'public', 'storefront.css'), 'utf8')
+].join('\n').replace(/\r\n/g, '\n');
+const INLINE_CSS_HASH = crypto.createHash('sha256').update(INLINE_CSS, 'utf8').digest('base64');
+function inlineCssTag() {
+  return `<style>${INLINE_CSS}</style>`;
+}
+
 function substituteAssetHashes(html) {
   return html
     .replaceAll('__STORE_CSS_HASH__', ASSET_HASH.STORE_CSS)
     .replaceAll('__STORE_JS_HASH__', ASSET_HASH.STORE_JS)
     .replaceAll('__ADMIN_CSS_HASH__', ASSET_HASH.ADMIN_CSS)
     .replaceAll('__ADMIN_JS_HASH__', ASSET_HASH.ADMIN_JS);
+}
+
+// PERF (2026-11-23): warm the TLS connection to the Vercel Blob store before
+// the first product photo is requested. The origin is not a build-time
+// constant — it belongs to the owner's store — so it comes from
+// BLOB_PUBLIC_HOST when set, or from the store id embedded in the read-write
+// token (`vercel_blob_rw_<storeId>_<secret>`). Local development serves
+// /uploads from this origin, so no hint is emitted there.
+function blobPreconnectTag() {
+  const explicit = String(process.env.BLOB_PUBLIC_HOST || '').trim();
+  if (explicit) {
+    // Owner-provided: any https origin is fine (a custom Blob domain is legal).
+    const withScheme = /^https?:\/\//i.test(explicit) ? explicit.replace(/^http:/i, 'https:') : `https://${explicit}`;
+    try {
+      const url = new URL(withScheme);
+      return url.protocol === 'https:' ? `<link rel="preconnect" href="${url.origin}" crossorigin />` : '';
+    } catch (_) { return ''; }
+  }
+  const token = String(process.env.BLOB_READ_WRITE_TOKEN || process.env.kage_READ_WRITE_TOKEN || '').trim();
+  const tokenStore = /^vercel_blob_rw_([A-Za-z0-9]+)_/.exec(token);
+  if (!tokenStore) return '';
+  return `<link rel="preconnect" href="https://${tokenStore[1].toLowerCase()}.public.blob.vercel-storage.com" crossorigin />`;
 }
 // D2 (ANALYTICS-1): Umami Cloud tracker tag. The website id comes from the
 // owner's Umami Cloud dashboard after adding the site; when unset (or not a
@@ -769,6 +813,8 @@ async function renderStorefrontHtml(req) {
   let html = substituteAssetHashes(STOREFRONT_HTML_TEMPLATE)
     .replaceAll('__SITE_URL__', siteUrl)
     .replaceAll('__PAGE_URL__', pageUrl)
+    .replaceAll('<!--__INLINE_CSS__-->', inlineCssTag())
+    .replaceAll('<!--__BLOB_PRECONNECT__-->', blobPreconnectTag())
     .replaceAll('<!--__UMAMI_TAG__-->', umamiTag());
   const resolved = await resolveSeoPage(req, siteUrl);
   if (resolved.seo) {
@@ -818,7 +864,9 @@ app.use(loadHelmet()({
       // F22 + F31: fonts are self-hosted — no third-party font hosts.
       // 'unsafe-inline' is gone: every style attribute moved into the
       // bundles' CSS, so no inline style can run.
-      styleSrc: ["'self'"],
+      // The storefront's own stylesheet is inlined (see INLINE_CSS) and allowed
+      // by its exact hash; nothing else inline may run.
+      styleSrc: ["'self'", `'sha256-${INLINE_CSS_HASH}'`],
       fontSrc: ["'self'"],
       imgSrc: ["'self'", "data:", "https:", "blob:"],
       connectSrc: ["'self'", "https://*.blob.vercel-storage.com", "https://cloud.umami.is"],

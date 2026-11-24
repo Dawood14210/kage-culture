@@ -12,6 +12,7 @@ const { describeMailConfig } = require('../utils/mailConfig');
 const { verifyEmailTransport } = require('../utils/email');
 const { persistImage, removeImage } = require('../utils/helpers');
 const categoryCards = require('../utils/categoryCards');
+const categoryCardImage = require('../utils/categoryCardImage');
 const productShape = require('../utils/productShape');
 const sizeStock = require('../utils/sizes');
 
@@ -216,9 +217,30 @@ module.exports = function createAdminRoutes(db) {
       const cardId = String(req.params.id || '');
       if (!categoryCards.CATEGORY_CARD_IDS.includes(cardId)) return res.status(404).json({ error: 'Unknown category card.' });
       if (!req.file) return res.status(400).json({ error: 'Choose a photo to upload.' });
-      const url = await persistImage(req.file.buffer, req.file.originalname);
+      // Category photos used to be stored exactly as uploaded, which is how a
+      // 2.7 MB phone PNG ended up behind a 104 px circle. They now go through
+      // the same sharp treatment as product photos: <=600 px long edge, WebP
+      // q78, plus a 300 px variant for the small circle. Any failure falls back
+      // to the plain upload, so an optimisation problem can never block a
+      // photo change.
+      const optimised = await categoryCardImage.optimiseCardUpload(req.file.buffer);
+      const url = optimised.optimised
+        ? optimised.url
+        : await persistImage(req.file.buffer, req.file.originalname);
       const previous = await db.getSetting(categoryCards.settingKeyFor(cardId));
       await db.setSetting(categoryCards.settingKeyFor(cardId), url);
+      if (optimised.optimised) {
+        await db.setSetting(categoryCards.metaKeyFor(cardId), JSON.stringify({
+          v: 1,
+          width: optimised.width,
+          height: optimised.height,
+          variants: optimised.variantUrl ? { [String(categoryCardImage.VARIANT_WIDTH)]: optimised.variantUrl } : {}
+        }));
+      } else {
+        // Stale metadata would advertise a srcset for a file that is not the
+        // one now stored.
+        await db.deleteSetting(categoryCards.metaKeyFor(cardId));
+      }
       // Only delete an override we replaced — never the bundled file.
       if (previous && previous !== url && categoryCards.isAcceptableImageUrl(previous)) {
         try { await removeImage(previous); } catch (err) { console.error('old card photo cleanup failed:', err && err.message ? err.message : err); }
@@ -238,6 +260,7 @@ module.exports = function createAdminRoutes(db) {
       if (!categoryCards.CATEGORY_CARD_IDS.includes(cardId)) return res.status(404).json({ error: 'Unknown category card.' });
       const previous = await db.getSetting(categoryCards.settingKeyFor(cardId));
       await db.deleteSetting(categoryCards.settingKeyFor(cardId));
+      await db.deleteSetting(categoryCards.metaKeyFor(cardId));
       if (previous && categoryCards.isAcceptableImageUrl(previous)) {
         try { await removeImage(previous); } catch (err) { console.error('card photo cleanup failed:', err && err.message ? err.message : err); }
       }

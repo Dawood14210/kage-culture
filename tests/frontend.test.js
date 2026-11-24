@@ -65,7 +65,7 @@ let origin;
 // own requests: cookies from the jsdom document are sent with each request and
 // Set-Cookie headers from the response are stored back into it. `requests`
 // records every URL the page asked for, in order.
-function page(html, path = '/', { storage = {}, offline = false, fetchImpl, browserCookies = false } = {}) {
+function page(html, path = '/', { storage = {}, offline = false, fetchImpl, browserCookies = false, cookies = [] } = {}) {
   const requests = [];
   const dom = new JSDOM(html, {
     url: origin + path, runScripts: 'dangerously', pretendToBeVisual: true, virtualConsole,
@@ -79,6 +79,9 @@ function page(html, path = '/', { storage = {}, offline = false, fetchImpl, brow
       w.URL.createObjectURL = () => 'blob:mock-object-url-' + (++objectUrlSeq);
       w.URL.revokeObjectURL = () => {};
       for (const [key, value] of Object.entries(storage)) w.localStorage.setItem(key, value);
+      // Cookies planted before any page script runs (jsdom's jar, so the
+      // browserCookies fetch shim forwards them like a real browser would).
+      for (const cookie of cookies) w.document.cookie = cookie + '; Path=/';
       w.fetch = (url, options) => {
         if (fetchImpl) return fetchImpl(url, options);
         if (offline && url === '/api/products') return Promise.reject(new Error('offline'));
@@ -442,10 +445,20 @@ async function ready(win) {
       const defaultThumb = thumbOf('pants').innerHTML;
       assert.ok(/<picture>/.test(defaultThumb), 'the fixture ships a <picture> with WebP crops');
 
-      cw.applyCategoryCardPhotos([{ id: 'pants', label: 'Pants', image: '/uploads/pants-custom.png', alt: 'Custom pants art', isCustom: true }]);
+      cw.applyCategoryCardPhotos([{
+        id: 'pants', label: 'Pants', image: '/uploads/pants-custom.webp', alt: 'Custom pants art', isCustom: true,
+        srcset: '/uploads/pants-custom-300.webp 300w, /uploads/pants-custom.webp 600w', width: 600, height: 600
+      }]);
       assert.equal(/<picture>/.test(thumbOf('pants').innerHTML), false, 'a custom photo drops the bundled <picture> so its crops cannot win');
-      assert.equal(thumbOf('pants').querySelector('img').getAttribute('src'), '/uploads/pants-custom.png');
+      assert.equal(thumbOf('pants').querySelector('img').getAttribute('src'), '/uploads/pants-custom.webp');
       assert.equal(thumbOf('pants').querySelector('img').getAttribute('alt'), 'Custom pants art');
+      // Uploaded photos ship their own candidates + a sizes value that matches
+      // the circle, so a phone never downloads the 600px file for a 104px box.
+      assert.equal(thumbOf('pants').querySelector('img').getAttribute('srcset'),
+        '/uploads/pants-custom-300.webp 300w, /uploads/pants-custom.webp 600w', 'the server srcset is rendered verbatim');
+      assert.equal(thumbOf('pants').querySelector('img').getAttribute('sizes'), '(min-width: 1024px) 150px, 104px');
+      assert.equal(thumbOf('pants').querySelector('img').getAttribute('width'), '600', 'pixel attributes keep the aspect ratio');
+      assert.equal(thumbOf('pants').querySelector('img').getAttribute('height'), '600');
       // The card still links to the real collection route.
       assert.equal(cd.querySelector('#categoryStrip .cat-tile[data-cat="pants"]').getAttribute('href'), '/collection/pants');
 
@@ -682,7 +695,7 @@ async function ready(win) {
     assert.match(termsCopy, /By accessing and using this website/);
     assert.doesNotMatch(termsCopy, /kage-culture-ruby\.vercel\.app/i, 'Terms do not hardcode the production domain');
     assert.match(termsCopy, /Custom-designed items and custom stickers cannot be returned unless they are defective or the wrong item was supplied/);
-    const customOrdersHeading = [...termsBody.querySelectorAll('h3')].find(heading => heading.textContent.trim() === '7. Custom Orders & Returns');
+    const customOrdersHeading = [...termsBody.querySelectorAll('h2, h3')].find(heading => heading.textContent.trim() === '7. Custom Orders & Returns');
     const returnsPolicyLink = customOrdersHeading?.nextElementSibling?.querySelector('a');
     assert.equal(returnsPolicyLink?.getAttribute('href'), '/returns', 'custom-order terms link to the Returns page');
     assert.equal(returnsPolicyLink?.textContent.trim(), 'Returns & Refund Policy');
@@ -741,19 +754,19 @@ async function ready(win) {
     assert.match(storeHtml, /\.co-trust-strip\s*\{[^}]*grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/, 'checkout reassurance stays compact in two columns');
     assert.match(storeHtml, /@media \(max-width: 380px\) \{\s*\.co-trust-strip \{ grid-template-columns: 1fr; \}/, 'checkout reassurance stacks for narrow 320px screens');
     assert.deepEqual([...d.querySelectorAll('.payment-icons .payment-icon')].map(icon => icon.textContent.trim()), ['COD'], 'footer only advertises COD');
-    const shippingPaymentHeading = [...d.querySelectorAll('#page-shipping .content-page-body h3')].find(h => h.textContent.trim() === 'Payment Methods');
+    const shippingPaymentHeading = [...d.querySelectorAll('#page-shipping .content-page-body h2, #page-shipping .content-page-body h3')].find(h => h.textContent.trim() === 'Payment Methods');
     assert.deepEqual([...shippingPaymentHeading.nextElementSibling.querySelectorAll('li')].map(li => li.textContent.trim()), ['Cash on Delivery (COD) — pay when your order arrives']);
     assert.doesNotMatch(d.querySelector('#tab-shipping').textContent, /JazzCash|Bank Transfer/, 'product details only advertise COD');
     assert.doesNotMatch(d.querySelector('#page-terms .content-page-body').textContent, /bank transfer/i, 'Terms no longer describe non-COD payment options');
     assert.doesNotMatch(storeHtml, /0322-8042633/, 'stale local phone formatting is removed');
     const whatsAppLinks = [...d.querySelectorAll('a[href^="https://wa.me/"]')];
     assert.ok(whatsAppLinks.length > 0 && whatsAppLinks.every(link => new URL(link.href).pathname === '/923228042633'), 'WhatsApp links use the normalized number');
-    assert.equal(d.querySelectorAll('.content-page h3[style]').length, 0, 'repeated content-page heading styles are no longer inline');
+    assert.equal(d.querySelectorAll('.content-page h2[style], .content-page h3[style]').length, 0, 'repeated content-page heading styles are no longer inline');
     assert.equal(d.querySelectorAll('.content-page-back[style]').length, 0, 'repeated back-link paragraph spacing is no longer inline');
-    assert.equal(d.querySelectorAll('.content-page-contact h3').length, 4, 'all four contact cards use the shared heading style');
+    assert.equal(d.querySelectorAll('.content-page-contact :is(h2, h3)').length, 4, 'all four contact cards use the shared heading style');
     assert.equal(d.querySelectorAll('.content-page-contact p[style]').length, 0, 'contact paragraphs share their extracted styling');
     const contactCards = [...d.querySelectorAll('#page-contact .content-page-contact > .contact-card')];
-    assert.deepEqual(contactCards.map(card => card.querySelector('h3').textContent.trim()), ['WhatsApp', 'Order Support', 'Instagram', 'Email']);
+    assert.deepEqual(contactCards.map(card => card.querySelector('h2, h3').textContent.trim()), ['WhatsApp', 'Order Support', 'Instagram', 'Email']);
     assert.deepEqual(contactCards.map(card => card.tagName), ['A', 'ARTICLE', 'A', 'A'], 'all actions are links except the support card that contains two distinct links');
     assert.ok(contactCards.every(card => card.querySelector('.contact-card-icon svg[viewBox="0 0 24 24"] path, .contact-card-icon svg[viewBox="0 0 24 24"] circle, .contact-card-icon svg[viewBox="0 0 24 24"] rect')), 'each card has an inline vector icon');
     assert.ok(contactCards.every(card => card.querySelector('.contact-card-icon').getAttribute('aria-hidden') === 'true'), 'contact icons are decorative to screen readers');
@@ -1007,7 +1020,9 @@ async function ready(win) {
       assert.ok(body, `${fn}() exists`);
       assert.match(body[0], /\.map\(renderProductCard\)/, `${fn}() renders its cards through the shared renderProductCard`);
     }
-    assert.strictEqual(sharedWin.renderHomeProductCard, sharedWin.renderProductCard, 'the old home-only name is an alias of the shared renderer, not a second one');
+    // The old home-only name was a public alias for the shared renderer. Nothing
+    // (page, template or test) ever called it, so it is gone — one name only.
+    assert.equal(sharedWin.renderHomeProductCard, undefined, 'no legacy renderer alias lingers on the page');
     assert.doesNotMatch(storeHtml, /animateProductGrid/, 'no load-time stagger that would leave inline transform/opacity on collection cards (it killed their hover lift)');
     // Both grids are .product-grid, so one set of card CSS styles them.
     const bsGridEl = sharedDoc.getElementById('bestSellersGrid');
@@ -1140,7 +1155,10 @@ async function ready(win) {
       const image = picture.querySelector('img');
       assert.equal(source.getAttribute('type'), 'image/webp');
       assert.match(source.getAttribute('srcset'), /-200\.webp 200w, [^,]+-500\.webp 500w/);
-      assert.equal(source.getAttribute('sizes'), '116px');
+      // `sizes` now describes the real circle (150px at >=1024px, 104px below)
+      // instead of a flat 116px, so the browser can drop to the 200w candidate
+      // where it used to always take 500w. Task 1, 2026-11-23.
+      assert.equal(source.getAttribute('sizes'), '(min-width: 1024px) 150px, 104px');
       assert.match(image.getAttribute('src'), /^\/images\/(?:graphic-tees|anime-shirts|pants|custom-stickers)\.jpg$/, 'JPEG fallback path remains intact');
       assert.equal(image.getAttribute('width'), '600');
       assert.equal(image.getAttribute('height'), '600');
@@ -1151,6 +1169,17 @@ async function ready(win) {
       assert.ok(existsSync(require.resolve('../public/images/' + file)), `${file} exists for its srcset candidate`);
     }
     assert.match(storeHtml, /hero-700\.webp 700w/, 'the existing hero 700px variant stays in its responsive srcset');
+    // Task 2 (2026-11-23): a 390px phone at 2.6x DPR used to pull the 1363px
+    // hero (96 KB) because `100vw` asked for ~1024 device px. The mobile-only
+    // sources cap that at the 700px art (37 KB) — same crop, same look.
+    assert.match(storeHtml, /<source media="\(max-width: 640px\)" srcset="\/images\/hero-700\.webp" type="image\/webp"/,
+      'phones get the 700px hero as the only candidate');
+    assert.match(storeHtml, /<source media="\(max-width: 640px\)" srcset="\/images\/hero-700\.jpg" type="image\/jpeg"/,
+      'the JPEG fallback for phones is the 700px file too');
+    const heroImgTag = (storeHtml.match(/<img src="\/images\/hero\.jpg"[^>]*>/) || [''])[0];
+    assert.match(heroImgTag, /fetchpriority="high"/, 'the hero stays the highest-priority image');
+    assert.match(heroImgTag, /width="1363" height="768"/, 'the hero reserves its intrinsic size');
+    assert.match(storeHtml, /\.hero-media img \{[^}]*?height: auto;/, 'height:auto keeps aspect-ratio in charge, so the hero cannot grow to 56vh');
     assert.match(storeHtml, /about-hero-500\.webp 600w/, 'the existing about 500px variant stays in its responsive srcset');
     console.log('✅ Category strip shows four Explore links: 2×2 phone grid + 4-col tablet/desktop layouts with aligned, pinned labels');
 
@@ -2369,11 +2398,12 @@ async function ready(win) {
     // stitched() inlines the bundle, so assert order on the <link> position:
     // the guard must appear before the main stylesheet link in the source.
     const rawIndexHtml = readFileSync(join(__dirname, '..', 'public', 'index.html'), 'utf8');
-    const guardAt = rawIndexHtml.indexOf('href="/pre-paint.css"');
-    const bundleAt = rawIndexHtml.indexOf('href="/storefront.css?v=');
-    assert.ok(guardAt !== -1, 'the pre-paint guard is linked');
-    assert.ok(bundleAt !== -1, 'the main bundle is linked');
-    assert.ok(guardAt < bundleAt, 'the pre-paint guard loads before the main bundle');
+    // Since 2026-11-23 the guard and the bundle are concatenated into ONE
+    // inline <style> block at render time, so there is no request between the
+    // HTML and the first paint and the guard can never arrive late.
+    assert.ok(rawIndexHtml.includes('<!--__INLINE_CSS__-->'), 'the shell inlines its stylesheet at boot');
+    assert.ok(!rawIndexHtml.includes('href="/pre-paint.css"'), 'the guard is no longer a separate link');
+    assert.ok(!rawIndexHtml.includes('href="/storefront.css'), 'no render-blocking stylesheet link remains');
     const prePaint = readFileSync(join(__dirname, '..', 'public', 'pre-paint.css'), 'utf8');
     assert.ok(prePaint.length < 2048, `the pre-paint guard stays small enough to arrive in one round trip (${prePaint.length} B)`);
     for (const sel of ['.skip-link', '.topbar', '.hero-media', '.site-header', '.cart-drawer', '.cart-overlay', '.zoom-overlay']) {
@@ -2533,6 +2563,51 @@ async function ready(win) {
     assert.equal(nd.getElementById('vfyError').style.display, 'block', 'a token-less link shows an explanation');
     assert.match(nd.getElementById('vfyError').textContent, /missing its token/i);
     console.log('✅ Email verification: account banner, resend link, verify route and token handling');
+
+    // ---------------------------------------------------------------
+    // Scenario 19b: anonymous visits skip the session probe
+    // ---------------------------------------------------------------
+    // The session cookie is httpOnly; `kage.signed_in` (set by the server on
+    // login, cleared on logout, no identity inside) is the readable hint the
+    // storefront uses to decide whether /api/customers/me is worth a round trip.
+    const anonVisit = page(storeHtml, '/', { browserCookies: true });
+    windows.push(anonVisit);
+    await ready(anonVisit.window);
+    assert.equal(anonVisit.requests.some(r => r.url === '/api/customers/me'), false,
+      'a first-time visitor must not request /api/customers/me');
+    assert.equal(anonVisit.window.eval('currentCustomer'), null, 'and is treated as signed out');
+
+    // The three boot GETs are started by the first statements of the bundle and
+    // handed to the code that needs them — exactly once each, never duplicated
+    // and never re-fetched after the early promise is consumed.
+    for (const url of ['/api/products', '/api/category-cards', '/api/reviews/featured']) {
+      assert.equal(anonVisit.requests.filter(r => r.url === url).length, 1,
+        `${url} must be requested exactly once per visit`);
+    }
+    assert.equal(typeof anonVisit.window.earlyFetch, 'function', 'the early-fetch helper is part of the bundle');
+    assert.equal(anonVisit.window.eval("consumeEarlyFetch('/api/products')"), null,
+      'a consumed early request is never handed out twice');
+
+    const hintedVisit = page(storeHtml, '/', { browserCookies: true, cookies: ['kage.signed_in=1'] });
+    windows.push(hintedVisit);
+    await ready(hintedVisit.window);
+    assert.equal(hintedVisit.requests.filter(r => r.url === '/api/customers/me').length, 1,
+      'a browser carrying the hint still asks the server who it is');
+
+    // Hint lost but session alive: clicking the account icon probes once, so a
+    // signed-in shopper is never shown the sign-in form.
+    hintedVisit.window.document.cookie = 'kage.signed_in=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT';
+    assert.equal(hintedVisit.window.hasCustomerSessionHint(), false, 'the hint is gone');
+    hintedVisit.window.eval('currentCustomer = null');
+    let forcedProbe = 0;
+    hintedVisit.window.fetch = (url, options) => {
+      if (String(url) === '/api/customers/me') forcedProbe++;
+      return fetch(origin + url, options);
+    };
+    await hintedVisit.window.handleAccountClick();
+    assert.equal(forcedProbe, 1, 'opening the account view forces exactly one /api/customers/me probe');
+    console.log('✅ Session hint: anonymous visits skip /api/customers/me, hinted ones probe, account click self-heals');
+
 
     // ---------------------------------------------------------------
     // Scenario 20: a browser with no CSRF cookie completes a checkout

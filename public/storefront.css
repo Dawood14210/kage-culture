@@ -61,6 +61,11 @@
       --text-accent-hover: #423C2D;
       --font-display: 'Archivo', sans-serif;
       --font-body: 'Archivo', sans-serif;
+      /* Measured height of the fixed header, so the first paint already clears
+         it. Script re-measures into this variable (it can grow when the nav
+         wraps at 360px); without the default the hero jumped 15px the moment
+         that measurement landed. */
+      --header-h: 95px;
       --font-kanji: Georgia, 'Times New Roman', serif;
       --spacing-xs: 0.25rem;
       --spacing-sm: 0.5rem;
@@ -1350,7 +1355,7 @@
     }
     .filter-section:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
 
-    .filter-section h4 {
+    .filter-section :is(h2, h4) {
       font-family: var(--font-body);
       font-size: 0.7rem;
       font-weight: 700;
@@ -1675,8 +1680,8 @@
       display: flex; justify-content: space-between; align-items: center;
       padding: var(--spacing-md); border-bottom: 1px solid var(--border-color);
     }
-    .cart-header h3 { font-family: var(--font-display); font-size: 0.9rem; letter-spacing: 0.08em; text-transform: uppercase; display: flex; align-items: center; gap: 0.5rem; line-height: 1; }
-    .cart-header h3 svg { flex-shrink: 0; display: block; }
+    .cart-header :is(h2, h3) { font-family: var(--font-display); font-size: 0.9rem; letter-spacing: 0.08em; text-transform: uppercase; display: flex; align-items: center; gap: 0.5rem; line-height: 1; }
+    .cart-header :is(h2, h3) svg { flex-shrink: 0; display: block; }
     .cart-empty-icon { display: flex; justify-content: center; margin: 0 auto 0.75rem; color: var(--text-muted); }
     .cart-empty-icon svg { width: 40px; height: 40px; }
     .cart-close {
@@ -1696,7 +1701,7 @@
     }
     .cart-item-image { width: 55px; height: 55px; background: var(--bg-card-image); }
     .cart-item-image img { width: 100%; height: 100%; object-fit: cover; object-position: center; padding: 0; }
-    .cart-item-info h4 { font-size: 0.75rem; font-weight: 700; }
+    .cart-item-info :is(h3, h4) { font-size: 0.75rem; font-weight: 700; }
     .cart-item-meta { font-size: 0.65rem; color: var(--text-muted); }
     .cart-item-price { font-weight: 700; font-size: 0.8rem; }
     .cart-item-qty { display: flex; align-items: center; gap: 0.3rem; }
@@ -1868,6 +1873,10 @@
     }
     .hero-media img {
       width: 100%;
+      /* Pairs with the width/height attributes on the <img>: without this the
+         presentational height hint wins over `aspect-ratio` and the hero grows
+         to 56vh, cropping the campaign art much tighter. */
+      height: auto;
       max-height: 56vh;
       aspect-ratio: 16 / 9;
       object-fit: cover;
@@ -1974,7 +1983,7 @@
       background: var(--bg-secondary); border: 1px solid var(--border-color);
       border-radius: var(--radius-md); padding: var(--spacing-lg);
     }
-    .account-card h3 {
+    .account-card :is(h2, h3) {
       font-family: var(--font-display); font-size: 0.85rem;
       letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: var(--spacing-md);
     }
@@ -2248,8 +2257,12 @@
     }
 
     /* ================================================================
-       LOADING SKELETON
-       ================================================================ */
+       LOADING SKELETON + SPINNERS
+       ================================================================
+       Skeleton placeholders mirror the real layout (product card, review
+       row, order row, tracking card) so async content never leaves a
+       blank gap or causes a layout jump. They are aria-hidden and
+       text-free; the container carries aria-busy while loading. */
     .skeleton {
       background: linear-gradient(90deg, var(--bg-card-image) 25%, #D3CDBE 50%, var(--bg-card-image) 75%);
       background-size: 200% 100%;
@@ -2273,6 +2286,96 @@
       height: 10px;
       margin-top: 6px;
       width: 40%;
+    }
+    /* Product-card skeleton: image block + title/price lines + button,
+       sized like a real card so the grid keeps its shape while loading. */
+    .skel-card {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+    .skel-img {
+      aspect-ratio: 3 / 4;
+      width: 100%;
+      border-radius: 0;
+    }
+    .skel-line {
+      height: 14px;
+      margin-top: 10px;
+      width: 60%;
+    }
+    .skel-line-wide { width: 85%; }
+    .skel-line-sm { height: 10px; width: 40%; }
+    .skel-btn {
+      height: 44px;
+      margin-top: auto;
+      width: 100%;
+    }
+    .skel-card .skel-btn { margin-top: 12px; }
+    /* Review / order / tracking skeletons reuse the real containers'
+       padding and borders so nothing shifts when content lands. */
+    .skeleton-review {
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 0.9rem 1rem;
+      background: var(--bg-panel);
+    }
+    .skeleton-review .skel-line:first-child { margin-top: 0; }
+    .skeleton-order-row {
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 0.9rem 1rem;
+      background: var(--bg-panel);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .skeleton-order-row .skel-line { margin-top: 0; }
+    .skeleton-track {
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 1rem;
+      background: var(--bg-panel);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .skeleton-track .skel-line { margin-top: 0; }
+    .product-grid[aria-busy="true"] { cursor: progress; }
+    /* Images decode async, so a photo's frame shimmers instead of sitting
+       flat/blank until the bitmap arrives. .img-skel is dropped as soon as
+       the image loads (or errors), so loaded photos never animate. */
+    .product-card-image img.img-skel,
+    .detail-main-image .gallery-track img.img-skel {
+      background: linear-gradient(90deg, var(--bg-card-image) 25%, #D3CDBE 50%, var(--bg-card-image) 75%);
+      background-size: 200% 100%;
+      animation: skeleton-shimmer 1.5s ease-in-out infinite;
+    }
+    /* CSS-only ring spinner. The arc uses currentColor so it reads on
+       dark primary buttons and light outline buttons alike. */
+    .spinner {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      flex: none;
+      border: 2px solid rgba(128, 128, 128, 0.35);
+      border-top-color: currentColor;
+      border-radius: 50%;
+      animation: kage-spin 0.7s linear infinite;
+      vertical-align: -3px;
+    }
+    .spinner-sm { width: 12px; height: 12px; border-width: 1.5px; }
+    @keyframes kage-spin { to { transform: rotate(360deg); } }
+    .btn.is-loading,
+    button.is-loading,
+    a.is-loading {
+      pointer-events: none;
+    }
+    .btn.is-loading .spinner { margin-right: 0.5rem; }
+    .btn.is-loading .btn-loading-label { white-space: nowrap; }
+    @media (prefers-reduced-motion: reduce) {
+      .skeleton,
+      .spinner { animation: none; }
     }
 
     /* ================================================================
@@ -2617,12 +2720,12 @@
     .checkout-layout {
       display: grid; grid-template-columns: 1fr 360px; gap: var(--spacing-lg); align-items: start;
     }
-    .checkout-form h3, .checkout-summary h3 {
+    .checkout-form :is(h2, h3), .checkout-summary :is(h2, h3) {
       font-size: 0.7rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
       margin-bottom: var(--spacing-md); padding-bottom: 0.5rem; border-bottom: 1px solid var(--border-color);
     }
-    .checkout-form h3 { margin-top: var(--spacing-lg); }
-    .checkout-form h3:first-child { margin-top: 0; }
+    .checkout-form :is(h2, h3) { margin-top: var(--spacing-lg); }
+    .checkout-form :is(h2, h3):first-child { margin-top: 0; }
     .co-field { margin-bottom: var(--spacing-sm); }
     .co-row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--spacing-sm); }
     .co-field label {
@@ -3681,14 +3784,14 @@
     @media (min-width: 600px) {
       .container.content-page { padding-inline: 20px; }
     }
-    .content-page h3 { color: var(--text-primary); font-size: 1rem; }
+    .content-page :is(h2, h3) { color: var(--text-primary); font-size: 1rem; }
     .content-page-body {
       margin-top: var(--spacing-lg);
       color: var(--text-muted);
       font-size: 0.9rem;
       line-height: 1.8;
     }
-    .content-page-body h3 { margin: var(--spacing-lg) 0 var(--spacing-sm); }
+    .content-page-body :is(h2, h3) { margin: var(--spacing-lg) 0 var(--spacing-sm); }
     .content-page-contact {
       margin-top: var(--spacing-xl);
       display: grid;
@@ -3744,7 +3847,7 @@
       stroke-linejoin: round;
     }
     .contact-card-body { flex: 1; min-width: 0; }
-    .content-page-contact h3 { margin: 0 0 var(--spacing-xs); }
+    .content-page-contact :is(h2, h3) { margin: 0 0 var(--spacing-xs); }
     .content-page-contact p { margin: 0; color: var(--text-muted); font-size: 0.85rem; overflow-wrap: anywhere; }
     .contact-card-primary { display: block; color: var(--text-primary); text-decoration: none; }
     .contact-card-primary:hover { color: var(--accent); }
@@ -3876,7 +3979,9 @@
 .mt-10 { margin-top: 0.6rem; }
 .mt-sm2 { margin-top: var(--spacing-sm); }
 .mb-md { margin-bottom: var(--spacing-md); }
-.link-accent { color: var(--accent); }
+/* Inline links inside body copy need a non-colour cue (WCAG 1.4.1): the
+   accent colour alone is under 3:1 against the surrounding text. */
+.link-accent { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
 .link-accent-pointer { color: var(--accent); cursor: pointer; }
 .link-accent-sm { color: var(--accent); cursor: pointer; font-size: 0.85rem; }
 .text-strong { color: var(--text-primary); }

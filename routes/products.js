@@ -66,7 +66,11 @@ module.exports = function createProductRoutes(db) {
   // photo swap appears within the same window as a product edit.
   router.get('/api/category-cards', async (req, res) => {
     try {
-      res.setHeader('Cache-Control', 'public, max-age=0, s-maxage=10, stale-while-revalidate=30, must-revalidate');
+      // Public, tiny and rarely changed: a photo swap may take up to a minute
+      // to appear, which is fine for four pictures. The old 10s window plus
+      // must-revalidate forced a full origin round trip on almost every page
+      // view, at the far end of the request waterfall.
+      res.setHeader('Cache-Control', 'public, max-age=0, s-maxage=60, stale-while-revalidate=300');
       res.json(await categoryCards.loadCategoryCards(db));
     } catch (err) {
       console.error('category cards route failed:', err && err.message ? err.message : err);

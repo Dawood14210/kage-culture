@@ -38,8 +38,68 @@
 - When a work item from `AUDIT.md` is completed, update `AUDIT.md`: mark the item done
   and record what changed + how it was verified.
 
-## Status snapshot (updated 2026-10-15)
+## Status snapshot (updated 2026-11-23)
 
+- ✅ *(2026-11-23, perf pass)* **Task 1 — category-card photos.** Uploads are
+  re-encoded through `utils/categoryCardImage.js` (WebP, longest edge 600 px,
+  quality ladder, 300 px variant, 100 KB/48 KB budgets) and published with
+  `srcset`/`width`/`height` + a circle-matched `sizes`; corrupt input falls back
+  to the old store path. `npm run convert-cards` backfills older photos.
+  4105 KB → 403 KB, one tile 3709 KB → 7.2 KB. **Task 2 — phones get the 700 px
+  hero** (`(max-width: 640px)` sources + `width`/`height` with `height: auto`):
+  96.2 KB → 37.3 KB, identical pixels. **Task 3 — data requests start early**:
+  the three boot GETs are issued by the first statements of `storefront.js`,
+  anonymous visitors skip `/api/customers/me` via the readable `kage.signed_in`
+  hint cookie, `/api/category-cards` uses one settings query and
+  `s-maxage=60, swr=300`, and the shell preconnects to the Blob origin. Mobile
+  API requests: five at 1589–1878 ms → three at ~1544 ms. Details in `AUDIT.md`
+  (2026-11-23 perf entry); `npm test` **169/169**, frontend **81/81**.
+
+- ✅ *(2026-11-23)* Skeleton loading screens + action spinners. Storefront:
+  `.skel-card`/`.skel-line` placeholders for empty catalog grids (first load or
+  retry only — the seed paint is never replaced), reviews, account order history
+  and order tracking, plus a `.spinner` in every async button via
+  `setButtonLoading()` (restores the exact original markup) and `.img-skel`
+  shimmer on photos until they decode. Admin: list/stat skeletons, `btnLoading()`
+  and `busyButton()`, and a fetch-wrapped top progress bar for every API call.
+  Details in `AUDIT.md` (2026-11-23 entry); `npm test` **165/165**, frontend
+  **80/80**.
+
+
+- ✅ *(2026-11-23, perf pass)* **Task 4 — first paint no longer waits for the
+  stylesheet.** `server.js` inlines `pre-paint.css` + `storefront.css` into one
+  `<style>` block (CSP `'sha256-…'` computed at boot from the same, LF-normalised
+  bytes), and the two blocking `<link rel="stylesheet">` tags are gone. Slow-4G
+  phone: first paint **1184 → 500 ms**, LCP **1184 → 832 ms**, CLS back to
+  0.0040 (a 15 px hero jump appeared once paint beat the script's header
+  measurement; `:root` now declares `--header-h: 95px`). Details in `AUDIT.md`;
+  `npm test` **169/169**, frontend **81/81**.
+- ✅ *(2026-11-23, perf pass)* **Task 5 — dead-code audit.** Static reachability
+  + Chrome precise coverage (13 routes, every overlay/flow) + DOM-liveness check
+  over `public/storefront.js`: 166/166 functions reachable, all 37 delegated
+  actions handled, every binding read — the bundle is live code (~68% of its
+  bytes execute on a home-page load; the remainder is other routes' code, i.e. a
+  code-splitting job, not dead weight). Removed the only dead bits: the
+  `renderHomeProductCard` alias, a `newsletterMsg` fallback for an element that
+  no longer exists, and a needless `window.` export. Details in `AUDIT.md`;
+  `npm test` **169/169**, frontend **81/81**.
+- ✅ *(2026-11-23, perf pass)* **Task 6 — accessibility, and why PageSpeed called
+  the tree malformed.** Lighthouse's "Accessibility tree is not well-formed" is
+  `agent-accessibility-tree`, which fails if any of 34 axe rules fail; two did —
+  `button-name` (the two icon-only drawer close buttons) and
+  `aria-prohibited-attr` (`#categoryStrip` had an `aria-label` on a generic
+  `div`). Both fixed at the source, along with `label-content-name-mismatch` (the
+  count is now in the nav buttons' names; product cards are named by their own
+  content), `region` (the WhatsApp link sits in a labelled `aside`),
+  `aria-dialog-name` (the sign-in card), `link-in-text-block` (inline policy
+  links are underlined — the only visible change) and the whole heading outline
+  (`page-has-heading-one` + `heading-order` on every route, stylesheet selectors
+  retargeted with `:is(h2, h3)` so nothing moves). axe-core 4.14.1 is now **0
+  violations across 20 states x 390/1440 px** and the AX probe reports 0
+  problems; the two "needs review" contrast items were verified by hand
+  (9.57:1 and 6.20:1). A geometry + computed-type diff against `ba934a7`
+  proves no visual change. Details in `AUDIT.md`; `npm test` **169/169**,
+  frontend **81/81**, a11y suite green.
 - ✅ CRITICAL admin auth bypass fixed: `requireAuth` trusts only
   `cookie-session`-verified `req.session`; standalone/forged payloads and the
   legacy `kage.cust` fallback are rejected by the E2E regression suite.

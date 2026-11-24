@@ -74,9 +74,10 @@ async function persistImage(buffer, originalName) {
 async function removeImage(url) {
   if (!url) return;
   // F7: delete the 400/800/1200 WebP derivatives alongside the original
-  // (best-effort; missing variants are fine).
+  // (best-effort; missing variants are fine). 300/600 cover the category-card
+  // photos, whose main file is the 600 px WebP with a 300 px variant beside it.
   const { variantUrlFor } = require('./imageVariants');
-  const variantUrls = [400, 800, 1200].map(w => variantUrlFor(url, w)).filter(Boolean);
+  const variantUrls = [300, 400, 600, 800, 1200].map(w => variantUrlFor(url, w)).filter(Boolean);
   const blobToken = getBlobReadWriteToken();
   if (blobToken && /^https?:\/\//.test(url)) {
     const { del } = require('@vercel/blob');

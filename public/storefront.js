@@ -3,6 +3,35 @@
 // It only measures the topbar above it, so running at bundle start
 // (end of body) keeps its seamless-loop guarantee.
 
+// PERF (2026-11-23): boot needs three public GETs (catalog, category cards,
+// featured reviews). They used to be issued from deep inside boot — hundreds
+// of milliseconds after this bundle started running, because each one waited
+// for the code path that consumes it — which is what put the catalog request
+// near the end of the waterfall. Starting them here, as the first statements
+// of the bundle, overlaps all three with the rest of boot; nothing awaits them
+// until it actually needs the data. Rate-limit and cache semantics are
+// unchanged: still one request each, still revalidated by Cache-Control/ETag.
+var EARLY_FETCHES = Object.create(null);
+function earlyFetch(url) {
+  if (EARLY_FETCHES[url]) return EARLY_FETCHES[url];
+  var pending = fetch(url);
+  EARLY_FETCHES[url] = pending;
+  // A consumer may never run (offline boot, seed-only paint). Attaching a
+  // handler to a separate branch keeps that from becoming an unhandled
+  // rejection while leaving the original promise intact for awaiters.
+  pending.catch(function () {});
+  return pending;
+}
+function consumeEarlyFetch(url) {
+  var pending = EARLY_FETCHES[url];
+  if (!pending) return null;
+  delete EARLY_FETCHES[url];
+  return pending;
+}
+earlyFetch('/api/products');
+earlyFetch('/api/category-cards');
+earlyFetch('/api/reviews/featured');
+
       // Marquee top-up: the loop is seamless only while one group is at least
       // as wide as the viewport (the track shows group N while group N+1 slides
       // in). On very wide screens, clone items into BOTH groups until that
@@ -59,6 +88,7 @@
       } catch (e) { cart = []; wishlist.clear(); }
       shopStateReady = true;
       document.getElementById('wishlistCount').textContent = wishlist.size;
+      syncBadgeLabel('wishlistNav', wishlist.size, 'Wishlist');
       updateCartUI();
       renderWishlistDrawer();
     }
@@ -172,6 +202,100 @@
     function placeholderImg(name) {
       const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 400"><rect fill="#C4BEB0" width="300" height="400"/><text x="150" y="195" text-anchor="middle" fill="#4A4433" font-family="sans-serif" font-size="24">↑</text><text x="150" y="215" text-anchor="middle" fill="#7A7468" font-family="sans-serif" font-size="10">${esc(name)}</text></svg>`;
       return 'data:image/svg+xml,' + encodeURIComponent(svg);
+    }
+
+    // ---------- Loading feedback: button spinners + skeleton placeholders ----------
+    // Every async action swaps its button to a spinner (and disables it) for
+    // the duration of the request, then restores the exact original markup.
+    // Skeleton placeholders mirror the real layout so content that loads
+    // async never leaves a blank gap. They carry no text and are aria-hidden;
+    // the container is marked aria-busy while loading.
+    const SPINNER_HTML = '<span class="spinner" aria-hidden="true"></span>';
+    function setButtonLoading(btn, loading, label) {
+      if (!btn) return;
+      if (loading) {
+        if (btn.dataset._loading === '1') return;
+        btn.dataset._loading = '1';
+        btn.dataset._origHtml = btn.innerHTML;
+        btn.dataset._origDisabled = btn.disabled ? '1' : '0';
+        btn.disabled = true;
+        btn.setAttribute('aria-busy', 'true');
+        btn.classList.add('is-loading');
+        const text = label != null ? label : (btn.textContent || '').trim();
+        btn.innerHTML = SPINNER_HTML + (text ? '<span class="btn-loading-label">' + esc(text) + '</span>' : '');
+      } else {
+        if (btn.dataset._loading !== '1') return;
+        delete btn.dataset._loading;
+        if (btn.dataset._origHtml != null) btn.innerHTML = btn.dataset._origHtml;
+        delete btn.dataset._origHtml;
+        btn.disabled = btn.dataset._origDisabled === '1';
+        delete btn.dataset._origDisabled;
+        btn.removeAttribute('aria-busy');
+        btn.classList.remove('is-loading');
+      }
+    }
+    function skeletonProductCards(n) {
+      let html = '';
+      for (let i = 0; i < (n || 8); i++) {
+        html += '<div class="skel-card" aria-hidden="true">'
+          + '<div class="skeleton skel-img"></div>'
+          + '<div class="skeleton skel-line skel-line-wide"></div>'
+          + '<div class="skeleton skel-line"></div>'
+          + '<div class="skeleton skel-line skel-line-sm"></div>'
+          + '<div class="skeleton skel-btn"></div>'
+          + '</div>';
+      }
+      return html;
+    }
+    function skeletonReviewRows(n) {
+      let html = '';
+      for (let i = 0; i < (n || 2); i++) {
+        html += '<div class="skeleton-review" aria-hidden="true">'
+          + '<div class="skeleton skel-line skel-line-wide"></div>'
+          + '<div class="skeleton skel-line"></div>'
+          + '<div class="skeleton skel-line skel-line-sm"></div>'
+          + '</div>';
+      }
+      return html;
+    }
+    function skeletonOrderRows(n) {
+      let html = '';
+      for (let i = 0; i < (n || 3); i++) {
+        html += '<div class="skeleton-order-row" aria-hidden="true">'
+          + '<div class="skeleton skel-line skel-line-wide"></div>'
+          + '<div class="skeleton skel-line"></div>'
+          + '</div>';
+      }
+      return html;
+    }
+    function skeletonTrackCard() {
+      return '<div class="skeleton-track" aria-hidden="true">'
+        + '<div class="skeleton skel-line skel-line-wide"></div>'
+        + '<div class="skeleton skel-line"></div>'
+        + '<div class="skeleton skel-line skel-line-sm"></div>'
+        + '</div>';
+    }
+    // Photos carry .img-skel (shimmer) until they decode. The capture-phase
+    // listener catches load/error for every image, and sweepImageSkeletons()
+    // covers images that were already cached when they were rendered.
+    function sweepImageSkeletons(root) {
+      (root || document).querySelectorAll('img.img-skel').forEach(img => {
+        if (img.complete) img.classList.remove('img-skel');
+      });
+    }
+    ['load', 'error'].forEach(evt => {
+      document.addEventListener(evt, e => {
+        const t = e.target;
+        if (t && t.tagName === 'IMG' && t.classList.contains('img-skel')) t.classList.remove('img-skel');
+      }, true);
+    });
+    function showGridSkeleton(grid, n) {
+      if (!grid) return;
+      grid.innerHTML = skeletonProductCards(n);
+      grid.setAttribute('aria-busy', 'true');
+    }
+    function clearGridBusy(grid) {
+      if (grid) grid.removeAttribute('aria-busy');
     }
 
     function getPriceRange(p) {
@@ -299,6 +423,10 @@
     // any override can replace it, so "reset to default" can put it back
     // exactly — including the WebP sources a custom photo has no crops for.
     const categoryThumbDefaults = {};
+    // The circle is 150px wide at >=1024px, 104px at 600-1023px and
+    // 88-104px below that (see .cat-thumb in storefront.css). One `sizes`
+    // value describes all three without a media-query-per-tile.
+    const CATEGORY_TILE_SIZES = '(min-width: 1024px) 150px, 104px';
     function applyCategoryCardPhotos(cards) {
       if (!Array.isArray(cards)) return;
       const byId = {};
@@ -320,10 +448,16 @@
         const img = document.createElement('img');
         img.src = card.image;
         img.alt = card.alt || (source ? source.alt : '');
-        img.width = 600;
-        img.height = 600;
+        // Pixel attributes only carry the aspect ratio (CSS forces the circle
+        // size); take the real size when the server reports it.
+        img.width = Number(card.width) > 0 ? Number(card.width) : 600;
+        img.height = Number(card.height) > 0 ? Number(card.height) : 600;
         img.setAttribute('data-cat-photo', '');
-        img.setAttribute('sizes', '116px');
+        // Uploaded photos are stored at <=600 px with a 300 px variant, so the
+        // browser can pick one. `sizes` matches the CSS circle: 150 px from
+        // 1024 px up, 104 px below that (88–104 px on phones).
+        if (card.srcset) img.setAttribute('srcset', card.srcset);
+        img.setAttribute('sizes', CATEGORY_TILE_SIZES);
         img.setAttribute('loading', 'lazy');
         img.setAttribute('decoding', 'async');
         thumb.innerHTML = '';
@@ -335,14 +469,31 @@
     // Fired alongside each catalog refresh. Any failure leaves the bundled
     // photos already in the markup untouched — a missing photo is not an error
     // worth telling the shopper about.
+    // Boot calls this twice for the same page view (once when the inlined seed
+    // paints, once when the API catalog lands), so the two boot calls share one
+    // request. Once boot routing has settled, each later refresh asks again —
+    // an admin photo swap must not wait for a reload.
+    let bootSettled = false;
+    let bootCardsFetch = null;
+    function nextCardsFetch() {
+      return consumeEarlyFetch('/api/category-cards') || fetch('/api/category-cards');
+    }
     async function syncCategoryCardPhotos() {
       try {
-        const res = await fetch('/api/category-cards');
-        if (!res.ok) return;
+        let pending;
+        if (bootSettled) {
+          pending = nextCardsFetch();
+        } else {
+          if (!bootCardsFetch) bootCardsFetch = nextCardsFetch();
+          pending = bootCardsFetch;
+        }
+        const res = await pending;
+        if (!res.ok) { bootCardsFetch = null; return; }
         applyCategoryCardPhotos(await res.json());
-      } catch (e) { /* keep the bundled photos */ }
+      } catch (e) { bootCardsFetch = null; /* keep the bundled photos */ }
     }
     window.syncCategoryCardPhotos = syncCategoryCardPhotos;
+    function settleBootCards() { bootSettled = true; bootCardsFetch = null; }
     document.querySelector('.skip-link').addEventListener('click', () => {
       document.getElementById('mainContent').focus({ preventScroll: true });
     });
@@ -757,8 +908,7 @@
         return;
       }
       const btn = document.getElementById('coPlaceBtn');
-      btn.disabled = true;
-      btn.textContent = 'Placing order…';
+      setButtonLoading(btn, true, 'Placing order…');
       try {
         const res = await fetch('/api/orders', {
           method: 'POST',
@@ -793,8 +943,8 @@
         errEl.textContent = 'Connection problem — check your network and try again, or WhatsApp us at +92 322 804 2633 and we will place the order for you.';
         errEl.style.display = 'block';
       }
+      setButtonLoading(btn, false);
       btn.disabled = !cart.length || cartHasUnavailableItems();
-      btn.textContent = 'Place Order';
     }
 
     function renderConfirmation(order) {
@@ -883,6 +1033,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
     function renderCollectionGrid() {
       const filtered = getFilteredProducts();
       const grid = document.getElementById('collectionGrid');
+      clearGridBusy(grid);
       const total = filtered.length;
       visibleCount = Math.max(GRID_PAGE, Math.min(visibleCount, Math.max(total, GRID_PAGE)));
       const pageItems = filtered.slice(0, visibleCount);
@@ -921,6 +1072,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       // Same cards as the home Best Sellers: one shared renderer (renderProductCard).
       grid.innerHTML = pageItems.map(renderProductCard).join('');
       prioritizeFirstVisibleProductImage(grid);
+      requestAnimationFrame(() => sweepImageSkeletons());
     }
 
     // "Load more" reveals the next GRID_PAGE loaded cards; when everything
@@ -929,9 +1081,9 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
     async function loadMore() {
       if (!catalogExhausted && visibleCount >= allProducts.length) {
         const btn = document.getElementById('loadMoreBtn');
-        if (btn) { btn.disabled = true; btn.setAttribute('aria-busy', 'true'); }
+        setButtonLoading(btn, true, 'Loading…');
         try { await loadRemainingCatalogPages(); }
-        finally { const b = document.getElementById('loadMoreBtn'); if (b) b.removeAttribute('aria-busy'); }
+        finally { setButtonLoading(document.getElementById('loadMoreBtn'), false); }
       }
       visibleCount += GRID_PAGE;
       renderCollectionGrid();
@@ -1031,6 +1183,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
         }
       }
       document.getElementById('wishlistCount').textContent = wishlist.size;
+      syncBadgeLabel('wishlistNav', wishlist.size, 'Wishlist');
       var wName = (allProducts.find(function (x) { return x.id === id; }) || {}).name || 'Product';
       announce(saved ? 'Saved ' + wName + ' to favourites.' : 'Removed ' + wName + ' from favourites.');
       persistShopState();
@@ -1074,7 +1227,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
         if (!p) return;
         var img = (p.images && p.images[0]) || p.image || '';
         var available = anySizeAvailable(p);
-        html += '<div class="cart-item"><div class="cart-item-image">' + (img ? '<img src="' + esc(img) + '" alt="' + esc(p.name) + '" width="55" height="55"' + srcsetAttr(img) + ' sizes="55px" loading="lazy" decoding="async" />' : '') + '</div><div class="cart-item-info"><h4>' + esc(p.name) + '</h4><div class="cart-item-meta">' + esc(p.fit || '') + (available ? '' : ' · Sold Out — unavailable') + '</div><div class="cart-item-price">Rs. ' + (p.sale_price || p.price) + '</div></div><div class="wishlist-item-actions"><button class="btn btn-sm btn-outline btn-xxs"' + (available ? '' : ' disabled') + ' data-action="quick-add" data-pid="' + p.id + '">' + (available ? 'Add to Cart' : 'Sold Out') + '</button><button class="wishlist-remove-btn" data-action="wishlist-remove" data-pid="' + p.id + '">Remove</button></div></div>';
+        html += '<div class="cart-item"><div class="cart-item-image">' + (img ? '<img src="' + esc(img) + '" alt="' + esc(p.name) + '" width="55" height="55"' + srcsetAttr(img) + ' sizes="55px" loading="lazy" decoding="async" />' : '') + '</div><div class="cart-item-info"><h3>' + esc(p.name) + '</h3><div class="cart-item-meta">' + esc(p.fit || '') + (available ? '' : ' · Sold Out — unavailable') + '</div><div class="cart-item-price">Rs. ' + (p.sale_price || p.price) + '</div></div><div class="wishlist-item-actions"><button class="btn btn-sm btn-outline btn-xxs"' + (available ? '' : ' disabled') + ' data-action="quick-add" data-pid="' + p.id + '">' + (available ? 'Add to Cart' : 'Sold Out') + '</button><button class="wishlist-remove-btn" data-action="wishlist-remove" data-pid="' + p.id + '">Remove</button></div></div>';
       });
       container.innerHTML = html;
     }
@@ -1117,8 +1270,10 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       e.preventDefault();
       const form = e.target;
       const input = form.querySelector('input[type=email]');
-      const msg = form.parentElement.querySelector('.newsletter-msg') || document.getElementById('newsletterMsg');
+      const msg = form.parentElement.querySelector('.newsletter-msg');
       if (!input || !input.value.trim()) return;
+      const btn = form.querySelector('button[type=submit]');
+      setButtonLoading(btn, true, 'Subscribing…');
       try {
         const res = await fetch('/api/newsletter', {
           method: 'POST',
@@ -1145,6 +1300,8 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
         }
       } catch (err) {
         if (msg) msg.textContent = 'Connection error. Please try again.';
+      } finally {
+        setButtonLoading(btn, false);
       }
     }
 
@@ -1155,6 +1312,8 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       const msg = document.getElementById('comingSoonMsg');
       if (!email || !email.value.trim()) return;
       if (msg) { msg.textContent = ''; msg.className = 'coming-soon-msg'; }
+      const btn = e.target.querySelector('button[type=submit]');
+      setButtonLoading(btn, true, 'Subscribing…');
       try {
         const res = await fetch('/api/coming-soon', {
           method: 'POST',
@@ -1170,6 +1329,8 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
         }
       } catch (err) {
         if (msg) msg.textContent = 'Connection error. Please try again.';
+      } finally {
+        setButtonLoading(btn, false);
       }
     }
 
@@ -1197,9 +1358,9 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
           : `Rs. ${fmt(range.min)}`;
       const isWishlisted = wishlist && wishlist.has(p.id);
       return `
-        <div class="product-card" data-pid="${p.id}" role="link" tabindex="0" aria-label="View ${esc(p.name)}" data-action="open-product" data-pid="${p.id}" data-key="enter">
+        <div class="product-card" data-pid="${p.id}" role="link" tabindex="0" data-action="open-product" data-pid="${p.id}" data-key="enter">
           <div class="product-card-image${anySizeAvailable(p) ? '' : ' sold-out'}">
-            ${img ? `<img src="${esc(img)}" alt="${esc(p.name)}" width="600" height="800"${srcsetAttr(img)} sizes="(max-width: 768px) calc((100vw - 40px) / 2), (max-width: 1024px) calc((100vw - 80px) / 3), (max-width: 1279px) calc((100vw - 112px) / 4), 296px" loading="lazy" decoding="async" />` : `<div class="no-image-cell">No Image</div>`}
+            ${img ? `<img src="${esc(img)}" alt="${esc(p.name)}" class="img-skel" width="600" height="800"${srcsetAttr(img)} sizes="(max-width: 768px) calc((100vw - 40px) / 2), (max-width: 1024px) calc((100vw - 80px) / 3), (max-width: 1279px) calc((100vw - 112px) / 4), 296px" loading="lazy" decoding="async" />` : `<div class="no-image-cell">No Image</div>`}
             <button class="product-wishlist ${isWishlisted ? 'active' : ''}" data-action="toggle-wish" data-pid="${p.id}" aria-label="Wishlist">
               ${HEART_SVG}
             </button>
@@ -1228,13 +1389,12 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       image.setAttribute('fetchpriority', 'high');
     }
 
-    // The renderer used to be home-only; the old name still points at it.
-    window.renderHomeProductCard = renderProductCard;
 
     // Load Best Sellers (sorted by order count if available, else newest)
     function loadBestSellers() {
       const grid = document.getElementById('bestSellersGrid');
       if (!grid) return;
+      clearGridBusy(grid);
       const sorted = [...allProducts].sort((a, b) => {
         const oa = a.order_count || 0;
         const ob = b.order_count || 0;
@@ -1245,6 +1405,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       }).slice(0, 8);
       grid.innerHTML = sorted.map(renderProductCard).join('');
       prioritizeFirstVisibleProductImage(grid);
+      requestAnimationFrame(() => sweepImageSkeletons());
     }
 
     // ---------- "What customers say" home strip ----------
@@ -1256,7 +1417,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       const grid = document.getElementById('homeReviewsGrid');
       if (!section || !grid) return;
       try {
-        const res = await fetch('/api/reviews/featured');
+        const res = await (consumeEarlyFetch('/api/reviews/featured') || fetch('/api/reviews/featured'));
         const rows = res.ok ? await res.json() : [];
         const items = Array.isArray(rows) ? rows.slice(0, 3) : [];
         if (!items.length) { section.classList.add('is-hidden'); grid.innerHTML = ''; return; }
@@ -1301,7 +1462,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
           </div>
         </div>
         <div class="filter-section" data-group="price">
-          <h4>Price Range</h4>
+          <h2>Price Range</h2>
           <div class="price-display">
             <span class="price-min-display">Rs. 0</span>
             <span class="price-max-display">Rs. 10,000</span>
@@ -1314,7 +1475,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
           </div>
         </div>
         <div class="filter-section" data-group="size">
-          <h4>Size</h4>
+          <h2>Size</h2>
           <select class="sort-select fp-size" aria-label="Filter by size">
             <option value="">All Sizes</option>
             <option value="S">S</option>
@@ -1470,7 +1631,8 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       loadReviews(p.id);
       document.getElementById('detailQty').textContent = '1';
       const track = document.getElementById('galleryTrack');
-      track.innerHTML = p.images.map((img,i) => `<img src="${esc(img)}" alt="${esc(p.name)} view ${i+1}" width="900" height="1200"${srcsetAttr(img)} sizes="(max-width: 768px) 92vw, (max-width: 1279px) 45vw, 600px" loading="${i>0?'lazy':'eager'}" decoding="async"${i===0?' fetchpriority="high"':''} />`).join('');
+      track.innerHTML = p.images.map((img,i) => `<img src="${esc(img)}" alt="${esc(p.name)} view ${i+1}" class="img-skel" width="900" height="1200"${srcsetAttr(img)} sizes="(max-width: 768px) 92vw, (max-width: 1279px) 45vw, 600px" loading="${i>0?'lazy':'eager'}" decoding="async"${i===0?' fetchpriority="high"':''} />`).join('');
+      requestAnimationFrame(() => sweepImageSkeletons());
       track.style.transform = 'translateX(0)';
       const dc = document.getElementById('detailDots');
       if (p.images.length > 1) {
@@ -1681,6 +1843,17 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
     }
 
     async function loadReviews(productId) {
+      const section = document.getElementById('reviewsSection');
+      const list = document.getElementById('reviewsList');
+      const summary = document.getElementById('reviewSummary');
+      if (!section || !list || !summary) return;
+      // Skeleton rows while the reviews fetch — the section is revealed
+      // immediately so the placeholder is visible, then swapped for real
+      // reviews (or the empty state) when the request settles.
+      section.classList.remove('is-hidden');
+      summary.innerHTML = '<span class="skeleton skel-line skel-line-sm" aria-hidden="true"></span>';
+      list.innerHTML = skeletonReviewRows(2);
+      list.setAttribute('aria-busy', 'true');
       let reviews = [];
       try {
         const res = await fetch('/api/reviews?product_id=' + encodeURIComponent(productId), {
@@ -1688,11 +1861,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
         });
         if (res.ok) reviews = await res.json();
       } catch (e) { reviews = []; }
-      const section = document.getElementById('reviewsSection');
-      const list = document.getElementById('reviewsList');
-      const summary = document.getElementById('reviewSummary');
-      if (!section || !list || !summary) return;
-      section.classList.remove('is-hidden');
+      list.removeAttribute('aria-busy');
       if (!reviews.length) {
         summary.innerHTML = '<span class="review-no">No reviews yet.</span>';
         list.innerHTML = '<p class="text-gray-sm">Be the first to share your experience.</p>';
@@ -1730,7 +1899,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       if (!rating) { errEl.textContent = 'Please select a star rating.'; errEl.style.display = 'block'; return; }
       if (!order || !phone) { errEl.textContent = 'Enter the order number and phone from your delivered order.'; errEl.style.display = 'block'; return; }
       const btn = e.target.querySelector('button[type=submit]');
-      btn.disabled = true;
+      setButtonLoading(btn, true, 'Submitting…');
       try {
         const res = await fetch('/api/reviews', {
           method: 'POST',
@@ -1760,7 +1929,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
         errEl.textContent = 'Connection error. Please try again.';
         errEl.style.display = 'block';
       }
-      btn.disabled = false;
+      setButtonLoading(btn, false);
     }
 
     // Star picker for the review form. ONE value drives the fill — the
@@ -1960,7 +2129,10 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
         return;
       }
       const btn = e.target.querySelector('button[type=submit]');
-      btn.disabled = true;
+      setButtonLoading(btn, true, 'Tracking…');
+      result.innerHTML = skeletonTrackCard();
+      result.style.display = 'block';
+      result.setAttribute('aria-busy', 'true');
       try {
         // F16: POST body (the global fetch wrapper attaches X-CSRF-Token) —
         // order number and phone stay out of URLs and logs.
@@ -1982,6 +2154,8 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
         err.style.display = 'block';
         result.style.display = 'none';
       } finally {
+        result.removeAttribute('aria-busy');
+        setButtonLoading(btn, false);
         btn.disabled = false;  // was skipped on the !res.ok path — one failed lookup bricked the button
       }
     }
@@ -2091,11 +2265,18 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       toggleCart(true);  // show the cart list so the user sees what was added
       return true;
     }
+    // Icon-only nav buttons show a visible count badge, so the count has to be part
+    // of the accessible name (WCAG 2.5.3 Label in Name: visible text in the name).
+    function syncBadgeLabel(id, count, label) {
+      const btn = document.getElementById(id);
+      if (btn) btn.setAttribute('aria-label', label + ', ' + count + (count === 1 ? ' item' : ' items'));
+    }
     function updateCartUI() {
       const c = cart.reduce((s,i) => s + i.qty, 0);
       document.querySelector('#cartFooter button').disabled = !cart.length || cartHasUnavailableItems();
       persistShopState();
       document.getElementById('cartCount').textContent = c;
+      syncBadgeLabel('cartNav', c, 'Shopping cart');
       const items = document.getElementById('cartItems'), footer = document.getElementById('cartFooter');
       if (!cart.length) { items.innerHTML = '<div class="cart-empty"><span class="cart-empty-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg></span><p>Your cart is empty.</p></div>'; footer.style.display = 'none'; return; }
       footer.style.display = 'flex';
@@ -2103,7 +2284,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       items.innerHTML = cart.map((item,i) => {
         const unavailable = cartItemUnavailable(item);
         const t = item.price * item.qty; sub += t;
-        return `<div class="cart-item"><div class="cart-item-image"><img src="${esc(item.images[0])}" alt="${esc(item.name)}" width="55" height="55"${srcsetAttr(item.images[0])} sizes="55px" loading="lazy" decoding="async" /></div><div class="cart-item-info"><h4>${esc(item.name)}</h4><div class="cart-item-meta">Size: ${esc(item.size)} · ${esc(item.fit)}${unavailable ? ' · Sold Out — unavailable' : ''}</div><div class="cart-item-price">Rs. ${t}</div></div><div class="wishlist-item-actions-end"><div class="cart-item-qty"><button data-action="cart-qty" data-index="${i}" data-delta="-1"${unavailable ? ' disabled' : ''}>−</button><span>${item.qty}</span><button data-action="cart-qty" data-index="${i}" data-delta="1"${unavailable ? ' disabled' : ''}>+</button></div><button class="cart-item-remove" data-action="cart-remove" data-index="${i}">Remove</button></div></div>`;
+        return `<div class="cart-item"><div class="cart-item-image"><img src="${esc(item.images[0])}" alt="${esc(item.name)}" width="55" height="55"${srcsetAttr(item.images[0])} sizes="55px" loading="lazy" decoding="async" /></div><div class="cart-item-info"><h3>${esc(item.name)}</h3><div class="cart-item-meta">Size: ${esc(item.size)} · ${esc(item.fit)}${unavailable ? ' · Sold Out — unavailable' : ''}</div><div class="cart-item-price">Rs. ${t}</div></div><div class="wishlist-item-actions-end"><div class="cart-item-qty"><button data-action="cart-qty" data-index="${i}" data-delta="-1"${unavailable ? ' disabled' : ''}>−</button><span>${item.qty}</span><button data-action="cart-qty" data-index="${i}" data-delta="1"${unavailable ? ' disabled' : ''}>+</button></div><button class="cart-item-remove" data-action="cart-remove" data-index="${i}">Remove</button></div></div>`;
       }).join('');
       document.getElementById('cartSubtotal').textContent = 'Rs. ' + fmt(sub);
     }
@@ -2314,7 +2495,15 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
     // catalog is already complete (the common case after boot).
     function withFullCatalog(render) {
       if (catalogExhausted) { render(); return; }
-      loadRemainingCatalogPages().then(render);
+      // Still fetching the rest of the catalog: keep any painted cards on
+      // screen (marked busy) and skeleton only an empty grid, so a search
+      // or filter never flashes a blank page.
+      const grid = document.getElementById('collectionGrid');
+      if (grid) {
+        if (!grid.querySelector('.product-card')) grid.innerHTML = skeletonProductCards(GRID_PAGE);
+        grid.setAttribute('aria-busy', 'true');
+      }
+      loadRemainingCatalogPages().then(() => { clearGridBusy(grid); render(); });
     }
 
     // Paints from the inlined seed (no network), then finishes the catalog in
@@ -2332,10 +2521,17 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       if (productsFetchInFlight) return;
       productsFetchInFlight = true;
       lastProductsFetchAt = Date.now();
+      // First load (or a retry after an outage) with nothing painted yet:
+      // skeleton cards hold the grid's shape until the catalog lands. A
+      // seed-painted or already-loaded grid keeps its cards — no flash.
+      if (!allProducts.length) {
+        showGridSkeleton(document.getElementById('bestSellersGrid'), 8);
+        showGridSkeleton(document.getElementById('collectionGrid'), GRID_PAGE);
+      }
       try {
         // Default HTTP cache mode: revalidate via Cache-Control/ETag, never
         // persist the catalog in localStorage/sessionStorage across visits.
-        const res = await fetch('/api/products');
+        const res = await (consumeEarlyFetch('/api/products') || fetch('/api/products'));
         if (!res.ok) throw new Error('Catalog request failed');
         const data = await res.json();
         if (!Array.isArray(data)) throw new Error('Invalid catalog');
@@ -2383,7 +2579,24 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
     // ================================================================
     let currentCustomer = null;
 
-    async function checkCustomerAuth() {
+    // PERF: the session cookie is httpOnly, so this readable companion cookie
+    // (set only when a customer session exists, cleared on logout) is the only
+    // signal the page can see. Without it we skip the /api/customers/me probe
+    // entirely — a first-time visitor should not pay for a round trip that can
+    // only answer "nobody". Unknown/blocked cookies fail open (probe as before).
+    function hasCustomerSessionHint() {
+      try {
+        const jar = String(document.cookie || '');
+        return /(?:^|;\s*)kage\.signed_in=1(?:;|$)/.test(jar);
+      } catch (e) { return true; }
+    }
+
+    async function checkCustomerAuth(force) {
+      if (!force && !hasCustomerSessionHint()) {
+        currentCustomer = null;
+        updateAccountUI();
+        return;
+      }
       try {
         const res = await fetch('/api/customers/me');
         if (res.ok) {
@@ -2417,7 +2630,12 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
               }
     }
 
-    function handleAccountClick() {
+    // If the hint cookie is missing but a session somehow exists (cleared
+    // cookie jar, an older tab), one forced probe before showing the sign-in
+    // form keeps a signed-in shopper signed in. Costs nothing for anonymous
+    // visitors until they click, and never runs on page load.
+    async function handleAccountClick() {
+      if (!currentCustomer && !hasCustomerSessionHint()) await checkCustomerAuth(true);
       if (currentCustomer) {
         navigateTo('account');
         loadAccountPage();
@@ -2450,9 +2668,10 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       document.getElementById('custSignupError').style.display = 'none';
     }
 
-    async function requestCustomerPasswordReset() {
+    async function requestCustomerPasswordReset(btn) {
       const email = prompt('Enter your email address:');
       if (!email) return;
+      setButtonLoading(btn, true, 'Sending…');
       try {
         const res = await fetch('/api/auth/forgot-password', {
           method: 'POST',
@@ -2463,6 +2682,8 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
         alert(data.message || 'Check your email for reset instructions.');
       } catch (err) {
         alert('Connection error.');
+      } finally {
+        setButtonLoading(btn, false);
       }
     }
 
@@ -2496,6 +2717,8 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       const resetMin = resetUserType === 'admin' ? 14 : 10;
       if (!password || password.length < resetMin) { err.textContent = 'Password must be at least ' + resetMin + ' characters.'; err.style.display = 'block'; return; }
       if (password !== confirm) { err.textContent = 'Passwords do not match.'; err.style.display = 'block'; return; }
+      const btn = e.target.querySelector('button[type=submit]');
+      setButtonLoading(btn, true, 'Updating…');
       try {
         const res = await fetch('/api/auth/reset-password', {
           method: 'POST',
@@ -2516,6 +2739,8 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       } catch (e2) {
         err.textContent = 'Connection error. Please try again.';
         err.style.display = 'block';
+      } finally {
+        setButtonLoading(btn, false);
       }
     }
 
@@ -2538,6 +2763,8 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
     async function verifyEmail() {
       const err = document.getElementById('vfyError');
       const msg = document.getElementById('vfyMsg');
+      // Inline spinner while the verification request is in flight.
+      if (msg) { msg.innerHTML = SPINNER_HTML + ' Verifying your email…'; msg.style.display = 'block'; }
       try {
         const res = await fetch('/api/auth/verify-email?token=' + encodeURIComponent(verifyToken));
         const data = await res.json().catch(() => ({}));
@@ -2554,12 +2781,14 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       }
     }
 
-    async function resendVerificationEmail() {
+    async function resendVerificationEmail(btn) {
+      setButtonLoading(btn, true, 'Sending…');
       try {
         const res = await fetch('/api/customers/resend-verification', { method: 'POST' });
         const data = await res.json().catch(() => ({}));
         showToast(res.ok ? (data.message || 'Verification email sent. Check your inbox.') : (data.error || 'Could not send the verification email.'));
       } catch (e) { showToast('Connection error. Please try again.'); }
+      setButtonLoading(btn, false);
     }
 
     // Show/hide the "verify your email" banner on the account page.
@@ -2575,14 +2804,14 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       const errEl = document.getElementById('custLoginError');
       const btn = document.getElementById('custLoginBtn');
       if (!email || !password) { errEl.textContent = 'Please fill in all fields.'; errEl.style.display = 'block'; return; }
-      btn.disabled = true; btn.textContent = 'Signing in…';
+      setButtonLoading(btn, true, 'Signing in…');
       try {
         const res = await fetch('/api/customers/login', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email, password })
         });
         const data = await res.json();
-        if (!res.ok) { errEl.textContent = data.error || 'Login failed.'; errEl.style.display = 'block'; btn.disabled = false; btn.textContent = 'Sign In'; return; }
+        if (!res.ok) { errEl.textContent = data.error || 'Login failed.'; errEl.style.display = 'block'; return; }
         currentCustomer = data.customer;
         updateAccountUI();
         closeCustModal();
@@ -2590,8 +2819,9 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
         showToast('Welcome back, ' + (currentCustomer.name || 'Clan Member') + '!');
       } catch (e) {
         errEl.textContent = 'Something went wrong. Please try again.'; errEl.style.display = 'block';
+      } finally {
+        setButtonLoading(btn, false);
       }
-      btn.disabled = false; btn.textContent = 'Sign In';
     }
 
     async function submitCustSignup() {
@@ -2602,14 +2832,14 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       const btn = document.getElementById('custSignupBtn');
       if (!email || !password) { errEl.textContent = 'Email and password are required.'; errEl.style.display = 'block'; return; }
       if (password.length < 10) { errEl.textContent = 'Password must be at least 10 characters.'; errEl.style.display = 'block'; return; }
-      btn.disabled = true; btn.textContent = 'Creating…';
+      setButtonLoading(btn, true, 'Creating…');
       try {
         const res = await fetch('/api/customers/signup', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email, password, name })
         });
         const data = await res.json();
-        if (!res.ok) { errEl.textContent = data.error || 'Signup failed.'; errEl.style.display = 'block'; btn.disabled = false; btn.textContent = 'Create Account'; return; }
+        if (!res.ok) { errEl.textContent = data.error || 'Signup failed.'; errEl.style.display = 'block'; return; }
         currentCustomer = data.customer;
         updateAccountUI();
         closeCustModal();
@@ -2617,16 +2847,19 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
         showToast('Account created! Check your email to verify your address.');
       } catch (e) {
         errEl.textContent = 'Something went wrong. Please try again.'; errEl.style.display = 'block';
+      } finally {
+        setButtonLoading(btn, false);
       }
-      btn.disabled = false; btn.textContent = 'Create Account';
     }
 
-    async function customerLogout() {
+    async function customerLogout(btn) {
+      setButtonLoading(btn, true, 'Signing out…');
       try { await fetch('/api/customers/logout', { method: 'POST' }); } catch (e) {}
       currentCustomer = null;
       updateAccountUI();
       navigateTo('home');
       showToast('Signed out.');
+      setButtonLoading(btn, false);
     }
 
     async function loadAccountPage() {
@@ -2638,7 +2871,10 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       document.getElementById('acctAddress').value = currentCustomer.address || '';
       document.getElementById('acctCity').value = currentCustomer.city || '';
       updateVerifyBanner(currentCustomer.email_verified !== false);
-      // Load orders
+      // Load orders — skeleton rows while the history fetch is in flight.
+      const ordersEl = document.getElementById('acctOrders');
+      ordersEl.innerHTML = skeletonOrderRows(3);
+      ordersEl.setAttribute('aria-busy', 'true');
       try {
         const res = await fetch('/api/customers/orders');
         if (!res.ok) throw new Error('Order history unavailable');
@@ -2648,6 +2884,8 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
         renderAccountOrders(data.orders, verified);
       } catch (e) {
         document.getElementById('acctOrders').textContent = 'Could not load your orders. Please try again later.';
+      } finally {
+        ordersEl.removeAttribute('aria-busy');
       }
     }
 
@@ -2672,7 +2910,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       }).join('');
     }
 
-    async function saveAccountProfile() {
+    async function saveAccountProfile(btn) {
       const msg = document.getElementById('acctProfileMsg');
       const body = {
         name: document.getElementById('acctNameInput').value.trim(),
@@ -2680,6 +2918,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
         address: document.getElementById('acctAddress').value.trim(),
         city: document.getElementById('acctCity').value.trim()
       };
+      setButtonLoading(btn, true, 'Saving…');
       try {
         const res = await fetch('/api/customers/me', {
           method: 'PUT', headers: { 'Content-Type': 'application/json' },
@@ -2695,16 +2934,19 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
         }
       } catch (e) {
         msg.textContent = 'Something went wrong.'; msg.className = 'acct-msg error';
+      } finally {
+        setButtonLoading(btn, false);
       }
       setTimeout(() => { msg.textContent = ''; }, 3000);
     }
 
-    async function changeAccountPassword() {
+    async function changeAccountPassword(btn) {
       const msg = document.getElementById('acctPwMsg');
       const currentPassword = document.getElementById('acctCurrentPw').value;
       const newPassword = document.getElementById('acctNewPw').value;
       if (!currentPassword || !newPassword) { msg.textContent = 'Both fields are required.'; msg.className = 'acct-msg error'; return; }
       if (newPassword.length < 10) { msg.textContent = 'New password must be at least 10 characters.'; msg.className = 'acct-msg error'; return; }
+      setButtonLoading(btn, true, 'Updating…');
       try {
         const res = await fetch('/api/customers/me', {
           method: 'PUT', headers: { 'Content-Type': 'application/json' },
@@ -2720,6 +2962,8 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
         }
       } catch (e) {
         msg.textContent = 'Something went wrong.'; msg.className = 'acct-msg error';
+      } finally {
+        setButtonLoading(btn, false);
       }
       setTimeout(() => { msg.textContent = ''; }, 3000);
     }
@@ -2747,6 +2991,11 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
     if (requestedPath === '/confirmation' && !lastOrder) history.replaceState(null, '', '/');
     const initialPath = location.pathname;
     setupFilters(); updateCartUI();
+    // Skeleton cards first: when the inlined seed is present it paints over
+    // them in the same frame (no flash), and when it is not — slow network,
+    // seed skipped — the skeletons hold the layout until the catalog lands.
+    showGridSkeleton(document.getElementById('bestSellersGrid'), 8);
+    showGridSkeleton(document.getElementById('collectionGrid'), GRID_PAGE);
     // Paint instantly from the inlined catalog seed (server-rendered first
     // page) if one is present — no network wait for the first paint. The
     // seed is public catalog data only; loadProductsFromAPI() revalidates it.
@@ -2765,6 +3014,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       if (el && el.parentNode) el.parentNode.removeChild(el);
     };
     const finishBootRouting = () => {
+      settleBootCards();
       // Drop the SSR block BEFORE routing so the first post-hydration render
       // measures the settled layout (e.g. first-image promotion needs the
       // card in view).
@@ -2861,18 +3111,24 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       'start-checkout': () => startCheckout(),
       'place-order': () => placeOrder(),
       'load-more': () => loadMore(),
-      'load-products': () => loadProductsFromAPI(),
+      'load-products': (el) => {
+        setButtonLoading(el, true, 'Loading…');
+        return Promise.resolve(loadProductsFromAPI()).then(
+          () => setButtonLoading(el, false),
+          () => setButtonLoading(el, false)
+        );
+      },
       'account': () => handleAccountClick(),
       'go-track': () => goTrackOrder(),
-      'resend-verification': () => resendVerificationEmail(),
-      'request-pw-reset': () => requestCustomerPasswordReset(),
+      'resend-verification': (el) => resendVerificationEmail(el),
+      'request-pw-reset': (el) => requestCustomerPasswordReset(el),
       'cust-show-login': () => showCustLogin(),
       'cust-show-signup': () => showCustSignup(),
       'cust-login': () => submitCustLogin(),
       'cust-signup': () => submitCustSignup(),
-      'save-profile': () => saveAccountProfile(),
-      'change-password': () => changeAccountPassword(),
-      'customer-logout': () => customerLogout(),
+      'save-profile': (el) => saveAccountProfile(el),
+      'change-password': (el) => changeAccountPassword(el),
+      'customer-logout': (el) => customerLogout(el),
       'cust-close': () => closeCustModal(),
       'cust-backdrop': (el, e) => { if (e.target === el) closeCustModal(); },
       'desktop-search': () => toggleDesktopSearch(),
