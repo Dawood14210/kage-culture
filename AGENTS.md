@@ -100,6 +100,15 @@
   (9.57:1 and 6.20:1). A geometry + computed-type diff against `ba934a7`
   proves no visual change. Details in `AUDIT.md`; `npm test` **169/169**,
   frontend **81/81**, a11y suite green.
+- ✅ *(2026-11-24, owner request)* **Nav links live in the hamburger panel at
+  every width.** Phase 2 had re-inlined them above 1023 px; the `≥1024px` row
+  layout and `.hamburger { display: none }` are gone, `.nav-links.open` moved
+  out of the `max-width: 1023px` block so one rule opens the panel everywhere,
+  and the desktop panel is right-aligned to the icon cluster (320 px, 44 px
+  rows) with its own search row. Logo, icons, badges, 95 px bar and the
+  category strip are untouched; tests assert the list is never
+  `display: flex !important` and the hamburger is never hidden. Details in
+  `AUDIT.md`; `npm test` **169/169**, frontend **82/82**, a11y green.
 - ✅ *(2026-11-24, live-site fix)* **Hero back to its full 16:9 frame.** Removed
   the `max-height: 56vh` clamp on `.hero-media img` (added in `2e0760b`): the
   campaign art is 16:9, so the clamp cropped it to a viewport slice and
