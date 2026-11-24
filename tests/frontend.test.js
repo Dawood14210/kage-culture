@@ -1376,9 +1376,12 @@ async function ready(win) {
         console.log('✅ Real Chromium — search runs on Enter and the magnifier, not on every keystroke');
       }
 
-      // ---- Desktop header: alignment, one-line navigation, and spacing at
-      // ---- the requested widths. Every category is permanent now, so all
-      // ---- eight links are always present.
+      // ---- Desktop header: the links live in the hamburger panel at every
+      // ---- width, so the bar itself is [logo] … [search + wishlist +
+      // ---- account + cart + hamburger]. These checks pin that contract:
+      // ---- no inline link row, a visible 44px hamburger, a closed panel by
+      // ---- default, an open panel that lists all eight links under the bar
+      // ---- and a working keyboard path through it.
       for (const vw of [1024, 1025, 1100, 1148, 1279, 1280, 1366, 1536, 1920]) {
         const hp = await browser.newPage();
         await hp.setViewport({ width: vw, height: 900 });
@@ -1386,46 +1389,28 @@ async function ready(win) {
         await waitForCatalog(hp);
         await settleLayout(hp);
         {
-          await hp.evaluate(() => {
-            document.querySelectorAll('#navLinks a').forEach((link) => {
-              link.classList.toggle('active', link.dataset.nav === 'all');
-            });
-            document.querySelectorAll('#wishlistCount, #cartCount').forEach((badge) => {
-              badge.textContent = '99';
-              badge.classList.add('bump');
-            });
-          });
-          await settleLayout(hp);
-          const m = await hp.evaluate(() => {
+          const closed = await hp.evaluate(() => {
             const rect = (el) => {
               const r = el.getBoundingClientRect();
               return { left: r.left, right: r.right, top: r.top, bottom: r.bottom, width: r.width, height: r.height };
             };
             const nav = document.getElementById('navLinks');
-            const links = [...nav.querySelectorAll(':scope > li:not(.mobile-search)')]
-              .filter((item) => item.getClientRects().length)
-              .map((item) => item.querySelector('a'));
+            const burger = document.getElementById('hamburger');
             const content = document.querySelector('#page-home .section-vibes > .container');
-            const contentRect = rect(content);
             const contentStyle = getComputedStyle(content);
+            const contentRect = content.getBoundingClientRect();
             const buttons = [...document.querySelectorAll('.nav-icons > .nav-icon')]
               .filter((button) => getComputedStyle(button).display !== 'none');
-            const badges = [...document.querySelectorAll('#wishlistCount, #cartCount')];
             return {
-              links: links.map((link) => ({
-                text: link.textContent.trim(),
-                rect: rect(link),
-                fontSize: getComputedStyle(link).fontSize,
-                fontWeight: getComputedStyle(link).fontWeight,
-                whiteSpace: getComputedStyle(link).whiteSpace
-              })),
-              gap: parseFloat(getComputedStyle(nav).gap),
-              iconGap: parseFloat(getComputedStyle(document.querySelector('.nav-icons')).gap),
+              navDisplay: getComputedStyle(nav).display,
+              navRect: rect(nav),
+              burger: rect(burger),
+              burgerDisplay: getComputedStyle(burger).display,
+              ariaExpanded: burger.getAttribute('aria-expanded'),
+              ariaControls: burger.getAttribute('aria-controls'),
               logo: rect(document.querySelector('.kage-logo img')),
               icons: rect(document.querySelector('.nav-icons')),
               buttons: buttons.map(rect),
-              glyphs: buttons.map((button) => rect(button.querySelector('svg, img'))),
-              badges: badges.map((badge) => ({ rect: rect(badge), parent: rect(badge.parentElement) })),
               content: {
                 left: contentRect.left + parseFloat(contentStyle.paddingLeft),
                 right: contentRect.right - parseFloat(contentStyle.paddingRight)
@@ -1434,65 +1419,149 @@ async function ready(win) {
                 height: rect(document.querySelector('.site-header')).height,
                 position: getComputedStyle(document.querySelector('.site-header')).position
               },
-              iconOverflow: getComputedStyle(document.querySelector('.nav-icons')).overflow
+              categoryStrip: getComputedStyle(document.getElementById('categoryStrip')).display
             };
           });
           const label = `${vw}px`;
-          // Every category is permanent: Shop All + 4 categories + Sale + 2 = 8.
-          assert.equal(m.links.length, 8, `${label}: visible navigation link count`);
-          assert.ok(m.links.every((link) => link.whiteSpace === 'nowrap'), `${label}: each nav label stays on one line`);
-          assert.ok(m.links.every((link) => Math.abs(link.rect.top - m.links[0].rect.top) < 0.5), `${label}: links share one top coordinate`);
-          const minGap = vw === 1024 ? 16 : vw < 1280 ? 18 : 24;
-          const expectedGap = vw === 1024 ? 16 : vw < 1280 ? 18 : 28;
-          const gaps = m.links.slice(1).map((link, i) => link.rect.left - m.links[i].rect.right);
-          assert.equal(m.gap, expectedGap, `${label}: desktop nav uses its responsive gap`);
-          assert.ok(gaps.every((gap) => gap >= minGap - 0.1), `${label}: neighboring link gaps are at least ${minGap}px (${gaps.join(', ')})`);
-          assert.ok(m.links[0].rect.left >= m.logo.right - 0.1, `${label}: first nav link does not overlap the logo`);
-          assert.ok(m.links.at(-1).rect.right <= m.icons.left + 0.1, `${label}: last nav link does not overlap the icons`);
-          assert.ok(m.links.every((link) => link.fontSize === (vw >= 1280 ? '13px' : '12px')), `${label}: desktop font size is correct`);
-          assert.equal(m.links.find((link) => link.text === 'Home').fontWeight, '600', `${label}: active link uses weight 600`);
-          assert.ok(m.links.filter((link) => link.text !== 'Home').every((link) => link.fontWeight === '500'), `${label}: inactive links use weight 500`);
-          assert.ok(Math.abs(m.logo.left - m.content.left) < 0.5, `${label}: logo aligns to the page content left edge (${m.logo.left}/${m.content.left})`);
-          assert.ok(Math.abs(m.icons.right - m.content.right) < 0.5, `${label}: icons align to the page content right edge (${m.icons.right}/${m.content.right})`);
-          assert.ok(Math.abs(m.logo.height - 52.8) < 1, `${label}: logo is enlarged by about 20%`);
-          assert.equal(m.iconGap, 12, `${label}: desktop icons have 12px of additional spacing`);
-          assert.ok(m.buttons.every((button) => button.width === 44 && button.height === 44), `${label}: icon hit-target sizes stay unchanged`);
-          assert.ok(m.glyphs.every((glyph) => glyph.width === 20 && glyph.height === 20), `${label}: icon glyph sizes stay unchanged`);
+          assert.equal(closed.navDisplay, 'none', `${label}: the link list is collapsed, not an inline row`);
+          assert.equal(closed.burgerDisplay, 'flex', `${label}: the hamburger is the nav entry point`);
+          assert.equal(closed.ariaExpanded, 'false', `${label}: the closed menu reports aria-expanded=false`);
+          assert.equal(closed.ariaControls, 'navLinks', `${label}: the hamburger controls the link list`);
+          assert.ok(closed.buttons.every((button) => button.width === 44 && button.height === 44), `${label}: icon hit-target sizes stay unchanged`);
+          assert.ok(Math.abs(closed.burger.width - 44) < 0.5 && Math.abs(closed.burger.height - 44) < 0.5, `${label}: the hamburger keeps its 44px target`);
+          assert.ok(Math.abs(closed.logo.left - closed.content.left) < 0.5, `${label}: logo aligns to the page content left edge (${closed.logo.left}/${closed.content.left})`);
+          assert.ok(Math.abs(closed.icons.right - closed.content.right) < 0.5, `${label}: icons align to the page content right edge (${closed.icons.right}/${closed.content.right})`);
+          assert.ok(Math.abs(closed.burger.right - closed.icons.right) < 0.5, `${label}: the hamburger is the last item in the icon cluster`);
+          assert.ok(Math.abs(closed.logo.height - 52.8) < 1, `${label}: logo is enlarged by about 20%`);
           const center = (r) => r.top + r.height / 2;
-          assert.ok(Math.abs(center(m.logo) - center(m.links[0].rect)) < 0.5, `${label}: logo and links are vertically centred`);
-          assert.ok(Math.abs(center(m.logo) - center(m.buttons[0])) < 0.5, `${label}: logo and icons are vertically centred`);
-          assert.ok(m.badges.every((badge) => badge.rect.left >= badge.parent.left - 0.1 && badge.rect.right <= badge.parent.right + 0.1), `${label}: count badges remain unclipped`);
-          assert.equal(m.iconOverflow, 'visible', `${label}: icon badges may extend without clipping`);
-          assert.equal(m.header.height, 95, `${label}: header height stays unchanged`);
-          assert.equal(m.header.position, 'fixed', `${label}: header remains sticky`);
+          assert.ok(Math.abs(center(closed.logo) - center(closed.buttons[0])) < 0.5, `${label}: logo and icons are vertically centred`);
+          assert.ok(Math.abs(center(closed.logo) - center(closed.burger)) < 0.5, `${label}: logo and hamburger are vertically centred`);
+          assert.equal(closed.header.height, 95, `${label}: header height stays unchanged`);
+          assert.equal(closed.header.position, 'fixed', `${label}: header remains sticky`);
+          assert.notEqual(closed.categoryStrip, 'none', `${label}: the category strip is not collapsed by the header change`);
         }
-        if (vw === 1280) {
-          await hp.hover('#navLinks a[data-nav="anime"]');
-          await settleLayout(hp);
-          const underline = await hp.evaluate(() => {
-            const link = document.querySelector('#navLinks a[data-nav="anime"]');
-            const active = document.querySelector('#navLinks a.active');
-            const hoverStyle = getComputedStyle(link, '::after');
-            const activeStyle = getComputedStyle(active, '::after');
+
+        // Open the panel and check it is a real, readable list under the bar.
+        await hp.evaluate(() => document.getElementById('hamburger').focus());
+        await hp.keyboard.press('Enter');
+        await hp.waitForFunction(() => document.getElementById('navLinks').classList.contains('open'));
+        await settleLayout(hp);
+        {
+          const open = await hp.evaluate(() => {
+            const rect = (el) => {
+              const r = el.getBoundingClientRect();
+              return { left: r.left, right: r.right, top: r.top, bottom: r.bottom, width: r.width, height: r.height };
+            };
+            const nav = document.getElementById('navLinks');
+            const burger = document.getElementById('hamburger');
+            const links = [...nav.querySelectorAll(':scope > li > a')].filter((a) => a.getClientRects().length);
+            const header = rect(document.querySelector('.site-header'));
+            const inner = rect(document.querySelector('.site-header .nav-inner'));
             return {
-              hoverWidth: parseFloat(hoverStyle.width),
-              hoverLinkWidth: link.getBoundingClientRect().width,
-              hoverHeight: hoverStyle.height,
-              hoverBottom: hoverStyle.bottom,
-              transition: hoverStyle.transitionDuration,
-              activeWidth: parseFloat(activeStyle.width),
-              activeLinkWidth: active.getBoundingClientRect().width
+              navDisplay: getComputedStyle(nav).display,
+              navRect: rect(nav),
+              header,
+              inner,
+              ariaExpanded: burger.getAttribute('aria-expanded'),
+              ariaLabel: burger.getAttribute('aria-label'),
+              burgerActive: burger.classList.contains('active'),
+              bodyOverflow: document.body.style.overflow,
+              links: links.map((a) => ({ text: a.textContent.trim(), rect: rect(a) })),
+              linksOneColumn: links.every((a, i) => i === 0 || a.getBoundingClientRect().top > links[i - 1].getBoundingClientRect().top),
+              searchVisible: !!document.getElementById('mobileSearch').getClientRects().length,
+              icons: rect(document.querySelector('.nav-icons'))
             };
           });
-          assert.equal(underline.hoverHeight, '2px', 'hover underline is 2px');
-          assert.equal(underline.hoverBottom, '4px', 'hover underline sits 6px below the text within its 44px row');
-          assert.equal(underline.transition, '0.18s', 'hover underline has a short transition');
-          assert.ok(underline.hoverWidth >= underline.hoverLinkWidth - 1, 'hovered link shows its full underline');
-          assert.ok(underline.activeWidth >= underline.activeLinkWidth - 1, 'active link keeps its full underline');
-          console.log('✅ Real Chromium — desktop hover and active links show the 2px offset underline');
+          const label = `${vw}px open menu`;
+          assert.equal(open.navDisplay, 'flex', `${label}: the panel becomes visible`);
+          assert.equal(open.ariaExpanded, 'true', `${label}: aria-expanded follows the open state`);
+          assert.equal(open.ariaLabel, 'Close menu', `${label}: the trigger relabels itself`);
+          assert.equal(open.burgerActive, true, `${label}: the icon enters its X state`);
+          assert.equal(open.bodyOverflow, 'hidden', `${label}: page scroll locks behind the panel`);
+          // Every category is permanent: Shop All + 4 categories + Sale + 2 = 8.
+          assert.equal(open.links.length, 8, `${label}: all eight links are in the panel`);
+          assert.equal(open.linksOneColumn, true, `${label}: links stack in one column`);
+          assert.equal(open.searchVisible, true, `${label}: the panel carries the search row on desktop too`);
+          // The panel hangs off the 67px row (topbar 27px + row 67px = 94px),
+          // i.e. it starts on the bar's 1px bottom border — never over it.
+          assert.ok(open.navRect.top >= open.header.bottom - 1.5, `${label}: the panel drops below the fixed bar (${open.navRect.top} >= ${open.header.bottom})`);
+          assert.ok(open.navRect.top <= open.header.bottom + 0.5, `${label}: the panel is glued to the bar, with no gap`);
+          assert.ok(open.navRect.bottom <= 900 + 0.5, `${label}: the panel stays inside the viewport`);
+          assert.ok(open.navRect.width >= 300, `${label}: the desktop panel is wide enough for its labels (${open.navRect.width}px)`);
+          assert.ok(open.links.every((link) => link.rect.height >= 44), `${label}: each row keeps a 44px target`);
+          assert.ok(open.links.every((link) => link.rect.left >= open.navRect.left - 0.1 && link.rect.right <= open.navRect.right + 0.1), `${label}: rows stay inside the panel`);
+          // The panel hangs off the header's own right edge, so it lines up
+          // with the icon cluster instead of floating somewhere in the page.
+          assert.ok(Math.abs(open.navRect.right - open.icons.right) < 0.5, `${label}: the panel is right-aligned to the icons (${open.navRect.right}/${open.icons.right})`);
+          assert.ok(open.navRect.right <= open.inner.right + 0.5, `${label}: the panel never overhangs the header row`);
         }
-        console.log(`✅ ${vw}px real Chromium — desktop header lines up; ${vw === 1024 ? 16 : vw < 1280 ? 18 : 28}px link gap; all eight links fit one row`);
+
+        // Escape closes it and hands focus back to the hamburger.
+        await hp.keyboard.press('Escape');
+        await hp.waitForFunction(() => !document.getElementById('navLinks').classList.contains('open'));
+        const afterEscape = await hp.evaluate(() => ({
+          focusId: document.activeElement.id,
+          overflow: document.body.style.overflow,
+          ariaExpanded: document.getElementById('hamburger').getAttribute('aria-expanded')
+        }));
+        assert.equal(afterEscape.focusId, 'hamburger', `${vw}px: Escape returns focus to the hamburger`);
+        assert.equal(afterEscape.ariaExpanded, 'false', `${vw}px: Escape closes the panel`);
+        assert.equal(afterEscape.overflow, '', `${vw}px: Escape releases the scroll lock`);
+
+        if (vw === 1280) {
+          // A menu link routes and closes the panel in one tap.
+          await hp.click('#hamburger');
+          await hp.waitForSelector('#navLinks.open');
+          await settleLayout(hp);
+          await hp.click('#navLinks a[data-route="contact"]');
+          await hp.waitForFunction(() => document.getElementById('page-contact').classList.contains('active'));
+          const routed = await hp.evaluate(() => ({
+            open: document.getElementById('navLinks').classList.contains('open'),
+            overflow: document.body.style.overflow,
+            path: location.pathname
+          }));
+          assert.equal(routed.open, false, 'a panel link closes the menu');
+          assert.equal(routed.overflow, '', 'a panel link releases the scroll lock');
+          assert.match(routed.path, /\/contact$/, 'the panel link navigates');
+          console.log('✅ Real Chromium — a desktop menu link routes and closes the panel');
+          await hp.click('.kage-logo');
+          await hp.waitForFunction(() => document.getElementById('page-home').classList.contains('active'));
+        }
+        console.log(`✅ ${vw}px real Chromium — links live in the hamburger panel; bar keeps logo + icons at 95px`);
         await hp.close();
+      }
+
+      // ---- The open panel is also reachable and closable by pointer, and the
+      // ---- inner search field works from inside it at desktop width.
+      {
+        const mdp = await browser.newPage();
+        await mdp.setViewport({ width: 1440, height: 900 });
+        await mdp.goto(origin + '/', { waitUntil: 'domcontentloaded' });
+        await waitForCatalog(mdp);
+        await mdp.click('#hamburger');
+        await mdp.waitForSelector('#navLinks.open');
+        await settleLayout(mdp);
+        await mdp.click('#mobileSearch');
+        await mdp.keyboard.type('wolf', { delay: 20 });
+        await mdp.keyboard.press('Enter');
+        await mdp.waitForFunction(() => eval('searchQuery') === 'wolf');
+        const searched = await mdp.evaluate(() => ({
+          open: document.getElementById('navLinks').classList.contains('open'),
+          cards: document.querySelectorAll('#collectionGrid .product-card').length,
+          shopVisible: document.getElementById('shopSection').classList.contains('shop-visible')
+        }));
+        assert.equal(searched.open, false, 'submitting the panel search closes the menu');
+        assert.ok(searched.cards >= 1, 'submitting the panel search renders results');
+        assert.equal(searched.shopVisible, true, 'submitting the panel search reveals the grid');
+        // Outside click closes it too.
+        await mdp.evaluate(() => onSearchInput(''));
+        await mdp.click('#hamburger');
+        await mdp.waitForSelector('#navLinks.open');
+        await mdp.mouse.click(200, 600);
+        await mdp.waitForFunction(() => !document.getElementById('navLinks').classList.contains('open'));
+        assert.equal(await mdp.evaluate(() => document.getElementById('hamburger').getAttribute('aria-expanded')), 'false', 'an outside tap closes the panel');
+        await mdp.close();
+        console.log('✅ Real Chromium — desktop panel: outside tap closes it, its search row filters the grid');
       }
 
       for (const [vw, vh, mode] of [[320, 780, 'phone'], [360, 780, 'phone'], [414, 860, 'phone'], [599, 900, 'phone'], [768, 900, 'tablet'], [1440, 900, 'desktop']]) {
@@ -2385,7 +2454,8 @@ async function ready(win) {
 
     // JSDOM does not calculate visual layout; lock the CSS breakpoint contracts
     // at the requested widths and exercise open/close behavior at phone/tablet widths.
-    assert.match(storeHtml, /@media \(max-width: 1023px\) \{\s*\.nav-links\.open \{[\s\S]*?display: flex;[\s\S]*?max-height: calc\(100dvh - 95px\);[\s\S]*?overflow-y: auto;[\s\S]*?background-color: var\(--bg-primary\);[\s\S]*?z-index: 1001;/, 'open menu is an opaque, bounded panel below the header');
+    assert.match(storeHtml, /\.nav-links\.open \{[\s\S]*?display: flex;[\s\S]*?max-height: calc\(100dvh - 95px\);[\s\S]*?overflow-y: auto;[\s\S]*?background-color: var\(--bg-primary\);[\s\S]*?z-index: 1001;/, 'open menu is an opaque, bounded panel below the header');
+    assert.doesNotMatch(storeHtml, /@media \(max-width: 1023px\) \{\s*\.nav-links\.open \{/, 'the open panel is not gated behind a phone/tablet breakpoint any more');
     assert.match(storeHtml, /@media \(max-width: 768px\) \{\s*\.nav-links \{\s*position: absolute; top: 100%; left: 0; right: 0; width: 100%;\s*background: var\(--bg-primary\);/, 'phone/tablet menu spans the viewport with a solid background');
     assert.match(storeHtml, /@media \(max-width: 360px\) \{\s*\.site-header \{ height: auto; \}\s*\.site-header \.nav-inner \{ height: auto; min-height: 67px; flex-wrap: wrap; \}/, 'the 360px header lets its bar grow when the row wraps');
     assert.match(storeHtml, /@media \(max-width: 640px\) \{[\s\S]*?\.kage-logo \{[^}]*max-width: max\(80px, calc\(100vw - 224px\)\);/, 'the mobile logo shrinks so the row never wraps on normal phones');
@@ -2420,8 +2490,11 @@ async function ready(win) {
     }
     assert.match(storeHtml, /\.hamburger\.active svg line:nth-child\(2\) \{ transform: translateY\(6px\) rotate\(45deg\); \}/, 'the SVG hamburger animates into an X');
     assert.doesNotMatch(storeHtml, /\.hamburger\.active span:nth-child/, 'hamburger state does not target nonexistent spans');
-    assert.match(storeHtml, /@media \(min-width: 1024px\) \{[\s\S]*?\.nav-links \{[\s\S]*?display: flex !important;[\s\S]*?position: static;[\s\S]*?flex-direction: row;[\s\S]*?\.hamburger \{ display: none; \}/, 'desktop nav stays horizontal and hides the hamburger');
-    assert.match(storeHtml, /@media \(min-width: 1024px\) \{[\s\S]*?\.nav-links li\.mobile-search \{ display: none !important; \}/, 'mobile search row stays hidden on desktop');
+    assert.doesNotMatch(storeHtml, /\.nav-links \{[^}]*display: flex !important;/, 'no breakpoint turns the link list back into an inline row');
+    assert.doesNotMatch(storeHtml, /\.hamburger \{ display: none; \}/, 'the hamburger is never hidden — it is the only nav entry point');
+    assert.match(storeHtml, /@media \(min-width: 1024px\) \{[\s\S]*?\.hamburger \{ display: flex; \}/, 'the desktop header shows the hamburger');
+    assert.match(storeHtml, /@media \(min-width: 1024px\) \{[\s\S]*?\.nav-links\.open \{[\s\S]*?right: 32px;[\s\S]*?width: 320px;/, 'the desktop panel is anchored to the header right edge');
+    assert.match(storeHtml, /\.mobile-search \{ display: block; \}/, 'the panel search row is shown at every width');
     const hamburger = d.getElementById('hamburger');
     const navList = d.getElementById('navLinks');
     assert.equal(hamburger.getAttribute('aria-expanded'), 'false');
@@ -2462,7 +2535,15 @@ async function ready(win) {
     assert.equal(d.querySelectorAll('#collectionGrid .product-card h3').length, 1, 'mobile search filters the product grid');
     w.onSearchInput('');
     Object.defineProperty(w, 'innerWidth', { configurable: true, value: 1440 });
-    assert.equal(navList.classList.contains('open'), false, 'desktop menu remains in its closed horizontal-nav state');
+    // Desktop uses the same menu, so the same open/close contract holds there.
+    hamburger.click();
+    assert.equal(navList.classList.contains('open'), true, 'the desktop menu opens from the hamburger');
+    assert.equal(hamburger.getAttribute('aria-expanded'), 'true', 'desktop aria-expanded follows the open state');
+    assert.equal(d.body.style.overflow, 'hidden', 'desktop menu locks page scroll while open');
+    d.querySelector('#navLinks a[href="/about"]').click();
+    assert.equal(navList.classList.contains('open'), false, 'a desktop menu link closes the menu');
+    assert.equal(hamburger.getAttribute('aria-expanded'), 'false');
+    assert.equal(d.body.style.overflow, 'auto', 'the desktop menu restores the previous scroll state');
     d.body.style.overflow = '';
 
     // Search submits on Enter or the magnifier — never while typing. Typing
@@ -3049,6 +3130,9 @@ async function ready(win) {
         await dp.goto(origin + '/', { waitUntil: 'domcontentloaded' });
         await waitDelCatalog(dp);
         await dp.waitForFunction(() => { try { return eval('bootNavComplete') === true; } catch (e) { return false; } });
+        // The links live in the hamburger panel, so open it before clicking.
+        await dp.click('#hamburger');
+        await dp.waitForSelector('#navLinks.open');
         await dp.click('#navLinks a[data-route="contact"]');
         await dp.waitForFunction(() => document.getElementById('page-contact').classList.contains('active'));
         assert.match(dp.url(), /\/contact$/, 'delegated nav link routes in real Chromium');

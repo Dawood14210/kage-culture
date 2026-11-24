@@ -2225,6 +2225,46 @@ well-formed"; the only thing to eyeball is the new underline on the five inline
 links in Returns/Terms/Privacy, in case the owner prefers a different
 non-colour cue.
 
+### ✅ Navigation links moved into the hamburger panel at every width (owner request)
+**Asked for:** "make the navbar options into hamburger options like they were
+before". The Phase 2 header had put the eight links back inline in a centred
+row above 1023 px (`.nav-links { display: flex !important }` in the
+`@media (min-width: 1024px)` block) and hid the hamburger there.
+
+**Change.** The panel is now the only home for the links, mobile *and* desktop:
+
+- `.nav-links.open` moved out of `@media (max-width: 1023px)` into the base
+  sheet, so one open-state rule serves every width (opaque, `max-height:
+  calc(100dvh - 95px)`, internal scroll, `z-index: 1001`).
+- The ≥1024 px block no longer turns the list into a row; it hides nothing and
+  keeps the hamburger (`display: flex`). `display: flex !important` and
+  `.hamburger { display: none }` are gone — a test now fails if either returns.
+- Desktop panel: right-aligned to the icon cluster (32 px gutter, 24 px at
+  1024 px exactly), 320 px wide, 12 px padding, rounded, 44 px rows with the
+  panel's own tinted hover pill. The unused compact-desktop link-gap/type
+  rules (`18px`/`16px` gaps, 12 px tracking hacks) were deleted.
+- The panel's search row is no longer mobile-only: `.mobile-search` is `block`
+  (it lives inside the hidden panel, so nothing shows until the menu opens) and
+  is 100 % wide, which gives desktop users search inside the menu too. The bar's
+  search icon still opens the wide inline field.
+- Logo, icon buttons, cart/wishlist counts, the 95 px bar, the marquee and
+  `#categoryStrip` are untouched.
+
+**Behavior carried over unchanged:** hamburger toggle, `aria-expanded` /
+`aria-controls` wiring, X animation, body scroll lock, outside-tap close,
+Escape → focus back to the trigger, Tab trap, and `data-close-menu` on link
+click. All of it now also runs at desktop widths (the JS never had a width
+check — only the CSS did).
+
+**Verified.** Real Chromium at 1024/1025/1100/1148/1279/1280/1366/1536/1920:
+list collapsed (`display: none`), 44 px hamburger last in the icon cluster,
+panel opens under the bar right-aligned to the icons, all eight links stacked
+with 44 px rows, Escape/outside tap/link click all close it. Screenshots at
+1366x780, 1440x900 and 390x844 (closed + open) show the same header bar as
+before with the links in the panel. `npm test` **169/169**, frontend **82/82**
+(the desktop nav scenario was rewritten for the panel contract and the new
+desktop open/close/search checks were added), a11y suite green.
+
 ### ✅ Hero restored to the full 16:9 campaign frame (live-site regression)
 **Reported from the deployed site:** "the hero image is messed up". It came from
 the Nov 23 Phase 2 batch, not from the perf pass — the pass changed no hero

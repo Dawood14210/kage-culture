@@ -275,6 +275,10 @@
           display: block;
         }
 
+    /* The menu panel is the only place the site's links live — at EVERY width.
+       The bar itself is [logo] … [search + wishlist + account + cart + burger];
+       tapping the burger drops this panel under the bar (mobile and desktop
+       alike), so the header stays a single clean row. */
     .nav-links {
       display: none;
       position: absolute; top: 100%; right: 0; width: 280px;
@@ -288,19 +292,20 @@
       z-index: 100;
       list-style: none;
     }
-    @media (max-width: 1023px) {
-      .nav-links.open {
-        display: flex;
-        max-height: calc(100dvh - 95px);
-        overflow-y: auto;
-        overscroll-behavior: contain;
-        background-color: var(--bg-primary);
-        border-bottom: 1px solid var(--border-color);
-        box-shadow: 0 8px 32px rgba(0,0,0,0.12);
-        z-index: 1001;
-      }
-      .mobile-search { display: block; }
+    /* Open state — declared once, outside any breakpoint, so the panel opens
+       identically on a phone and on a 1920px desktop. */
+    .nav-links.open {
+      display: flex;
+      max-height: calc(100dvh - 95px);
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      background-color: var(--bg-primary);
+      border-bottom: 1px solid var(--border-color);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+      z-index: 1001;
     }
+    /* The panel carries its own search row, so it stays useful on desktop too
+       (the bar's search icon still opens the wide inline field). */
     .nav-links a { padding: 10px 12px; min-height: 40px; width: 100%; display: flex; align-items: center; font-size: 0.8rem; border-radius: var(--radius-sm); transition: background var(--transition-fast), color var(--transition-fast); }
     .nav-links a:hover { background: var(--bg-secondary); color: var(--text-primary); }
     .nav-links a::after { display: none; }
@@ -1756,7 +1761,8 @@
     /* ================================================================
        NAV SEARCH / SALE LINK / MOBILE SEARCH
        ================================================================ */
-    .nav-links { gap: 1.25rem; }
+    /* The dropdown panel stacks its rows, so its 4px rhythm comes from the
+       base .nav-links rule above — no desktop link gap applies any more. */
     .nav-links a.active { color: var(--text-primary); }
 
     /* Sits centred between the logo and the icon cluster. It is absolutely
@@ -1801,7 +1807,9 @@
       transition: color var(--transition-fast);
     }
     .nav-search-icon:hover { color: var(--accent); }
-    .mobile-search { display: none; position: relative; }
+    /* Sits inside the menu panel, which is itself hidden until opened, so it
+       needs no display toggle of its own (it used to be hidden on desktop). */
+    .mobile-search { display: block; position: relative; width: 100%; }
     .mobile-search input {
       width: 100%;
       min-height: 44px;
@@ -3380,49 +3388,32 @@
         height: 67px; /* 27px top bar + 67px row + 1px border = 95px */
         justify-content: space-between;
       }
-      /* Keep the nav in the space between the page-aligned logo and icons. */
-      .nav-links {
-        display: flex !important;
-        position: static;
-        flex: 1 1 auto;
-        min-width: 0;
-        flex-direction: row;
-        flex-wrap: nowrap;
-        justify-content: center;
-        width: auto;
-        padding: 0;
-        border: none;
-        box-shadow: none;
-        border-radius: 0;
-        background: transparent;
-        gap: 28px;
-        z-index: auto;
-        max-height: none;
-        overflow: visible;
-        margin: 0;
+      /* Every link lives in the hamburger panel above — the header row keeps
+         only [logo] [search + wishlist + account + cart + hamburger], with the
+         logo left-aligned to the content edge and the icons right-aligned. */
+      .hamburger { display: flex; }
+      /* Desktop panel: anchored to the content's right edge, wider than the
+         phone sheet so long labels breathe, and never taller than the viewport
+         below the fixed bar (it scrolls internally). */
+      .nav-links.open {
+        right: 32px;
+        width: 320px;
+        border: 1px solid var(--border-color);
+        border-top: 1px solid var(--border-color);
+        border-radius: var(--radius-md);
+        padding: 12px;
       }
-      .nav-links li.mobile-search { display: none !important; }
-      .nav-links li:not(.mobile-search) { flex: 0 0 auto; }
       .nav-links a {
-        padding: 8px 0;
+        padding: 10px 16px;
         min-height: 44px;
-        width: auto;
-        font-size: 13px;
+        width: 100%;
+        font-size: 0.85rem;
         font-weight: 500;
         letter-spacing: 0.04em;
         text-transform: uppercase;
-        background: transparent !important;
-        border-radius: 0;
-        white-space: nowrap;
+        border-radius: var(--radius-sm);
       }
       .nav-links a.active { font-weight: 600; }
-      .nav-links a::after {
-        bottom: 4px;
-        height: 2px;
-        margin-top: 0;
-        transition: width 0.18s ease;
-      }
-      .hamburger { display: none; }
       .nav-icons { flex: 0 0 auto; gap: 12px; overflow: visible; }
       .nav-icons > .nav-icon { display: flex !important; }
       .nav-icons > .nav-icon { overflow: visible; }
@@ -3648,25 +3639,15 @@
       }
     }
 
-    /* Compact desktop navigation: keep the requested 12px type at tablet-width
-       desktops and tighten tracking only as much as the available row requires. */
-    @media (min-width: 1025px) and (max-width: 1279px) {
-      .nav-links { gap: 18px; }
-      .nav-links a {
-        font-size: 12px;
-        letter-spacing: clamp(-1.4px, calc(1.53vw - 17.08px), 0.48px);
-      }
-    }
+
+    /* 1024px exactly: the header keeps the shorter gutter, so the hamburger
+       panel lines up with the icons instead of the 32px content edge. */
     @media (min-width: 1024px) and (max-width: 1024px) {
       .site-header .container.nav-inner {
         padding: 0 24px;
         gap: 0;
       }
-      .nav-links { gap: 16px; }
-      .nav-links a {
-        font-size: 12px;
-        letter-spacing: -0.07em;
-      }
+      .nav-links.open { right: 24px; }
     }
 
     /* ================================================================
