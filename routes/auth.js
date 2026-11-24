@@ -11,7 +11,7 @@ const { strictLimiter, adminLoginLimiter, customerLoginLimiter, resetLimiter } =
 const { hashToken, isValidEmail } = require('../utils/helpers');
 const { getSessionSecret } = require('../utils/secret');
 const { getConfiguredSiteUrl } = require('../utils/siteUrl');
-const { sendEmail, sendVerificationEmail, buildLink, escapeHtml } = require('../utils/email');
+const { sendEmail, sendVerificationEmail, passwordResetEmailHtml, buildLink } = require('../utils/email');
 const { describeMailConfig } = require('../utils/mailConfig');
 
 // SESSION_SECRET defaults through utils/secret.js so this route file can never
@@ -220,16 +220,10 @@ module.exports = function createAuthRoutes(db, SESSION_SECRET = getSessionSecret
       // SITE_URL + a server-generated token only — the token is URL-encoded and
       // the finished URL is HTML-escaped where it lands in the href.
       const resetUrl = buildLink('/reset-password', { token: rawToken, type });
-      const html = `
-  <div style="font-family:'Archivo',Arial,sans-serif;background:#D9D4C8;padding:32px;color:#1A1815;">
-    <div style="max-width:560px;margin:0 auto;background:#FFF;border-radius:12px;padding:32px;border:1px solid #BDB6A6;">
-      <h1 style="font-size:24px;letter-spacing:0.08em;text-transform:uppercase;margin:0 0 4px;color:#4A4433;">KAGE Culture</h1>
-      <p style="color:#7A7468;font-size:13px;margin:0 0 24px;">Password Reset</p>
-      <p style="font-size:15px;color:#3D3931;line-height:1.6;">We received a request to reset your password. Click the link below to set a new password. This link expires in 1 hour.</p>
-      <a href="${escapeHtml(resetUrl)}" style="display:inline-block;margin:20px 0;padding:14px 28px;background:#4A4433;color:#FFF;text-decoration:none;font-weight:700;font-size:14px;letter-spacing:0.06em;text-transform:uppercase;border-radius:8px;">Reset Password</a>
-      <p style="font-size:12px;color:#8A8578;margin-top:24px;">If you didn't request this, you can safely ignore this email.</p>
-    </div>
-  </div>`;
+      // One shared, high-contrast template (utils/email.js) for both customer
+      // and admin resets, with the type-appropriate minimum length spelled out.
+      const minLength = type === 'customer' ? config.MIN_CUSTOMER_PASSWORD_LENGTH : config.MIN_ADMIN_PASSWORD_LENGTH;
+      const html = passwordResetEmailHtml(resetUrl, { minLength });
       const delivered = (await sendEmail(clean, 'Reset your KAGE Culture password', html)) !== false;
       res.json({
         success: true,

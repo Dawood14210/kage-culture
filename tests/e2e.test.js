@@ -2866,6 +2866,52 @@ async function main() {
     assert.ok(html.includes("We'll call you to confirm your order and the exact delivery charge before dispatch. You pay the total plus delivery in cash when it arrives."), 'the email carries the phone-confirmation note');
   });
 
+  await check('every transactional email uses the readable, high-contrast layout', async () => {
+    const { sendOrderConfirmation, sendStatusUpdate, sendVerificationEmail, passwordResetEmailHtml } = require('../utils/email');
+    // captureEmails() returns the bodies it saw; build the reset template
+    // outside it (it is pure, no transport involved).
+    const { sent } = await captureEmails(async () => {
+      await sendOrderConfirmation({
+        order_number: 'KAGE-READABLE1', customer_name: 'Layout Probe', email: 'layout@kage.test',
+        items: [{ name: 'Probe Tee', size: 'M', qty: 1, total: '1,000' }],
+        subtotal: '1,000', shipping: 'pending', shipping_pending: true, total: '1,000',
+        payment_method: 'cod', payment_ref: null, address: '1 Layout St', city: 'Lahore'
+      });
+      await sendStatusUpdate({ order_number: 'KAGE-READABLE2', customer_name: 'Layout Probe', email: 'layout@kage.test', status: 'shipped' });
+      await sendVerificationEmail({ name: 'Layout Probe', email: 'layout@kage.test' }, 'https://shop.kage.test/verify-email?token=abc');
+    });
+    assert.strictEqual(sent.length, 3, 'the three mailed templates render');
+    const [order, status, verify] = sent.map(m => m.html);
+    const reset = passwordResetEmailHtml('https://shop.kage.test/reset-password?token=abc', { minLength: 10 });
+
+    for (const [name, html] of [['order', order], ['status', status], ['verify', verify], ['reset', reset]]) {
+      assert.match(html, /^<!DOCTYPE html>/, `${name}: a real document, not a bare div`);
+      assert.match(html, /<meta name="viewport"/, `${name}: mobile viewport meta`);
+      assert.match(html, /role="presentation"/, `${name}: table layout for mail clients`);
+      assert.match(html, /font-size:16px;line-height:1\.65/, `${name}: 16px body copy with generous line-height`);
+      assert.ok(!/font-family:'Archivo'/.test(html), `${name}: no unloaded web font in the stack`);
+      assert.ok(!/#8A8578|#7A7468/i.test(html), `${name}: the low-contrast greys are gone`);
+      assert.ok(!/background:#D9D4C8/.test(html), `${name}: the old olive canvas is gone`);
+      assert.match(html, /background:#EFEBE2/, `${name}: light page ground`);
+      assert.match(html, /max-width:600px/, `${name}: 600px reading column`);
+      assert.ok(!/width:560px/.test(html), `${name}: the narrow fixed column is gone`);
+      assert.ok(!/<script/i.test(html), `${name}: no scripts`);
+      // Readable dark-on-light text: the primary copy colour is the brand ink.
+      assert.match(html, /color:#1A1815/, `${name}: ink-coloured copy`);
+    }
+    // Panels and buttons keep white-on-olive (9.7:1) and dark-on-panel contrast.
+    assert.match(status, /background:#EDE9DF/, 'status: tinted status panel');
+    assert.match(status, /Shipped/, 'status: the badge label is present');
+    assert.match(status, /Your order is on its way/, 'status: a plain-language line explains the status');
+    assert.match(status, /color:#5A5445/, 'status: muted copy is the readable grey (7.5:1 on white)');
+    assert.match(verify, /background:#4A4433/, 'verify: olive CTA button');
+    assert.match(verify, /Paste this link into your browser/, 'verify: plain-link fallback for clients that strip buttons');
+    assert.match(reset, /at least 10 characters/, 'reset: the password rule is stated in the email');
+    assert.match(order, /border-top:2px solid #4A4433/, 'order: emphasised total row');
+    // Order numbers never break mid-token.
+    assert.match(order, /white-space:nowrap;">KAGE-READABLE1/, 'order: the order number stays on one line');
+  });
+
   await check('the status update email escapes the stored customer name', async () => {
     const order = await placeGuestOrder({
       name: '<a href="http://evil.test">Verify your account</a>',
@@ -2885,7 +2931,10 @@ async function main() {
     assert.strictEqual(sent.length, 1, 'exactly one status email');
     const html = sent[0].html;
     assert.ok(html.includes('&lt;a href=&quot;http://evil.test&quot;&gt;'), 'the name must be escaped in the status email');
-    assert.ok(!/<a\s/i.test(html), 'no anchor may be injected into the status email');
+    // The template has its own Track Order button now; what must not survive is
+    // an anchor built out of customer data.
+    assert.ok(!/<a[^>]+href="http:\/\/evil\.test"/i.test(html), 'no anchor may be injected into the status email');
+    assert.ok(!/&lt;a[^]*?<\/a>/i.test(html.replace(/<a[^>]*>[^<]*<\/a>/g, '')), 'the escaped name stays as text, not markup');
     assert.ok(!/[\r\n]/.test(sent[0].subject), 'the subject must not carry CR/LF');
   });
 
