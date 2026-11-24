@@ -100,6 +100,14 @@
   (9.57:1 and 6.20:1). A geometry + computed-type diff against `ba934a7`
   proves no visual change. Details in `AUDIT.md`; `npm test` **169/169**,
   frontend **81/81**, a11y suite green.
+- ✅ *(2026-11-24, owner request)* **Transactional emails restyled for
+  readability.** Every template now goes through `emailShell()` in
+  `utils/email.js`: light page, white 600px card, 16px body copy, a client-safe
+  font stack (never `'Archivo'` — mail clients cannot load it) and AA/AAA
+  colours (the old #8A8578 small print was 3.68:1). The reset template moved
+  out of `routes/auth.js` into `passwordResetEmailHtml()`. Keep new emails on
+  the shared shell instead of hand-rolling a `<div>` card. Details in
+  `AUDIT.md`; `npm test` **170/170**, frontend **84/84**, a11y green.
 - ✅ *(2026-11-24, owner request)* **Password reset has a GUI, Enter signs in,
   and every "we emailed you" message says to check spam.** The two
   `prompt()`/`alert()` reset flows became in-page forms (storefront account

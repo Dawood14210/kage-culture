@@ -2225,6 +2225,42 @@ well-formed"; the only thing to eyeball is the new underline on the five inline
 links in Returns/Terms/Privacy, in case the owner prefers a different
 non-colour cue.
 
+### ✅ Transactional emails restyled for readability (owner request)
+**Reported:** "can you change the style of the email sent currently it is difficult
+to read the text" (with a screenshot of the order-status email).
+
+**What was wrong.** The old templates were 15px copy in a 560px card on the dark
+olive canvas (#D9D4C8), with muted greys that were genuinely hard to read:
+the small print #8A8578 on white measured **3.68:1** and the panel labels
+#504C47 on #C4BEB0 **4.6:1** — both below the 4.5:1 AA floor at those sizes.
+They also asked for `font-family:'Archivo'`, a webfont mail clients never load,
+so text fell back to whatever the client had.
+
+**Fix — one shared layout, `emailShell()` in `utils/email.js`, used by all four
+templates** (order confirmation, status update, verification, password reset;
+the reset template is now `passwordResetEmailHtml()`, shared by the customer and
+admin flows instead of being inlined in `routes/auth.js`):
+
+- light "paper" ground (#EFEBE2) with a white 600px card — a document, not a
+  dimmed poster; 4px olive rule across the top keeps the brand;
+- 16px body copy at 1.65 line-height, 15px table cells, 13px small print;
+- AA/AAA colours throughout: ink #1A1815 on white **17.7:1**, muted #5A5445 on
+  white **7.5:1** (6.2:1 on the panel), white on olive CTA **9.7:1**;
+- a client-safe font stack (system UI → Segoe → Roboto → Helvetica → Arial), no
+  webfont dependency;
+- table-based layout with `role="presentation"`, explicit widths, a mobile
+  viewport meta and `color-scheme: light only`, so Gmail/Outlook/iOS render the
+  same card; order numbers use `white-space: nowrap` so they never break;
+- content upgrades: the status email explains what the new status means ("Your
+  order is on its way…") and gains a **Track Order** button (SITE_URL-only, no
+  guessed links); confirmations gain a real totals table with an emphasised
+  total row; reset/verify emails get a button *plus* the pasteable link, and the
+  reset email states the password minimum. All customer values stay escaped.
+
+**Verified.** Rendered all four templates in Chromium at 600px and 390px
+(screenshots in the PR); `npm test` **170/170** API (a new check pins the
+layout/contrast contract for every template), frontend **84/84**, a11y green.
+
 ### ✅ Password reset has a real GUI, Enter signs in, and mail messages say to check spam (owner request)
 **Asked for:** "add a gui for the reset password and also make it so when i press
 enter it signs in also add a message that says check spam whenever a mail is sent
