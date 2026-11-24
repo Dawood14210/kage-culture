@@ -71,6 +71,10 @@ function contrastPairs(name, html = readPage(name), dark = false) {
   const surfaces = Object.keys(tokens).filter(k => k.startsWith('--bg'));
   const foregrounds = Object.keys(tokens).filter(k => k.startsWith('--text-') && !k.startsWith('--text-on-'));
   if (name === 'index') foregrounds.push('--accent');
+  // Inverse tokens apply only to the explicit fills the file declares (CTAs,
+  // status pills, hover states) — they are not text on every base surface, so
+  // the blanket token×surface sweep below must not include them.
+  const inverse = new Set(['--text-on-primary', '--text-on-primary-hover', '--text-on-danger', '--text-on-accent']);
   const pairs = [];
   const seen = new Set();
   function add(fg, bg, underlay = page, label = bg) {
@@ -80,7 +84,10 @@ function contrastPairs(name, html = readPage(name), dark = false) {
     const background = composite(color(bg, tokens), color(underlay, tokens));
     pairs.push({ foreground: fg, background: label, underlay, ratio: contrast(color(fg, tokens), background) });
   }
-  for (const foreground of foregrounds) for (const background of surfaces) add(foreground, background);
+  for (const foreground of foregrounds) {
+    if (inverse.has(foreground)) continue;
+    for (const background of surfaces) add(foreground, background);
+  }
   if (name === 'admin') {
     add('--text-on-primary', '--text-primary');
     add('--text-on-primary-hover', '#374151');

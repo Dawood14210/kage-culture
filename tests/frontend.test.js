@@ -2596,12 +2596,15 @@ async function ready(win) {
     console.log('✅ Mobile menu order, routes, icons, panel/scroll behavior and desktop nav contracts pass');
 
     // ---------------------------------------------------------------
-    // Scenario 19: email verification gates the order history
+    // Scenario 19: order history lists every order, each expandable into detail
     // ---------------------------------------------------------------
     const acct = page(storeHtml, '/account'); windows.push(acct);
     await wait(100);
     const cw = acct.window, cd = cw.document;
-    // Unverified: the prompt replaces the empty state and the banner is shown.
+    const ordersEl = () => cd.getElementById('acctOrders');
+
+    // Unverified accounts get no list at all (the server sends an empty array)
+    // and are pointed at the resend flow.
     cw.currentCustomer = { id: 7, email: 'unverified@kage.test', name: 'Unverified', email_verified: false };
     cw.updateVerifyBanner(false);
     cw.renderAccountOrders([], false);
@@ -2609,14 +2612,114 @@ async function ready(win) {
     assert.equal(banner.hidden, false, 'the verify banner is visible for an unverified account');
     assert.match(banner.textContent, /Verify your email/i, 'the banner explains why history is hidden');
     assert.match(cd.getElementById('acctVerifyLink').textContent, /Resend/i, 'the banner offers a resend link');
-    assert.match(cd.getElementById('acctOrders').textContent, /Verify your email to see your orders/i, 'the history area shows the verify state');
-    assert.match(cd.getElementById('acctOrders').innerHTML, /data-action="resend-verification"/, 'the empty state links to the resend action');
-    // Verified: the banner hides and real rows render.
+    assert.match(ordersEl().textContent, /Verify your email to see your orders/i, 'the history area shows the verify state');
+    assert.match(ordersEl().innerHTML, /data-action="resend-verification"/, 'the empty state links to the resend action');
+    assert.doesNotMatch(ordersEl().textContent, /No orders yet/i, 'an unverified account is not told it has no orders');
+
+    // Two orders, newest first — every one of them renders, not just the first.
+    const history = [
+      {
+        order_number: 'KAGE-9002', status: 'shipped', payment_method: 'bank', payment_ref: 'TRX-77A',
+        payment_verified: true, subtotal: 4200, shipping: 250, shipping_pending: false, total: 4450,
+        created_at: '2026-10-12 09:30:00', address: '12 Jinnah Road, Block 4', city: 'Karachi', phone: '+92 300 1234567',
+        notes: 'Leave with the guard', email: 'buyer@kage.test',
+        items: [
+          { id: 1, name: 'Kage Shadow Tee', size: 'M', qty: 2, unit: 1500, total: 3000, image: '/images/tee.jpg' },
+          { id: 2, name: 'Kage Cargo Pants', size: 'L', qty: 1, unit: 1200, total: 1200, image: '' }
+        ]
+      },
+      {
+        order_number: 'KAGE-9001', status: 'awaiting_verification', payment_method: 'jazzcash', payment_ref: 'JC-5512',
+        payment_verified: false, subtotal: 1500, shipping: 250, shipping_pending: false, total: 1750,
+        created_at: '2026-10-11 10:00:00', address: '9 Mall Road', city: 'Lahore', phone: '+92 301 7654321',
+        items: [{ id: 3, name: 'Ember Graphic Tee', size: 'S', qty: 1, unit: 1500, total: 1500, image: '' }]
+      }
+    ];
     cw.updateVerifyBanner(true);
-    cw.renderAccountOrders([{ order_number: 'KAGE-TEST1234', status: 'pending', total: 1500, created_at: '2026-10-11 10:00:00' }], true);
+    cw.renderAccountOrders(history, true);
     assert.equal(cd.getElementById('acctVerifyBanner').hidden, true, 'the banner hides once the email is verified');
-    assert.match(cd.getElementById('acctOrders').textContent, /KAGE-TEST1234/, 'verified accounts see their order rows');
-    assert.doesNotMatch(cd.getElementById('acctOrders').textContent, /Verify your email to see your orders/i);
+    const cards = ordersEl().querySelectorAll('.order-card');
+    assert.equal(cards.length, 2, 'every order in the history gets its own card');
+    assert.match(ordersEl().textContent, /2 orders/, 'the list states how many orders there are');
+    assert.match(cards[0].querySelector('.order-num').textContent, /KAGE-9002/, 'orders keep the server order (newest first)');
+    assert.match(cards[1].querySelector('.order-num').textContent, /KAGE-9001/);
+    assert.match(cards[1].querySelector('.order-status').textContent, /Awaiting payment/i, 'awaiting_verification has a readable label');
+    assert.ok(cards[1].querySelector('.order-status').classList.contains('order-status-awaiting_verification'), 'awaiting_verification has its own pill style');
+    assert.match(cards[0].querySelector('.order-total').textContent, /Rs\. 4,450/, 'the row shows the order total');
+
+    // Collapsed by default, with real disclosure semantics.
+    const firstRow = cards[0].querySelector('.order-row');
+    const firstDetail = cards[0].querySelector('.order-detail');
+    assert.equal(firstRow.getAttribute('aria-expanded'), 'false', 'rows start collapsed');
+    assert.equal(firstRow.getAttribute('aria-controls'), firstDetail.id, 'the row names the panel it controls');
+    assert.equal(firstDetail.hidden, true, 'the collapsed panel is hidden, not merely styled');
+    assert.match(firstDetail.innerHTML, /Kage Shadow Tee/, 'the panel is populated up front');
+
+    // Expanding shows items, sizes, quantities, line totals, money and address.
+    firstRow.click();
+    assert.equal(firstRow.getAttribute('aria-expanded'), 'true', 'clicking a row expands it');
+    assert.equal(firstDetail.hidden, false, 'the expanded panel is shown');
+    assert.ok(cards[0].classList.contains('is-open'), 'the card is marked open for styling');
+    const detailText = firstDetail.textContent;
+    assert.match(detailText, /Kage Shadow Tee/);
+    assert.match(detailText, /Kage Cargo Pants/);
+    assert.match(detailText, /Size M · Qty 2/, 'each line shows size and quantity');
+    assert.match(detailText, /Rs\. 3,000/, 'each line shows its line total');
+    assert.match(detailText, /Rs\. 1,500 each/, 'each line shows the unit price');
+    assert.match(detailText, /Subtotal[\s\S]*Rs\. 4,200/, 'the summary names the subtotal');
+    assert.match(detailText, /Delivery[\s\S]*Rs\. 250/, 'the summary names the delivery charge');
+    assert.match(detailText, /Total[\s\S]*Rs\. 4,450/, 'the summary names the total');
+    assert.match(detailText, /Bank transfer/, 'the payment method is spelled out');
+    assert.match(detailText, /Payment verified/, 'the payment state is reported');
+    assert.match(detailText, /Reference: TRX-77A/, 'the payment reference is shown');
+    assert.match(detailText, /12 Jinnah Road, Block 4/, 'the delivery address is shown');
+    assert.match(detailText, /Karachi/, 'the city is shown');
+    assert.match(detailText, /\+92 300 1234567/, 'the delivery phone is shown');
+    assert.match(detailText, /Leave with the guard/, 'order notes are shown');
+    assert.match(detailText, /12 Oct 2026/, 'the order date is shown');
+    assert.equal(firstDetail.querySelectorAll('.order-item').length, 2, 'one line per ordered item');
+    assert.equal(firstDetail.querySelector('.order-item img').getAttribute('src'), '/images/tee.jpg', 'item thumbnails come from the stored order');
+    assert.match(firstDetail.querySelector('.order-detail-track').getAttribute('href'), /\/tracking/, 'each order links to tracking');
+    assert.equal(firstDetail.querySelector('button[data-pid="1"]') !== null, true, 'items whose product still exists link to the product page');
+
+    // Collapsing again hides it; a second row expands independently.
+    firstRow.click();
+    assert.equal(firstRow.getAttribute('aria-expanded'), 'false');
+    assert.equal(firstDetail.hidden, true, 'clicking an open row collapses it');
+    cards[1].querySelector('.order-row').click();
+    assert.equal(cards[1].querySelector('.order-detail').hidden, false, 'another order can be opened at the same time');
+    assert.match(cards[1].querySelector('.order-detail').textContent, /JazzCash/, 'cash/wallet methods are labelled readably');
+
+    // Totals for a phone-confirmed delivery stay honest.
+    cw.renderAccountOrders([{
+      order_number: 'KAGE-9003', status: 'pending', payment_method: 'cod', subtotal: 3000, shipping: 0,
+      shipping_pending: true, total: 3000, created_at: '2026-10-13 12:00:00', address: '1 Sea View', city: 'Karachi',
+      items: [{ id: 9, name: 'Kage Hoodie', size: 'XL', qty: 1, unit: 3000, total: 3000, image: '' }]
+    }], true);
+    const pendingCard = ordersEl().querySelector('.order-card');
+    pendingCard.querySelector('.order-row').click();
+    const pendingText = pendingCard.querySelector('.order-detail').textContent;
+    assert.match(pendingText, /Confirmed by phone \(Rs\. 250 – Rs\. 500\)/, 'an unconfirmed delivery charge says so instead of "Rs. 0"');
+    assert.match(pendingText, /Total \(before delivery\)/, 'the total is labelled as excluding delivery');
+    assert.match(pendingText, /Cash on delivery/, 'cod is labelled readably');
+
+    // Everything from the API is untrusted text.
+    cw.renderAccountOrders([{
+      order_number: 'KAGE-X<img src=x onerror="alert(1)">', status: 'pending', total: 100, subtotal: 100, shipping: 0,
+      created_at: '2026-10-14 08:00:00', address: '<b>Bold</b> street', city: 'Karachi', notes: '</script><script>alert(2)</script>',
+      payment_method: 'bank', payment_ref: '<i>ref</i>',
+      items: [{ id: 5, name: '<img src=x onerror="alert(3)">', size: '<u>S</u>', qty: 1, unit: 100, total: 100, image: 'x" onerror="alert(4)' }]
+    }], true);
+    const hostileCard = ordersEl().querySelector('.order-card');
+    hostileCard.querySelector('.order-row').click();
+    assert.equal(hostileCard.querySelectorAll('img[src="x"]').length, 0, 'an injected img in a product name does not survive');
+    assert.equal(hostileCard.querySelectorAll('b, u, i').length, 0, 'injected markup in address/size/ref is escaped');
+    assert.match(hostileCard.textContent, /<b>Bold<\/b> street/, 'the address is shown as literal text');
+    assert.match(hostileCard.querySelector('.order-detail').textContent, /Size <u>S<\/u>/, 'the size is shown as literal text');
+
+    // A response of the wrong shape cannot crash the page.
+    cw.renderAccountOrders(null, true);
+    assert.match(ordersEl().textContent, /No orders yet/i, 'a null payload falls back to the empty state');
 
     // The emailed link lands on /verify-email?token=... and is consumed on load.
     let verifyRequestUrl = null;

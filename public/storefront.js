@@ -2913,6 +2913,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       updateVerifyBanner(currentCustomer.email_verified !== false);
       // Load orders — skeleton rows while the history fetch is in flight.
       const ordersEl = document.getElementById('acctOrders');
+      accountOrders = [];
       ordersEl.innerHTML = skeletonOrderRows(3);
       ordersEl.setAttribute('aria-busy', 'true');
       try {
@@ -2929,25 +2930,165 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       }
     }
 
+    // ---- Order history -------------------------------------------------
+    // Every order the account owns (by customer_id or by its own email), each
+    // one expandable into full details: items with sizes and line totals,
+    // subtotal/delivery/total, payment state and the delivery address.
+    let accountOrders = [];
+    const ORDER_STATUS_LABELS = {
+      pending: 'Pending',
+      awaiting_verification: 'Awaiting payment',
+      confirmed: 'Confirmed',
+      shipped: 'Shipped',
+      delivered: 'Delivered',
+      cancelled: 'Cancelled'
+    };
+    const ORDER_STATUS_NOTES = {
+      pending: 'We have your order and will start packing it shortly.',
+      awaiting_verification: 'We are checking your payment.',
+      confirmed: 'Confirmed and being prepared for dispatch.',
+      shipped: 'On its way — our courier will call before delivery.',
+      delivered: 'Delivered. Thanks for shopping with KAGE Culture.',
+      cancelled: 'This order was cancelled.'
+    };
+
+    function orderStatusLabel(status) {
+      return ORDER_STATUS_LABELS[String(status || '').toLowerCase()] || String(status || 'Pending');
+    }
+
+    function orderMoney(value) {
+      const n = Number(value);
+      if (!Number.isFinite(n)) return 'Rs. ' + esc(value);
+      return 'Rs. ' + n.toLocaleString('en-US', { maximumFractionDigits: 0 });
+    }
+
+    // Products are captured in the order's items_json; when the catalog already
+    // knows the product we link straight to it, otherwise the row stays plain.
+    function orderItemProductId(item) {
+      if (item && item.id != null) {
+        const match = allProducts.find(p => String(p.id) === String(item.id));
+        if (match) return match.id;
+      }
+      return null;
+    }
+
+    function renderOrderItems(order) {
+      const items = Array.isArray(order.items) ? order.items : [];
+      if (!items.length) return '<p class="order-detail-note">This order has no item details on file.</p>';
+      return '<ul class="order-items">' + items.map(item => {
+        const pid = orderItemProductId(item);
+        const name = esc(item.name || 'Item');
+        const thumb = item.image
+          ? `<img class="order-item-thumb" src="${esc(item.image)}" alt="" width="48" height="48" loading="lazy" decoding="async" />`
+          : '<span class="order-item-thumb order-item-thumb-empty" aria-hidden="true"></span>';
+        const label = pid != null
+          ? `<button type="button" class="order-item-name order-item-link" data-action="order-open-product" data-pid="${Number(pid)}">${name}</button>`
+          : `<span class="order-item-name">${name}</span>`;
+        const unit = item.unit != null ? `<span class="order-item-unit">${orderMoney(item.unit)} each</span>` : '';
+        return `<li class="order-item">
+          ${thumb}
+          <span class="order-item-main">
+            ${label}
+            <span class="order-item-meta">Size ${esc(item.size || '—')} · Qty ${esc(item.qty != null ? item.qty : 1)}</span>
+            ${unit}
+          </span>
+          <span class="order-item-total">${orderMoney(item.total)}</span>
+        </li>`;
+      }).join('') + '</ul>';
+    }
+
+    function renderOrderDetailBody(order) {
+      const status = String(order.status || 'pending').toLowerCase();
+      const note = ORDER_STATUS_NOTES[status];
+      const placed = order.created_at ? new Date(order.created_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+      const payLabel = order.payment_method === 'bank' ? 'Bank transfer'
+        : order.payment_method === 'jazzcash' ? 'JazzCash'
+        : order.payment_method === 'cod' || !order.payment_method ? 'Cash on delivery'
+        : order.payment_method;
+      const shippingLabel = order.shipping_pending
+        ? 'Confirmed by phone (Rs. 250 – Rs. 500)'
+        : orderMoney(order.shipping);
+      const address = (order.address || order.city || order.phone)
+        ? `<address class="order-address">${esc(order.address || '')}${order.address && order.city ? '<br />' : ''}${esc(order.city || '')}${order.phone ? `<br />${esc(order.phone)}` : ''}</address>`
+        : '<p class="order-detail-note">No delivery address on file.</p>';
+      const paymentState = [
+        order.payment_verified ? 'Payment verified' : null,
+        order.cod_confirmed ? 'Cash on delivery confirmed' : null,
+        order.payment_ref ? `Reference: ${esc(order.payment_ref)}` : null
+      ].filter(Boolean).join(' · ');
+      return `
+        <div class="order-detail-head">
+          <span class="order-status order-status-${esc(status)}">${esc(orderStatusLabel(status))}</span>
+          ${placed ? `<span class="order-detail-date">Placed ${esc(placed)}</span>` : ''}
+        </div>
+        ${note ? `<p class="order-detail-status-note">${esc(note)}</p>` : ''}
+        <h3 class="order-detail-h">Items</h3>
+        ${renderOrderItems(order)}
+        <h3 class="order-detail-h">Summary</h3>
+        <dl class="order-totals">
+          <div><dt>Subtotal</dt><dd>${orderMoney(order.subtotal)}</dd></div>
+          <div><dt>Delivery</dt><dd>${shippingLabel}</dd></div>
+          <div class="order-totals-grand"><dt>${order.shipping_pending ? 'Total (before delivery)' : 'Total'}</dt><dd>${orderMoney(order.total)}</dd></div>
+        </dl>
+        <h3 class="order-detail-h">Payment</h3>
+        <p class="order-detail-line">${esc(payLabel)}${paymentState ? ` · ${paymentState}` : ''}</p>
+        <h3 class="order-detail-h">Delivery</h3>
+        ${address}
+        ${order.notes ? `<h3 class="order-detail-h">Notes</h3><p class="order-detail-line">${esc(order.notes)}</p>` : ''}
+        <p class="order-detail-actions">
+          <a class="order-detail-track" href="/tracking" data-route="tracking" data-action="order-track">Track this order</a>
+        </p>`;
+    }
+
+    // The list itself: one row per order, expandable in place (works without
+    // any dialog, and keeps every order visible at once).
     function renderAccountOrders(orders, verified) {
       const wrap = document.getElementById('acctOrders');
-      if (!orders || !orders.length) {
-        // SECURITY: until the email is confirmed the history stays hidden, so
-        // the empty state explains why instead of looking like "no orders".
+      accountOrders = Array.isArray(orders) ? orders : [];
+      if (!accountOrders.length) {
+        // The server ships an empty list while the email is unverified, so the
+        // empty state has to explain *why* and offer the way out.
         wrap.innerHTML = verified === false
-          ? '<div class="text-muted-block">Verify your email to see your orders.<br><a href="#" data-action="resend-verification" class="link-accent-underline">Resend verification email</a></div>'
+          ? '<div class="text-muted-block">Verify your email to see your orders. <a href="#" data-action="resend-verification" class="link-accent-underline">Resend verification email</a></div>'
           : '<div class="text-muted-block">No orders yet. Time to shop!</div>';
         return;
       }
-      wrap.innerHTML = orders.map(o => {
-        const date = o.created_at ? new Date(o.created_at).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' }) : '';
-        return `<div class="order-row">
-          <span class="order-num">${esc(o.order_number)}</span>
-          <span class="order-status ${esc(o.status)}">${esc(o.status)}</span>
-          <span class="order-total">Rs. ${o.total}</span>
-          <span class="order-date">${date}</span>
-        </div>`;
-      }).join('');
+      const summary = `${accountOrders.length} order${accountOrders.length === 1 ? '' : 's'}`;
+      wrap.innerHTML = `<p class="order-history-count">${summary}</p>`
+        + accountOrders.map((o, index) => {
+          const status = String(o.status || 'pending').toLowerCase();
+          const date = o.created_at ? new Date(o.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+          const itemCount = Array.isArray(o.items) ? o.items.reduce((sum, it) => sum + (Number(it.qty) || 1), 0) : 0;
+          const id = `order-detail-${index}`;
+          const meta = [date, itemCount ? `${itemCount} item${itemCount === 1 ? '' : 's'}` : null].filter(Boolean).join(' · ');
+          return `<div class="order-card" data-order-index="${index}">
+            <button type="button" class="order-row" data-action="order-toggle" data-index="${index}" aria-expanded="false" aria-controls="${id}">
+              <span class="order-row-main">
+                <span class="order-num">${esc(o.order_number)}</span>
+                <span class="order-status order-status-${esc(status)}">${esc(orderStatusLabel(status))}</span>
+                <span class="order-date">${esc(meta)}</span>
+              </span>
+              <span class="order-row-aside">
+                <span class="order-total">${orderMoney(o.total)}</span>
+                <span class="order-chevron" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></span>
+              </span>
+              <span class="sr-only">Show order details</span>
+            </button>
+            <div class="order-detail" id="${id}" hidden>${renderOrderDetailBody(o)}</div>
+          </div>`;
+        }).join('');
+    }
+
+    function toggleOrderDetail(button) {
+      const index = Number(button.dataset.index);
+      const detail = document.getElementById('order-detail-' + index);
+      if (!detail) return;
+      const open = button.getAttribute('aria-expanded') !== 'true';
+      button.setAttribute('aria-expanded', String(open));
+      detail.hidden = !open;
+      button.classList.toggle('is-open', open);
+      const card = button.closest('.order-card');
+      if (card) card.classList.toggle('is-open', open);
     }
 
     async function saveAccountProfile(btn) {
@@ -3161,6 +3302,9 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       'account': () => handleAccountClick(),
       'go-track': () => goTrackOrder(),
       'resend-verification': (el) => resendVerificationEmail(el),
+      'order-toggle': (el) => toggleOrderDetail(el),
+      'order-open-product': (el) => openProductDetail(Number(el.dataset.pid)),
+      'order-track': () => goTrackOrder(),
       'request-pw-reset': () => showCustReset(),
       'cust-show-login': () => showCustLogin(),
       'cust-show-signup': () => showCustSignup(),
