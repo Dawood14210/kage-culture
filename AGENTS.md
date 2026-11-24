@@ -100,6 +100,13 @@
   (9.57:1 and 6.20:1). A geometry + computed-type diff against `ba934a7`
   proves no visual change. Details in `AUDIT.md`; `npm test` **169/169**,
   frontend **81/81**, a11y suite green.
+- ✅ *(2026-11-24, live-site fix)* **Hero back to its full 16:9 frame.** Removed
+  the `max-height: 56vh` clamp on `.hero-media img` (added in `2e0760b`): the
+  campaign art is 16:9, so the clamp cropped it to a viewport slice and
+  letterboxed the 16:9 spray border; the hero is the art's own 16:9 frame again
+  (phones were never clamped and are unchanged), with a test guard against any
+  `Nvh` clamp coming back. The header/wordmark is deliberately untouched.
+  Details in `AUDIT.md`; `npm test` **169/169**, frontend **81/81**, a11y green.
 - ✅ CRITICAL admin auth bypass fixed: `requireAuth` trusts only
   `cookie-session`-verified `req.session`; standalone/forged payloads and the
   legacy `kage.cust` fallback are rejected by the E2E regression suite.
