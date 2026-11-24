@@ -2759,13 +2759,19 @@ async function main() {
     assert.ok(seen, 'the mixed-case guest order must be part of the history');
     assert.deepStrictEqual(
       Object.keys(seen).sort(),
-      ['created_at', 'items', 'order_number', 'payment_method', 'shipping', 'shipping_pending', 'status', 'subtotal', 'total'],
-      'the customer shape is an allow-list — no notes/email/address/phone'
+      ['address', 'city', 'cod_confirmed', 'created_at', 'customer_name', 'items', 'notes', 'order_number', 'payment_method',
+        'payment_ref', 'payment_verified', 'phone', 'shipping', 'shipping_pending', 'status', 'subtotal', 'total'],
+      'the customer shape is an allow-list — it carries the order detail, never internals'
     );
     for (const item of seen.items) {
       assert.deepStrictEqual(Object.keys(item).sort(), ['id', 'image', 'name', 'qty', 'size', 'total', 'unit'], 'item cost/stock internals stay server-side');
     }
-    assert.ok(!/cost|notes|address|payment_ref|payment_verified|customer_id/.test(JSON.stringify(seen)), 'no internal field may appear in the payload');
+    assert.ok(!/\bcost\b|customer_id|password|\bstock\b/.test(JSON.stringify(seen)), 'no internal field may appear in the payload');
+    assert.strictEqual(seen.address, 'Case St 3', 'the delivery address is part of the order detail');
+    assert.strictEqual(seen.city, 'Islamabad');
+    assert.strictEqual(seen.notes, null, 'an order without notes says so explicitly instead of omitting the key');
+    assert.strictEqual(seen.payment_verified, false, 'an unverified bank transfer says so');
+    assert.strictEqual(seen.cod_confirmed, false);
 
     // The link is single-use.
     const replay = await request(PORT, 'GET', `/api/auth/verify-email?token=${token}`);
@@ -2826,6 +2832,78 @@ async function main() {
     const history = await request(PORT, 'GET', '/api/customers/orders', { headers: { Cookie: account.cookie } });
     assert.ok(history.json.orders.some((o) => o.order_number === target.json.order_number), 'the linked order is now in the history');
     assert.ok(!history.json.orders.some((o) => o.order_number === decoy.json.order_number), 'the decoy order stays out');
+  });
+
+  await check('a signed-in customer can open the full detail of any order they own — and only their own', async () => {
+    const detailOwner = await placeGuestOrder({
+      name: 'Detail Owner', email: 'detail.owner@kage.test', phone: '03007770001',
+      address: '77 Detail Street', city: 'Karachi', notes: 'Ring the bell twice',
+      payment_method: 'bank', payment_ref: 'TRX-DETAIL-1'
+    });
+    assert.strictEqual(detailOwner.status, 201, JSON.stringify(detailOwner.json));
+    const second = await placeGuestOrder({
+      name: 'Detail Owner', email: 'detail.owner@kage.test', phone: '03007770001',
+      address: '77 Detail Street', city: 'Karachi'
+    });
+    assert.strictEqual(second.status, 201, JSON.stringify(second.json));
+
+    const account = await signupCustomer('detail.owner@kage.test', 'detail-pass-e2e', 'Detail Owner');
+    assert.strictEqual(account.res.status, 200, JSON.stringify(account.res.json));
+    await dbModule.prepare('UPDATE customers SET email_verified = 1 WHERE id = ?').run(account.res.json.customer.id);
+
+    // The list carries every owned order, newest first.
+    const list = await request(PORT, 'GET', '/api/customers/orders', { headers: { Cookie: account.cookie } });
+    assert.strictEqual(list.status, 200, JSON.stringify(list.json));
+    const numbers = list.json.orders.map((o) => o.order_number);
+    assert.deepStrictEqual(numbers, [second.json.order_number, detailOwner.json.order_number], 'every owned order is listed, newest first');
+
+    // Detail for one order: the delivery/payment facts the account page renders.
+    const detail = await request(PORT, 'GET', `/api/customers/orders/${detailOwner.json.order_number}`, { headers: { Cookie: account.cookie } });
+    assert.strictEqual(detail.status, 200, JSON.stringify(detail.json));
+    assert.strictEqual(detail.json.email_verified, true);
+    assert.deepStrictEqual(Object.keys(detail.json).sort(), ['email_verified', 'order'], 'the detail response is an allow-listed envelope');
+    const order = detail.json.order;
+    assert.strictEqual(order.order_number, detailOwner.json.order_number);
+    assert.strictEqual(order.address, '77 Detail Street', 'the delivery address comes back');
+    assert.strictEqual(order.city, 'Karachi');
+    assert.strictEqual(order.phone, '03007770001');
+    assert.strictEqual(order.notes, 'Ring the bell twice');
+    assert.strictEqual(order.payment_method, 'bank');
+    assert.strictEqual(order.payment_ref, 'TRX-DETAIL-1', 'the transfer reference is shown so the buyer can match it');
+    assert.strictEqual(order.payment_verified, false, 'a bank transfer starts unverified');
+    assert.strictEqual(order.cod_confirmed, false);
+    assert.ok(Array.isArray(order.items) && order.items.length >= 1, 'the line items are included');
+    assert.ok(order.subtotal > 0 && order.total >= order.subtotal);
+    assert.ok(!('customer_id' in order) && !('items_json' in order) && !('email' in order),
+      'internals and the account email stay out of the payload');
+    assert.ok(!/\bcost\b|\bstock\b|password/i.test(JSON.stringify(order)), 'no internal field may appear in the detail payload');
+
+    // Another customer's order number is a 404, not a 403 (no enumeration).
+    const outsider = await signupCustomer('detail.outsider@kage.test', 'outsider-pass-e2e', 'Outsider');
+    assert.strictEqual(outsider.res.status, 200, JSON.stringify(outsider.res.json));
+    await dbModule.prepare('UPDATE customers SET email_verified = 1 WHERE id = ?').run(outsider.res.json.customer.id);
+    const stolen = await request(PORT, 'GET', `/api/customers/orders/${detailOwner.json.order_number}`, { headers: { Cookie: outsider.cookie } });
+    assert.strictEqual(stolen.status, 404, 'a stranger cannot open an order by number');
+    assert.ok(!stolen.text.includes('77 Detail Street'), 'the stranger response leaks no address');
+
+    // Unauthenticated and unverified callers are refused.
+    const anon = await request(PORT, 'GET', `/api/customers/orders/${detailOwner.json.order_number}`);
+    assert.strictEqual(anon.status, 401, 'the detail endpoint needs a session');
+    const unverified = await signupCustomer('detail.unverified@kage.test', 'unverified-pass-e2e', 'Fresh');
+    assert.strictEqual(unverified.res.status, 200, JSON.stringify(unverified.res.json));
+    const gated = await request(PORT, 'GET', `/api/customers/orders/${detailOwner.json.order_number}`, { headers: { Cookie: unverified.cookie } });
+    assert.strictEqual(gated.status, 403, 'an unverified account cannot read order details');
+
+    // The order number is matched case-insensitively and trimmed.
+    const shouty = await request(PORT, 'GET', `/api/customers/orders/${detailOwner.json.order_number.toLowerCase()}`, { headers: { Cookie: account.cookie } });
+    assert.strictEqual(shouty.status, 200, 'order numbers are case-insensitive in the URL');
+
+    // Tracking still requires the phone — the account page's link is a hint, not a bypass.
+    const trackCsrf = await getCsrf();
+    const noPhone = await request(PORT, 'POST', '/api/orders/track', {
+      body: { number: detailOwner.json.order_number }, headers: { 'X-CSRF-Token': trackCsrf.token, Cookie: trackCsrf.cookie }
+    });
+    assert.strictEqual(noPhone.status, 400, 'a signed-in session alone does not unlock tracking — the phone check still runs');
   });
 
   // ---------------------------------------------------------------

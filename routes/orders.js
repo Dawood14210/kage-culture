@@ -333,16 +333,23 @@ module.exports = function createOrderRoutes(db) {
   });
 
   // Customer-facing order shape: exactly what the account page renders.
-  // SECURITY: never the raw row — `notes`, `payment_ref`, `email`, `phone`,
-  // `address`, `payment_verified`, `customer_id` and the per-line `cost`
-  // (unit cost) must not leave the server.
+  // SECURITY: an explicit allow-list, never the raw row. The account page needs
+  // the order's own delivery and payment facts, so those are included here —
+  // but only behind a verified session (see loadCustomerHistory, which is the
+  // only caller). What must never leave the server: `customer_id`, `items_json`,
+  // `email`, the per-line `cost` (unit cost), stock and any margin column.
+  // Full detail for the account page: what was ordered, what it cost, how it
+  // was paid for and where it went.
   function sanitizeCustomerOrder(o) {
     let items = [];
     try { items = JSON.parse(o.items_json || '[]'); } catch (e) { items = []; }
-    return {
+    const sanitized = {
       order_number: o.order_number,
       status: o.status,
       payment_method: o.payment_method,
+      payment_ref: o.payment_ref || null,
+      payment_verified: Number(o.payment_verified) === 1,
+      cod_confirmed: Number(o.cod_confirmed) === 1,
       items: (Array.isArray(items) ? items : []).map((it) => ({
         id: it.id, name: it.name, size: it.size, qty: it.qty,
         unit: it.unit, total: it.total, image: it.image
@@ -351,32 +358,67 @@ module.exports = function createOrderRoutes(db) {
       shipping: o.shipping,
       shipping_pending: !!o.shipping_pending,
       total: o.total,
-      created_at: o.created_at
+      notes: o.notes || null,
+      created_at: o.created_at,
+      customer_name: o.customer_name,
+      address: o.address,
+      city: o.city,
+      phone: o.phone
     };
+    return sanitized;
   }
 
-  // GET customer order history
-  // SECURITY: matched on customer_id, or on the account's own email once that
-  // email is verified. Phone is NOT a match key any more — a profile phone is
-  // unverified, so anyone could type a stranger's number and read their orders.
+  // ----------------------------------------------------------------
+  // Order history for a signed-in customer
+  // ----------------------------------------------------------------
+  // Matching is customer_id OR the account's own email. Both columns are
+  // written by checkout, so the history is complete even for orders placed
+  // as a guest with the same address. Phone is NOT a match key: a profile
+  // phone is unverified, so anyone could type a stranger's number and read
+  // their orders.
+  //
+  // Verification gates access, not the shape of the response: an account that
+  // has not proven the address sees nothing, because that address may not be
+  // theirs at all.
+  async function loadCustomerHistory(customerId) {
+    const customer = await db.prepare('SELECT id, email, email_verified FROM customers WHERE id = ?').get(customerId);
+    if (!customer) return null;
+    const verified = Number(customer.email_verified) === 1;
+    const email = String(customer.email || '').trim().toLowerCase();
+    const byId = await db.prepare('SELECT * FROM orders WHERE customer_id = ?').all(customer.id);
+    const byEmail = await db.prepare('SELECT * FROM orders WHERE LOWER(TRIM(email)) = ?').all(email);
+    const merged = new Map();
+    for (const o of [...(byId || []), ...(byEmail || [])]) if (!merged.has(o.id)) merged.set(o.id, o);
+    const orders = [...merged.values()].sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')) || (b.id - a.id));
+    return { customer, verified, orders };
+  }
+
   router.get('/api/customers/orders', requireCustomerAuth, async (req, res) => {
     try {
-      const customer = await db.prepare('SELECT id, email, email_verified FROM customers WHERE id = ?').get(req.customerId);
-      if (!customer) return res.status(404).json({ error: 'Account not found.' });
-      const verified = Number(customer.email_verified) === 1;
-      if (!verified) {
+      const history = await loadCustomerHistory(req.customerId);
+      if (!history) return res.status(404).json({ error: 'Account not found.' });
+      if (!history.verified) {
         // Unverified signups (which may be someone else's address) get no
         // history — the UI shows the "verify your email" prompt instead.
         return res.json({ orders: [], email_verified: false });
       }
-      const email = String(customer.email || '').trim().toLowerCase();
-      const byId = await db.prepare('SELECT * FROM orders WHERE customer_id = ?').all(customer.id);
-      const byEmail = await db.prepare('SELECT * FROM orders WHERE LOWER(TRIM(email)) = ?').all(email);
-      const merged = new Map();
-      for (const o of [...(byId || []), ...(byEmail || [])]) if (!merged.has(o.id)) merged.set(o.id, o);
-      const orders = [...merged.values()].sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')) || (b.id - a.id));
-      res.json({ orders: orders.map(sanitizeCustomerOrder), email_verified: true });
+      res.json({ orders: history.orders.map(sanitizeCustomerOrder), email_verified: true });
     } catch (err) { console.error('customer orders failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
+  });
+
+  // One order, for API clients that want a single record. Scoped to the caller's
+  // own history — an order number belonging to somebody else answers 404, not
+  // 403, so it cannot be used to probe which numbers exist.
+  router.get('/api/customers/orders/:number', requireCustomerAuth, async (req, res) => {
+    try {
+      const history = await loadCustomerHistory(req.customerId);
+      if (!history) return res.status(404).json({ error: 'Account not found.' });
+      if (!history.verified) return res.status(403).json({ error: 'Verify your email address to view your orders.' });
+      const wanted = String(req.params.number || '').trim().toUpperCase();
+      const order = history.orders.find((o) => String(o.order_number).toUpperCase() === wanted);
+      if (!order) return res.status(404).json({ error: 'Order not found in your history.' });
+      res.json({ order: sanitizeCustomerOrder(order), email_verified: true });
+    } catch (err) { console.error('customer order detail failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
   });
 
   return router;

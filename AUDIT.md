@@ -2225,6 +2225,67 @@ well-formed"; the only thing to eyeball is the new underline on the five inline
 links in Returns/Terms/Privacy, in case the owner prefers a different
 non-colour cue.
 
+### ✅ Order history shows every order and opens into full order detail (owner request)
+**Reported:** "make it so that when a customer has logged in then they can see all
+their orders and also full details of their orders".
+
+**What was wrong.** Two things, both on `/account`:
+
+1. the API (`GET /api/customers/orders`) returned a *summary* only — number,
+   status, payment method, items, subtotal/shipping/total, date — so the page
+   had nothing to show for the delivery address, phone, notes, payment
+   reference or whether the payment had been verified;
+2. the page rendered those summaries as one flat, non-interactive
+   `.order-row` strip: no item list, no sizes, no quantities, no line totals,
+   no address, and nothing to click.
+
+**Fix.**
+
+- `sanitizeCustomerOrder()` now also returns `address`, `city`, `phone`,
+  `notes`, `customer_name`, `payment_ref`, `payment_verified` and
+  `cod_confirmed` (all `null`-safe), on top of the existing allow-list. It is
+  still an allow-list: `customer_id`, `items_json`, cost and stock never leave
+  the server.
+- Each order is an expandable card: a `<button aria-expanded aria-controls>`
+  header (number / status pill / total / date + item count) over a panel with
+  the item table (thumbnail, name, **size, quantity, unit price, line total**),
+  a summary (subtotal, delivery — "Confirmed by phone (Rs. 250 – Rs. 500)" while
+  it is pending — and total), the payment method plus reference and verified
+  state, the delivery address and phone, notes, and a Track-this-order link.
+  Collapsed rows keep their markup in the DOM, so opening is instant and the
+  panel is a plain `hidden` toggle rather than an animation.
+- Every value from the API is passed through `esc()`.
+- New `.order-status.awaiting_verification` pill (that status previously had
+  **no** styling at all, so it rendered as bare text), 44px tap targets, and a
+  ≤640px layout that keeps the total pinned right and the item row on one line.
+
+**New endpoint, `GET /api/customers/orders/:number`.** Full detail for one order
+for API clients, scoped to the caller's own history: another customer's number
+answers **404** (not 403) so it cannot be used to enumerate order numbers,
+unverified accounts get **403**, and anonymous callers **401**.
+
+**Verification gate unchanged (deliberately).** An unverified account still
+gets an empty list — the address may not be theirs — with the existing banner
+and a resend link; the empty state now says *"Verify your email to see your
+orders"* instead of the misleading "No orders yet". `tests/e2e.test.js` keeps
+its anti-takeover checks for this.
+
+**Verified.** `npm test` **171/171** API (new check: every owned order is
+listed newest-first, the detail endpoint returns the delivery/payment facts,
+a stranger's number is 404, unverified is 403, anonymous is 401, tracking still
+needs the phone) and frontend **84/84** (rewritten scenario 19: two orders both
+render, rows are collapsed by default, expanding shows sizes/qty/line
+totals/subtotal/delivery/total/address/notes/reference, pending delivery
+labelled honestly, hostile `items_json`/address/notes values are escaped, a
+`null` payload falls back to the empty state). a11y suite green — audited as
+part of the same change: the new Track-this-order hover was reworked to
+ink-on-transparent (accent text on an accent fill measured 1.00:1, and an accent
+tint behind accent text 4.46:1, both under the floor), and the contrast harness
+now excludes the four `--text-on-*` inverse tokens from the blanket
+token × surface sweep, since they exist only on explicit fills (CTA, status
+pills) and were being checked against surfaces they never sit on. Rendered in
+Chromium at 1280px and 390px.
+
 ### ✅ Transactional emails restyled for readability (owner request)
 **Reported:** "can you change the style of the email sent currently it is difficult
 to read the text" (with a screenshot of the order-status email).

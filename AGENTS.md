@@ -100,6 +100,20 @@
   (9.57:1 and 6.20:1). A geometry + computed-type diff against `ba934a7`
   proves no visual change. Details in `AUDIT.md`; `npm test` **169/169**,
   frontend **81/81**, a11y suite green.
+- ✅ *(2026-11-24, owner request)* **A signed-in customer sees every order they
+  own, each one expandable into full detail.** `/account` renders one
+  `<button aria-expanded>` card per order over a `hidden` panel with the item
+  table (size, qty, unit and line totals), subtotal/delivery/total, payment
+  method + reference + verified state, delivery address/phone, notes and a
+  tracking link. `sanitizeCustomerOrder()` was widened to include
+  `address/city/phone/notes/customer_name/payment_ref/payment_verified/cod_confirmed`
+  — keep it an allow-list (`customer_id`/`items_json`/cost/stock stay private).
+  A new `GET /api/customers/orders/:number` answers 404 for someone else's
+  number (never 403 — no enumeration), 403 while unverified, 401 anonymous.
+  The **email-verification gate on the list is intentional**: an unverified
+  account may hold a stranger's address, so it gets an empty list plus the
+  resend prompt. Never "fix" that by returning rows. Details in `AUDIT.md`;
+  `npm test` **171/171**, frontend **84/84**, a11y green.
 - ✅ *(2026-11-24, owner request)* **Transactional emails restyled for
   readability.** Every template now goes through `emailShell()` in
   `utils/email.js`: light page, white 600px card, 16px body copy, a client-safe
