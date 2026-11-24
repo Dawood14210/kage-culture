@@ -2224,3 +2224,32 @@ Insights on the deployed URL to see Accessibility 100 and "Accessibility tree is
 well-formed"; the only thing to eyeball is the new underline on the five inline
 links in Returns/Terms/Privacy, in case the owner prefers a different
 non-colour cue.
+
+### ✅ Hero restored to the full 16:9 campaign frame (live-site regression)
+**Reported from the deployed site:** "the hero image is messed up". It came from
+the Nov 23 Phase 2 batch, not from the perf pass — the pass changed no hero
+pixels (verified by rendering `67e87c8` and `de90b12` side by side: identical
+geometry, 388 px frame at 1366x693 in both).
+
+**Cause.** `2e0760b` added `max-height: 56vh` to `.hero-media img`. The campaign
+art is 16:9, so on a landscape screen the frame collapsed from 768 px to 388 px
+and `object-fit: cover` zoomed the photo ~2x, cutting the model and most of the
+wall art. The spray-paint border is drawn for 16:9 and is `object-fit: contain`,
+so it was also letterboxed inside the wide frame instead of hugging the photo.
+
+**Fix.** Removed the clamp: the hero is the art's own 16:9 box again (1366 x 768
+at that width, 219 px on a 390 px phone — phones were never clamped, so they are
+unchanged) and the border frames the picture again. `height: auto` stays: the
+`width`/`height` attributes added for CLS are presentational height hints and
+would beat `aspect-ratio` without it. A new test fails the build if any
+`max-height: Nvh` clamp returns to `.hero-media img`.
+
+**Header left alone.** The 影 KAGE — CULTURE — wordmark (`25f5ceb`) is unchanged
+on the owner's instruction; the header renders exactly as it did before this
+commit (95 px bar, logo 52.8 px desktop).
+
+**Verified.** Rendered against the pre-Phase-2 tree (`2e0760b~1`) at 1366x693:
+hero frame 768 px, hero block 1102 px, copy offset 875 px — identical to that
+tree (388 / 722 / 495 before the fix). Mobile 390x844: full 16:9 hero, wordmark
+logo, 44 px targets, one row. `npm test` **169/169**, frontend **81/81**, a11y
+suite green.

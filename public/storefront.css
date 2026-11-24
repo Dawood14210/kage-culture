@@ -1873,11 +1873,12 @@
     }
     .hero-media img {
       width: 100%;
-      /* Pairs with the width/height attributes on the <img>: without this the
-         presentational height hint wins over `aspect-ratio` and the hero grows
-         to 56vh, cropping the campaign art much tighter. */
+      /* The hero keeps the campaign art's own 16:9 frame — the spray-paint
+         border is drawn for that ratio, and any viewport-height clamp crops the
+         photo (and letterboxes the border) on short landscape screens.
+         height:auto is required: the width/height attributes on the <img> are
+         presentational height hints, and without it they beat `aspect-ratio`. */
       height: auto;
-      max-height: 56vh;
       aspect-ratio: 16 / 9;
       object-fit: cover;
       object-position: center;

@@ -1179,7 +1179,8 @@ async function ready(win) {
     const heroImgTag = (storeHtml.match(/<img src="\/images\/hero\.jpg"[^>]*>/) || [''])[0];
     assert.match(heroImgTag, /fetchpriority="high"/, 'the hero stays the highest-priority image');
     assert.match(heroImgTag, /width="1363" height="768"/, 'the hero reserves its intrinsic size');
-    assert.match(storeHtml, /\.hero-media img \{[^}]*?height: auto;/, 'height:auto keeps aspect-ratio in charge, so the hero cannot grow to 56vh');
+    assert.match(storeHtml, /\.hero-media img \{[^}]*?height: auto;/, 'height:auto keeps aspect-ratio in charge of the hero box');
+    assert.doesNotMatch(storeHtml, /\.hero-media img \{[^}]*max-height:\s*\d+vh/, 'no viewport-height clamp crops the campaign art or letterboxes the spray border');
     assert.match(storeHtml, /about-hero-500\.webp 600w/, 'the existing about 500px variant stays in its responsive srcset');
     console.log('✅ Category strip shows four Explore links: 2×2 phone grid + 4-col tablet/desktop layouts with aligned, pinned labels');
 
