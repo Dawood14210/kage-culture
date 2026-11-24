@@ -2656,32 +2656,72 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       document.getElementById('custSignupError').style.display = 'none';
       document.getElementById('custOverlay')._previousFocus?.focus();
     }
+    // Three views share the modal: sign in, create account, forgot password.
+    // They are <form>s, so Enter submits whichever one is showing.
+    function setCustView(view) {
+      for (const id of ['custLoginView', 'custSignupView', 'custResetView']) {
+        const el = document.getElementById(id);
+        if (el) el.classList.toggle('is-hidden', id !== view);
+      }
+    }
     function showCustLogin() {
-      document.getElementById('custLoginView').style.display = '';
-      document.getElementById('custSignupView').style.display = 'none';
+      setCustView('custLoginView');
       document.getElementById('custLoginError').style.display = 'none';
     }
     function showCustSignup() {
-      document.getElementById('custLoginView').style.display = 'none';
-      document.getElementById('custSignupView').classList.remove('is-hidden');
-      document.getElementById('custSignupView').style.display = '';
+      setCustView('custSignupView');
       document.getElementById('custSignupError').style.display = 'none';
     }
+    function showCustReset() {
+      setCustView('custResetView');
+      const err = document.getElementById('custResetError');
+      const msg = document.getElementById('custResetMsg');
+      if (err) err.style.display = 'none';
+      if (msg) { msg.hidden = true; msg.textContent = ''; }
+      // Carry whatever was typed in the sign-in form over to the reset form.
+      const loginEmail = document.getElementById('custLoginEmail');
+      const resetEmail = document.getElementById('custResetEmail');
+      if (resetEmail && loginEmail && loginEmail.value.trim()) resetEmail.value = loginEmail.value.trim();
+      setTimeout(() => resetEmail && resetEmail.focus(), 60);
+    }
 
-    async function requestCustomerPasswordReset(btn) {
-      const email = prompt('Enter your email address:');
-      if (!email) return;
+    // Forgot password — the modal has its own form now (no browser dialog).
+    async function submitCustResetRequest(e) {
+      if (e && e.preventDefault) e.preventDefault();
+      const input = document.getElementById('custResetEmail');
+      const err = document.getElementById('custResetError');
+      const msg = document.getElementById('custResetMsg');
+      const btn = document.getElementById('custResetBtn');
+      const email = (input.value || '').trim();
+      err.style.display = 'none';
+      msg.hidden = true;
+      if (!email) {
+        err.textContent = 'Enter the email address on your account.';
+        err.style.display = 'block';
+        input.focus();
+        return;
+      }
       setButtonLoading(btn, true, 'Sending…');
       try {
         const res = await fetch('/api/auth/forgot-password', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: email.trim(), user_type: 'customer' })
+          body: JSON.stringify({ email, user_type: 'customer' })
         });
-        const data = await res.json();
-        alert(data.message || 'Check your email for reset instructions.');
-      } catch (err) {
-        alert('Connection error.');
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          err.textContent = data.error || 'We could not send the reset email. Please try again.';
+          err.style.display = 'block';
+          return;
+        }
+        // Deliberately vague about whether the account exists (no enumeration),
+        // but explicit about where to look — spam included.
+        msg.innerHTML = '<strong>Reset link sent.</strong>If an account exists for ' + esc(email) +
+          ', the email is on its way. It can take a minute — check your inbox and the spam folder.';
+        msg.hidden = false;
+      } catch (err2) {
+        err.textContent = 'Connection error. Please try again.';
+        err.style.display = 'block';
       } finally {
         setButtonLoading(btn, false);
       }
@@ -2727,7 +2767,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
         });
         const data = await res.json().catch(() => ({}));
         if (res.ok) {
-          msg.textContent = data.message || 'Password reset! You can now log in.';
+          msg.textContent = data.message || 'Password reset. Sign in with your new password.';
           msg.style.display = 'block';
           document.getElementById('rstPassword').value = '';
           document.getElementById('rstConfirm').value = '';
@@ -2786,7 +2826,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       try {
         const res = await fetch('/api/customers/resend-verification', { method: 'POST' });
         const data = await res.json().catch(() => ({}));
-        showToast(res.ok ? (data.message || 'Verification email sent. Check your inbox.') : (data.error || 'Could not send the verification email.'));
+        showToast(res.ok ? (data.message || 'Verification email sent. Check your inbox — and the spam folder, just in case.') : (data.error || 'Could not send the verification email.'));
       } catch (e) { showToast('Connection error. Please try again.'); }
       setButtonLoading(btn, false);
     }
@@ -2844,7 +2884,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
         updateAccountUI();
         closeCustModal();
         if (location.pathname === '/account') { navigateTo('account', null, { skipHistory: true }); loadAccountPage(); }
-        showToast('Account created! Check your email to verify your address.');
+        showToast('Account created! Check your inbox and spam folder for the verification link.');
       } catch (e) {
         errEl.textContent = 'Something went wrong. Please try again.'; errEl.style.display = 'block';
       } finally {
@@ -3121,12 +3161,14 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       'account': () => handleAccountClick(),
       'go-track': () => goTrackOrder(),
       'resend-verification': (el) => resendVerificationEmail(el),
-      'request-pw-reset': (el) => requestCustomerPasswordReset(el),
+      'request-pw-reset': () => showCustReset(),
       'cust-show-login': () => showCustLogin(),
       'cust-show-signup': () => showCustSignup(),
       'cust-login': () => submitCustLogin(),
       'cust-signup': () => submitCustSignup(),
       'save-profile': (el) => saveAccountProfile(el),
+      // Kept for any stale markup / old bookmarks: the account cards are forms
+      // now, so this only fires if a button without a form still exists.
       'change-password': (el) => changeAccountPassword(el),
       'customer-logout': (el) => customerLogout(el),
       'cust-close': () => closeCustModal(),
@@ -3171,6 +3213,13 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
       'newsletter': subscribeNewsletter,
       'tracking': trackOrder,
       'password-reset': submitPasswordReset,
+      'account-password': (e) => { e.preventDefault(); changeAccountPassword(document.querySelector('[data-form="account-password"] button[type="submit"]')); },
+      // The sign-in / sign-up views are <form>s, so their submit must be
+      // cancelled before the async handler runs — otherwise the browser
+      // performs a native submit and reloads the page.
+      'cust-login': (e) => { e.preventDefault(); submitCustLogin(); },
+      'cust-signup': (e) => { e.preventDefault(); submitCustSignup(); },
+      'cust-reset-request': submitCustResetRequest,
       'review': submitReview,
       'notify': notifyMe,
     };

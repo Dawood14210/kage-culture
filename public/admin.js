@@ -336,22 +336,94 @@
     function showLogin() {
       document.getElementById('loginPage').style.display = 'flex';
       document.getElementById('dashboard').style.display = 'none';
+      // Always come back to the sign-in view, never a stale reset view.
+      const loginView = document.getElementById('loginView');
+      const resetView = document.getElementById('loginResetView');
+      if (loginView) loginView.classList.remove('admin-hide');
+      if (resetView) resetView.classList.add('admin-hide');
       isLoggedIn = false;
     }
 
-    async function requestPasswordReset(userType) {
-      const email = prompt('Enter your email address:');
-      if (!email) return;
+    // Forgot password — the login card has its own form now, so the old
+    // The browser dialog is gone. Both views live in the same card.
+    function showResetView() {
+      const loginView = document.getElementById('loginView');
+      const resetView = document.getElementById('loginResetView');
+      if (!loginView || !resetView) return;
+      loginView.classList.add('admin-hide');
+      resetView.classList.remove('admin-hide');
+      const err = document.getElementById('loginResetError');
+      const msg = document.getElementById('loginResetMsg');
+      if (err) { err.textContent = ''; err.style.display = 'none'; }
+      if (msg) { msg.hidden = true; msg.textContent = ''; }
+      // Carry the email that was already typed into the sign-in form.
+      const loginEmail = document.getElementById('loginEmail');
+      const resetEmail = document.getElementById('loginResetEmail');
+      if (resetEmail && loginEmail && loginEmail.value.trim()) resetEmail.value = loginEmail.value.trim();
+      setTimeout(() => resetEmail && resetEmail.focus(), 60);
+      // Escape backs out of the reset view instead of leaving a dead end.
+      if (!showResetView._escBound) {
+        showResetView._escBound = true;
+        document.addEventListener('keydown', (e) => {
+          const resetView = document.getElementById('loginResetView');
+          if (e.key === 'Escape' && resetView && !resetView.classList.contains('admin-hide')) {
+            e.preventDefault();
+            showLoginView();
+          }
+        });
+      }
+    }
+
+    function showLoginView() {
+      const loginView = document.getElementById('loginView');
+      const resetView = document.getElementById('loginResetView');
+      if (!loginView || !resetView) return;
+      resetView.classList.add('admin-hide');
+      loginView.classList.remove('admin-hide');
+      const err = document.getElementById('loginResetError');
+      if (err) err.style.display = 'none';
+      setTimeout(() => document.getElementById('loginEmail').focus(), 60);
+    }
+
+    async function submitPasswordResetRequest(e) {
+      if (e && e.preventDefault) e.preventDefault();
+      const input = document.getElementById('loginResetEmail');
+      const errEl = document.getElementById('loginResetError');
+      const msgEl = document.getElementById('loginResetMsg');
+      const btn = document.getElementById('loginResetBtn');
+      const email = (input.value || '').trim();
+      if (btn && btn.disabled) return; // re-entrant Enter while sending
+      errEl.style.display = 'none';
+      msgEl.hidden = true;
+      if (!email) {
+        errEl.textContent = 'Enter your admin email address.';
+        errEl.style.display = 'block';
+        input.focus();
+        return;
+      }
+      if (btn) { btn.disabled = true; btn.textContent = 'Sending...'; }
       try {
         const res = await fetch('/api/auth/forgot-password', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: email.trim(), user_type: userType })
+          body: JSON.stringify({ email, user_type: 'admin' })
         });
-        const data = await res.json();
-        alert(data.message || 'Check your email for reset instructions.');
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          errEl.textContent = data.error || 'We could not send the reset email. Please try again.';
+          errEl.style.display = 'block';
+          return;
+        }
+        // Same wording as the storefront: no account enumeration, but say
+        // where to look — spam folder included.
+        msgEl.innerHTML = '<strong>Reset link sent.</strong>If an admin account exists for ' + esc(email) +
+          ', the email is on its way. It can take a minute — check your inbox and the spam folder.';
+        msgEl.hidden = false;
       } catch (err) {
-        alert('Connection error.');
+        errEl.textContent = 'Connection error. Please try again.';
+        errEl.style.display = 'block';
+      } finally {
+        if (btn) { btn.disabled = false; btn.textContent = 'Send Reset Link'; }
       }
     }
 
@@ -492,15 +564,10 @@
       }
     }
 
-    // Allow Enter key on login — one handler per field (a document-level
-    // handler fired TWICE for password-field Enter: both listeners saw the
-    // bubbling event, double-posting /api/admin/login against the rate limit).
-    document.getElementById('loginEmail').addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') handleLogin();
-    });
-    document.getElementById('loginPassword').addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') handleLogin();
-    });
+    // Enter on the sign-in form is native now (the card is a real <form>, so
+    // the browser submits it). The old per-field keydown handlers were removed
+    // with the divs — a keydown handler plus a form submit would post the same
+    // credentials twice against the login rate limit.
 
     // ================================================================
     // PRODUCTS
@@ -2187,7 +2254,8 @@
     // ================================================================
     const ADMIN_ACTIONS = {
       'login': () => handleLogin(),
-      'request-pw-reset': () => requestPasswordReset('admin'),
+      'request-pw-reset': () => showResetView(),
+      'show-login': () => showLoginView(),
       'section': (el) => switchSection(el.dataset.section),
       'open-pw-modal': () => openChangePasswordModal(),
       'close-pw-modal': () => closeChangePasswordModal(),
@@ -2270,11 +2338,17 @@
       const fn = ADMIN_INPUTS[hit.dataset.input];
       if (fn) fn(hit, e);
     });
+    const ADMIN_FORMS = {
+      'save-product': handleSaveProduct,
+      'admin-login': (e) => { e.preventDefault(); handleLogin(); },
+      'admin-reset-request': submitPasswordResetRequest,
+    };
     document.addEventListener('submit', (e) => {
       if (!e.target || typeof e.target.closest !== 'function') return;
       const form = e.target.closest('[data-form]');
       if (!form) return;
-      if (form.dataset.form === 'save-product') handleSaveProduct(e);
+      const handler = ADMIN_FORMS[form.dataset.form];
+      if (handler) handler(e);
     });
     document.addEventListener('keydown', (e) => {
       const t = e.target;

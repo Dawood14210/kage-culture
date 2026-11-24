@@ -182,6 +182,15 @@
     .login-card button:hover { background:#374151; color:var(--text-on-primary-hover); transform:translateY(-1px); box-shadow: 0 4px 20px rgba(0,0,0,0.15); }
     .login-card button:active { transform:translateY(0); }
     .login-card button:disabled { opacity:0.4; cursor:not-allowed; transform:none; }
+    .login-card form { display:block; }
+    .login-card form.admin-hide { display:none; }
+    /* "Check your spam folder too" reassurance after a reset link is sent. */
+    .login-card .sent-note {
+      margin-top:1rem; padding:0.7rem 0.85rem;
+      background: var(--accent-bg); border:1px solid var(--accent-glow);
+      color: var(--text-primary); font-size:0.8rem; line-height:1.5;
+    }
+    .login-card .sent-note strong { display:block; margin-bottom:0.15rem; }
 
     /* ===== DASHBOARD ===== */
     .dashboard { display:none; }
