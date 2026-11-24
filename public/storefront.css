@@ -1980,6 +1980,19 @@
     }
     .cust-card .cust-switch a { color: var(--accent); cursor: pointer; font-weight: 600; }
     .cust-card .cust-switch a:hover { text-decoration: underline; }
+    /* The login / signup / reset views are <form> elements now (Enter submits
+       them); these keep them laid out exactly like the plain <div>s they
+       replaced. */
+    .cust-card .cust-form { display: block; }
+    .cust-card .cust-form.is-hidden { display: none; }
+    /* "Email sent — check spam too" reassurance under the reset request. */
+    .cust-card .cust-note {
+      margin-top: 0.9rem; padding: 0.7rem 0.8rem;
+      background: var(--bg-secondary); border: 1px solid var(--border-color);
+      border-radius: var(--radius-sm);
+      font-size: 0.75rem; line-height: 1.5; color: var(--text-primary);
+    }
+    .cust-card .cust-note strong { display: block; margin-bottom: 0.15rem; }
 
     /* ================================================================
        CUSTOMER ACCOUNT PAGE

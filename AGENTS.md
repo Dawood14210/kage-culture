@@ -100,6 +100,16 @@
   (9.57:1 and 6.20:1). A geometry + computed-type diff against `ba934a7`
   proves no visual change. Details in `AUDIT.md`; `npm test` **169/169**,
   frontend **81/81**, a11y suite green.
+- ✅ *(2026-11-24, owner request)* **Password reset has a GUI, Enter signs in,
+  and every "we emailed you" message says to check spam.** The two
+  `prompt()`/`alert()` reset flows became in-page forms (storefront account
+  modal `#custResetView`, admin login card `#loginResetView`, both routed
+  through the existing `data-form` delegation). Sign-in, sign-up, reset-request,
+  admin sign-in and change-password are real `<form>`s now, so Enter submits;
+  their async handlers must `preventDefault()` first (a missing call caused a
+  native submit + page reload). The spam hint is only on branches that actually
+  send, so the anti-enumeration replies stay identical. Details in `AUDIT.md`;
+  `npm test` **169/169**, frontend **84/84**, a11y green.
 - ✅ *(2026-11-24, owner request)* **Nav links live in the hamburger panel at
   every width.** Phase 2 had re-inlined them above 1023 px; the `≥1024px` row
   layout and `.hamburger { display: none }` are gone, `.nav-links.open` moved

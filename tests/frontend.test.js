@@ -2692,6 +2692,147 @@ async function ready(win) {
 
 
     // ---------------------------------------------------------------
+    // Scenario 19c: password-reset GUI — no prompt(), Enter submits, and
+    // every "we sent you an email" message says to check spam.
+    // ---------------------------------------------------------------
+    {
+      const resetPage = page(storeHtml, '/', {
+        fetchImpl: (url, options) => {
+          if (String(url).startsWith('/api/auth/forgot-password')) {
+            return Promise.resolve({ ok: true, status: 200, json: async () => ({ success: true, message: 'If an account exists, a reset link has been sent.' }) });
+          }
+          if (String(url).startsWith('/api/customers/login')) {
+            return Promise.resolve({ ok: true, status: 200, json: async () => ({ customer: { id: 1, email: 'clan@kage.test', name: 'Clan' } }) });
+          }
+          return fetch(origin + url, options);
+        }
+      });
+      windows.push(resetPage);
+      await ready(resetPage.window);
+      const rd = resetPage.window.document, rw = resetPage.window;
+
+      // The reset request is a real form inside the account modal.
+      const resetForm = rd.getElementById('custResetView');
+      assert.ok(resetForm && resetForm.tagName === 'FORM', 'the forgot-password view is a real <form>');
+      assert.equal(resetForm.dataset.form, 'cust-reset-request', 'the form is routed by the delegated submit listener');
+      assert.equal(rd.getElementById('custLoginView').tagName, 'FORM', 'the sign-in view is a real <form> (Enter signs in)');
+      assert.equal(rd.getElementById('custSignupView').tagName, 'FORM', 'the sign-up view is a real <form>');
+      const bundle = readFileSync(join(__dirname, '..', 'public', 'storefront.js'), 'utf8');
+      assert.doesNotMatch(bundle, /prompt\(/, 'the reset request no longer opens a window.prompt()');
+
+      // Opening it hides the other views and starts from the sign-in email.
+      rw.openCustModal();
+      rd.getElementById('custLoginEmail').value = 'clan@kage.test';
+      rd.querySelector('#custLoginView [data-action="request-pw-reset"]').click();
+      assert.equal(rd.getElementById('custResetView').classList.contains('is-hidden'), false, 'the reset view opens');
+      assert.equal(rd.getElementById('custLoginView').classList.contains('is-hidden'), true, 'the sign-in view hides');
+      assert.equal(rd.getElementById('custResetEmail').value, 'clan@kage.test', 'the typed email is carried into the reset form');
+
+      // Submitting (what Enter does) posts, and the reply says to check spam.
+      rd.getElementById('custResetEmail').value = 'clan@kage.test';
+      rd.getElementById('custResetView').dispatchEvent(new rw.Event('submit', { bubbles: true, cancelable: true }));
+      for (let i = 0; i < 40 && rd.getElementById('custResetMsg').hidden; i++) await wait(50);
+      const sentNote = rd.getElementById('custResetMsg');
+      assert.equal(sentNote.hidden, false, 'the reset view confirms the request in-page');
+      assert.match(sentNote.textContent, /Reset link sent/i);
+      assert.match(sentNote.textContent, /spam/i, 'the confirmation tells the shopper to check the spam folder');
+      assert.match(sentNote.textContent, /clan@kage\.test/, 'the confirmation names the address it was sent to');
+
+      // An empty address is refused locally, without a request.
+      const emptyPage = page(storeHtml, '/', {
+        fetchImpl: (url, options) => {
+          if (String(url).startsWith('/api/auth/forgot-password')) return Promise.reject(new Error('must not be called'));
+          return fetch(origin + url, options);
+        }
+      });
+      windows.push(emptyPage);
+      await ready(emptyPage.window);
+      const ed = emptyPage.window.document;
+      emptyPage.window.openCustModal();
+      emptyPage.window.showCustReset();
+      ed.getElementById('custResetView').dispatchEvent(new emptyPage.window.Event('submit', { bubbles: true, cancelable: true }));
+      await wait(120);
+      assert.equal(ed.getElementById('custResetError').style.display, 'block', 'an empty email is refused in the form');
+      assert.match(ed.getElementById('custResetError').textContent, /email/i);
+
+      // Enter in the sign-in form submits it (native form submission).
+      const enterPage = page(storeHtml, '/', {
+        fetchImpl: (url, options) => {
+          if (String(url).startsWith('/api/customers/login')) {
+            return Promise.resolve({ ok: true, status: 200, json: async () => ({ customer: { id: 1, email: 'clan@kage.test', name: 'Clan' } }) });
+          }
+          return fetch(origin + url, options);
+        }
+      });
+      windows.push(enterPage);
+      await ready(enterPage.window);
+      const ed2 = enterPage.window.document;
+      enterPage.window.openCustModal();
+      ed2.getElementById('custLoginEmail').value = 'clan@kage.test';
+      ed2.getElementById('custLoginPassword').value = 'password12345';
+      ed2.getElementById('custLoginView').dispatchEvent(new enterPage.window.Event('submit', { bubbles: true, cancelable: true }));
+      for (let i = 0; i < 40 && ed2.getElementById('custOverlay').classList.contains('open'); i++) await wait(50);
+      assert.equal(ed2.getElementById('custOverlay').classList.contains('open'), false, 'submitting the sign-in form signs the shopper in');
+      assert.ok(enterPage.window.eval('currentCustomer'), 'the signed-in customer is stored');
+
+      // The account page's change-password card is a form too (Enter submits).
+      assert.equal(rd.querySelector('[data-form="account-password"]').tagName, 'FORM', 'the change-password card is a form (Enter submits)');
+
+      // Account-page email messages mention spam as well.
+      assert.match(bundle, /Check your inbox and spam folder for the verification link/, 'the signup toast says to check spam');
+      assert.match(bundle, /and the spam folder, just in case/, 'the resend-verification toast says to check spam');
+      console.log('✅ Password-reset GUI: real forms (no prompt), Enter submits, confirmations say to check spam');
+    }
+
+    // ---------------------------------------------------------------
+    // Admin sign-in: the login card is a form (Enter signs in), and its
+    // forgot-password link opens an in-card reset GUI that says to check spam.
+    // ---------------------------------------------------------------
+    {
+      const adminPage = page(adminHtml, '/admin', {
+        fetchImpl: (url, options) => {
+          if (String(url).includes('/api/admin/me')) return Promise.resolve({ ok: false, status: 401, json: async () => ({}) });
+          if (String(url).startsWith('/api/auth/forgot-password')) {
+            return Promise.resolve({ ok: true, status: 200, json: async () => ({ success: true, message: 'If an account exists, a reset link has been sent.' }) });
+          }
+          return fetch(origin + url, options);
+        }
+      });
+      windows.push(adminPage);
+      for (let i = 0; i < 40 && adminPage.window.document.getElementById('loginPage').style.display !== 'flex'; i++) await wait(50);
+      const aw = adminPage.window, ad = aw.document;
+      assert.equal(ad.getElementById('loginView').tagName, 'FORM', 'the admin sign-in card is a real <form> (Enter signs in)');
+      assert.equal(ad.getElementById('loginView').dataset.form, 'admin-login', 'it is routed by the delegated submit listener');
+      const adminBundle = readFileSync(join(__dirname, '..', 'public', 'admin.js'), 'utf8');
+      assert.doesNotMatch(adminBundle, /prompt\(/, 'the admin reset request no longer opens a window.prompt()');
+      assert.doesNotMatch(adminBundle, /keydown', \(e\) => \{\s*if \(e\.key === 'Enter'\) handleLogin\(\);/, 'the duplicate per-field Enter handlers are gone');
+
+      // The reset view replaces the sign-in view inside the same card.
+      aw.showResetView();
+      assert.equal(ad.getElementById('loginResetView').classList.contains('admin-hide'), false, 'the reset view opens');
+      assert.equal(ad.getElementById('loginView').classList.contains('admin-hide'), true, 'the sign-in view hides');
+
+      ad.getElementById('loginResetEmail').value = 'admin@kage.test';
+      ad.getElementById('loginResetView').dispatchEvent(new aw.Event('submit', { bubbles: true, cancelable: true }));
+      for (let i = 0; i < 40 && ad.getElementById('loginResetMsg').hidden; i++) await wait(50);
+      const adminNote = ad.getElementById('loginResetMsg');
+      assert.equal(adminNote.hidden, false, 'the admin reset view confirms the request');
+      assert.match(adminNote.textContent, /Reset link sent/i);
+      assert.match(adminNote.textContent, /spam/i, 'the admin confirmation says to check spam');
+
+      // Back to sign in, and Escape also leaves the reset view.
+      ad.querySelector('#loginResetView [data-action="show-login"]').click();
+      assert.equal(ad.getElementById('loginView').classList.contains('admin-hide'), false, 'the back link returns to sign-in');
+      aw.showResetView();
+      ad.dispatchEvent(new aw.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      assert.equal(ad.getElementById('loginResetView').classList.contains('admin-hide'), true, 'Escape returns to the sign-in view');
+      // ...but only from the reset view: Escape on the sign-in card changes nothing.
+      ad.dispatchEvent(new aw.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      assert.equal(ad.getElementById('loginView').classList.contains('admin-hide'), false, 'Escape on the sign-in view is ignored');
+      console.log('✅ Admin sign-in: form submit (Enter), in-card reset GUI and a check-spam confirmation');
+    }
+
+    // ---------------------------------------------------------------
     // Scenario 20: a browser with no CSRF cookie completes a checkout
     // ---------------------------------------------------------------
     // The public cacheable reads (/api/products, /api/products/:id, /api/reviews)

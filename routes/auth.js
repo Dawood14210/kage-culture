@@ -210,6 +210,8 @@ module.exports = function createAuthRoutes(db, SESSION_SECRET = getSessionSecret
       }
       const table = type === 'customer' ? 'customers' : 'admin';
       const user = await db.prepare(`SELECT id, email FROM ${table} WHERE LOWER(TRIM(email)) = ?`).get(clean);
+      // Only the branch that really emails gets the spam hint — the generic
+      // answer for an unknown address must stay identical (no enumeration).
       if (!user) return res.json({ success: true, message: 'If an account exists, a reset link has been sent.' });
       const rawToken = crypto.randomBytes(32).toString('hex');
       const tokenHash = hashToken(rawToken);
@@ -228,8 +230,13 @@ module.exports = function createAuthRoutes(db, SESSION_SECRET = getSessionSecret
       <p style="font-size:12px;color:#8A8578;margin-top:24px;">If you didn't request this, you can safely ignore this email.</p>
     </div>
   </div>`;
-      await sendEmail(clean, 'Reset your KAGE Culture password', html);
-      res.json({ success: true, message: 'If an account exists, a reset link has been sent.' });
+      const delivered = (await sendEmail(clean, 'Reset your KAGE Culture password', html)) !== false;
+      res.json({
+        success: true,
+        message: delivered
+          ? 'Reset link sent. Check your inbox and the spam folder — it can take a minute to arrive.'
+          : 'If an account exists, a reset link has been sent.'
+      });
     } catch (err) { console.error('forgot-password failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
   });
 
@@ -253,7 +260,7 @@ module.exports = function createAuthRoutes(db, SESSION_SECRET = getSessionSecret
       const newHash = await bcrypt.hash(password, 12);
       await db.prepare(`UPDATE ${table} SET password_hash = ? WHERE id = ?`).run(newHash, record.user_id);
       await db.prepare('UPDATE password_reset_tokens SET used = 1 WHERE id = ?').run(record.id);
-      res.json({ success: true, message: 'Password reset successfully. You can now log in.' });
+      res.json({ success: true, message: 'Password reset. Sign in with your new password.' });
     } catch (err) { console.error('reset-password failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
   });
 
@@ -336,7 +343,7 @@ module.exports = function createAuthRoutes(db, SESSION_SECRET = getSessionSecret
       const stored = { id: customerId, email: clean, name: customerName };
       const verification = await issueVerificationToken(stored);
       const message = verification.sent
-        ? 'Account created. Check your email to verify your address and see your order history.'
+        ? 'Account created. Check your inbox and spam folder for the verification link to verify your address — your order history unlocks once it is confirmed.'
         : 'Account created, but we could not send the verification email. Please contact support so we can verify your address manually.';
       res.json({ success: true, customer: { ...stored, email_verified: false }, message });
     } catch (err) { console.error('customer/signup failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
@@ -467,7 +474,7 @@ module.exports = function createAuthRoutes(db, SESSION_SECRET = getSessionSecret
       if (!verification.sent) {
         return res.status(503).json({ error: 'We could not send the verification email right now. Please try again later.' });
       }
-      res.json({ success: true, message: 'Verification email sent. Check your inbox.' });
+      res.json({ success: true, message: 'Verification email sent. Check your inbox — and the spam folder, just in case.' });
     } catch (err) { console.error('resend-verification failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
   });
 

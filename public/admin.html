@@ -42,15 +42,29 @@
   <!-- LOGIN PAGE -->
   <div class="login-page" id="loginPage">
     <div class="login-card">
-      <h1>KAGE <span>Admin</span></h1>
-      <p>Sign in to manage products</p>
-      <div class="error" id="loginError"></div>
-      <label for="loginEmail">Email</label>
-      <input type="email" id="loginEmail" placeholder="admin@kage.com" autocomplete="email" />
-      <label for="loginPassword">Password</label>
-      <input type="password" id="loginPassword" placeholder="Enter password" autocomplete="current-password" />
-      <button id="loginBtn" data-action="login">Sign In</button>
-      <p class="forgot-row"><a href="#" data-action="request-pw-reset" class="forgot-link">Forgot password?</a></p>
+      <!-- Sign-in view: a real <form>, so Enter in either field signs in. -->
+      <form id="loginView" data-form="admin-login" novalidate>
+        <h1>KAGE <span>Admin</span></h1>
+        <p>Sign in to manage products</p>
+        <div class="error" id="loginError" role="alert"></div>
+        <label for="loginEmail">Email</label>
+        <input type="email" id="loginEmail" placeholder="admin@kage.com" autocomplete="email" />
+        <label for="loginPassword">Password</label>
+        <input type="password" id="loginPassword" placeholder="Enter password" autocomplete="current-password" />
+        <button id="loginBtn" type="submit">Sign In</button>
+        <p class="forgot-row"><a href="#" data-action="request-pw-reset" class="forgot-link">Forgot password?</a></p>
+      </form>
+      <!-- Forgot password: a real form instead of a browser prompt(). -->
+      <form id="loginResetView" class="admin-hide" data-form="admin-reset-request" novalidate>
+        <h1>Reset <span>Password</span></h1>
+        <p>We'll email you a link to set a new password. It expires in 1 hour.</p>
+        <div class="error" id="loginResetError" role="alert"></div>
+        <label for="loginResetEmail">Admin email</label>
+        <input type="email" id="loginResetEmail" placeholder="admin@kage.com" autocomplete="email" />
+        <button id="loginResetBtn" type="submit">Send Reset Link</button>
+        <div class="sent-note" id="loginResetMsg" role="status" hidden></div>
+        <p class="forgot-row"><a href="#" data-action="show-login" class="forgot-link">Back to sign in</a></p>
+      </form>
     </div>
   </div>
 

@@ -2225,6 +2225,58 @@ well-formed"; the only thing to eyeball is the new underline on the five inline
 links in Returns/Terms/Privacy, in case the owner prefers a different
 non-colour cue.
 
+### ✅ Password reset has a real GUI, Enter signs in, and mail messages say to check spam (owner request)
+**Asked for:** "add a gui for the reset password and also make it so when i press
+enter it signs in also add a message that says check spam whenever a mail is sent
+on whichever section".
+
+**1. Reset-password GUI.** Both "Forgot password?" links opened a browser
+`prompt()` and then an `alert()`. They now open real, in-page forms:
+
+- Storefront: the account modal gained a third view (`#custResetView`, a
+  `<form data-form="cust-reset-request">`) with an email field, **Send Reset
+  Link**, an inline error area and a "Back to sign in" link. The sign-in email
+  is carried over, and the view is reachable from both the modal link and the
+  old `data-action="request-pw-reset"` delegate. No `prompt()`/`alert()`
+  remains in `storefront.js`.
+- Admin panel: `#loginResetView` (`data-form="admin-reset-request"`) swaps into
+  the same login card, with the same fields/behaviour, a back link and Escape
+  to return. No `prompt()`/`alert()` remains in that flow either.
+- Both show an in-page confirmation instead of an alert, and the branded
+  `.cust-note` / `.sent-note` block keeps the design language. The set-password
+  page (`/reset-password?token=…`) already existed and is unchanged — verified
+  end to end with a real token.
+
+**2. Enter signs in.** The views were plain `<div>`s with click-only buttons
+(the sign-in flow had no key handling at all). They are now real `<form>`s, so
+Enter in any field submits: storefront sign-in, sign-up, reset request; admin
+sign-in and reset request; and the account page's change-password card. The
+admin's two per-field `keydown` handlers were deleted — they would have fired
+*in addition to* the native submit and double-posted against the login rate
+limit. Submits are cancelled before the async handlers run (that was a real bug
+found while testing: without `preventDefault()` the browser performed a native
+submit and reloaded the page). Enter now produces exactly one
+`POST /api/customers/login` / `/api/admin/login` in Chromium.
+
+**3. "Check spam" wherever mail is sent.** The hint is tied to the branch that
+actually sends, never to the generic anti-enumeration answer:
+
+- reset request → *"Reset link sent. Check your inbox and the spam folder — it
+  can take a minute to arrive."* (unknown address still gets the identical
+  generic line, so no account enumeration);
+- signup → *"…Check your inbox and spam folder for the verification link…"*;
+- resend verification → *"…Check your inbox — and the spam folder, just in
+  case."*;
+- the in-page reset confirmation and both panels' toasts carry the same advice.
+
+**Verified.** Real Chromium: storefront + admin reset requests fire once on
+Enter with no native reload, the confirmation renders (desktop and 390px phone,
+card 359px, no horizontal scroll), and a token from a real reset email drove
+`/reset-password` to a successful update followed by an admin sign-in with the
+new password. Frontend **84/84** (two new scenarios: storefront reset GUI / Enter
+/ spam copy, and the admin card), `npm test` **169/169** API, a11y suite green
+(181 contrast pairs).
+
 ### ✅ Navigation links moved into the hamburger panel at every width (owner request)
 **Asked for:** "make the navbar options into hamburger options like they were
 before". The Phase 2 header had put the eight links back inline in a centred

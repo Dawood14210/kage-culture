@@ -669,10 +669,13 @@
           </div>
           <div class="account-card">
             <h2>Change Password</h2>
-            <div class="acct-field"><label for="acctCurrentPw">Current Password</label><input type="password" id="acctCurrentPw" /></div>
-            <div class="acct-field"><label for="acctNewPw">New Password</label><input type="password" id="acctNewPw" placeholder="Min. 10 characters" /></div>
-            <button class="acct-btn" data-action="change-password">Update Password</button>
-            <div class="acct-msg" id="acctPwMsg"></div>
+            <!-- A real <form>: Enter in either field updates the password. -->
+            <form data-form="account-password" novalidate>
+              <div class="acct-field"><label for="acctCurrentPw">Current Password</label><input type="password" id="acctCurrentPw" autocomplete="current-password" /></div>
+              <div class="acct-field"><label for="acctNewPw">New Password</label><input type="password" id="acctNewPw" placeholder="Min. 10 characters" autocomplete="new-password" /></div>
+              <button class="acct-btn" type="submit">Update Password</button>
+            </form>
+            <div class="acct-msg" id="acctPwMsg" role="status"></div>
           </div>
           <button class="account-logout" data-action="customer-logout">Sign Out</button>
         </div>
@@ -1036,31 +1039,45 @@
     <div class="cust-card" role="dialog" aria-modal="true" aria-label="Sign in or create an account">
       <button type="button" class="cust-close" data-action="cust-close" aria-label="Close"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
       <div class="text-center-mb-xs"><span class="footer-wordmark">影</span></div>
-      <div id="custLoginView">
+      <!-- Each view is a real <form>: pressing Enter in a field submits it, so
+           signing in, creating an account or asking for a reset link never
+           needs the mouse. -->
+      <form id="custLoginView" class="cust-form" data-form="cust-login" novalidate>
         <h3>Welcome Back</h3>
         <p class="cust-sub">Sign in to your account</p>
-        <div class="cust-error" id="custLoginError"></div>
+        <div class="cust-error" id="custLoginError" role="alert"></div>
         <label for="custLoginEmail">Email</label>
         <input type="email" id="custLoginEmail" placeholder="you@email.com" autocomplete="email" />
         <label for="custLoginPassword">Password</label>
         <input type="password" id="custLoginPassword" placeholder="Enter password" autocomplete="current-password" />
-        <button class="cust-btn" id="custLoginBtn" data-action="cust-login">Sign In</button>
+        <button class="cust-btn" id="custLoginBtn" type="submit">Sign In</button>
         <p class="text-center-fineprint"><a href="#" data-action="request-pw-reset" class="link-accent-pointer">Forgot password?</a></p>
         <p class="cust-switch">Don't have an account? <a href="#" data-action="cust-show-signup">Create one</a></p>
-      </div>
-      <div id="custSignupView" class="is-hidden">
+      </form>
+      <form id="custSignupView" class="cust-form is-hidden" data-form="cust-signup" novalidate>
         <h3>Create Account</h3>
         <p class="cust-sub">Save your info for faster checkout</p>
-        <div class="cust-error" id="custSignupError"></div>
+        <div class="cust-error" id="custSignupError" role="alert"></div>
         <label for="custSignupName">Name</label>
         <input type="text" id="custSignupName" placeholder="Your name" autocomplete="name" />
         <label for="custSignupEmail">Email</label>
         <input type="email" id="custSignupEmail" placeholder="you@email.com" autocomplete="email" />
         <label for="custSignupPassword">Password</label>
         <input type="password" id="custSignupPassword" placeholder="Min. 10 characters" autocomplete="new-password" />
-        <button class="cust-btn" id="custSignupBtn" data-action="cust-signup">Create Account</button>
+        <button class="cust-btn" id="custSignupBtn" type="submit">Create Account</button>
         <p class="cust-switch">Already have an account? <a href="#" data-action="cust-show-login">Sign in</a></p>
-      </div>
+      </form>
+      <!-- Forgot password: a real form instead of a browser prompt(). -->
+      <form id="custResetView" class="cust-form is-hidden" data-form="cust-reset-request" novalidate>
+        <h3>Reset Password</h3>
+        <p class="cust-sub">We'll email you a link to set a new password.</p>
+        <div class="cust-error" id="custResetError" role="alert"></div>
+        <label for="custResetEmail">Email</label>
+        <input type="email" id="custResetEmail" placeholder="you@email.com" autocomplete="email" />
+        <button class="cust-btn" id="custResetBtn" type="submit">Send Reset Link</button>
+        <div class="cust-note" id="custResetMsg" role="status" hidden></div>
+        <p class="cust-switch"><a href="#" data-action="cust-show-login">Back to sign in</a></p>
+      </form>
     </div>
   </div>
 
