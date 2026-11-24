@@ -100,6 +100,18 @@
   (9.57:1 and 6.20:1). A geometry + computed-type diff against `ba934a7`
   proves no visual change. Details in `AUDIT.md`; `npm test` **169/169**,
   frontend **81/81**, a11y suite green.
+- ✅ *(2026-11-24, owner request)* **The shop Filter panel lists the navbar's
+  categories** (Graphic Tees / Anime Shirts / Pants), not the retired
+  Anime-Inspired / Japanese Art / Typography style list. `FILTER_CATEGORIES`
+  is derived from `CATEGORY_OPTIONS` and the panel markup is generated from
+  it — never hardcode a second category list, and never reintroduce a
+  synthetic per-product `style` (the API has no such column; the old
+  `id % 3` fallback is what made the fake options look real). The filter
+  compares `p.collection`. Category ticks follow the route, and
+  `categoryFiltersFollowRoute()` (not a tick count) decides the friendly
+  empty state and the active-filter badge; **no tick = no narrowing**.
+  Details in `AUDIT.md`; `npm test` **171/171**, frontend **84/84**, a11y
+  green.
 - ✅ *(2026-11-24, owner request)* **A signed-in customer sees every order they
   own, each one expandable into full detail.** `/account` renders one
   `<button aria-expanded>` card per order over a `hidden` panel with the item

@@ -2225,6 +2225,48 @@ well-formed"; the only thing to eyeball is the new underline on the five inline
 links in Returns/Terms/Privacy, in case the owner prefers a different
 non-colour cue.
 
+### ✅ The Filter panel's categories are the navbar's categories (owner request)
+**Reported:** "change the categories to the ones in the navbar" (screenshot of the
+shop sidebar showing *Anime-Inspired / Japanese Art / Typography*).
+
+**What was wrong.** The sidebar's Category group was a leftover *style*
+taxonomy — `Anime-Inspired`, `Japanese Art`, `Typography` — that **no product
+has**. `mapApiProducts()` invented a `style` for every product
+(`['Anime-Inspired','Japanese Art','Typography'][id % 3]`), so the filter
+picked up a synthetic value and the list looked real. The real taxonomy is the
+one the navbar links to: **Graphic Tees · Anime Shirts · Pants**
+(`CATEGORY_OPTIONS`, mirroring the admin form and the API's validation).
+
+**Fix.** `FILTER_CATEGORIES` is now derived from `CATEGORY_OPTIONS` and the
+panel markup is generated from it, so the filter lists exactly the navbar
+categories and a new category appears in both places or neither. The filter
+compares against `p.collection` — the same field `/collection/<slug>` and the
+navbar already filter on — instead of the invented `style`, which is gone
+along with the fake fallback in `mapApiProducts()` and its use in the search
+haystack.
+
+Two behaviour details that follow:
+
+- **The checkboxes follow the route.** Opening a category ticks that category
+  (All/New/Sale tick all three), so the panel never claims to be filtering by
+  something the grid is not.
+- **"Is the panel untouched?" is answered against the route, not a tick
+  count.** The friendly *"No pants available right now"* empty state and the
+  active-filter badge both use `categoryFiltersFollowRoute()`; before, a
+  deep link to an empty category showed the generic "No products match your
+  filters" and reported two filters active on a page nobody had filtered.
+
+**Kept deliberately:** no category ticked means *no narrowing* (the full list),
+which is how this filter has always behaved — unticking everything must not
+look like an empty catalog.
+
+**Verified.** `npm test` **171/171**, frontend **84/84** (the drawer scenario now
+pins the three options, their labels, that the stale styles are gone, that a
+single tick narrows to that category, that ticking all three restores the
+catalog, that no tick keeps it, and that the ticks track the route), a11y
+green. Checked in Chromium at 1366 px and 390 px: the sidebar and the mobile
+Filter drawer both list the three navbar categories.
+
 ### ✅ Order history shows every order and opens into full order detail (owner request)
 **Reported:** "make it so that when a customer has logged in then they can see all
 their orders and also full details of their orders".

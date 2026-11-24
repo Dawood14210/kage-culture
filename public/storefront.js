@@ -131,7 +131,7 @@ earlyFetch('/api/reviews/featured');
     // rule in the wishlist-icon block.
     const HEART_SVG = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>';
     const filterState = {
-      cats: new Set(['Anime-Inspired', 'Japanese Art', 'Typography']),
+      cats: new Set(['graphic-tees', 'anime', 'pants']),
       priceMin: 0,
       priceMax: 10000,
       size: ''
@@ -402,6 +402,14 @@ earlyFetch('/api/reviews/featured');
     window.CATEGORY_OPTIONS = CATEGORY_OPTIONS;
     window.CATEGORY_NAMES = CATEGORY_NAMES;
     window.COMING_SOON_CATS = COMING_SOON_CATS;
+    // The Filter panel's Category group is the shop's own taxonomy — the same
+    // categories the navbar links to — derived from CATEGORY_OPTIONS so a new
+    // category shows up in both places or neither. It used to be a leftover
+    // style list (Anime-Inspired / Japanese Art / Typography) that no product
+    // ever carried, so every option emptied the grid.
+    const FILTER_CATEGORIES = CATEGORY_OPTIONS.map(o => o.value);
+    window.FILTER_CATEGORIES = FILTER_CATEGORIES;
+    const allFilterCategories = () => new Set(FILTER_CATEGORIES);
     // Every category is permanent: Graphic Tees and Pants show in the nav,
     // the home strip and the footer whether or not they have stock right now.
     // A category that sells out keeps its card and simply opens the normal
@@ -972,6 +980,10 @@ earlyFetch('/api/reviews/featured');
       // Only a collection route (or an active search) surfaces the grid — the
       // plain homepage keeps it hidden.
       shopCollectionMode = opts.collection === true;
+      // Opening a category means "this category": the Category checkboxes
+      // follow the route, so the panel never claims to be filtering by
+      // something the grid is not. On "All" every category stays ticked.
+      filterState.cats = routeDefaultCategories();      syncFiltersToPanels();
       applyShopVisibility();
       const titles = { 'all':'FEATURED DROPS | NEW ARRIVALS','new':'NEW ARRIVALS','anime':'ANIME SHIRTS','graphic-tees':'GRAPHIC TEES','pants':'PANTS','sale':'ON SALE' };
 const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.','anime':'Anime-inspired art on premium cotton. Each piece is unique — one size, one chance.','graphic-tees':'Original graphic designs on premium cotton.','pants':'Relaxed, everyday fits to match the drops.','sale':'Limited-time markdowns. When it\'s gone, it\'s gone.' };
@@ -986,6 +998,24 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
     }
 
     // ---------- Filtering ----------
+    // The category ticks the current route implies on its own: the category
+    // itself on a category page, every category on All/New/Sale. "Is the panel
+    // untouched?" is answered against this rather than by a tick count, so a
+    // deep link to an empty category still gets the friendly "No pants
+    // available right now" state while a narrowed filter gets the generic one.
+    function routeDefaultCategories() {
+      return FILTER_CATEGORIES.includes(currentCollectionFilter)
+        ? new Set([currentCollectionFilter])
+        : allFilterCategories();
+    }
+    function categoryFiltersFollowRoute() {
+      // No tick at all is not a narrowing: the list stays as the route left it
+      // (this is also the behaviour the category filter has always had).
+      if (filterState.cats.size === 0) return true;
+      const def = routeDefaultCategories();
+      return filterState.cats.size === def.size && [...def].every(c => filterState.cats.has(c));
+    }
+
     function getFilteredProducts() {
       const filter = currentCollectionFilter;
       const hasSearch = searchQuery.trim() !== '';
@@ -1002,13 +1032,15 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
           p.desc,
           p.fit,
           p.collection,
-          CATEGORY_NAMES[p.collection],
-          p.style
+          CATEGORY_NAMES[p.collection]
         ].filter(Boolean).join(' ').toLowerCase().includes(q));
       }
       if (wishlistOnly) f = f.filter(p => wishlist.has(p.id));
-      if (filterState.cats.size > 0 && filterState.cats.size < 3) {
-        f = f.filter(p => filterState.cats.has(p.style));
+      // Category ticks intersect with the route: on /collection/pants, ticking
+      // only "Anime Shirts" honestly finds nothing rather than silently
+      // ignoring the route.
+      if (filterState.cats.size > 0 && filterState.cats.size < FILTER_CATEGORIES.length) {
+        f = f.filter(p => filterState.cats.has(p.collection));
       }
       f = f.filter(p => {
         const r = getPriceRange(p);
@@ -1024,7 +1056,10 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
 
     function countActiveFilters() {
       let c = 0;
-      if (filterState.cats.size > 0 && filterState.cats.size < 3) c += 3 - filterState.cats.size;
+      // Only ticks that narrow the grid away from what the route shows by
+      // itself count — opening Pants is not "two filters active".
+
+      if (filterState.cats.size > 0 && !categoryFiltersFollowRoute()) c += FILTER_CATEGORIES.length - filterState.cats.size;
       if (filterState.priceMin > 0 || filterState.priceMax < 10000) c += 1;
       if (filterState.size) c += 1;
       return c;
@@ -1053,7 +1088,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
 
       // A category is empty only when there are no matching products.
       // Sold-out products remain browsable, including when every item is sold out.
-      const isBrowsingCategory = currentCollectionFilter && ['anime','graphic-tees','pants','sale'].includes(currentCollectionFilter) && !searchQuery.trim() && !wishlistOnly && filterState.cats.size === 3 && filterState.priceMin === 0 && filterState.priceMax === 10000 && !filterState.size;
+      const isBrowsingCategory = currentCollectionFilter && ['anime','graphic-tees','pants','sale'].includes(currentCollectionFilter) && !searchQuery.trim() && !wishlistOnly && categoryFiltersFollowRoute() && filterState.priceMin === 0 && filterState.priceMax === 10000 && !filterState.size;
       if (isBrowsingCategory && filtered.length === 0) {
         const name = CATEGORY_NAMES[currentCollectionFilter] || currentCollectionFilter;
         grid.innerHTML = '<div class="no-results"><p>No ' + esc(name.toLowerCase()) + ' available right now.</p><p class="no-results-note">Check back soon for new drops.</p><p class="no-results-action"><button class="btn btn-primary btn-sm" data-route="collection" data-filter="all">Browse all shirts</button></p></div>';
@@ -1456,9 +1491,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
         <div class="filter-section" data-group="cats">
           <button class="filter-head" type="button" data-action="filter-section"><span>Category</span><span class="chev">▾</span></button>
           <div class="filter-body filter-checkboxes">
-            <label class="filter-checkbox"><input type="checkbox" class="fp-cat" value="Anime-Inspired" /> Anime-Inspired</label>
-            <label class="filter-checkbox"><input type="checkbox" class="fp-cat" value="Japanese Art" /> Japanese Art</label>
-            <label class="filter-checkbox"><input type="checkbox" class="fp-cat" value="Typography" /> Typography</label>
+            ${CATEGORY_OPTIONS.map(o => `<label class="filter-checkbox"><input type="checkbox" class="fp-cat" value="${esc(o.value)}" /> ${esc(o.label)}</label>`).join('')}
           </div>
         </div>
         <div class="filter-section" data-group="price">
@@ -1562,7 +1595,7 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
     }
 
     function resetFilters() {
-      filterState.cats = new Set(['Anime-Inspired', 'Japanese Art', 'Typography']);
+      filterState.cats = allFilterCategories();
       filterState.priceMin = 0;
       filterState.priceMax = 10000;
       filterState.size = '';
@@ -2389,7 +2422,6 @@ const descs = { 'all':'Every drop, every fit.','new':'Fresh ink, just dropped.',
           fit: p.fit || 'Regular',
           collection: p.category,
           drop: p.drop || '',
-          style: p.style || ['Anime-Inspired','Japanese Art','Typography'][Math.abs(p.id) % 3],
           rating: (p.avg_rating != null && p.review_count > 0) ? p.avg_rating : null, // real, from approved reviews only
           variants: null,
           desc: p.description || '',
