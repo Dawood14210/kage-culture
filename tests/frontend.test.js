@@ -3055,18 +3055,52 @@ async function ready(win) {
     assert.ok(drawer.classList.contains('open'), 'the Filter drawer opens');
     assert.ok(d.getElementById('filterOverlay').classList.contains('open'), 'the drawer overlay opens with it');
     const drawerBody = d.getElementById('filterDrawerBody');
-    assert.ok(drawerBody.querySelector('.fp-cat'), 'style filters are in the drawer');
+    // The Category group mirrors the navbar's categories — nothing else.
+    assert.deepStrictEqual([...drawerBody.querySelectorAll('.fp-cat')].map(cb => cb.value).sort(),
+      ['anime', 'graphic-tees', 'pants'], 'the Category filter lists exactly the navbar categories');
+    assert.deepStrictEqual([...drawerBody.querySelectorAll('.fp-cat')].map(cb => cb.parentElement.textContent.trim()).sort(),
+      ['Anime Shirts', 'Graphic Tees', 'Pants'], 'the labels match the navbar labels');
+    for (const stale of ['Anime-Inspired', 'Japanese Art', 'Typography']) {
+      assert.equal(drawerBody.querySelector(`.fp-cat[value="${stale}"]`), null, `the removed "${stale}" style option is gone`);
+    }
     assert.ok(drawerBody.querySelector('.price-min') && drawerBody.querySelector('.price-max'), 'price filter is in the drawer');
     assert.ok(drawerBody.querySelector('.fp-size'), 'size filter is in the drawer');
-    // Style filter: keep only Anime-Inspired and the grid narrows to that style.
+    // Category filter: keep only Anime Shirts and the grid narrows to that
+    // category (the same field the navbar's /collection/anime filters on).
     for (const cb of drawerBody.querySelectorAll('.fp-cat')) {
-      cb.checked = cb.value === 'Anime-Inspired';
+      cb.checked = cb.value === 'anime';
       cb.dispatchEvent(new w.Event('change', { bubbles: true }));
     }
-    assert.ok(w.eval('getFilteredProducts().length > 0 && getFilteredProducts().every(p => p.style === "Anime-Inspired")'),
-      'the drawer style filter narrows the grid to the checked style');
-    assert.equal(d.querySelector('#filterSidebar .fp-cat[value="Anime-Inspired"]').checked, true,
+    assert.ok(w.eval('getFilteredProducts().length > 0 && getFilteredProducts().every(p => p.collection === "anime")'),
+      'the drawer category filter narrows the grid to the checked category');
+    assert.equal(d.querySelector('#filterSidebar .fp-cat[value="anime"]').checked, true,
       'drawer changes sync to the desktop filter panel');
+    // Ticking every category is the unfiltered state again (no phantom narrowing).
+    for (const cb of drawerBody.querySelectorAll('.fp-cat')) {
+      cb.checked = true;
+      cb.dispatchEvent(new w.Event('change', { bubbles: true }));
+    }
+    assert.equal(w.eval('getFilteredProducts().length'), w.eval('allProducts.filter(p => currentCollectionFilter === "all" || p.collection === currentCollectionFilter).length'),
+      'ticking all categories shows the full catalog again');
+    // Unticking every category must not empty the grid (it never did, and a
+    // stray untick should not look like a broken catalog).
+    for (const cb of drawerBody.querySelectorAll('.fp-cat')) {
+      cb.checked = false;
+      cb.dispatchEvent(new w.Event('change', { bubbles: true }));
+    }
+    assert.ok(w.eval('getFilteredProducts().length > 0'), 'no category ticked keeps the full list');
+    assert.equal(d.getElementById('filterBadge').textContent, '0', 'no ticks means no active category filter');
+    // The checkboxes follow the route, so the panel never misstates the grid.
+    w.navigateTo('collection', 'pants');
+    assert.deepStrictEqual([...d.querySelectorAll('#filterSidebar .fp-cat:checked')].map(cb => cb.value), ['pants'],
+      'opening a category ticks that category in the panel');
+    assert.equal(w.eval('categoryFiltersFollowRoute()'), true,
+      'a category route is at its own default state, not a filtered one');
+    assert.equal(d.getElementById('filterBadge').textContent, '0',
+      'merely following a category route is not an active filter');
+    w.navigateTo('collection', 'all');
+    assert.equal(d.querySelectorAll('#filterSidebar .fp-cat:checked').length, 3,
+      'the All page ticks every category again');
     // Size filter through the drawer.
     const drawerSize = drawerBody.querySelector('.fp-size');
     drawerSize.value = 'XXL';
@@ -3080,15 +3114,16 @@ async function ready(win) {
     drawerMax.dispatchEvent(new w.Event('change', { bubbles: true }));
     assert.equal(d.getElementById('resultCount').textContent, '0 results', 'the price filter still filters');
     assert.ok(d.getElementById('collectionGrid').textContent.includes('No products match your filters'));
-    assert.equal(d.getElementById('filterBadge').textContent, '4',
-      'two unchecked styles + size + price count as four active filters — the collection filter no longer counts');
+    // Three category ticks are all on, so only size + price are active here.
+    assert.equal(d.getElementById('filterBadge').textContent, '2',
+      'size + price count as the two active filters — ticked categories are not filters');
     // Apply closes the drawer; Reset restores everything.
     [...drawer.querySelectorAll('button')].find(b => b.textContent.trim() === 'Apply').click();
     assert.equal(drawer.classList.contains('open'), false, 'Apply closes the Filter drawer');
     w.resetFilters();
     assert.equal(d.getElementById('filterBadge').textContent, '0', 'Reset Filters clears every remaining filter');
     assert.ok(w.eval('getFilteredProducts().length > 0'), 'the full catalog returns after reset');
-    console.log('✅ Filter drawer opens and its style/price/size filters still work');
+    console.log('✅ Filter drawer opens and its category/price/size filters still work');
 
     // ---- FE-M6: no micro-typography — every readable font-size is >= 10px.
     {
