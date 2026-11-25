@@ -33,3 +33,9 @@ memdb1
 # Backup files
 *.backup
 *.bak
+
+# Visual QA screenshots (generated locally, not committed)
+screenshots-admin/
+
+# Order-clear backups (owner keeps these outside Git)
+backups/

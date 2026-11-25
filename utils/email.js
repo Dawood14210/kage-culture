@@ -106,7 +106,23 @@ async function sendResendEmail(to, subject, html) {
   return true;
 }
 
-async function sendEmail(to, subject, html) {
+// Routes can now respond before the mail provider answers. Keep a registry of
+// in-flight sends so local/dev/test callers (and the e2e capture helpers) can
+// deterministically wait for every email attempt after the HTTP response. The
+// registry is empty in the common case and never holds a rejected promise:
+// doSendEmail catches provider errors itself.
+const pendingEmailSends = new Set();
+function sendEmail(to, subject, html) {
+  const send = doSendEmail(to, subject, html);
+  pendingEmailSends.add(send);
+  const forget = () => pendingEmailSends.delete(send);
+  send.then(forget, forget);
+  return send;
+}
+async function whenEmailsSettle() {
+  while (pendingEmailSends.size) await Promise.allSettled([...pendingEmailSends]);
+}
+async function doSendEmail(to, subject, html) {
   // SECURITY: a subject or recipient containing CR/LF could inject extra
   // headers. Values are stripped here as well as at construction time.
   const safeTo = stripHeaderChars(to);
@@ -299,7 +315,7 @@ async function sendOrderConfirmation(order) {
     body,
     footerNote: '<p style="margin:0;">This is an automated order confirmation from KAGE Culture.</p>'
   });
-  await sendEmail(order.email, `Order ${stripHeaderChars(order.order_number)} — KAGE Culture`, html);
+  return await sendEmail(order.email, `Order ${stripHeaderChars(order.order_number)} — KAGE Culture`, html);
 }
 
 async function sendStatusUpdate(order, oldStatus) {
@@ -337,7 +353,7 @@ async function sendStatusUpdate(order, oldStatus) {
     body,
     footerNote: '<p style="margin:0;">This is an automated update from KAGE Culture.</p>'
   });
-  await sendEmail(order.email, `Order ${stripHeaderChars(order.order_number)} — ${stripHeaderChars(statusLabels[order.status] || order.status)} — KAGE Culture`, html);
+  return await sendEmail(order.email, `Order ${stripHeaderChars(order.order_number)} — ${stripHeaderChars(statusLabels[order.status] || order.status)} — KAGE Culture`, html);
 }
 
 async function sendVerificationEmail(customer, verifyUrl) {
@@ -409,4 +425,4 @@ async function verifyEmailTransport() {
   }
 }
 
-module.exports = { sendEmail, sendOrderConfirmation, sendStatusUpdate, sendVerificationEmail, passwordResetEmailHtml, emailShell, verifyEmailTransport, escapeHtml, stripHeaderChars, buildLink };
+module.exports = { sendEmail, whenEmailsSettle, sendOrderConfirmation, sendStatusUpdate, sendVerificationEmail, passwordResetEmailHtml, emailShell, verifyEmailTransport, escapeHtml, stripHeaderChars, buildLink };

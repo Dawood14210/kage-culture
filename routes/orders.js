@@ -3,70 +3,49 @@
 // ================================================================
 const express = require('express');
 const crypto = require('crypto');
+const path = require('node:path');
+const { waitUntil } = require('@vercel/functions');
 const config = require('../config');
 const { requireCsrf } = require('../middleware/csrf');
 const { requireAuth, requireCustomerAuth, optionalCustomerId } = require('../middleware/auth');
-const { orderIpFloorLimiter, orderIdentityLimiter, trackingIpFloorLimiter, trackingIdentityLimiter } = require('../middleware/rateLimit');
+const { orderIpFloorLimiter, orderIdentityLimiter, trackingIpFloorLimiter, trackingIdentityLimiter, clearOrdersLimiter } = require('../middleware/rateLimit');
+const bcrypt = require('bcryptjs');
 const { sendOrderConfirmation, sendStatusUpdate } = require('../utils/email');
 const sizeStock = require('../utils/sizes');
 const productShape = require('../utils/productShape');
-const { hasControlChars, isValidEmail, isValidPkMobile, csvCell } = require('../utils/helpers');
+const { adjustLineStock, findStockShortages, shortageMessage } = require('../utils/orderStock');
+const { ordersToCsv } = require('../utils/ordersCsv');
+const { clearAllOrders, CLEAR_PHRASE } = require('../utils/clearOrders');
+const { hasControlChars, isValidEmail, isValidPkMobile } = require('../utils/helpers');
+
+// Response-first email delivery. On Vercel a promise created after res.json()
+// can be frozen with the lambda, so hand it to waitUntil(); everywhere else
+// (local/dev/test) the handler awaits it *after* the response has been sent,
+// keeping email assertions deterministic without making clients wait for SMTP.
+function afterResponse(res, job, label) {
+  const task = Promise.resolve().then(job).then(
+    (sent) => {
+      if (sent === false) console.error(`[email_failed] ${label}: provider reported failure`);
+      else console.info(`[email_sent] ${label}`);
+      return sent;
+    },
+    (err) => {
+      console.error(`[email_failed] ${label}:`, err && err.message ? err.message : err);
+    }
+  );
+  if (process.env.VERCEL && typeof waitUntil === 'function') {
+    waitUntil(task);
+    return Promise.resolve();
+  }
+  // res.json() has already flushed by this point; awaiting here cannot add to
+  // the client's latency, it only keeps the local process alive for the send.
+  void res;
+  return task;
+}
 
 module.exports = function createOrderRoutes(db) {
   const router = express.Router();
   const normPhone = (s) => String(s || '').replace(/\D/g, '').slice(-10);
-
-  // Put back (direction +1) or take out (direction -1) one order line's units.
-  // Per-size lines adjust that size's row; legacy lines adjust the shared pool.
-  // Removing floors at 0 so concurrent sales can never drive stock negative.
-  async function adjustLineStock(db, it, direction) {
-    const qty = Number(it.qty) || 1;
-    const p = await db.prepare('SELECT id, stock_qty FROM products WHERE id = ?').get(it.id);
-    if (!p) return;
-    const perSize = await sizeStock.loadSizeStock(db, p.id);
-    if (perSize) {
-      if (!Object.prototype.hasOwnProperty.call(perSize, it.size)) return;
-      const next = Math.max(0, (perSize[it.size] || 0) + direction * qty);
-      await db.prepare('UPDATE product_size_stock SET stock_qty = ? WHERE product_id = ? AND size = ?').run(next, p.id, it.size);
-      await sizeStock.syncProductStock(db, p.id);
-      if (direction > 0) await db.prepare('UPDATE products SET in_stock = 1 WHERE id = ?').run(p.id);
-      return;
-    }
-    if (p.stock_qty == null) return;
-    const newQty = direction > 0 ? Number(p.stock_qty) + qty : Math.max(0, Number(p.stock_qty) - qty);
-    await db.prepare('UPDATE products SET stock_qty = ?, in_stock = ? WHERE id = ?').run(newQty, direction > 0 || newQty > 0 ? 1 : 0, p.id);
-  }
-
-  // Which lines cannot be fully re-taken? Returns [] when every line fits.
-  // A missing product or size row counts as a shortage (nothing to take back).
-  async function findStockShortages(db, items) {
-    const shortages = [];
-    for (const it of items) {
-      const qty = Number(it.qty) || 1;
-      const product = await db.prepare('SELECT id, name, stock_qty FROM products WHERE id = ?').get(it.id);
-      if (!product) { shortages.push({ name: it.name || `product #${it.id}`, size: it.size || null, needed: qty, available: null }); continue; }
-      const perSize = await sizeStock.loadSizeStock(db, product.id);
-      if (perSize) {
-        if (!Object.prototype.hasOwnProperty.call(perSize, it.size)) { shortages.push({ name: product.name, size: it.size || null, needed: qty, available: null }); continue; }
-        const available = Number(perSize[it.size]) || 0;
-        if (available < qty) shortages.push({ name: product.name, size: it.size, needed: qty, available });
-        continue;
-      }
-      const available = Number(product.stock_qty) || 0;
-      if (available < qty) shortages.push({ name: product.name, size: it.size || null, needed: qty, available });
-    }
-    return shortages;
-  }
-
-  function shortageMessage(shortages) {
-    const detail = shortages.map((s) => {
-      const label = `"${s.name}"` + (s.size ? ` (size ${s.size})` : '');
-      return s.available === null
-        ? `${label} is no longer stocked`
-        : `${label} — ${s.needed} needed, ${s.available} available`;
-    }).join('; ');
-    return `Cannot reactivate this order: not enough stock — ${detail}. Nothing was changed.`;
-  }
 
   // POST place order (public)
   router.post('/api/orders', orderIpFloorLimiter, orderIdentityLimiter, requireCsrf, async (req, res) => {
@@ -221,62 +200,123 @@ module.exports = function createOrderRoutes(db) {
     } catch (err) { console.error('order lookup failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
   });
 
-  // GET all orders (admin only) — supports search
+  // GET orders (admin only) — server-side status/search filters + pagination.
+  // Response: { orders, total, limit, offset }. The CSV export below stays
+  // unpaginated; only the interactive list is paged.
   router.get('/api/orders', requireAuth, async (req, res) => {
     try {
-      const { search, status } = req.query;
-      let orders;
-      if (search && search.trim()) {
-        const q = '%' + search.trim().toLowerCase() + '%';
-        orders = await db.prepare("SELECT * FROM orders WHERE LOWER(customer_name) LIKE ? OR LOWER(email) LIKE ? OR LOWER(order_number) LIKE ? ORDER BY created_at DESC, id DESC").all(q, q, q);
-      } else if (status && status.trim()) {
-        orders = await db.prepare('SELECT * FROM orders WHERE status = ? ORDER BY created_at DESC, id DESC').all(status.trim());
+      const search = String(req.query.search || '').trim().toLowerCase();
+      const status = String(req.query.status || '').trim();
+      const limit = Math.min(config.ORDER_LIST_MAX_LIMIT, Math.max(1, parseInt(req.query.limit, 10) || config.ORDER_LIST_DEFAULT_LIMIT));
+      const offset = Math.max(0, parseInt(req.query.offset, 10) || 0);
+      const matches = (o) => (!status || o.status === status) && (!search || [o.order_number, o.customer_name, o.email, o.phone]
+        .some(v => String(v || '').toLowerCase().includes(search)));
+      const sortRows = (rows) => rows.sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')) || (Number(b.id) - Number(a.id)));
+
+      let rows, total;
+      // The dev-only in-memory store emulates a small subset of SQL (it cannot
+      // parse the OR/LIMIT parts), so filter and page it in JS. Turso and
+      // sql.js do the work in the database, which is the point of pagination.
+      const backend = require('../database').activeBackend;
+      if (backend === 'mem') {
+        const all = await db.prepare('SELECT * FROM orders ORDER BY created_at DESC, id DESC').all();
+        const filtered = sortRows(all.filter(matches));
+        total = filtered.length;
+        rows = filtered.slice(offset, offset + limit);
       } else {
-        orders = await db.prepare('SELECT * FROM orders ORDER BY created_at DESC, id DESC').all();
+        const clauses = [];
+        const args = [];
+        if (status) { clauses.push('status = ?'); args.push(status); }
+        if (search) {
+          clauses.push('(LOWER(customer_name) LIKE ? OR LOWER(email) LIKE ? OR LOWER(order_number) LIKE ? OR LOWER(phone) LIKE ?)');
+          const q = '%' + search.replace(/[\\%_]/g, '\\$&') + '%';
+          args.push(q, q, q, q);
+        }
+        const where = clauses.length ? 'WHERE ' + clauses.join(' AND ') : '';
+        const [countRow, page] = await Promise.all([
+          db.prepare(`SELECT COUNT(*) AS c FROM orders ${where}`).get(...args),
+          db.prepare(`SELECT * FROM orders ${where} ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?`).all(...args, limit, offset)
+        ]);
+        total = Number(countRow && countRow.c) || 0;
+        rows = sortRows(page);
       }
       // F3: the fee we will confirm by phone before dispatch. Placeholder
       // rates from config.DELIVERY_FEES until the owner confirms them —
       // admin-only, the customer-facing total contract is unchanged.
-      orders.forEach(o => { o.items = JSON.parse(o.items_json || '[]'); o.delivery_fee_expected = config.deliveryFeeForCity(o.city); }); res.json(orders);
+      const orders = rows.map(o => ({ ...o, items: JSON.parse(o.items_json || '[]'), delivery_fee_expected: config.deliveryFeeForCity(o.city) }));
+      res.setHeader('X-Total-Count', String(total));
+      res.json({ orders, total, limit, offset });
     } catch (err) { console.error('orders list failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
   });
 
   // GET CSV export (admin only)
   router.get('/api/orders/export/csv', requireAuth, async (req, res) => {
     try {
-      const { status } = req.query;
+      const { status, search } = req.query;
       let orders = status && status.trim() ? await db.prepare('SELECT * FROM orders WHERE status = ? ORDER BY created_at DESC, id DESC').all(status.trim()) : await db.prepare('SELECT * FROM orders ORDER BY created_at DESC, id DESC').all();
-      // Every text column goes through csvCell (RFC 4180 quoting + formula
-      // shielding); the three money columns may stay unquoted, but only when
-      // they are genuinely finite numbers.
-      const csvNumber = (value) => {
-        if (value === null || value === undefined || value === '') return '';
-        const n = Number(value);
-        return Number.isFinite(n) ? String(n) : csvCell(value);
-      };
-      const header = ['Order Number', 'Customer Name', 'Email', 'Phone', 'Address', 'City',
-        'Payment Method', 'Payment Reference', 'COD Confirmed', 'Subtotal', 'Shipping',
-        'Delivery Charge Pending', 'Total', 'Status', 'Created At', 'Notes'].map(csvCell).join(',');
-      const rows = orders.map(o => [
-        csvCell(o.order_number), csvCell(o.customer_name), csvCell(o.email), csvCell(o.phone),
-        csvCell(o.address), csvCell(o.city), csvCell(o.payment_method), csvCell(o.payment_ref),
-        csvCell(o.cod_confirmed ? 'Yes' : 'No'), csvNumber(o.subtotal), csvNumber(o.shipping),
-        csvCell(o.shipping_pending && o.status !== 'cancelled' ? 'Yes' : 'No'), csvNumber(o.total),
-        csvCell(o.status), csvCell(o.created_at), csvCell(o.notes)
-      ].join(','));
-      // BOM so Excel reads non-ASCII names; CRLF is the RFC 4180 line ending.
-      const csv = '\uFEFF' + header + '\r\n' + (rows.length ? rows.join('\r\n') + '\r\n' : '');
+      // CSV is deliberately unpaginated; the same search box narrows it too.
+      if (search && String(search).trim()) {
+        const q = String(search).trim().toLowerCase();
+        orders = orders.filter(o => [o.order_number, o.customer_name, o.email, o.phone].some(v => String(v || '').toLowerCase().includes(q)));
+      }
+      const csv = ordersToCsv(orders);
       res.setHeader('Content-Type', 'text/csv; charset=utf-8');
       res.setHeader('Content-Disposition', `attachment; filename="kage-orders-${new Date().toISOString().slice(0,10)}.csv"`);
       res.send(csv);
     } catch (err) { console.error('orders CSV export failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
   });
 
+  // Settings → Danger zone reads the live count before showing the modal, and
+  // can download the very CSV that the automatic backup will also contain.
+  router.get('/api/admin/orders/count', requireAuth, async (req, res) => {
+    try {
+      const row = await db.prepare('SELECT COUNT(*) AS c FROM orders').get();
+      res.json({ count: Number(row && row.c) || 0 });
+    } catch (err) { console.error('orders count failed:', err.message); res.status(500).json({ error: 'Something went wrong.' }); }
+  });
+
+  router.get('/api/admin/orders/backup', requireAuth, async (req, res) => {
+    try {
+      const orders = await db.prepare('SELECT * FROM orders ORDER BY created_at DESC, id DESC').all();
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="kage-orders-backup-${new Date().toISOString().slice(0,10)}.csv"`);
+      res.send(ordersToCsv(orders));
+    } catch (err) { console.error('orders backup download failed:', err.message); res.status(500).json({ error: 'Something went wrong.' }); }
+  });
+
+  // Destructive, deliberate and NEVER automatic: rate-limited admin + CSRF +
+  // current password + exact phrase. The shared tool backs up before writing.
+  router.delete('/api/orders/all', clearOrdersLimiter, requireCsrf, requireAuth, async (req, res) => {
+    try {
+      if (String((req.body || {}).phrase || (req.body || {}).confirm) !== CLEAR_PHRASE) {
+        return res.status(400).json({ error: `Type ${CLEAR_PHRASE} exactly to clear all orders.` });
+      }
+      const admin = await db.prepare('SELECT password_hash FROM admin WHERE id = ?').get(req.adminId);
+      const match = admin ? await bcrypt.compare(String((req.body || {}).password || ''), admin.password_hash) : false;
+      if (!match) return res.status(401).json({ error: 'Current password is incorrect.' });
+      const result = await clearAllOrders(db, {
+        phrase: CLEAR_PHRASE,
+        source: 'admin',
+        actor: req.adminId
+      });
+      res.json({
+        cleared: result.count,
+        restoredOrders: result.restoredOrders,
+        restoredLines: result.restoredLines,
+        backups: Object.fromEntries(Object.entries(result.backups).map(([k, v]) => [k, path.basename(v)]))
+      });
+    } catch (err) {
+      console.error('[orders_cleared_failed]', err.message);
+      if (err.code === 'BACKUP_FAILED') return res.status(500).json({ error: 'Backup could not be written. No orders were deleted.' });
+      res.status(500).json({ error: 'Could not clear orders. No orders were deleted.' });
+    }
+  });
+
   // PATCH update order status (admin only)
   router.patch('/api/orders/:id/status', requireCsrf, requireAuth, async (req, res) => {
     try {
       const id = parseInt(req.params.id, 10); if (isNaN(id)) return res.status(400).json({ error: 'Invalid order ID' });
-      const { status } = req.body;
+      const { status, silent } = req.body;
       if (!config.ORDER_STATUSES.includes(status)) return res.status(400).json({ error: 'Invalid status. Allowed: ' + config.ORDER_STATUSES.join(', ') });
       const order = await db.prepare('SELECT * FROM orders WHERE id = ?').get(id);
       if (!order) return res.status(404).json({ error: 'Order not found' });
@@ -295,17 +335,27 @@ module.exports = function createOrderRoutes(db) {
         for (const it of items) { await adjustLineStock(db, it, -1); }
       }
       const oldStatus = order.status;
+      // One write, then reconcile from the row we already read: a second SELECT
+      // after the UPDATE is another Turso hop for a value we already know.
+      // RETURNING would save it too, but the local sql.js and mem adapters
+      // don't expose returning rows, so the shared path stays portable.
       await db.prepare('UPDATE orders SET status = ? WHERE id = ?').run(status, id);
       // Cancel/reactivate moves units in or out of the sold totals.
       if (oldStatus !== status) productShape.invalidateProductAggregates();
-      const updated = await db.prepare('SELECT * FROM orders WHERE id = ?').get(id);
-      updated.items = JSON.parse(updated.items_json || '[]');
-      if (oldStatus !== status) {
-        // Await BEFORE responding — serverless lambdas freeze after res.json()
-        try { await sendStatusUpdate({ ...updated, items: updated.items }, oldStatus); }
-        catch (e) { console.error('Status email failed:', e.message); }
-      }
+      let items = [];
+      try { items = JSON.parse(order.items_json || '[]'); } catch (e) { items = []; }
+      const updated = { ...order, status, items };
       res.json(updated);
+      // Email is a side effect, not part of the mutation contract. `silent`
+      // is used by the undo button so a status round-trip never double-mails a
+      // customer. On Vercel waitUntil keeps the send alive; locally the
+      // handler awaits it after the response for deterministic tests.
+      if (oldStatus === status) return;
+      if (silent === true) {
+        console.info('[email_skipped] status update for order', order.order_number, '(silent undo)');
+        return;
+      }
+      await afterResponse(res, () => sendStatusUpdate(updated, oldStatus), `status update for order ${order.order_number}`);
     } catch (err) { console.error('order status update failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
   });
 

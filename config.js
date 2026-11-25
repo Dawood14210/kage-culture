@@ -102,6 +102,10 @@ module.exports = {
   // Order statuses
   ORDER_STATUSES: ['pending', 'awaiting_verification', 'confirmed', 'shipped', 'delivered', 'cancelled'],
 
+  // Admin order list pagination (CSV export is deliberately unpaginated).
+  ORDER_LIST_DEFAULT_LIMIT: 50,
+  ORDER_LIST_MAX_LIMIT: 200,
+
   // Review moderation
   REVIEW_AUTO_APPROVE_ABOVE: 3.5, // reviews rated above this publish without admin approval
 

@@ -738,6 +738,11 @@ const BASE_INDEXES = [
   'CREATE INDEX IF NOT EXISTS idx_orders_email ON orders(email)',
   'CREATE INDEX IF NOT EXISTS idx_orders_order_number ON orders(order_number)',
   'CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status)',
+  // Admin order list reads are always newest-first and often filtered by
+  // status. IF NOT EXISTS keeps these as a one-per-database schema step,
+  // not a per-request or per-cold-start rewrite.
+  'CREATE INDEX IF NOT EXISTS idx_orders_status_created_at ON orders(status, created_at)',
+  'CREATE INDEX IF NOT EXISTS idx_orders_created_at ON orders(created_at)',
   'CREATE INDEX IF NOT EXISTS idx_reviews_product_id ON reviews(product_id)',
   'CREATE INDEX IF NOT EXISTS idx_reviews_status ON reviews(status)',
   'CREATE INDEX IF NOT EXISTS idx_products_category ON products(category)',

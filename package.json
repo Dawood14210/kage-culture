@@ -1,7 +1,7 @@
 {
   "name": "kage-culture",
   "version": "1.1.0",
-  "description": "KAGE CULTURE \u2014 Engineered Fit. Original Art.",
+  "description": "KAGE CULTURE — Engineered Fit. Original Art.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -9,6 +9,7 @@
     "dev": "node scripts/dev.js",
     "build": "node -e \"console.log('KAGE build: static site + Express API ready')\"",
     "seed": "node scripts/seed-demo.js",
+    "clear-orders": "node scripts/clear-orders.js",
     "convert-cards": "node scripts/convert-category-cards.js"
   },
   "engines": {
@@ -17,6 +18,7 @@
   "dependencies": {
     "@libsql/client": "^0.17.4",
     "@vercel/blob": "^2.6.1",
+    "@vercel/functions": "^3.11.3",
     "bcryptjs": "^2.4.3",
     "compression": "^1.8.1",
     "cookie-session": "^2.1.1",

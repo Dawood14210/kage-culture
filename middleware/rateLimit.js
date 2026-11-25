@@ -176,7 +176,18 @@ const resetLimiter = createLimiter({
   message: 'Too many reset requests. Please try again later.'
 });
 
+// Destructive admin-only order wipe. Its own namespace means attempts here
+// cannot consume (or be masked by) the storefront's order/traffic budgets.
+const clearOrdersLimiter = createLimiter({
+  namespace: 'admin-clear-orders',
+  windowMs: 60 * 1000,
+  limit: config.RATE_LIMIT_STRICT,
+  failClosed: true,
+  message: 'Too many clear-orders attempts. Please try again later.'
+});
+
 module.exports = {
+  clearOrdersLimiter,
   globalLimiter,
   strictLimiter,
   adminLoginLimiter,
