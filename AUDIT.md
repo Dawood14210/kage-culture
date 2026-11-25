@@ -2484,3 +2484,126 @@ hero frame 768 px, hero block 1102 px, copy offset 875 px — identical to that
 tree (388 / 722 / 495 before the fix). Mobile 390x844: full 16:9 hero, wordmark
 logo, 44 px targets, one row. `npm test` **169/169**, frontend **81/81**, a11y
 suite green.
+
+---
+
+## 2026-11-24 — admin speed, visual upgrade and guarded order wipe
+
+### 1. Order status writes no longer wait for SMTP
+
+**Measured (local/test, 2 s Resend stub).** Three consecutive PATCH
+`/api/orders/:id/status` calls before the change: **2008 / 2005 / 2004 ms** to
+the HTTP response, with all three sends already observed by response time.
+After: **6 / 4 / 3 ms**, with all three sends still completed afterwards and
+logged `[email_sent]` / `[email_failed]`. Email failure never changes the
+status outcome.
+
+**Change.** The route performs the stock guard + one portable `UPDATE`,
+invalidates product aggregates, responds with the updated row, then schedules
+mail: Vercel uses `waitUntil()`; local/dev/test awaits the post-response
+promise and exposes `whenEmailsSettle()` so tests remain deterministic. No
+`UPDATE … RETURNING` was used because the sql.js and mem adapters do not expose
+returning rows; a second SELECT was avoided by reusing the row already read.
+Indexes `idx_orders_status_created_at` and `idx_orders_created_at` are added
+once through the existing schema/migration list.
+
+`GET /api/orders` is now paginated (`limit` default 50, max 200, `offset`,
+server-side `status`/`search`) with `X-Total-Count`; the admin fetches 50 at a
+time with Load more and debounces search 250 ms only once there is more than
+one page. CSV export stays unpaginated and now applies the same search box.
+The mem backend filters/pages in JS because it cannot parse SQL OR/LIMIT.
+
+**Client.** No `confirm()` for ordinary transitions: the row updates
+optimistically, a per-order in-flight `Set` blocks concurrent clicks, a failed
+PATCH rolls back with an inline toast (401 still redirects to login), and the
+row reconciles from the PATCH response. Cancel/reactivation keep an in-page
+confirm because they move stock. Reactivation still returns 409 with no change
+when stock is short. Stats refetch is debounced 400 ms and only runs for
+cancellation/delivery-affecting changes.
+
+**Decision — silent Undo.** The ~6 s Undo toast sends `{ status: <previous>,
+silent: true }`. Without it, a fast confirm → undo would email the customer
+twice for a status that never settled. This deliberately suppresses only that
+reverse email; the forward transition emails normally.
+
+### 2. Light-theme-first admin visual pass
+
+**Before → after (Orders, desktop 1440).** The old page had an ungrouped dark
+sidebar, a single filter `<select>` and a plain white table with an outlined
+pending badge. The new page has grouped nav (`Overview / Sales / Catalogue /
+Customers / Settings`) with a live pending badge and clear active state,
+segmented status tabs with live counts, a rounded filter/toolbar surface,
+initials avatars, relative times with full-date tooltips, payment chips and
+dot status pills. Order numbers open a right-hand detail drawer with items,
+delivery facts, totals, a fulfilment timeline and the same quick actions as
+the row; Escape/focus restore and a Tab trap are covered by tests.
+
+**Before → after (Dashboard, desktop 1440).** The old five KPI cards were
+compact icon+value tiles with no meta line and no visual hierarchy; the new
+tiles use spacing/radius/shadow tokens, a `stat-meta` slot and a quiet spark
+slot. The P&L chart changed from a dark-themed filled line chart to token-
+coloured **rounded bars** with light `--border` gridlines and Archivo tooltips.
+Both themes stay on the same CSS tokens; no third-party font/icon CDN or CSS
+framework was added (Anton/Archivo remain self-hosted, icons use the existing
+`icon()`/SVG sprite). Motion is 120–180 ms ease-out with a reduced-motion
+override. At ≤768 px the sidebar becomes a compact rail plus the existing
+section select, orders become stacked cards and the drawer is full-width.
+
+**Screenshots** (gitignored `screenshots-admin/`): `before/` and `after/` each
+contain Dashboard, Orders, Order drawer (after only), Products, Add Product,
+Reviews, Reports, Settings (after only) and Login at 1440, 820 and 390 px.
+Measured `documentElement.scrollWidth === clientWidth` at all three widths on
+the final page: **1440/1440, 820/820, 390/390** — no horizontal page scroll.
+
+**Decision — timeline detail.** The database stores only the current status,
+not an event log. The drawer therefore shows the current step in the fulfilment
+progress list and says so, rather than inventing historical timestamps.
+**Omission:** no new timeline table or migration was added for this pass.
+
+### 3. Guarded one-time clear all orders
+
+Nothing calls the wipe on boot, cold start, migration, seed or any timer. Both
+entry points call the same `utils/clearOrders.js#clearAllOrders()`:
+
+- CLI: `npm run clear-orders -- --yes --phrase "DELETE ALL ORDERS"`
+  (`--dry-run` previews counts without writing; production additionally needs
+  `KAGE_CLEAR_ORDERS_PRODUCTION=1` so a shell-history replay cannot wipe live
+  data).
+- Admin: **Settings → Clear all orders…** shows the live count, offers a CSV
+  backup download, asks for the typed phrase and re-prompts the admin password.
+  It posts to `DELETE /api/orders/all` behind its own rate limiter plus
+  `requireCsrf` and `requireAuth`.
+
+Both paths write **two timestamped backups before any delete**: CSV through
+the same `ordersToCsv()`/`csvCell()` writer used by the admin export (formula
+shielding + BOM), and JSON containing the raw order rows including
+`items_json`. If either file cannot be written the function throws with
+`BACKUP_FAILED` and no order is deleted. Active orders return their units via
+the shared `adjustLineStock()`; cancelled orders are skipped. Turso wraps the
+stock writes and single `DELETE` in a transaction; the sqlite-memory/sql.js
+adapters exposed by `database.js` have no portable transaction method, so the
+single DELETE is atomic on its own there. Product aggregates are invalidated,
+an `orders_cleared_v1` audit entry (count, actor, source, backup filenames) is
+written to `app_settings` and `[orders_cleared]` is logged. The audit key is a
+record, **not** a run-once lock. Auto-increment IDs are not reset. Products,
+reviews, customers and newsletter subscribers are untouched; dashboard, P&L,
+tracking and orders all fall back to their existing empty states after the
+client drops its cached page.
+
+**Not run against production.** The only executions were local/test CLI
+refusal checks and the sandboxed e2e suite. **Owner: take a database backup
+before running either trigger.**
+
+### Verification
+
+`PORT=3999 NODE_ENV=test node server.js` and `PORT=3999 npm test` in one shell
+with the server killed afterwards: **176/176 E2E** (new clear-orders suite:
+CLI gate refusal, dry run, wrong phrase, wrong password, missing CSRF, missing
+auth, successful run, backup contents, exact stock restoration, untouched
+tables, empty dashboard/P&L/tracking) and **87 frontend scenarios** (optimistic
+status flow, pagination/search, drawer/tabs/toasts, settings gates and cache
+reset). Shared rate-limit, storefront, upgrade-migration and email suites green.
+A11y: admin light/dark **208 parsed pairs each ≥4.5:1**, index light 148 pairs,
+every outline reset has a 2px/2px `:focus-visible` counterpart, and Chromium
+click/Tab ring checks green. Logs: `/tmp/kage-tests-all-final.log`,
+`/tmp/kage-e2e-clear12.log`, `/tmp/kage-frontend-clear1.log`.

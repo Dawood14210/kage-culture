@@ -38,6 +38,38 @@
 - When a work item from `AUDIT.md` is completed, update `AUDIT.md`: mark the item done
   and record what changed + how it was verified.
 
+## Status snapshot (updated 2026-11-24)
+
+- ✅ **Order-write speed + paged admin list.** Status PATCH responds after the DB
+  write; mail is `waitUntil()` on Vercel and a post-response promise locally
+  (`whenEmailsSettle()` for tests). Measured responses with a 2 s mail stub:
+  **2008/2005/2004 ms → 6/4/3 ms**. Optimistic rows, in-flight `Set`, rollback +
+  toast, in-page Cancel confirm, silent (no duplicate email) Undo, 409 stock
+  guard, 400 ms debounced stats refresh. `GET /api/orders` paginated (50 default,
+  200 max) with Load more + 250 ms server search; CSV unpaginated but searched.
+- ✅ **Admin visual pass (light-first).** Grouped sidebar with pending badge and
+  compact rail, token-driven KPI tiles, segmented tabs with live counts, dot
+  pills/avatars/payment chips, right-hand order drawer with items/address/notes/
+  timeline/actions, stacked mobile cards, one toast component with Undo slot,
+  rounded token-coloured Chart.js bars with light gridlines and Archivo
+  tooltips, login mark. 1440/820/390 screenshots in gitignored
+  `screenshots-admin/`; no page overflow. Native confirms/alerts removed from
+  admin flows; CSP-safe delegation and `icon()` retained.
+- ✅ **Guarded clear-all-orders.** `scripts/clear-orders.js` (`npm run
+  clear-orders -- --yes --phrase "DELETE ALL ORDERS"`, `--dry-run`, production
+  opt-in env) and Settings → Danger zone → `DELETE /api/orders/all` (own rate
+  limiter + `requireCsrf` + `requireAuth` + current password) share
+  `utils/clearOrders.js`. CSV+JSON backups are written before any DELETE;
+  backup failure aborts. Active order stock restored once via shared
+  `adjustLineStock`, cancelled skipped, aggregates invalidated,
+  `orders_cleared_v1` audit + `[orders_cleared]` log. Never automatic; not run
+  against production. Owner must take a DB backup first. Auto-increment IDs are
+  unchanged.
+- **Verification:** server + `PORT=3999 npm test` in one shell with cleanup:
+  **176/176 E2E, 87 frontend scenarios**, all shared/migration/email suites
+  green, admin light/dark 208 contrast pairs each ≥4.5:1 and focus rings green.
+  Before/after notes and logs are in `AUDIT.md`.
+
 ## Status snapshot (updated 2026-11-23)
 
 - ✅ *(2026-11-23, perf pass)* **Task 1 — category-card photos.** Uploads are
