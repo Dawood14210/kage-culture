@@ -65,6 +65,11 @@
   `orders_cleared_v1` audit + `[orders_cleared]` log. Never automatic; not run
   against production. Owner must take a DB backup first. Auto-increment IDs are
   unchanged.
+- ✅ **2026-11-25 follow-up:** Orders status-tab counts are fed by a real
+  `ordersByStatus` map from `/api/admin/stats/dashboard` (and refreshed when the
+  Orders tab opens), fixing zero counts beside populated lists. Decorative
+  sparkline glyphs were removed from all five dashboard KPI tiles; text meta
+  labels stay. Full suite still green (176/176 E2E, 87 frontend).
 - **Verification:** server + `PORT=3999 npm test` in one shell with cleanup:
   **176/176 E2E, 87 frontend scenarios**, all shared/migration/email suites
   green, admin light/dark 208 contrast pairs each ≥4.5:1 and focus rings green.

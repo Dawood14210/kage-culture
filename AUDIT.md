@@ -2607,3 +2607,20 @@ A11y: admin light/dark **208 parsed pairs each ≥4.5:1**, index light 148 pairs
 every outline reset has a 2px/2px `:focus-visible` counterpart, and Chromium
 click/Tab ring checks green. Logs: `/tmp/kage-tests-all-final.log`,
 `/tmp/kage-e2e-clear12.log`, `/tmp/kage-frontend-clear1.log`.
+
+### 2026-11-25 follow-up (owner screenshot on production)
+
+- **Status tab counts now update.** `/api/admin/stats/dashboard` had never
+  returned `ordersByStatus`, so the segmented Orders tabs rendered 0 for every
+  real status while the list showed rows. The endpoint now reduces
+  `SELECT status FROM orders` into a per-status map (portable across sql.js,
+  Turso and the mem adapter), the admin refreshes dashboard stats when Orders
+  is opened, and the rows' optimistic status changes still adjust the counts
+  locally. Verified: 176/176 E2E (counts sum to the live total and are empty
+  after a wipe) and 87 frontend scenarios (a stats payload with Pending 3 /
+  Cancelled 2 drives the tabs).
+- **KPI sparkline glyphs removed.** The five decorative `spark-slot` stair-step
+  glyphs next to Catalogue / All time / Gross sales / Needs action / Restock
+  soon were removed from `admin.html` and the CSS rule deleted; the text meta
+  labels remain. Verified by a frontend assertion and fresh 1440/820/390
+  screenshots in `screenshots-admin/after/`; full `npm test` green.
