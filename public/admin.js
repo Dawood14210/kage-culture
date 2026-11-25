@@ -265,6 +265,12 @@
         document.getElementById('statOrders').textContent = s.orders;
         document.getElementById('statRevenue').textContent = fmtRs(s.revenue);
         document.getElementById('statPending').textContent = s.pendingOrders;
+        const sidebarPending = document.getElementById('sidebarPendingCount');
+        if (sidebarPending) {
+          sidebarPending.textContent = String(s.pendingOrders || 0);
+          sidebarPending.classList.toggle('zero', !s.pendingOrders);
+        }
+        if (s.ordersByStatus) { orderStatusCounts = s.ordersByStatus; updateOrderTabs(); }
         // Low-stock card label follows the configured threshold (was hard-coded "<5")
         const lowLabel = document.querySelector('.low-stock-card .stat-label');
         if (lowLabel && s.lowStockThreshold != null) lowLabel.textContent = 'Low Stock (<' + s.lowStockThreshold + ')';
@@ -493,12 +499,12 @@
         const res = await fetch('/api/admin/logout', { method: 'POST' });
         if (!res.ok) {
           const data = await res.json().catch(() => ({}));
-          alert(data.error || 'Logout failed. Please try again.');
+          showAdminToast(data.error || 'Logout failed. Please try again.', 'error');
           return;
         }
         showLogin();
       } catch (err) {
-        alert('Connection error. Please try again.');
+        showAdminToast('Connection error. Please try again.', 'error');
       }
     }
 
@@ -553,7 +559,7 @@
         const data = await res.json();
         if (res.ok) {
           closeChangePasswordModal();
-          alert('Password updated successfully!');
+          showAdminToast('Password updated successfully!', 'success');
         } else {
           errEl.textContent = data.error || 'Failed to change password.';
           errEl.style.display = 'block';
@@ -626,10 +632,13 @@
       renderProductList(products.filter(p => visibleProductIds.includes(Number(p.id))));
     }
 
-    async function deleteSelectedProducts() {
+    function deleteSelectedProducts() {
       const ids = [...selectedProductIds];
       if (!ids.length) return;
-      if (!confirm('Delete ' + ids.length + ' selected product' + (ids.length === 1 ? '' : 's') + '? This cannot be undone.')) return;
+      askAdminConfirm('Delete ' + ids.length + ' selected product' + (ids.length === 1 ? '' : 's') + '? This cannot be undone.',
+        () => deleteSelectedProductsConfirmed(ids), 'Delete products');
+    }
+    async function deleteSelectedProductsConfirmed(ids) {
       const button = document.getElementById('bulkDeleteProductsBtn');
       btnLoading(button, true, 'Deleting…');
       try {
@@ -640,7 +649,7 @@
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
-          if (res.status !== 401) alert(data.error || 'Failed to delete selected products.');
+          if (res.status !== 401) showAdminToast(data.error || 'Failed to delete selected products.', 'error');
           if (res.status === 409) await loadProducts();
           return;
         }
@@ -649,7 +658,7 @@
         await loadProducts();
         refreshStatsIfNeeded();
       } catch (err) {
-        alert('Connection error while deleting selected products.');
+        showAdminToast('Connection error while deleting selected products.', 'error');
       } finally {
         btnLoading(button, false);
         updateProductSelectionUI();
@@ -730,18 +739,20 @@
           await loadProducts();
         } else {
           const data = await res.json().catch(() => ({}));
-          alert(data.error || 'Failed to toggle stock.');
+          showAdminToast(data.error || 'Failed to toggle stock.', 'error');
         }
       } catch (err) {
-        alert('Failed to toggle stock.');
+        showAdminToast('Failed to toggle stock.', 'error');
       }
     }
 
     // ================================================================
     // DELETE PRODUCT
     // ================================================================
-    async function deleteProduct(id) {
-      if (!confirm('Delete this product? This cannot be undone.')) return;
+    function deleteProduct(id) {
+      askAdminConfirm('Delete this product? This cannot be undone.', () => deleteProductConfirmed(id), 'Delete product');
+    }
+    async function deleteProductConfirmed(id) {
       try {
         const res = await fetch('/api/products/' + id, { method: 'DELETE' });
         if (res.ok) {
@@ -749,10 +760,10 @@
           await loadProducts();
           refreshStatsIfNeeded();
         } else {
-          alert('Failed to delete product.');
+          showAdminToast('Failed to delete product.', 'error');
         }
       } catch (err) {
-        alert('Failed to delete product.');
+        showAdminToast('Failed to delete product.', 'error');
       }
     }
 
@@ -1511,23 +1522,194 @@
     // ================================================================
     // ORDERS
     // ================================================================
-    async function loadOrders() {
+    // ================================================================
+    // ORDERS — paginated list, optimistic row updates, undo
+    // ================================================================
+    const ORDER_STATUS_LABELS = { pending:'Pending', awaiting_verification:'Awaiting Payment', confirmed:'Confirmed', shipped:'Shipped', delivered:'Delivered', cancelled:'Cancelled' };
+    const ORDER_STATUS_VERB = { confirmed:'Confirm', shipped:'Ship', delivered:'Mark delivered' };
+    const NEXT_ORDER_STATUS = { pending:'confirmed', awaiting_verification:'confirmed', confirmed:'shipped', shipped:'delivered' };
+    const FORWARD_STATUSES = ['confirmed', 'shipped', 'delivered'];
+
+    function showAdminToast(message, type, action, duration) {
+      const stack = document.getElementById('adminToasts');
+      if (!stack) return null;
+      const token = 'toast-' + (++toastSeq);
+      const el = document.createElement('div');
+      el.className = 'admin-toast';
+      el.dataset.type = type || 'success';
+      el.setAttribute('role', el.dataset.type === 'error' ? 'alert' : 'status');
+      const text = document.createElement('span');
+      text.className = 'toast-message';
+      text.textContent = message;
+      el.appendChild(text);
+      if (action && action.label) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.dataset.action = 'toast-action';
+        btn.dataset.token = token;
+        btn.textContent = action.label;
+        el.appendChild(btn);
+      }
+      const close = document.createElement('button');
+      close.type = 'button';
+      close.className = 'dismiss';
+      close.dataset.action = 'dismiss-toast';
+      close.dataset.token = token;
+      close.setAttribute('aria-label', 'Dismiss notification');
+      close.textContent = '×';
+      el.appendChild(close);
+      stack.appendChild(el);
+      const timer = setTimeout(() => dismissAdminToast(token), duration == null ? 6000 : duration);
+      adminToasts.set(token, { el, timer, action: action && action.fn });
+      return token;
+    }
+    function dismissAdminToast(token) {
+      const entry = adminToasts.get(token);
+      if (!entry) return;
+      clearTimeout(entry.timer);
+      if (entry.el.parentNode) entry.el.parentNode.removeChild(entry.el);
+      adminToasts.delete(token);
+    }
+    function runToastAction(token) {
+      const entry = adminToasts.get(token);
+      if (!entry) return;
+      dismissAdminToast(token);
+      if (typeof entry.action === 'function') entry.action();
+    }
+
+    function findOrder(id) { return allOrders.find(o => String(o.id) === String(id)); }
+    function orderRow(id) { return document.querySelector('#ordersList .order-row[data-order-id="' + String(id).replace(/["\\]/g, '') + '"]'); }
+    function relativeOrderTime(value) {
+      if (!value) return '';
+      const date = new Date(String(value).replace(' ', 'T'));
+      if (isNaN(date.getTime())) return String(value).slice(0, 16);
+      const seconds = Math.max(0, Math.floor((Date.now() - date.getTime()) / 1000));
+      if (seconds < 60) return 'just now';
+      if (seconds < 3600) return Math.floor(seconds / 60) + 'm ago';
+      if (seconds < 86400) return Math.floor(seconds / 3600) + 'h ago';
+      if (seconds < 604800) return Math.floor(seconds / 86400) + 'd ago';
+      return date.toLocaleDateString();
+    }
+    function customerInitials(name) {
+      return String(name || '?').trim().split(/\s+/).slice(0, 2).map(p => p.charAt(0).toUpperCase()).join('') || '?';
+    }
+
+    function applyOrderStatus(id, status) {
+      const order = findOrder(id);
+      const previous = order && order.status;
+      if (order) order.status = status;
+      if (previous && previous !== status && Object.prototype.hasOwnProperty.call(orderStatusCounts, previous)) {
+        orderStatusCounts[previous] = Math.max(0, (Number(orderStatusCounts[previous]) || 0) - 1);
+        orderStatusCounts[status] = (Number(orderStatusCounts[status]) || 0) + 1;
+        updateOrderTabs();
+      }
+      const row = orderRow(id);
+      if (!row) return;
+      row.dataset.status = status;
+      const badge = row.querySelector('.status-badge');
+      if (badge) {
+        badge.className = 'status-badge status-' + status;
+        const label = badge.querySelector('.status-label');
+        if (label) label.textContent = ORDER_STATUS_LABELS[status] || status;
+        else badge.textContent = ORDER_STATUS_LABELS[status] || status;
+        badge.setAttribute('aria-label', 'Status: ' + (ORDER_STATUS_LABELS[status] || status));
+      }
+      const next = NEXT_ORDER_STATUS[status];
+      const btn = row.querySelector('.next-step-btn');
+      if (btn) {
+        btn.hidden = !next;
+        if (next) {
+          btn.dataset.status = next;
+          btn.textContent = ORDER_STATUS_VERB[next] || next;
+          btn.setAttribute('aria-label', (ORDER_STATUS_VERB[next] || next) + ' order ' + (order ? order.order_number : id));
+        }
+      }
+    }
+    function patchOrderPayment(id, field, value, text) {
+      const order = findOrder(id);
+      if (order) order[field] = value ? 1 : 0;
+      const row = orderRow(id);
+      if (!row) return;
+      const chip = row.querySelector('[data-payment-field="' + field + '"]');
+      if (chip) chip.textContent = text;
+    }
+    function markOrderPending(id, on) {
+      const row = orderRow(id);
+      if (!row) return;
+      if (on) row.dataset.pending = 'true'; else row.removeAttribute('data-pending');
+      row.setAttribute('aria-busy', on ? 'true' : 'false');
+    }
+    function scheduleOrderStatsRefresh() {
+      if (orderStatsTimer) clearTimeout(orderStatsTimer);
+      // Stats are derived from cancelled/delivered counts; refetch once, after
+      // the row and its toast have already painted.
+      orderStatsTimer = setTimeout(() => { orderStatsTimer = null; loadDashboardStats(); }, 400);
+    }
+
+    function updateOrderTabs() {
+      const total = orderTotal || Object.values(orderStatusCounts || {}).reduce((sum, n) => sum + (Number(n) || 0), 0);
+      document.querySelectorAll('.order-tab').forEach(btn => {
+        const countEl = btn.querySelector('.order-tab-count');
+        if (countEl) countEl.textContent = btn.dataset.status ? (Number(orderStatusCounts[btn.dataset.status]) || 0) : total;
+        btn.setAttribute('aria-pressed', btn.classList.contains('active') ? 'true' : 'false');
+      });
+    }
+    function setOrderTab(status) {
+      const select = document.getElementById('orderStatusFilter');
+      if (select) select.value = status || '';
+      document.querySelectorAll('.order-tab').forEach(btn => btn.classList.toggle('active', (btn.dataset.status || '') === (status || '')));
+      updateOrderTabs();
+      loadOrders();
+    }
+
+    async function loadOrders(options) {
+      const opts = options || {};
       const listEl = document.getElementById('ordersList');
-      if (!allOrders.length) setListLoading(listEl, skeletonRows(5, { thumb: false }));
+      if (orderLoading) return;
+      orderLoading = true;
+      if (!opts.append && !allOrders.length) setListLoading(listEl, skeletonRows(5, { thumb: false }));
+      const search = (document.getElementById('orderSearch') || {}).value || '';
+      const status = (document.getElementById('orderStatusFilter') || {}).value || '';
+      const offset = opts.append ? orderOffset : 0;
+      const query = new URLSearchParams({ limit: String(orderPageSize), offset: String(offset) });
+      if (status) query.set('status', status);
+      if (search.trim()) query.set('search', search.trim());
       try {
-        const res = await fetch('/api/orders');
+        const res = await fetch('/api/orders?' + query.toString());
         if (!res.ok) throw new Error('Orders request failed');
-        allOrders = await res.json();
+        const data = await res.json();
+        const page = Array.isArray(data) ? data : (data.orders || []);
+        if (opts.append) {
+          const known = new Set(allOrders.map(o => String(o.id)));
+          allOrders = allOrders.concat(page.filter(o => !known.has(String(o.id))));
+        } else {
+          allOrders = page;
+        }
+        orderTotal = Array.isArray(data) ? page.length : (Number(data.total) || page.length);
+        orderOffset = offset + page.length;
+        orderHasMore = allOrders.length < orderTotal;
         filterOrders();
       } catch (err) {
-        allOrders = [];
-        document.getElementById('ordersList').innerHTML = '<div class="empty-state">Failed to load orders. <button type="button" data-action="load-orders">Retry</button></div>';
+        if (!opts.append) {
+          allOrders = [];
+          orderTotal = 0;
+          orderHasMore = false;
+          listEl.innerHTML = '<div class="empty-state">Failed to load orders. <button type="button" data-action="load-orders">Retry</button></div>';
+        } else {
+          showAdminToast('Could not load more orders. Please retry.', 'error');
+        }
       } finally {
-        clearListBusy(document.getElementById('ordersList'));
+        orderLoading = false;
+        clearListBusy(listEl);
+        const more = document.getElementById('loadMoreOrders');
+        if (more) more.hidden = !orderHasMore || orderLoading;
+        const statusEl = document.getElementById('orderPageStatus');
+        if (statusEl) statusEl.textContent = orderTotal ? 'Showing ' + allOrders.length + ' of ' + orderTotal + ' orders' : '';
+        updateOrderTabs();
       }
     }
 
-        function filterOrders() {
+    function filterOrders() {
       const status = document.getElementById('orderStatusFilter').value;
       const q = (document.getElementById('orderSearch') ? document.getElementById('orderSearch').value : '').toLowerCase().trim();
       let filtered = [...allOrders];
@@ -1539,6 +1721,17 @@
         String(o.email || '').toLowerCase().includes(q));
       filtered.sort((a, b) => { const da = new Date(a.created_at || 0).getTime(); const db = new Date(b.created_at || 0).getTime(); return orderSortAsc ? da - db : db - da; });
       renderOrderList(filtered);
+      updateOrderTabs();
+      return filtered;
+    }
+    function onOrderSearchInput() {
+      if (orderSearchTimer) clearTimeout(orderSearchTimer);
+      orderSearchTimer = setTimeout(() => {
+        // With one page in memory the filter is instant and local; once there
+        // are more pages the server is the only place the full set lives.
+        if (orderHasMore || orderTotal > orderPageSize) loadOrders();
+        else filterOrders();
+      }, 250);
     }
     function toggleOrderSort() {
       orderSortAsc = !orderSortAsc;
@@ -1547,12 +1740,17 @@
     }
     function exportOrdersCsv() {
       const st = document.getElementById('orderStatusFilter').value;
-      window.location.href = '/api/orders/export/csv' + (st ? '?status=' + encodeURIComponent(st) : '');
+      const q = (document.getElementById('orderSearch') || {}).value || '';
+      const params = new URLSearchParams();
+      if (st) params.set('status', st);
+      if (q.trim()) params.set('search', q.trim());
+      window.location.href = '/api/orders/export/csv' + (params.toString() ? '?' + params.toString() : '');
     }
     function renderOrderList(orders) {
       const list = document.getElementById('ordersList');
       if (!orders.length) {
-        list.innerHTML = '<div class="empty-state">' + (allOrders.length ? 'No orders match this status.' : 'No orders yet. Orders placed on the storefront will appear here.') + '</div>';
+        list.innerHTML = '<div class="empty-state"><span class="empty-icon" aria-hidden="true">' + icon('cart') + '</span><p>' + (allOrders.length ? 'No orders match this status.' : 'No orders yet. Orders placed on the storefront will appear here.') + '</p>'
+          + '<button type="button" class="btn-secondary empty-action" data-action="load-orders">Refresh orders</button></div>';
         return;
       }
       let html = `
@@ -1566,36 +1764,43 @@
         const date = (o.created_at || '').replace('T', ' ').slice(0, 16);
         const pay = o.payment_method === 'bank' ? 'Bank Transfer' : o.payment_method === 'jazzcash' ? 'JazzCash' : 'COD';
         const st = (o.status || 'pending').toLowerCase();
-        const statusLabel = { pending:'Pending', awaiting_verification:'Awaiting Payment', confirmed:'Confirmed', shipped:'Shipped', delivered:'Delivered', cancelled:'Cancelled' }[st] || st;
+        const statusLabel = ORDER_STATUS_LABELS[st] || st;
+        const next = NEXT_ORDER_STATUS[st];
+        const nextBtn = next
+          ? `<button type="button" class="next-step-btn" data-action="advance-order" data-id="${o.id}" data-status="${next}">${ORDER_STATUS_VERB[next] || next}</button>`
+          : '';
         const payRef = o.payment_ref ? `<div class="p-category pay-ref">Ref: ${esc(o.payment_ref)}</div>` : '';
-        const codBadge = o.payment_method === 'cod' && o.cod_confirmed ? `<div class="p-category pay-badge pay-badge-success">${icon('check')} COD Confirmed</div>` : '';
+        const codBadge = o.payment_method === 'cod' && o.cod_confirmed ? `<div class="p-category pay-badge pay-badge-success" data-payment-field="cod_confirmed">${icon('check')} COD Confirmed</div>` : `<div class="p-category pay-badge" data-payment-field="cod_confirmed" hidden></div>`;
         const expectedFee = Number(o.delivery_fee_expected);
         const shippingPendingBadge = o.shipping_pending && o.status !== 'cancelled'
           ? `<div class="p-category pay-badge pay-badge-accent">Delivery pending${Number.isFinite(expectedFee) && expectedFee > 0 ? ` · expected Rs. ${expectedFee}` : ''}</div>`
           : '';
-        const verifiedBadge = o.payment_method !== 'cod' && o.payment_verified ? `<div class="p-category pay-badge pay-badge-success">${icon('check')} Payment Verified</div>` : '';
+        const verifiedBadge = o.payment_method !== 'cod'
+          ? `<div class="p-category pay-badge ${o.payment_verified ? 'pay-badge-success' : ''}" data-payment-field="payment_verified">${o.payment_verified ? icon('check') + ' Payment Verified' : 'Payment unverified'}</div>` : '';
         const payOpts = o.payment_method !== 'cod'
           ? `<button data-action="verify-payment" data-id="${o.id}" data-value="${o.payment_verified ? 'false' : 'true'}" class="status-opt status-opt-confirmed">${icon('credit-card')} ${o.payment_verified ? 'Remove Verification' : 'Verify Payment'}</button>`
           : `<button data-action="cod-confirm" data-id="${o.id}" data-value="${o.cod_confirmed ? 'false' : 'true'}" class="status-opt status-opt-delivered">${icon('dollar')} ${o.cod_confirmed ? 'Undo COD Confirmation' : 'Mark COD Confirmed'}</button>`;
         html += `
-          <div class="product-row order-row">
+          <div class="product-row order-row" data-order-id="${o.id}" data-status="${esc(st)}" data-pending="false" data-keys="order-row" tabindex="0">
             <div data-label="Order">
-              <div class="p-name">${esc(o.order_number)}</div>
-              <div class="p-category">${esc(date)}</div>
+              <button type="button" class="p-name order-number-btn" data-action="open-order" data-id="${o.id}">${esc(o.order_number)}</button>
+              <div class="p-category"><time datetime="${esc(o.created_at)}" title="${esc(date)}">${esc(relativeOrderTime(o.created_at))}</time></div>
             </div>
             <div data-label="Customer">
-              <div class="p-name">${esc(o.customer_name)}</div>
+              <div class="order-customer"><span class="customer-avatar" aria-hidden="true">${esc(customerInitials(o.customer_name))}</span><span class="p-name">${esc(o.customer_name)}</span></div>
               <div class="p-category">${esc(o.phone)}</div>
             </div>
             <div class="p-category" data-label="Items">${count} item${count === 1 ? '' : 's'}</div>
             <div data-label="Total"><div class="p-price">${fmtRs(o.total)}</div>${shippingPendingBadge}</div>
-            <div class="p-category" data-label="Payment">${pay}${payRef}${codBadge}${verifiedBadge}</div>
+            <div class="p-category" data-label="Payment"><span class="payment-chip">${pay}</span>${payRef}${codBadge}${verifiedBadge}</div>
             <div class="status-cell" data-label="Status">
-              <span class="status-badge status-${esc(st)}">${statusLabel}</span>
+              <span class="status-badge status-${esc(st)}" aria-label="Status: ${statusLabel}"><span class="status-dot" aria-hidden="true"></span><span class="status-label">${statusLabel}</span><span class="status-pending-spinner" aria-hidden="true"></span></span>
+              ${nextBtn}
               <div class="status-dropdown">
-                <button class="status-dropdown-btn" data-action="status-dropdown" aria-label="Change status">▾</button>
-                <div class="status-dropdown-menu">
+                <button class="status-dropdown-btn" data-action="status-dropdown" aria-label="More status options for ${esc(o.order_number)}" aria-haspopup="true" aria-expanded="false" aria-controls="orderMenu-${o.id}">▾</button>
+                <div class="status-dropdown-menu" id="orderMenu-${o.id}" role="menu">
                   ${payOpts}
+                  <button data-action="order-status" data-id="${o.id}" data-status="awaiting_verification" class="status-opt">Awaiting Payment</button>
                   <button data-action="order-status" data-id="${o.id}" data-status="confirmed" class="status-opt status-opt-confirmed">${icon('check')} Confirm</button>
                   <button data-action="order-status" data-id="${o.id}" data-status="shipped" class="status-opt status-opt-shipped">${icon('truck')} Mark Shipped</button>
                   <button data-action="order-status" data-id="${o.id}" data-status="delivered" class="status-opt status-opt-delivered">${icon('check-circle')} Delivered</button>
@@ -1610,101 +1815,292 @@
       list.innerHTML = html;
     }
 
+    function closeAllStatusDropdowns(returnFocus) {
+      document.querySelectorAll('.status-dropdown-menu.open').forEach(m => {
+        m.classList.remove('open');
+        const btn = m.parentElement.querySelector('.status-dropdown-btn');
+        if (btn && returnFocus) btn.setAttribute('aria-expanded', 'false');
+      });
+    }
     function toggleStatusDropdown(btn) {
       const menu = btn.nextElementSibling;
       const isOpen = menu.classList.contains('open');
-      // Close all open menus first
-      document.querySelectorAll('.status-dropdown-menu.open').forEach(m => m.classList.remove('open'));
-      if (!isOpen) menu.classList.add('open');
+      closeAllStatusDropdowns(true);
+      if (!isOpen) {
+        menu.classList.add('open');
+        btn.setAttribute('aria-expanded', 'true');
+      }
     }
 
-    let updatingOrder = false;
-    const STATUS_LABELS = { pending:'Pending', awaiting_verification:'Awaiting Payment', confirmed:'Confirmed', shipped:'Shipped', delivered:'Delivered', cancelled:'Cancelled' };
-    async function updateOrderStatus(id, status) {
-      if (updatingOrder) return;
-      // Every transition emails the customer — confirm before mutating (Cancel
-      // included; it used to be the only one with a dialog).
-      const label = STATUS_LABELS[status] || status;
-      const msg = status === 'cancelled'
-        ? 'Cancel this order? Stock will be returned to inventory.'
-        : `Mark this order as ${label}? The customer will receive a status email.`;
-      if (!confirm(msg)) return;
-      updatingOrder = true;
-      // Close dropdown immediately
-      document.querySelectorAll('.status-dropdown-menu.open').forEach(m => m.classList.remove('open'));
+    // Generic in-page confirmation (used by stock-moving order changes and
+    // destructive catalogue/review actions). No browser confirm() anywhere.
+    function askAdminConfirm(message, onAccept, acceptLabel) {
+      const modal = document.getElementById('orderConfirmModal');
+      const msg = document.getElementById('orderConfirmMessage');
+      if (!modal || !msg) { onAccept(); return; }
+      msg.textContent = message;
+      const accept = modal.querySelector('[data-action="accept-order-confirm"]');
+      if (accept) accept.textContent = acceptLabel || 'Confirm';
+      orderConfirmRequest = { callback: onAccept };
+      orderConfirmReturnFocus = document.activeElement;
+      modal.hidden = false;
+      const cancel = document.getElementById('orderConfirmCancel');
+      if (cancel) cancel.focus();
+    }
+    function askOrderConfirmation(id, status, previous) {
+      const order = findOrder(id);
+      const number = order ? order.order_number : ('#' + id);
+      const message = status === 'cancelled'
+        ? `Cancel ${number}? This returns its units to inventory.`
+        : `Move ${number} back to ${ORDER_STATUS_LABELS[status] || status} from Cancelled? Its units will be taken from stock again; the change is refused with no changes if stock is short.`;
+      askAdminConfirm(message, () => performStatusPatch(id, status), 'Change status');
+    }
+    function closeOrderConfirm() {
+      const modal = document.getElementById('orderConfirmModal');
+      if (!modal || modal.hidden) return;
+      modal.hidden = true;
+      orderConfirmRequest = null;
+      if (orderConfirmReturnFocus && typeof orderConfirmReturnFocus.focus === 'function') orderConfirmReturnFocus.focus();
+      orderConfirmReturnFocus = null;
+    }
+    function acceptOrderConfirm() {
+      const request = orderConfirmRequest;
+      closeOrderConfirm();
+      if (request && typeof request.callback === 'function') request.callback();
+    }
+
+    async function performStatusPatch(id, status, options) {
+      const opts = options || {};
+      if (inFlightOrders.has(id)) return;
+      const order = findOrder(id);
+      if (!order) return;
+      const previous = order.status;
+      if (previous === status) return;
+      const affectsStats = (previous === 'cancelled') !== (status === 'cancelled') || status === 'delivered' || previous === 'delivered';
+      inFlightOrders.add(id);
+      closeAllStatusDropdowns(true);
+      markOrderPending(id, true);
+      applyOrderStatus(id, status); // optimistic: no list refetch, no scroll jump
+      refreshOpenOrderDrawer();
       try {
         const res = await fetch('/api/orders/' + id + '/status', {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status })
+          body: JSON.stringify({ status, silent: opts.silent === true })
         });
-        if (res.ok) {
-          loadOrders();
-          refreshStatsIfNeeded();
-        } else if (res.status !== 401) {
+        if (res.status === 401) { applyOrderStatus(id, previous); return; } // fetch wrapper shows login
+        if (!res.ok) {
           const data = await res.json().catch(() => ({}));
-          alert(data.error || 'Failed to update status.');
+          throw new Error(data.error || 'Failed to update status.');
         }
+        const updated = await res.json();
+        const current = findOrder(id);
+        if (current) Object.assign(current, updated);
+        applyOrderStatus(id, updated.status || status);
+        markOrderPending(id, false);
+        refreshOpenOrderDrawer();
+        if (opts.undo) {
+          showAdminToast('Status reverted to ' + (ORDER_STATUS_LABELS[updated.status || status] || status) + '. No email sent.', 'success');
+        } else if (!opts.silent && FORWARD_STATUSES.includes(updated.status || status) && previous !== 'cancelled') {
+          const number = (current && current.order_number) || order.order_number;
+          showAdminToast('Order ' + number + ' marked ' + (ORDER_STATUS_LABELS[updated.status || status] || status) + '.', 'success', {
+            label: 'Undo',
+            fn: () => performStatusPatch(id, previous, { silent: true, undo: true })
+          }, 6000);
+        }
+        if (affectsStats) scheduleOrderStatsRefresh();
+        return updated;
       } catch (err) {
-        alert('Connection error.');
+        applyOrderStatus(id, previous);
+        markOrderPending(id, false);
+        refreshOpenOrderDrawer();
+        showAdminToast((err && err.message) || 'Connection error. The status was restored.', 'error');
       } finally {
-        updatingOrder = false;
+        inFlightOrders.delete(id);
       }
     }
 
+    function updateOrderStatus(id, status, options) {
+      if (inFlightOrders.has(String(id)) || inFlightOrders.has(id)) return;
+      const order = findOrder(id);
+      const previous = order && order.status;
+      const opts = options || {};
+      const destructive = (status === 'cancelled' && previous !== 'cancelled') || (previous === 'cancelled' && status !== 'cancelled');
+      if (destructive && !opts.undo) {
+        askOrderConfirmation(id, status, previous);
+        return;
+      }
+      return performStatusPatch(id, status, opts);
+    }
+
     async function verifyPayment(id, verified) {
-      if (updatingOrder) return;
-      updatingOrder = true;
-      document.querySelectorAll('.status-dropdown-menu.open').forEach(m => m.classList.remove('open'));
+      if (inFlightOrders.has(id)) return;
+      const order = findOrder(id);
+      if (!order) return;
+      const previous = !!order.payment_verified;
+      inFlightOrders.add(id);
+      closeAllStatusDropdowns(true);
+      markOrderPending(id, true);
+      patchOrderPayment(id, 'payment_verified', verified, verified ? icon('check') + ' Payment Verified' : 'Payment unverified');
       try {
         const res = await fetch('/api/orders/' + id + '/verify-payment', {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ verified })
+          method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ verified })
         });
-        if (res.ok) {
-          loadOrders();
-        } else if (res.status !== 401) {
-          const data = await res.json().catch(() => ({}));
-          alert(data.error || 'Failed to verify payment.');
-        }
+        if (res.status === 401) { patchOrderPayment(id, 'payment_verified', previous, previous ? icon('check') + ' Payment Verified' : 'Payment unverified'); return; }
+        if (!res.ok) { const data = await res.json().catch(() => ({})); throw new Error(data.error || 'Failed to verify payment.'); }
+        const updated = await res.json();
+        Object.assign(order, updated);
+        patchOrderPayment(id, 'payment_verified', !!updated.payment_verified, updated.payment_verified ? icon('check') + ' Payment Verified' : 'Payment unverified');
+        showAdminToast('Payment verification updated.', 'success');
       } catch (err) {
-        alert('Connection error.');
+        patchOrderPayment(id, 'payment_verified', previous, previous ? icon('check') + ' Payment Verified' : 'Payment unverified');
+        showAdminToast((err && err.message) || 'Connection error. Payment verification was restored.', 'error');
       } finally {
-        updatingOrder = false;
+        markOrderPending(id, false);
+        refreshOpenOrderDrawer();
+        inFlightOrders.delete(id);
       }
     }
 
     async function codConfirm(id, confirmed) {
-      if (updatingOrder) return;
-      updatingOrder = true;
-      document.querySelectorAll('.status-dropdown-menu.open').forEach(m => m.classList.remove('open'));
+      if (inFlightOrders.has(id)) return;
+      const order = findOrder(id);
+      if (!order || order.payment_method !== 'cod') return;
+      const previous = !!order.cod_confirmed;
+      inFlightOrders.add(id);
+      closeAllStatusDropdowns(true);
+      markOrderPending(id, true);
+      patchOrderPayment(id, 'cod_confirmed', confirmed, confirmed ? icon('check') + ' COD Confirmed' : '');
       try {
         const res = await fetch('/api/orders/' + id + '/cod-confirm', {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ confirmed })
+          method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ confirmed })
         });
-        if (res.ok) {
-          loadOrders();
-        } else if (res.status !== 401) {
-          const data = await res.json().catch(() => ({}));
-          alert(data.error || 'Failed to confirm COD.');
-        }
+        if (res.status === 401) { patchOrderPayment(id, 'cod_confirmed', previous, previous ? icon('check') + ' COD Confirmed' : ''); return; }
+        if (!res.ok) { const data = await res.json().catch(() => ({})); throw new Error(data.error || 'Failed to confirm COD.'); }
+        const updated = await res.json();
+        Object.assign(order, updated);
+        patchOrderPayment(id, 'cod_confirmed', !!updated.cod_confirmed, updated.cod_confirmed ? icon('check') + ' COD Confirmed' : '');
+        showAdminToast(updated.cod_confirmed ? 'COD payment confirmed.' : 'COD confirmation removed.', 'success');
       } catch (err) {
-        alert('Connection error.');
+        patchOrderPayment(id, 'cod_confirmed', previous, previous ? icon('check') + ' COD Confirmed' : '');
+        showAdminToast((err && err.message) || 'Connection error. COD confirmation was restored.', 'error');
       } finally {
-        updatingOrder = false;
+        markOrderPending(id, false);
+        refreshOpenOrderDrawer();
+        inFlightOrders.delete(id);
       }
     }
 
     // Close dropdowns when clicking outside
     document.addEventListener('click', (e) => {
-      if (!e.target.closest('.status-dropdown')) {
-        document.querySelectorAll('.status-dropdown-menu.open').forEach(m => m.classList.remove('open'));
-      }
+      if (!e.target.closest('.status-dropdown')) closeAllStatusDropdowns(true);
     });
 
+
+    // Order detail drawer: the row stays put; all facts and quick actions
+    // live in a right-hand dialog with focus in, Escape out and a Tab trap.
+    function renderOrderDrawer(id) {
+      const drawer = document.getElementById('orderDrawer');
+      const body = document.getElementById('orderDrawerBody');
+      const title = document.getElementById('orderDrawerTitle');
+      const order = findOrder(id);
+      if (!drawer || !body || !order) return;
+      title.textContent = order.order_number || ('Order #' + id);
+      const st = (order.status || 'pending').toLowerCase();
+      const next = NEXT_ORDER_STATUS[st];
+      const items = Array.isArray(order.items) ? order.items : [];
+      const pay = order.payment_method === 'bank' ? 'Bank Transfer' : order.payment_method === 'jazzcash' ? 'JazzCash' : 'COD';
+      const date = (order.created_at || '').replace('T', ' ').slice(0, 16);
+      const flow = [
+        { key: 'pending', label: 'Order placed' },
+        { key: 'awaiting_verification', label: 'Payment verification' },
+        { key: 'confirmed', label: 'Confirmed' },
+        { key: 'shipped', label: 'Shipped' },
+        { key: 'delivered', label: 'Delivered' }
+      ];
+      const currentIndex = flow.findIndex(s => s.key === st);
+      const timeline = st === 'cancelled'
+        ? '<li class="done current">Cancelled — this order is closed.</li>'
+        : flow.map((step, i) => {
+            if (step.key === 'awaiting_verification' && order.payment_method === 'cod') return '';
+            return '<li class="' + (i <= currentIndex ? 'done ' : '') + (i === currentIndex ? 'current' : '') + '">' + step.label + '</li>';
+          }).join('');
+      const itemRows = items.length ? items.map(it => `
+        <div class="drawer-item">
+          ${it.image ? '<img src="' + esc(it.image) + '" alt="" loading="lazy" />' : '<span class="customer-avatar" aria-hidden="true">' + esc(customerInitials(it.name)) + '</span>'}
+          <div><div class="di-name">${esc(it.name)}</div><div class="di-meta">Size ${esc(it.size || '—')} · Qty ${esc(it.qty || 1)} · ${fmtRs(it.unit || 0)} each</div></div>
+          <div class="di-total">${fmtRs(it.total != null ? it.total : (Number(it.unit || 0) * Number(it.qty || 1)))}</div>
+        </div>`).join('') : '<p class="drawer-note">No line items were recorded for this order.</p>';
+      body.innerHTML = `
+        <div class="drawer-section">
+          <span class="status-badge status-${esc(st)}"><span class="status-dot" aria-hidden="true"></span><span class="status-label">${ORDER_STATUS_LABELS[st] || st}</span></span>
+          <p class="drawer-note">Placed <time datetime="${esc(order.created_at || '')}" title="${esc(date)}">${esc(relativeOrderTime(order.created_at))}</time> · ${esc(date)}</p>
+        </div>
+        <div class="drawer-section">
+          <h3>Items</h3>
+          ${itemRows}
+          <div class="drawer-grid drawer-grid-spaced">
+            <dl class="drawer-fact"><dt>Subtotal</dt><dd>${fmtRs(order.subtotal)}</dd></dl>
+            <dl class="drawer-fact"><dt>Delivery</dt><dd>${order.shipping_pending && st !== 'cancelled' ? 'Confirmed by phone' : fmtRs(order.shipping)}</dd></dl>
+            <dl class="drawer-fact"><dt>Total</dt><dd>${fmtRs(order.total)}</dd></dl>
+            <dl class="drawer-fact"><dt>Payment</dt><dd>${esc(pay)}${order.payment_ref ? ' · ' + esc(order.payment_ref) : ''}</dd></dl>
+          </div>
+          <p class="drawer-note">${order.payment_method === 'cod' ? (order.cod_confirmed ? 'COD confirmed.' : 'COD not yet confirmed.') : (order.payment_verified ? 'Payment verified.' : 'Payment not yet verified.')}</p>
+        </div>
+        <div class="drawer-section">
+          <h3>Delivery</h3>
+          <div class="drawer-grid">
+            <dl class="drawer-fact"><dt>Customer</dt><dd>${esc(order.customer_name)}</dd></dl>
+            <dl class="drawer-fact"><dt>Phone</dt><dd>${esc(order.phone)}</dd></dl>
+            <dl class="drawer-fact"><dt>Address</dt><dd>${esc(order.address || '—')}${order.city ? ', ' + esc(order.city) : ''}</dd></dl>
+            <dl class="drawer-fact"><dt>Notes</dt><dd>${esc(order.notes || '—')}</dd></dl>
+          </div>
+        </div>
+        <div class="drawer-section">
+          <h3>Fulfilment progress</h3>
+          <ol class="drawer-timeline">${timeline}</ol>
+          <p class="drawer-note">Status history is not stored; this shows the current step.</p>
+        </div>
+        <div class="drawer-section">
+          <h3>Quick actions</h3>
+          <div class="drawer-actions">
+            ${next ? '<button type="button" class="next-step-btn" data-action="advance-order" data-id="' + order.id + '" data-status="' + next + '">' + (ORDER_STATUS_VERB[next] || next) + '</button>' : ''}
+            ${order.payment_method !== 'cod'
+              ? '<button type="button" class="btn-secondary btn-sm" data-action="verify-payment" data-id="' + order.id + '" data-value="' + (order.payment_verified ? 'false' : 'true') + '">' + (order.payment_verified ? 'Remove verification' : 'Verify payment') + '</button>'
+              : '<button type="button" class="btn-secondary btn-sm" data-action="cod-confirm" data-id="' + order.id + '" data-value="' + (order.cod_confirmed ? 'false' : 'true') + '">' + (order.cod_confirmed ? 'Undo COD confirmation' : 'Confirm COD') + '</button>'}
+            <button type="button" class="btn-secondary btn-sm" data-action="order-status" data-id="${order.id}" data-status="cancelled">Cancel order</button>
+          </div>
+        </div>`;
+    }
+    function refreshOpenOrderDrawer() {
+      const drawer = document.getElementById('orderDrawer');
+      if (!drawer || drawer.hidden) return;
+      const id = Number(drawer.dataset.orderId);
+      if (id) renderOrderDrawer(id);
+    }
+    function openOrderDrawer(id) {
+      const drawer = document.getElementById('orderDrawer');
+      const backdrop = document.getElementById('orderDrawerBackdrop');
+      const order = findOrder(id);
+      if (!drawer || !backdrop || !order) return;
+      orderDrawerReturnFocus = document.activeElement;
+      drawer.dataset.orderId = String(id);
+      renderOrderDrawer(id);
+      backdrop.hidden = false;
+      drawer.hidden = false;
+      const close = drawer.querySelector('.drawer-close');
+      if (close) close.focus();
+    }
+    function closeOrderDrawer() {
+      const drawer = document.getElementById('orderDrawer');
+      const backdrop = document.getElementById('orderDrawerBackdrop');
+      if (!drawer || drawer.hidden) return;
+      drawer.hidden = true;
+      if (backdrop) backdrop.hidden = true;
+      delete drawer.dataset.orderId;
+      if (orderDrawerReturnFocus && typeof orderDrawerReturnFocus.focus === 'function') orderDrawerReturnFocus.focus();
+      orderDrawerReturnFocus = null;
+    }
 
     // ================================================================
     // PRODUCT SEARCH / FILTER
@@ -1752,8 +2148,8 @@
           body: JSON.stringify({ stock_qty: Number(val) })
         });
         if (res.ok) { const data = await res.json(); const p = products.find(x => x.id === id); if (p) { p.stock_qty = data.stock_qty; p.in_stock = data.in_stock; } await loadProducts(); refreshStatsIfNeeded(); }
-        else if (res.status !== 401) { const d = await res.json().catch(() => ({})); alert(d.error || 'Failed to update stock.'); cancelStockEdit(id); }
-      } catch (e) { alert('Connection error.'); cancelStockEdit(id); }
+        else if (res.status !== 401) { const d = await res.json().catch(() => ({})); showAdminToast(d.error || 'Failed to update stock.', 'error'); cancelStockEdit(id); }
+      } catch (e) { showAdminToast('Connection error.', 'error'); cancelStockEdit(id); }
     }
     function cancelStockEdit(id) { filterProducts(); }
 
@@ -1762,6 +2158,23 @@
     // ================================================================
     let allOrders = [];
     let orderSortAsc = false;
+    let orderTotal = 0;
+    let orderOffset = 0;
+    let orderPageSize = 50;
+    let orderHasMore = false;
+    let orderLoading = false;
+    let orderSearchTimer = null;
+    let orderStatsTimer = null;
+    let orderStatusCounts = {};
+    let orderDrawerReturnFocus = null;
+    // A guard per order: two different rows can be patched at once, but one
+    // row can never be submitted twice (including rapid Undo/next-step clicks).
+    const inFlightOrders = new Set();
+    // Tokens for in-page toasts and the in-page stock confirmation dialog.
+    const adminToasts = new Map();
+    let orderConfirmRequest = null;
+    let orderConfirmReturnFocus = null;
+    let toastSeq = 0;
 
     // ================================================================
     // SALES SUMMARY
@@ -1816,16 +2229,18 @@
       try {
         const res = await fetch('/api/reviews/' + id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) });
         if (res.ok) loadReviews();
-        else if (res.status !== 401) { const d = await res.json().catch(() => ({})); alert(d.error || 'Failed to update review.'); }
-      } catch (e) { alert('Connection error.'); }
+        else if (res.status !== 401) { const d = await res.json().catch(() => ({})); showAdminToast(d.error || 'Failed to update review.', 'error'); }
+      } catch (e) { showAdminToast('Connection error.', 'error'); }
     }
-    async function deleteReview(id) {
-      if (!confirm('Delete this review permanently?')) return;
+    function deleteReview(id) {
+      askAdminConfirm('Delete this review permanently?', () => deleteReviewConfirmed(id), 'Delete review');
+    }
+    async function deleteReviewConfirmed(id) {
       try {
         const res = await fetch('/api/reviews/' + id, { method: 'DELETE' });
         if (res.ok) loadReviews();
-        else if (res.status !== 401) { const d = await res.json().catch(() => ({})); alert(d.error || 'Failed to delete review.'); }
-      } catch (e) { alert('Connection error.'); }
+        else if (res.status !== 401) { const d = await res.json().catch(() => ({})); showAdminToast(d.error || 'Failed to delete review.', 'error'); }
+      } catch (e) { showAdminToast('Connection error.', 'error'); }
     }
 
     // ================================================================
@@ -1878,70 +2293,51 @@
         const ctx = document.getElementById('pnlChart').getContext('2d');
         if (pnlChart) pnlChart.destroy();
 
+        // Chart colours follow the active token set, so the light dashboard
+        // and the optional dark theme read from the same CSS variables.
+        const token = (name, fallback) => {
+          const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+          return value || fallback;
+        };
+        const gridColor = token('--border', '#E6E7EB');
+        const tickColor = token('--text-muted', '#6B7280');
+        const tooltipBg = token('--bg-card', '#FFFFFF');
         pnlChart = new Chart(ctx, {
-          type: 'line',
+          type: 'bar',
           data: {
             labels: data.labels,
             datasets: [
-              {
-                label: 'Revenue',
-                data: data.revenue,
-                borderColor: '#FFFFFF',
-                backgroundColor: 'rgba(255,255,255,0.08)',
-                borderWidth: 2,
-                tension: 0.35,
-                pointRadius: 3,
-                pointHoverRadius: 5,
-                fill: true
-              },
-              {
-                label: 'Cost',
-                data: data.cost,
-                borderColor: '#E8232F',
-                backgroundColor: 'rgba(232,35,47,0.10)',
-                borderWidth: 2,
-                tension: 0.35,
-                pointRadius: 3,
-                pointHoverRadius: 5,
-                fill: true
-              },
-              {
-                label: 'Profit',
-                data: data.profit,
-                borderColor: '#2EE6A8',
-                backgroundColor: 'rgba(46,230,168,0.10)',
-                borderWidth: 2.5,
-                tension: 0.35,
-                pointRadius: 3,
-                pointHoverRadius: 5,
-                fill: true
-              }
+              { label: 'Revenue', data: data.revenue, backgroundColor: token('--green', '#0E7C55'), borderRadius: 6, borderSkipped: false, maxBarThickness: 18 },
+              { label: 'Cost', data: data.cost, backgroundColor: token('--red', '#E8232F'), borderRadius: 6, borderSkipped: false, maxBarThickness: 18 },
+              { label: 'Profit', data: data.profit, backgroundColor: token('--accent', '#8B5CF6'), borderRadius: 6, borderSkipped: false, maxBarThickness: 18 }
             ]
           },
           options: {
             responsive: true,
             maintainAspectRatio: false,
             interaction: { mode: 'index', intersect: false },
-            animation: { duration: 700, easing: 'easeOutQuart' },
+            animation: { duration: 180, easing: 'easeOutQuart' },
             plugins: {
               legend: {
                 position: 'top',
                 labels: {
-                  color: '#C9C9C9',
+                  color: tickColor,
                   font: { family: 'Archivo', size: 11, weight: '600' },
                   usePointStyle: true,
-                  pointStyle: 'line',
+                  pointStyle: 'rectRounded',
                   padding: 18,
-                  boxWidth: 28
+                  boxWidth: 12
                 }
               },
               tooltip: {
-                backgroundColor: '#111111',
-                titleColor: '#FFFFFF',
-                bodyColor: '#D7D7D7',
-                borderColor: '#2A2A2A',
+                backgroundColor: tooltipBg,
+                titleColor: token('--text-primary', '#111827'),
+                bodyColor: tickColor,
+                borderColor: gridColor,
                 borderWidth: 1,
                 padding: 12,
+                titleFont: { family: 'Archivo', size: 12, weight: '700' },
+                bodyFont: { family: 'Archivo', size: 11 },
                 displayColors: true,
                 callbacks: {
                   label: (c) => ' ' + c.dataset.label + ': ' + fmtRs(c.parsed.y)
@@ -1950,13 +2346,14 @@
             },
             scales: {
               x: {
-                grid: { color: 'rgba(255,255,255,0.05)' },
-                ticks: { color: '#9A9A9A', font: { family: 'Archivo', size: 10 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 12 }
+                grid: { color: gridColor, drawBorder: false },
+                ticks: { color: tickColor, font: { family: 'Archivo', size: 10 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 12 }
               },
               y: {
-                grid: { color: 'rgba(255,255,255,0.07)' },
+                beginAtZero: true,
+                grid: { color: gridColor, drawBorder: false },
                 ticks: {
-                  color: '#9A9A9A',
+                  color: tickColor,
                   font: { family: 'Archivo', size: 10 },
                   callback: (v) => 'Rs. ' + Number(v).toLocaleString('en-IN')
                 }
@@ -2001,7 +2398,7 @@
     // ================================================================
     // TABS
     // ================================================================
-    const sectionTitles = {dashboard:'Dashboard',products:'Products',upload:'Quick Upload',add:'Add Product',homepage:'Homepage Cards',orders:'Orders',reviews:'Reviews',reports:'Reports'};
+    const sectionTitles = {dashboard:'Dashboard',products:'Products',upload:'Quick Upload',add:'Add Product',homepage:'Homepage Cards',orders:'Orders',reviews:'Reviews',reports:'Reports',settings:'Settings'};
     function switchSection(name) {
       document.querySelectorAll('.sidebar-item').forEach(item => {
         item.classList.toggle('active', item.dataset.section === name);
@@ -2020,6 +2417,99 @@
       if (name === 'reports') { loadPnlStats(); loadSalesSummary(); }
       if (name === 'reviews') loadReviews();
       if (name === 'homepage') loadCategoryCards();
+    }
+
+    // Danger zone: a deliberate, typed wipe. The server writes two backups
+    // first; on success the client drops its cached page of orders so the
+    // list, KPIs and reports all fall back to their real empty states.
+    let clearOrdersReturnFocus = null;
+    let clearOrdersBusy = false;
+    function onClearPhraseInput() {
+      const input = document.getElementById('clearOrdersPhrase');
+      const submit = document.getElementById('clearOrdersSubmit');
+      if (input && submit) submit.disabled = input.value !== 'DELETE ALL ORDERS' || clearOrdersBusy;
+    }
+    async function openClearOrdersModal() {
+      const modal = document.getElementById('clearOrdersModal');
+      if (!modal) return;
+      clearOrdersReturnFocus = document.activeElement;
+      modal.hidden = false;
+      const phrase = document.getElementById('clearOrdersPhrase');
+      const password = document.getElementById('clearOrdersPassword');
+      const error = document.getElementById('clearOrdersError');
+      if (phrase) phrase.value = '';
+      if (password) password.value = '';
+      if (error) error.textContent = '';
+      onClearPhraseInput();
+      if (phrase) phrase.focus();
+      const countEl = document.getElementById('clearOrdersCount');
+      if (countEl) countEl.textContent = 'Checking live order count…';
+      try {
+        const res = await fetch('/api/admin/orders/count');
+        if (!res.ok) throw new Error('count failed');
+        const data = await res.json();
+        if (countEl) countEl.textContent = 'This will delete ' + Number(data.count || 0) + ' order(s). Stock will be restored on active orders.';
+      } catch (e) {
+        if (countEl) countEl.textContent = 'Could not load the live count; no order has been deleted.';
+      }
+    }
+    function closeClearOrdersModal() {
+      const modal = document.getElementById('clearOrdersModal');
+      if (!modal || modal.hidden) return;
+      modal.hidden = true;
+      if (clearOrdersReturnFocus && typeof clearOrdersReturnFocus.focus === 'function') clearOrdersReturnFocus.focus();
+      clearOrdersReturnFocus = null;
+    }
+    function downloadOrderBackup() {
+      window.location.href = '/api/admin/orders/backup';
+    }
+    async function confirmClearOrders() {
+      const phrase = document.getElementById('clearOrdersPhrase');
+      const password = document.getElementById('clearOrdersPassword');
+      const error = document.getElementById('clearOrdersError');
+      const submit = document.getElementById('clearOrdersSubmit');
+      if (!phrase || phrase.value !== 'DELETE ALL ORDERS') {
+        if (error) error.textContent = 'Type DELETE ALL ORDERS exactly.';
+        return;
+      }
+      if (!password || !password.value) {
+        if (error) error.textContent = 'Enter your admin password.';
+        return;
+      }
+      clearOrdersBusy = true;
+      onClearPhraseInput();
+      if (submit) submit.textContent = 'Deleting…';
+      try {
+        const res = await fetch('/api/orders/all', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phrase: 'DELETE ALL ORDERS', password: password.value })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) { if (error) error.textContent = data.error || 'Could not clear orders. No orders were deleted.'; return; }
+        closeClearOrdersModal();
+        allOrders = [];
+        orderTotal = 0;
+        orderOffset = 0;
+        orderHasMore = false;
+        orderStatusCounts = {};
+        const list = document.getElementById('ordersList');
+        if (list) filterOrders();
+        const statusEl = document.getElementById('orderPageStatus');
+        if (statusEl) statusEl.textContent = '';
+        closeOrderDrawer();
+        showAdminToast('Cleared ' + data.cleared + ' order(s). Backups: ' + Object.values(data.backups || {}).join(', '), 'success');
+        if (typeof loadDashboardStats === 'function') loadDashboardStats();
+        if (typeof loadProducts === 'function') loadProducts();
+        if (typeof loadPnlStats === 'function') loadPnlStats();
+        if (typeof loadSalesSummary === 'function') loadSalesSummary();
+      } catch (e) {
+        if (error) error.textContent = 'Connection error. No orders were deleted.';
+      } finally {
+        clearOrdersBusy = false;
+        if (submit) submit.textContent = 'Delete all orders';
+        onClearPhraseInput();
+      }
     }
 
     // ================================================================
@@ -2257,6 +2747,10 @@
       'request-pw-reset': () => showResetView(),
       'show-login': () => showLoginView(),
       'section': (el) => switchSection(el.dataset.section),
+      'open-clear-orders': () => openClearOrdersModal(),
+      'close-clear-orders': () => closeClearOrdersModal(),
+      'download-order-backup': () => downloadOrderBackup(),
+      'confirm-clear-orders': () => confirmClearOrders(),
       'open-pw-modal': () => openChangePasswordModal(),
       'close-pw-modal': () => closeChangePasswordModal(),
       'change-pw': () => handleChangePassword(),
@@ -2271,7 +2765,16 @@
       'front-input': () => document.getElementById('frontInput').click(),
       'reset-form': () => resetForm(),
       'order-sort': () => toggleOrderSort(),
+      'order-tab': (el) => setOrderTab(el.dataset.status),
+      'close-order-drawer': () => closeOrderDrawer(),
       'export-csv': () => exportOrdersCsv(),
+      'load-more-orders': () => loadOrders({ append: true }),
+      'advance-order': (el) => updateOrderStatus(Number(el.dataset.id), el.dataset.status),
+      'open-order': (el) => openOrderDrawer(Number(el.dataset.id)),
+      'toast-action': (el) => runToastAction(el.dataset.token),
+      'dismiss-toast': (el) => dismissAdminToast(el.dataset.token),
+      'cancel-order-confirm': () => closeOrderConfirm(),
+      'accept-order-confirm': () => acceptOrderConfirm(),
       'review-filter': (el) => setReviewFilter(el.dataset.value),
       'pnl-period': (el) => setPnlPeriod(el.dataset.value),
       'load-products': () => loadProducts(),
@@ -2293,8 +2796,7 @@
     // duration; the promise the handler returns clears it.
     const ASYNC_ACTIONS = new Set([
       'load-products', 'load-orders', 'toggle-stock', 'delete-product',
-      'verify-payment', 'cod-confirm', 'order-status', 'review-status',
-      'delete-review', 'delete-selected', 'export-csv'
+      'review-status', 'delete-review', 'delete-selected', 'export-csv'
     ]);
     document.addEventListener('click', (e) => {
       if (!e.target || typeof e.target.closest !== 'function') return;
@@ -2316,7 +2818,7 @@
     const ADMIN_CHANGES = {
       'section-select': (el) => switchSection(el.value),
       'filter-products': () => filterProducts(),
-      'filter-orders': () => filterOrders(),
+      'filter-orders': () => loadOrders(),
       'select-visible': (el) => toggleSelectVisibleProducts(el.checked),
       'product-select': (el) => toggleProductSelection(Number(el.dataset.id), el.checked),
     };
@@ -2329,7 +2831,8 @@
     });
     const ADMIN_INPUTS = {
       'filter-products': () => filterProducts(),
-      'filter-orders': () => filterOrders(),
+      'filter-orders': () => onOrderSearchInput(),
+      'clear-orders-phrase': () => onClearPhraseInput(),
     };
     document.addEventListener('input', (e) => {
       if (!e.target || typeof e.target.closest !== 'function') return;
@@ -2352,6 +2855,36 @@
     });
     document.addEventListener('keydown', (e) => {
       const t = e.target;
+      // Escape closes the top-most order overlay first: in-page confirm, then
+      // the status dropdown, returning focus to its trigger. It must work even
+      // when the event is dispatched on the document itself.
+      if (e.key === 'Escape') {
+        const clearModal = document.getElementById('clearOrdersModal');
+        if (clearModal && !clearModal.hidden) { e.preventDefault(); closeClearOrdersModal(); return; }
+        const modal = document.getElementById('orderConfirmModal');
+        if (modal && !modal.hidden) { e.preventDefault(); closeOrderConfirm(); return; }
+        const drawer = document.getElementById('orderDrawer');
+        if (drawer && !drawer.hidden) { e.preventDefault(); closeOrderDrawer(); return; }
+        const open = document.querySelector('.status-dropdown-menu.open');
+        if (open) {
+          e.preventDefault();
+          const trigger = open.parentElement.querySelector('.status-dropdown-btn');
+          closeAllStatusDropdowns(true);
+          if (trigger) trigger.focus();
+          return;
+        }
+      }
+      // Keep Tab inside the open order drawer.
+      const drawer = document.getElementById('orderDrawer');
+      const confirm = document.getElementById('orderConfirmModal');
+      if (e.key === 'Tab' && drawer && !drawer.hidden && confirm && confirm.hidden) {
+        const focusables = [...drawer.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')].filter(el => !el.disabled && el.offsetParent !== null);
+        if (focusables.length) {
+          const first = focusables[0], last = focusables[focusables.length - 1];
+          if (e.shiftKey && (document.activeElement === first || !drawer.contains(document.activeElement))) { e.preventDefault(); last.focus(); }
+          else if (!e.shiftKey && (document.activeElement === last || !drawer.contains(document.activeElement))) { e.preventDefault(); first.focus(); }
+        }
+      }
       if (!t || typeof t.closest !== 'function') return;
       const hit = t.closest('[data-keys]');
       if (!hit) return;
@@ -2359,6 +2892,9 @@
         const id = Number(hit.dataset.id);
         if (e.key === 'Enter') saveStockEdit(id);
         else if (e.key === 'Escape') cancelStockEdit(id);
+      } else if (hit.dataset.keys === 'order-row' && (e.key === 'Enter' || e.key === ' ')) {
+        e.preventDefault();
+        openOrderDrawer(Number(hit.dataset.orderId));
       }
     });
 

@@ -39,9 +39,28 @@
     <symbol id="i-check-circle" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></symbol>
     <symbol id="i-credit-card" viewBox="0 0 24 24"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></symbol>
   </svg>
+
+  <!-- One toast component for all admin feedback. JS adds/removes cards; the
+       action slot is used by the status-change Undo button. -->
+  <div class="admin-toast-stack" id="adminToasts" role="status" aria-live="polite" aria-relevant="additions"></div>
+
+  <!-- In-page confirmation for the two order changes that touch stock.
+       No browser confirm(): focus moves here and Esc returns to the row. -->
+  <div class="admin-modal" id="orderConfirmModal" hidden>
+    <div class="admin-modal-card" role="dialog" aria-modal="true" aria-labelledby="orderConfirmTitle" aria-describedby="orderConfirmMessage">
+      <h3 id="orderConfirmTitle">Confirm order change</h3>
+      <p id="orderConfirmMessage"></p>
+      <div class="admin-modal-actions">
+        <button type="button" class="btn-secondary" data-action="cancel-order-confirm" id="orderConfirmCancel">Keep current status</button>
+        <button type="button" class="btn-danger" data-action="accept-order-confirm">Change status</button>
+      </div>
+    </div>
+  </div>
+
   <!-- LOGIN PAGE -->
   <div class="login-page" id="loginPage">
     <div class="login-card">
+      <img class="login-mark" src="/images/logo/kage-mark-light.png" alt="" width="52" height="52" />
       <!-- Sign-in view: a real <form>, so Enter in either field signs in. -->
       <form id="loginView" data-form="admin-login" novalidate>
         <h1>KAGE <span>Admin</span></h1>
@@ -72,15 +91,31 @@
   <div class="dashboard" id="dashboard">
     <aside class="sidebar">
       <div class="sidebar-logo">KAGE <span>Admin</span></div>
-      <nav class="sidebar-nav" id="sidebarNav">
-        <button class="sidebar-item active" data-section="dashboard" data-action="section" data-section="dashboard"><span class="si-icon"><svg class="icon"><use href="#i-grid"/></svg></span><span class="si-label">Dashboard</span></button>
-        <button class="sidebar-item" data-section="products" data-action="section" data-section="products"><span class="si-icon"><svg class="icon"><use href="#i-box"/></svg></span><span class="si-label">Products</span></button>
-        <button class="sidebar-item" data-section="upload" data-action="section" data-section="upload"><span class="si-icon"><svg class="icon"><use href="#i-zap"/></svg></span><span class="si-label">Quick Upload</span></button>
-        <button class="sidebar-item" data-section="add" data-action="section" data-section="add"><span class="si-icon"><svg class="icon"><use href="#i-plus"/></svg></span><span class="si-label">Add Product</span></button>
-        <button class="sidebar-item" data-section="homepage" data-action="section" data-section="homepage"><span class="si-icon"><svg class="icon"><use href="#i-box"/></svg></span><span class="si-label">Homepage Cards</span></button>
-        <button class="sidebar-item" data-section="orders" data-action="section" data-section="orders"><span class="si-icon"><svg class="icon"><use href="#i-cart"/></svg></span><span class="si-label">Orders</span></button>
-        <button class="sidebar-item" data-section="reviews" data-action="section" data-section="reviews"><span class="si-icon"><svg class="icon"><use href="#i-star"/></svg></span><span class="si-label">Reviews</span></button>
-        <button class="sidebar-item" data-section="reports" data-action="section" data-section="reports"><span class="si-icon"><svg class="icon"><use href="#i-trending-up"/></svg></span><span class="si-label">Reports</span></button>
+      <nav class="sidebar-nav" id="sidebarNav" aria-label="Admin sections">
+        <div class="sidebar-group">
+          <p class="sidebar-group-label">Overview</p>
+          <button class="sidebar-item active" data-section="dashboard" data-action="section"><span class="si-icon"><svg class="icon"><use href="#i-grid"/></svg></span><span class="si-label">Dashboard</span></button>
+        </div>
+        <div class="sidebar-group">
+          <p class="sidebar-group-label">Sales</p>
+          <button class="sidebar-item" data-section="orders" data-action="section"><span class="si-icon"><svg class="icon"><use href="#i-cart"/></svg></span><span class="si-label">Orders</span><span class="sidebar-count" id="sidebarPendingCount" aria-label="Pending orders">0</span></button>
+          <button class="sidebar-item" data-section="reports" data-action="section"><span class="si-icon"><svg class="icon"><use href="#i-trending-up"/></svg></span><span class="si-label">Reports</span></button>
+        </div>
+        <div class="sidebar-group">
+          <p class="sidebar-group-label">Catalogue</p>
+          <button class="sidebar-item" data-section="products" data-action="section"><span class="si-icon"><svg class="icon"><use href="#i-box"/></svg></span><span class="si-label">Products</span></button>
+          <button class="sidebar-item" data-section="upload" data-action="section"><span class="si-icon"><svg class="icon"><use href="#i-zap"/></svg></span><span class="si-label">Quick Upload</span></button>
+          <button class="sidebar-item" data-section="add" data-action="section"><span class="si-icon"><svg class="icon"><use href="#i-plus"/></svg></span><span class="si-label">Add Product</span></button>
+          <button class="sidebar-item" data-section="homepage" data-action="section"><span class="si-icon"><svg class="icon"><use href="#i-box"/></svg></span><span class="si-label">Homepage Cards</span></button>
+        </div>
+        <div class="sidebar-group">
+          <p class="sidebar-group-label">Customers</p>
+          <button class="sidebar-item" data-section="reviews" data-action="section"><span class="si-icon"><svg class="icon"><use href="#i-star"/></svg></span><span class="si-label">Reviews</span></button>
+        </div>
+        <div class="sidebar-group">
+          <p class="sidebar-group-label">Settings</p>
+          <button class="sidebar-item" data-section="settings" data-action="section"><span class="si-icon"><svg class="icon"><use href="#i-alert"/></svg></span><span class="si-label">Settings</span></button>
+        </div>
       </nav>
       <div class="sidebar-footer">
         <span class="admin-email" id="adminEmail"></span>
@@ -98,7 +133,7 @@
             <div class="theme-toggle-track"><div class="theme-toggle-thumb"></div></div>
           </div>
           <span class="top-bar-email" id="adminEmailTop"></span>
-          <button class="btn-action" data-action="section" data-section="add">+ Add Product</button>
+          <button class="btn-action" data-action="section">+ Add Product</button>
         </div>
         <div class="mobile-admin-nav">
           <select id="mobileAdminSection" aria-label="Admin section" data-change="section-select">
@@ -110,6 +145,7 @@
             <option value="orders">Orders</option>
             <option value="reviews">Reviews</option>
             <option value="reports">Reports</option>
+            <option value="settings">Settings</option>
           </select>
           <button type="button" data-action="open-pw-modal">Password</button>
           <button type="button" data-action="logout">Log out</button>
@@ -124,6 +160,7 @@
           <div class="stat-info">
             <div class="stat-value" id="statProducts">—</div>
             <div class="stat-label">Products</div>
+            <div class="stat-meta"><span class="stat-delta">Catalogue</span><span class="spark-slot" aria-hidden="true">◁▂▄▅▆▇</span></div>
           </div>
         </div>
         <div class="stat-card">
@@ -131,6 +168,7 @@
           <div class="stat-info">
             <div class="stat-value" id="statOrders">—</div>
             <div class="stat-label">Total Orders</div>
+            <div class="stat-meta"><span class="stat-delta">All time</span><span class="spark-slot" aria-hidden="true">▁▃▂▅▄▆</span></div>
           </div>
         </div>
         <div class="stat-card stat-card-revenue">
@@ -138,6 +176,7 @@
           <div class="stat-info">
             <div class="stat-value" id="statRevenue">—</div>
             <div class="stat-label">Revenue</div>
+            <div class="stat-meta"><span class="stat-delta">Gross sales</span><span class="spark-slot" aria-hidden="true">▂▄▃▆▅▇</span></div>
           </div>
         </div>
         <div class="stat-card">
@@ -145,6 +184,7 @@
           <div class="stat-info">
             <div class="stat-value" id="statPending">—</div>
             <div class="stat-label">Pending</div>
+            <div class="stat-meta"><span class="stat-delta">Needs action</span><span class="spark-slot" aria-hidden="true">▅▄▃▂▁▁</span></div>
           </div>
         </div>
         <div class="stat-card low-stock-card">
@@ -152,6 +192,7 @@
           <div class="stat-info">
             <div class="stat-value" id="statLowStock">—</div>
             <div class="stat-label">Low Stock (&lt;5)</div>
+            <div class="stat-meta"><span class="stat-delta">Restock soon</span><span class="spark-slot" aria-hidden="true">▁▂▃▄▅▆</span></div>
           </div>
         </div>
       </div>
@@ -420,6 +461,15 @@
 
       <!-- Orders tab -->
       <div class="tab-content" id="tab-orders">
+        <div class="order-tabs" id="orderTabs" role="group" aria-label="Filter orders by status">
+          <button type="button" class="order-tab active" data-action="order-tab" data-status="" aria-pressed="true">All <span class="order-tab-count" data-count="all">0</span></button>
+          <button type="button" class="order-tab" data-action="order-tab" data-status="awaiting_verification" aria-pressed="false">Awaiting payment <span class="order-tab-count" data-count="awaiting_verification">0</span></button>
+          <button type="button" class="order-tab" data-action="order-tab" data-status="pending" aria-pressed="false">Pending <span class="order-tab-count" data-count="pending">0</span></button>
+          <button type="button" class="order-tab" data-action="order-tab" data-status="confirmed" aria-pressed="false">Confirmed <span class="order-tab-count" data-count="confirmed">0</span></button>
+          <button type="button" class="order-tab" data-action="order-tab" data-status="shipped" aria-pressed="false">Shipped <span class="order-tab-count" data-count="shipped">0</span></button>
+          <button type="button" class="order-tab" data-action="order-tab" data-status="delivered" aria-pressed="false">Delivered <span class="order-tab-count" data-count="delivered">0</span></button>
+          <button type="button" class="order-tab" data-action="order-tab" data-status="cancelled" aria-pressed="false">Cancelled <span class="order-tab-count" data-count="cancelled">0</span></button>
+        </div>
         <div class="order-filter-toolbar">
           <input type="text" id="orderSearch" placeholder="Search by order #, name, phone..." data-input="filter-orders" />
           <select id="orderStatusFilter" data-change="filter-orders">
@@ -440,6 +490,10 @@
         </div>
         <div class="orders-list" id="ordersList">
           <div class="empty-state">Loading orders...</div>
+        </div>
+        <div class="orders-pagination">
+          <span class="order-page-status" id="orderPageStatus"></span>
+          <button type="button" class="btn-secondary" id="loadMoreOrders" data-action="load-more-orders" hidden>Load more orders</button>
         </div>
       </div>
 
@@ -504,6 +558,23 @@
           </div>
         </div>
       </div>
+      <!-- Settings / danger zone -->
+      <div class="tab-content" id="tab-settings">
+        <section class="settings-section">
+          <h3 class="settings-title">Settings</h3>
+          <p class="settings-lead">Shop-wide controls. Destructive actions are deliberate: nothing here runs automatically.</p>
+          <div class="settings-card danger-zone">
+            <h4>Clear all orders</h4>
+            <p>Deletes every order in the shop. Two timestamped backups (CSV + JSON) are written first; if either backup fails, nothing is deleted.</p>
+            <ul>
+              <li>Stock from active orders is returned to products; cancelled orders are skipped.</li>
+              <li>Products, reviews, customers and newsletter subscribers are untouched.</li>
+              <li>Order auto-increment IDs are not reset. This cannot be undone from the admin.</li>
+            </ul>
+            <button type="button" class="btn-danger" data-action="open-clear-orders">Clear all orders…</button>
+          </div>
+        </section>
+      </div>
       </main>
     </div>
   </div>
@@ -527,5 +598,39 @@
       <button data-action="change-pw" class="pw-submit">Update Password</button>
     </div>
   </div>
+
+  <!-- Guarded order wipe: count + downloadable backup + typed phrase + password -->
+  <div class="admin-modal" id="clearOrdersModal" hidden>
+    <div class="admin-modal-card clear-modal-card" role="dialog" aria-modal="true" aria-labelledby="clearOrdersTitle" aria-describedby="clearOrdersHelp">
+      <h3 id="clearOrdersTitle">Delete all orders</h3>
+      <p id="clearOrdersHelp">A backup is written automatically before deletion. You can also download it first.</p>
+      <p class="clear-count" id="clearOrdersCount" role="status">Checking live order count…</p>
+      <button type="button" class="btn-secondary" data-action="download-order-backup">Download CSV backup</button>
+      <label for="clearOrdersPhrase">Type <strong>DELETE ALL ORDERS</strong> to confirm</label>
+      <input type="text" id="clearOrdersPhrase" data-input="clear-orders-phrase" autocomplete="off" spellcheck="false" placeholder="DELETE ALL ORDERS" />
+      <label for="clearOrdersPassword">Admin password</label>
+      <input type="password" id="clearOrdersPassword" autocomplete="current-password" />
+      <div class="error" id="clearOrdersError" role="alert"></div>
+      <div class="admin-modal-actions">
+        <button type="button" class="btn-secondary" data-action="close-clear-orders">Keep orders</button>
+        <button type="button" class="btn-danger" id="clearOrdersSubmit" data-action="confirm-clear-orders" disabled>Delete all orders</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Order detail drawer: one panel for items, delivery, payment and the
+       same quick actions as the row. Hidden and out of the tab order until
+       an order number is activated. -->
+  <div class="order-drawer-backdrop" id="orderDrawerBackdrop" data-action="close-order-drawer" hidden></div>
+  <aside class="order-drawer" id="orderDrawer" role="dialog" aria-modal="true" aria-labelledby="orderDrawerTitle" hidden>
+    <div class="drawer-head">
+      <div>
+        <p class="drawer-eyebrow">Order detail</p>
+        <h2 id="orderDrawerTitle">Order</h2>
+      </div>
+      <button type="button" class="drawer-close" data-action="close-order-drawer" aria-label="Close order details">×</button>
+    </div>
+    <div class="drawer-body" id="orderDrawerBody"></div>
+  </aside>
 </body>
 </html>
