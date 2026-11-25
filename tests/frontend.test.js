@@ -2569,6 +2569,14 @@ async function ready(win) {
       assert.equal(dd.querySelector('.order-tab[data-status=""] .order-tab-count').textContent, '2');
       assert.equal(dd.querySelector('.order-tab[data-status="pending"] .order-tab-count').textContent, '1');
       assert.equal(dd.querySelector('.order-tab[data-status=""]').getAttribute('aria-pressed'), 'true');
+      // The server's dashboard payload is the source of truth for the tab
+      // counts; a stale hard-coded zero must never survive a stats refresh.
+      dw.fetch = async (url) => String(url).includes('/api/admin/stats/dashboard')
+        ? { ok: true, json: async () => ({ products: 2, orders: 6, revenue: 0, pendingOrders: 3, ordersByStatus: { pending: 3, shipped: 1, cancelled: 2 } }) }
+        : { ok: true, json: async () => ({}) };
+      await dw.eval('loadDashboardStats()');
+      assert.equal(dd.querySelector('.order-tab[data-status="pending"] .order-tab-count').textContent, '3', 'tab counts come from dashboard stats');
+      assert.equal(dd.querySelector('.order-tab[data-status="cancelled"] .order-tab-count').textContent, '2');
       const opener = dd.querySelector('#ordersList .order-number-btn');
       assert.ok(opener, 'order numbers open the detail drawer');
       opener.focus();
@@ -2662,6 +2670,8 @@ async function ready(win) {
       assert.equal(sw.eval('allOrders.length'), 0, 'the cached order page is cleared');
       assert.equal(sw.eval('orderTotal'), 0);
       assert.match(sd.getElementById('adminToasts').textContent, /Cleared 2 order/);
+      const adminMarkup = readFileSync(join(__dirname, '..', 'public', 'admin.html'), 'utf8');
+      assert.doesNotMatch(adminMarkup, /spark-slot/, 'KPI tiles no longer carry decorative sparkline glyphs');
       const bundle = readFileSync(join(__dirname, '..', 'public', 'admin.js'), 'utf8');
       assert.match(bundle, /type: 'bar'/, 'the P&L chart uses bars');
       assert.match(bundle, /borderRadius: 6/, 'bars have rounded corners');

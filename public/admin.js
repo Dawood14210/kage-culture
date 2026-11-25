@@ -2413,7 +2413,7 @@
       if (name === 'dashboard') { if (dashSection) dashSection.classList.add('active'); }
       else { const tabEl = document.getElementById('tab-' + name); if (tabEl) tabEl.classList.add('active'); }
       if (name === 'products') loadProducts();
-      if (name === 'orders') loadOrders();
+      if (name === 'orders') { loadOrders(); loadDashboardStats(); }
       if (name === 'reports') { loadPnlStats(); loadSalesSummary(); }
       if (name === 'reviews') loadReviews();
       if (name === 'homepage') loadCategoryCards();

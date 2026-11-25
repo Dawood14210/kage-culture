@@ -112,7 +112,15 @@ module.exports = function createAdminRoutes(db) {
       const outOfStock = (await db.prepare('SELECT COUNT(*) as c FROM products WHERE in_stock = 0').get()).c;
       const lowStockCount = (await db.prepare('SELECT COUNT(*) as c FROM products WHERE stock_qty IS NOT NULL AND stock_qty > 0 AND stock_qty < ?').get(LOW_STOCK_THRESHOLD)).c;
       const recentOrders = (await db.prepare('SELECT id, order_number, customer_name, total, status, created_at FROM orders ORDER BY created_at DESC, id DESC LIMIT 10').all());
-      res.json({ products: prodCount, orders: orderCount, revenue: Math.round(revenue), pendingOrders, deliveredOrders, outOfStock, lowStockCount, lowStockThreshold: LOW_STOCK_THRESHOLD, recentOrders });
+      // The segmented Orders tabs need live counts for EVERY status, not just
+      // pending/delivered. Reduce in JS so sql.js, Turso and the mem adapter
+      // all agree (no GROUP BY parser in the fallback adapter).
+      const ordersByStatus = {};
+      for (const row of await db.prepare('SELECT status FROM orders').all()) {
+        const key = row.status || 'pending';
+        ordersByStatus[key] = (Number(ordersByStatus[key]) || 0) + 1;
+      }
+      res.json({ products: prodCount, orders: orderCount, revenue: Math.round(revenue), pendingOrders, deliveredOrders, outOfStock, lowStockCount, lowStockThreshold: LOW_STOCK_THRESHOLD, ordersByStatus, recentOrders });
     } catch (err) { console.error('admin route failed:', err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
   });
 

@@ -1378,7 +1378,6 @@
     .stat-label { font-size:.7rem; letter-spacing:.09em; margin-top:var(--space-1); }
     .stat-meta { display:flex; align-items:center; gap:var(--space-2); margin-top:var(--space-2); color:var(--text-muted); font-size:.62rem; }
     .stat-delta { text-transform:uppercase; letter-spacing:.06em; font-weight:700; }
-    .spark-slot { letter-spacing:-2px; color:var(--text-accent); font-size:.8rem; }
     .dash-stats { gap:var(--space-4); margin-bottom:var(--space-6); grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); }
     .recent-orders { padding:var(--space-5); margin-top:var(--space-5); }
     .recent-orders-title { font-family:'Anton',sans-serif; font-size:.85rem; letter-spacing:.1em; text-transform:uppercase; }

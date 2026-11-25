@@ -4567,6 +4567,9 @@ async function main() {
       const countRes = await request(PORT, 'GET', '/api/admin/orders/count', { headers: headers() });
       assert.strictEqual(countRes.status, 200);
       assert.ok(countRes.json.count >= 2);
+      const dashBefore = await request(PORT, 'GET', '/api/admin/stats/dashboard', { headers: headers() });
+      assert.strictEqual(Object.values(dashBefore.json.ordersByStatus).reduce((sum, n) => sum + n, 0), countRes.json.count, 'status tab counts add up to the live order total');
+      assert.ok(dashBefore.json.ordersByStatus.cancelled >= 2, 'cancelled orders are counted for the segmented tab');
       const download = await request(PORT, 'GET', '/api/admin/orders/backup', { headers: headers() });
       assert.strictEqual(download.status, 200);
       assert.match(download.text, /"'=1\+1/);
@@ -4601,7 +4604,9 @@ async function main() {
       assert.strictEqual(audit.count, ok.json.cleared);
       assert.strictEqual(audit.source, 'admin');
       assert.ok(audit.backups.csv && audit.backups.json, 'the audit records both backup files');
-      assert.strictEqual((await request(PORT, 'GET', '/api/admin/stats/dashboard', { headers: headers() })).json.orders, 0, 'dashboard empties');
+      const dashAfter = (await request(PORT, 'GET', '/api/admin/stats/dashboard', { headers: headers() })).json;
+      assert.strictEqual(dashAfter.orders, 0, 'dashboard empties');
+      assert.deepStrictEqual(dashAfter.ordersByStatus, {}, 'every status tab count is zero after the wipe');
       const pnl = await request(PORT, 'GET', '/api/admin/stats/pnl?period=daily', { headers: headers() });
       assert.strictEqual(pnl.json.summary.revenue, 0, 'P&L revenue empties');
       const tracking = await request(PORT, 'GET', '/api/tracking?order=KAGE-NOPE&phone=03005550101');
