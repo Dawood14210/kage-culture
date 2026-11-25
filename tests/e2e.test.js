@@ -28,6 +28,8 @@ const path = require('path');
 const crypto = require('crypto');
 const { spawnSync } = require('child_process');
 const { JSDOM } = require('jsdom');
+const { whenEmailsSettle } = require('../utils/email');
+const { clearAllOrders, CLEAR_PHRASE, AUDIT_KEY } = require('../utils/clearOrders');
 const demoProducts = require('../utils/demoProducts');
 
 // Fresh module state for every run
@@ -115,7 +117,14 @@ async function captureEmails(fn) {
     }
     return realFetch(url, opts);
   };
-  try { const result = await fn(); return { result, sent }; }
+  try {
+    const result = await fn();
+    // Status PATCHes now respond before the mail provider answers; wait for the
+    // in-flight send while the stub is still installed so the assertion still
+    // sees every attempted email.
+    await whenEmailsSettle();
+    return { result, sent };
+  }
   finally {
     global.fetch = realFetch;
     if (previousKey === undefined) delete process.env.EMAIL_API_KEY; else process.env.EMAIL_API_KEY = previousKey;
@@ -174,6 +183,7 @@ async function captureSmtpEmails(fn, settings = {}) {
 
   try {
     const result = await fn();
+    await whenEmailsSettle(); // see captureEmails: response-first email delivery
     return { result, sent, transportOptions, resendRequests };
   } finally {
     nodemailer.createTransport = originalCreateTransport;
@@ -4174,6 +4184,119 @@ async function main() {
   });
 
   // ---------------------------------------------------------------
+  // Fast order status: pagination, response-first email, silent undo,
+  // and the all-or-nothing 409 stock guard.
+  // ---------------------------------------------------------------
+  console.log('\nFast order status:');
+
+  const insertTestOrder = async (number, status = 'pending', items = []) => {
+    const r = await dbModule.prepare(`INSERT INTO orders (order_number, customer_name, email, phone, address, city, payment_method, subtotal, shipping, shipping_pending, total, items_json, status, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+      .run(number, 'Perf Buyer', 'perf.buyer@kage.test', '03001234567', 'Perf St', 'Lahore', 'cod', 1000, 0, 1, 1000, JSON.stringify(items), status, new Date().toISOString().replace('T', ' ').slice(0, 19));
+    return Number(r.lastInsertRowid);
+  };
+  const patchStatus = (id, body) => getCsrf().then(csrf => request(PORT, 'PATCH', `/api/orders/${id}/status`, {
+    body, headers: { Cookie: `${adminCookie}; ${csrf.cookie}`, 'X-CSRF-Token': csrf.token }
+  }));
+
+  await check('GET /api/orders is paginated, counted and still filters server-side', async () => {
+    const ids = [await insertTestOrder('KAGE-PAGE1'), await insertTestOrder('KAGE-PAGE2', 'shipped'), await insertTestOrder('KAGE-PAGE3')];
+    try {
+      const first = await request(PORT, 'GET', '/api/orders?limit=2&offset=0', { headers: { Cookie: adminCookie } });
+      assert.strictEqual(first.status, 200, JSON.stringify(first.json));
+      assert.ok(Array.isArray(first.json.orders), 'the list is a page, not a raw array');
+      assert.strictEqual(first.json.orders.length, 2);
+      assert.strictEqual(first.json.limit, 2);
+      assert.strictEqual(Number(first.headers['x-total-count']), first.json.total);
+      assert.ok(first.json.total >= 3);
+      const second = await request(PORT, 'GET', '/api/orders?limit=2&offset=2', { headers: { Cookie: adminCookie } });
+      assert.strictEqual(second.json.orders.length, 2);
+      const firstIds = new Set(first.json.orders.map(o => o.id));
+      assert.ok(second.json.orders.every(o => !firstIds.has(o.id)), 'pages must not overlap');
+      const filtered = await request(PORT, 'GET', '/api/orders?status=shipped&limit=50', { headers: { Cookie: adminCookie } });
+      assert.ok(filtered.json.orders.length >= 1 && filtered.json.orders.every(o => o.status === 'shipped'));
+      const searched = await request(PORT, 'GET', '/api/orders?search=KAGE-PAGE2&limit=50', { headers: { Cookie: adminCookie } });
+      assert.deepEqual(searched.json.orders.map(o => o.order_number), ['KAGE-PAGE2']);
+      const capped = await request(PORT, 'GET', '/api/orders?limit=9999', { headers: { Cookie: adminCookie } });
+      assert.strictEqual(capped.json.limit, require('../config').ORDER_LIST_MAX_LIMIT);
+    } finally {
+      for (const id of ids) await dbModule.prepare('DELETE FROM orders WHERE id = ?').run(id);
+    }
+  });
+
+  await check('status PATCH responds before a slow email provider answers', async () => {
+    const id = await insertTestOrder('KAGE-SLOWMAIL');
+    const realFetch = global.fetch;
+    const previousKey = process.env.EMAIL_API_KEY;
+    const previousHost = process.env.SMTP_HOST;
+    let attempts = 0;
+    process.env.EMAIL_API_KEY = 're_slow_probe';
+    delete process.env.SMTP_HOST;
+    global.fetch = async (url, opts) => {
+      if (String(url).includes('api.resend.com')) {
+        attempts++;
+        await sleep(600); // a deliberately slow provider
+        return { ok: true, status: 200, json: async () => ({ id: 'slow' }) };
+      }
+      return realFetch(url, opts);
+    };
+    try {
+      const started = Date.now();
+      const patched = await patchStatus(id, { status: 'confirmed' });
+      const elapsed = Date.now() - started;
+      assert.strictEqual(patched.status, 200, JSON.stringify(patched.json));
+      assert.ok(elapsed < 350, `response must not include the 600ms SMTP delay (took ${elapsed}ms)`);
+      await whenEmailsSettle();
+      assert.strictEqual(attempts, 1, 'the email must still be attempted after the response');
+    } finally {
+      global.fetch = realFetch;
+      if (previousKey === undefined) delete process.env.EMAIL_API_KEY; else process.env.EMAIL_API_KEY = previousKey;
+      if (previousHost === undefined) delete process.env.SMTP_HOST; else process.env.SMTP_HOST = previousHost;
+      await dbModule.prepare('DELETE FROM orders WHERE id = ?').run(id);
+    }
+  });
+
+  await check('silent status PATCH (Undo) changes the row without a second email', async () => {
+    const id = await insertTestOrder('KAGE-SILENT');
+    try {
+      const { result, sent } = await captureEmails(() => patchStatus(id, { status: 'shipped', silent: true }));
+      assert.strictEqual(result.status, 200, JSON.stringify(result.json));
+      assert.strictEqual(result.json.status, 'shipped');
+      assert.strictEqual(sent.length, 0, 'undo must not email the customer twice');
+    } finally {
+      await dbModule.prepare('DELETE FROM orders WHERE id = ?').run(id);
+    }
+  });
+
+  await check('reactivating a cancelled order with insufficient stock returns 409 and changes nothing', async () => {
+    const product = await dbModule.prepare('INSERT INTO products (name, category, price, sizes, in_stock, stock_qty) VALUES (?,?,?,?,?,?)')
+      .run('Stock Guard Tee', 'graphic-tees', 1000, '[]', 1, 1);
+    const productId = Number(product.lastInsertRowid);
+    const items = [{ id: productId, name: 'Stock Guard Tee', size: 'M', qty: 1, unit: 1000, total: 1000, cost: 500, image: null }];
+    const id = await insertTestOrder('KAGE-STOCK409', 'cancelled', items);
+    try {
+      const cancelled = await patchStatus(id, { status: 'pending' });
+      assert.strictEqual(cancelled.status, 200, JSON.stringify(cancelled.json));
+      assert.strictEqual(Number((await dbModule.prepare('SELECT stock_qty FROM products WHERE id = ?').get(productId)).stock_qty), 0);
+      // Cancel again (putting the unit back), then let somebody else buy it.
+      const recancelled = await patchStatus(id, { status: 'cancelled', silent: true });
+      assert.strictEqual(recancelled.status, 200, JSON.stringify(recancelled.json));
+      assert.strictEqual(Number((await dbModule.prepare('SELECT stock_qty FROM products WHERE id = ?').get(productId)).stock_qty), 1);
+      await dbModule.prepare('UPDATE products SET stock_qty = 0, in_stock = 0 WHERE id = ?').run(productId);
+      const blocked = await patchStatus(id, { status: 'pending', silent: true });
+      assert.strictEqual(blocked.status, 409, JSON.stringify(blocked.json));
+      assert.match(blocked.json.error, /not enough stock/i);
+      const row = await dbModule.prepare('SELECT status FROM orders WHERE id = ?').get(id);
+      assert.strictEqual(row.status, 'cancelled', 'a refused reactivation must leave the order cancelled');
+      assert.strictEqual(Number((await dbModule.prepare('SELECT stock_qty FROM products WHERE id = ?').get(productId)).stock_qty), 0,
+        'a refused reactivation must not take stock');
+      productShape.invalidateProductAggregates();
+    } finally {
+      await dbModule.prepare('DELETE FROM orders WHERE id = ?').run(id);
+      await dbModule.prepare('DELETE FROM products WHERE id = ?').run(productId);
+    }
+  });
+
+  // ---------------------------------------------------------------
   // Session secret: one rule for the whole app (utils/secret.js)
   // ---------------------------------------------------------------
   console.log('\nSession secret resolution:');
@@ -4335,6 +4458,158 @@ async function main() {
     const attempts = (child.stdout + child.stderr).match(/Turso init failed/g) || [];
     assert.ok(attempts.length >= 2, `the boot must be retried after a failure (saw ${attempts.length} attempts)`);
     assert.ok(attempts.length <= 3, `attempts must stay bounded by the backoff (saw ${attempts.length})`);
+  });
+
+  await check('clear-all-orders is guarded, backed up and restores stock exactly once', async () => {
+    // The CLI itself must refuse incomplete invocations before touching a DB.
+    const cli = [process.execPath, [REPO_ROOT, 'scripts', 'clear-orders.js'].join(path.sep)];
+    const noYes = spawnSync(cli[0], [cli[1]], { cwd: REPO_ROOT, encoding: 'utf8', env: cleanEnv({}) });
+    assert.notStrictEqual(noYes.status, 0);
+    assert.match(noYes.stderr, /missing --yes/);
+    const wrongPhraseCli = spawnSync(cli[0], [cli[1], '--yes', '--phrase', 'delete all orders'], { cwd: REPO_ROOT, encoding: 'utf8', env: cleanEnv({}) });
+    assert.notStrictEqual(wrongPhraseCli.status, 0);
+    assert.match(wrongPhraseCli.stderr, /exactly "DELETE ALL ORDERS"/);
+
+    const backupDir = fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'kage-clear-'));
+    const previousBackupDir = process.env.ORDER_BACKUP_DIR;
+    process.env.ORDER_BACKUP_DIR = backupDir;
+    try {
+      const csrf = await getCsrf();
+      const jar = {};
+      const applyCookies = (res) => (res.headers['set-cookie'] || []).forEach((c) => {
+        const [pair] = c.split(';'); const eq = pair.indexOf('=');
+        if (eq > 0) jar[pair.slice(0, eq).trim()] = pair.slice(eq + 1).trim();
+      });
+      applyCookies({ headers: { 'set-cookie': [csrf.cookie] } });
+      const headers = () => ({
+        Cookie: Object.entries(jar).map(([k, v]) => `${k}=${v}`).join('; '),
+        ...(jar['kage.csrf'] ? { 'X-CSRF-Token': jar['kage.csrf'] } : {})
+      });
+      applyCookies(await request(PORT, 'POST', '/api/admin/login', {
+        body: { email: 'root@kage.test', password: 'supersecret-admin-1' }, headers: headers()
+      }));
+      assert.strictEqual((await request(PORT, 'GET', '/api/admin/me', { headers: headers() })).status, 200);
+
+      const catalog = (await request(PORT, 'GET', '/api/products')).json;
+      const product = catalog.find(p => p.in_stock && Array.isArray(p.sizes) && p.sizes.length);
+      assert.ok(product, 'a stocked product is needed to observe stock restoration');
+      const size = product.sizes[0];
+      const place = (notes) => request(PORT, 'POST', '/api/orders', {
+        body: {
+          name: 'Clear Test Buyer', email: 'clear.buyer@kage.test', phone: '03005550101',
+          address: '1 Guard Street', city: 'Lahore', payment_method: 'cod', notes,
+          items: [{ id: product.id, qty: 2, size }]
+        }, headers: headers()
+      });
+      const keep = await place('=1+1 formula must stay inert in the backup');
+      assert.strictEqual(keep.status, 201, JSON.stringify(keep.json));
+      const cancelMe = await place('second order, cancelled before the wipe');
+      assert.strictEqual(cancelMe.status, 201, JSON.stringify(cancelMe.json));
+      const cancelId = (await dbModule.prepare('SELECT id FROM orders WHERE order_number = ?').get(cancelMe.json.order_number)).id;
+      const cancelled = await request(PORT, 'PATCH', `/api/orders/${cancelId}/status`, {
+        body: { status: 'cancelled' }, headers: headers()
+      });
+      assert.strictEqual(cancelled.status, 200, JSON.stringify(cancelled.json));
+
+      const stockRow = () => dbModule.prepare('SELECT stock_qty FROM products WHERE id = ?').get(product.id);
+      const sizeRow = () => dbModule.prepare('SELECT stock_qty FROM product_size_stock WHERE product_id = ? AND size = ?').get(product.id, size);
+      const beforeSize = sizeRow() ? Number(sizeRow().stock_qty) : null;
+      const beforeTotal = Number(stockRow().stock_qty);
+      // Earlier checks in this suite left other live orders behind. The wipe
+      // must restore every one of them exactly once, so derive the expected
+      // delta from the data rather than assuming our two orders are alone.
+      const activeRows = await dbModule.prepare("SELECT items_json FROM orders WHERE status != 'cancelled'").all();
+      let expectedSizeDelta = 0, expectedProductDelta = 0;
+      for (const row of activeRows) {
+        let items = []; try { items = JSON.parse(row.items_json || '[]'); } catch (e) { items = []; }
+        for (const line of items) {
+          if (Number(line.id) !== Number(product.id)) continue;
+          const qty = Number(line.qty) || 1;
+          if (beforeSize === null) { expectedProductDelta += qty; }
+          else if (line.size === size) { expectedSizeDelta += qty; expectedProductDelta += qty; }
+        }
+      }
+      assert.ok(expectedSizeDelta >= 2 || beforeSize === null, 'our active order contributes two units');
+      const countTable = async (table) => {
+        // .all() is portable across sql.js / mem / Turso here; the COUNT
+        // shortcut on newsletter_subscribers has returned no row in this suite.
+        const rows = await dbModule.prepare(`SELECT * FROM ${table}`).all();
+        return rows.length;
+      };
+      const beforeCounts = {
+        products: await countTable('products'), reviews: await countTable('reviews'),
+        customers: await countTable('customers'), newsletter: await countTable('newsletter_subscribers')
+      };
+
+      // Dry-run and a wrong phrase are pure no-ops: no backup, no deletion.
+      const preview = await clearAllOrders(dbModule, { phrase: CLEAR_PHRASE, dryRun: true, source: 'test' });
+      assert.strictEqual(preview.dryRun, true);
+      assert.ok(preview.count >= 2, 'the dry run sees the live orders');
+      assert.strictEqual(preview.backups, null);
+      assert.strictEqual(fs.readdirSync(backupDir).length, 0, 'dry run writes no backup');
+      assert.ok((await dbModule.prepare('SELECT COUNT(*) AS c FROM orders').get()).c >= 2);
+      await assert.rejects(() => clearAllOrders(dbModule, { phrase: 'DELETE ALL', source: 'test' }), /exactly "DELETE ALL ORDERS"/);
+
+      const del = (body, overrideHeaders) => request(PORT, 'DELETE', '/api/orders/all', {
+        body, headers: overrideHeaders === undefined ? headers() : overrideHeaders
+      });
+      assert.strictEqual((await del({ phrase: 'WRONG', password: 'supersecret-admin-1' })).status, 400);
+      assert.strictEqual((await del({ phrase: CLEAR_PHRASE, password: 'wrong-password' })).status, 401);
+      assert.strictEqual((await del({ phrase: CLEAR_PHRASE, password: 'supersecret-admin-1' }, {
+        Cookie: headers().Cookie
+      })).status, 403, 'a session without CSRF must be refused');
+      // Unauthenticated but CSRF-correct: send only the CSRF cookie/header.
+      assert.strictEqual((await del({ phrase: CLEAR_PHRASE, password: 'supersecret-admin-1' }, {
+        Cookie: csrf.cookie, 'X-CSRF-Token': csrf.token
+      })).status, 401);
+      assert.ok((await dbModule.prepare('SELECT COUNT(*) AS c FROM orders').get()).c >= 2, 'rejected requests deleted nothing');
+
+      const countRes = await request(PORT, 'GET', '/api/admin/orders/count', { headers: headers() });
+      assert.strictEqual(countRes.status, 200);
+      assert.ok(countRes.json.count >= 2);
+      const download = await request(PORT, 'GET', '/api/admin/orders/backup', { headers: headers() });
+      assert.strictEqual(download.status, 200);
+      assert.match(download.text, /"'=1\+1/);
+
+      const ok = await del({ phrase: CLEAR_PHRASE, password: 'supersecret-admin-1' });
+      assert.strictEqual(ok.status, 200, JSON.stringify(ok.json));
+      assert.ok(ok.json.cleared >= 2);
+      assert.strictEqual((await dbModule.prepare('SELECT COUNT(*) AS c FROM orders').get()).c, 0, 'every order is gone');
+      const afterSize = sizeRow() ? Number(sizeRow().stock_qty) : null;
+      assert.strictEqual(afterSize, beforeSize === null ? null : beforeSize + expectedSizeDelta, `each active line returns its units exactly once (size before=${beforeSize}, after=${afterSize}, expected delta=${expectedSizeDelta})`);
+      assert.strictEqual(Number(stockRow().stock_qty), beforeTotal + expectedProductDelta, `the product total follows every restored line (before=${beforeTotal}, after=${stockRow().stock_qty}, delta=${expectedProductDelta})`);
+
+      const files = fs.readdirSync(backupDir).sort();
+      assert.strictEqual(files.length, 2, 'CSV + JSON backups were written before the DELETE');
+      const jsonFile = files.find(f => f.endsWith('.json'));
+      const csvFile = files.find(f => f.endsWith('.csv'));
+      assert.ok(jsonFile && csvFile);
+      const backup = JSON.parse(fs.readFileSync(path.join(backupDir, jsonFile), 'utf8'));
+      assert.ok(backup.count >= 2);
+      assert.ok(backup.orders.some(o => typeof o.items_json === 'string' && o.items_json.includes(product.id)), 'raw items_json is preserved');
+      const csv = fs.readFileSync(path.join(backupDir, csvFile), 'utf8');
+      assert.match(csv, /"'=1\+1/, 'csvCell defuses a formula-shaped note');
+      assert.ok(csv.startsWith('\uFEFF'), 'the backup CSV keeps the Excel BOM');
+
+      const tableNames = { products: 'products', reviews: 'reviews', customers: 'customers', newsletter: 'newsletter_subscribers' };
+      for (const [label, before] of Object.entries(beforeCounts)) {
+        const table = tableNames[label];
+        const after = await countTable(table);
+        assert.strictEqual(after, before, `${label} must be untouched by an order wipe (before=${before}, after=${after})`);
+      }
+      const audit = JSON.parse(await dbModule.getSetting(AUDIT_KEY));
+      assert.strictEqual(audit.count, ok.json.cleared);
+      assert.strictEqual(audit.source, 'admin');
+      assert.ok(audit.backups.csv && audit.backups.json, 'the audit records both backup files');
+      assert.strictEqual((await request(PORT, 'GET', '/api/admin/stats/dashboard', { headers: headers() })).json.orders, 0, 'dashboard empties');
+      const pnl = await request(PORT, 'GET', '/api/admin/stats/pnl?period=daily', { headers: headers() });
+      assert.strictEqual(pnl.json.summary.revenue, 0, 'P&L revenue empties');
+      const tracking = await request(PORT, 'GET', '/api/tracking?order=KAGE-NOPE&phone=03005550101');
+      assert.strictEqual(tracking.status, 404, 'tracking has no stale order to show');
+    } finally {
+      if (previousBackupDir === undefined) delete process.env.ORDER_BACKUP_DIR;
+      else process.env.ORDER_BACKUP_DIR = previousBackupDir;
+    }
   });
 
   // ---------------------------------------------------------------

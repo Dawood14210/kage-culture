@@ -1,6 +1,7 @@
 // WCAG 2.x sRGB contrast + explicit outline-reset coverage + real input modality.
 const assert = require('node:assert/strict');
 const { readFileSync } = require('node:fs');
+const { JSDOM } = require('jsdom');
 const { launchChromium } = require('./fixtures/chromium');
 const { readPage, cssFrom, rulesFrom, color, luminance, composite, contrast, contrastPairs, outlineResets } = require('./fixtures/a11y');
 const modalitySource = readFileSync(require.resolve('../public/focus-modality.js'), 'utf8');
@@ -46,6 +47,35 @@ function checkOutlines(name) {
   console.log(`✅ ${name}: every outline reset has a 2px/2px :focus-visible counterpart`);
   return [...new Set(resets.filter(r => !pointerResets.has(r.selector)).map(r => r.selector.replace(/:focus\b(?!-visible)/g, '')))];
 }
+function checkAdminOverlays() {
+  const doc = new JSDOM(readPage('admin')).window.document;
+  const drawer = doc.getElementById('orderDrawer');
+  const backdrop = doc.getElementById('orderDrawerBackdrop');
+  const toasts = doc.getElementById('adminToasts');
+  const confirm = doc.getElementById('orderConfirmModal');
+  const clearModal = doc.getElementById('clearOrdersModal');
+  assert.ok(clearModal && clearModal.hidden, 'the destructive settings dialog also starts hidden');
+  const clearDialog = clearModal.querySelector('[role="dialog"]');
+  assert.equal(clearDialog.getAttribute('aria-modal'), 'true');
+  assert.ok(clearModal.querySelector('[data-action="download-order-backup"]'), 'a backup is downloadable before the wipe');
+  for (const id of ['clearOrdersPhrase', 'clearOrdersPassword']) {
+    const field = clearModal.querySelector('#' + id);
+    assert.ok(field && clearDialog.querySelector(`label[for="${id}"]`), `${id} has a real label`);
+  }
+  assert.equal(clearModal.querySelector('#clearOrdersSubmit').disabled, true, 'delete stays disabled until the phrase is typed');
+  assert.ok(drawer && drawer.hidden, 'the order drawer starts hidden and out of the tab order');
+  assert.equal(drawer.getAttribute('role'), 'dialog');
+  assert.equal(drawer.getAttribute('aria-modal'), 'true');
+  assert.ok(drawer.getAttribute('aria-labelledby') && doc.getElementById(drawer.getAttribute('aria-labelledby')), 'the drawer has a real heading name');
+  assert.ok(drawer.querySelector('[data-action="close-order-drawer"][aria-label]'), 'the drawer close button has an accessible name');
+  assert.ok(backdrop && backdrop.hidden && backdrop.hasAttribute('data-action'), 'the backdrop is a dismiss control, not decoration');
+  assert.ok(confirm && confirm.hidden, 'the in-page confirm dialog starts hidden');
+  assert.equal(confirm.querySelector('[role="dialog"]').getAttribute('aria-modal'), 'true');
+  assert.ok(toasts && toasts.getAttribute('role') === 'status' && toasts.getAttribute('aria-live') === 'polite', 'toasts are announced politely');
+  console.log('✅ admin overlays: drawer, both confirm dialogs, backup control and toast stack have names, roles and hidden start states');
+  return { drawer: drawer.outerHTML.replace(' hidden', ''), toasts: toasts.outerHTML };
+}
+
 (async () => {
   // Guard the math itself against a wrong gamma formula or missing alpha compositing.
   const { contrast } = require('./fixtures/a11y');
@@ -59,8 +89,41 @@ function checkOutlines(name) {
     if (name === 'admin') checkContrast(name, true);
     selectors[name] = checkOutlines(name);
   }
+  const overlays = checkAdminOverlays();
   const browser = await launchChromium();
   try {
+    // Real Chromium: the drawer and toast render with their tokens and the
+    // drawer's only close control is named and focusable.
+    const overlayPage = await browser.newPage();
+    await overlayPage.setContent(`<html><head><style>${cssFrom(readPage('admin'))}</style></head><body>${overlays.drawer}${overlays.toasts}</body></html>`);
+    await overlayPage.evaluate(() => { document.getElementById('orderDrawer').hidden = false; });
+    await new Promise(r => setTimeout(r, 250)); // let the 160ms slide-in settle
+    const drawerState = await overlayPage.evaluate(() => {
+      const drawer = document.getElementById('orderDrawer');
+      const close = drawer.querySelector('.drawer-close');
+      close.focus();
+      const rect = drawer.getBoundingClientRect();
+      const stack = document.getElementById('adminToasts');
+      const toast = document.createElement('div');
+      toast.className = 'admin-toast'; toast.dataset.type = 'success'; toast.setAttribute('role', 'status');
+      toast.innerHTML = '<span class="toast-message">Order shipped.</span><button type="button">Undo</button>';
+      stack.appendChild(toast);
+      return {
+        focused: document.activeElement === close,
+        closeName: close.getAttribute('aria-label'),
+        drawerRight: Math.round(rect.right), viewport: window.innerWidth,
+        toastRole: toast.getAttribute('role'), toastLive: stack.getAttribute('aria-live'),
+        toastButton: !!toast.querySelector('button')
+      };
+    });
+    assert.equal(drawerState.focused, true, 'focus moves to the drawer close button');
+    assert.equal(drawerState.closeName, 'Close order details');
+    assert.ok(Math.abs(drawerState.drawerRight - drawerState.viewport) <= 2, 'the drawer sits flush with the viewport edge: ' + JSON.stringify(drawerState));
+    assert.equal(drawerState.toastRole, 'status');
+    assert.equal(drawerState.toastLive, 'polite');
+    assert.equal(drawerState.toastButton, true, 'the toast has an action slot for Undo');
+    await overlayPage.close();
+
     for (const [name, dark] of [['index', false], ['admin', false], ['admin', true]]) {
       const page = await browser.newPage();
       await page.setContent(`<html${dark ? ' data-theme="dark"' : ''}><head><style>${cssFrom(readPage(name))}</style></head><body><script>${modalitySource}</script></body></html>`);

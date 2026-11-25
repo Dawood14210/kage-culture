@@ -2248,7 +2248,10 @@ async function ready(win) {
         await aw.handleSaveProduct({ preventDefault() {} });
         assert.equal(reads.length, 2, 'update must reload the admin list');
         assert.match(ad.getElementById('productList').textContent, /Fresh edited Pants/);
-        await aw.deleteProduct(fresh.id);
+        aw.deleteProduct(fresh.id);
+        assert.equal(ad.getElementById('orderConfirmModal').hidden, false, 'product deletion uses the in-page dialog too');
+        ad.querySelector('[data-action="accept-order-confirm"]').click();
+        for (let i = 0; i < 40 && reads.length < 3; i++) await wait(25);
         assert.equal(reads.length, 3, 'delete must reload the admin list');
         assert.equal(aw.eval('products.length'), 0);
         assert.deepEqual(writes, ['POST', 'PUT', 'DELETE']);
@@ -2398,6 +2401,274 @@ async function ready(win) {
     aw.filterOrders();
     assert.match(ad.getElementById('ordersList').textContent, /No orders match/);
     console.log('✅ Admin product search, order filter and sort work');
+
+    // ---------------------------------------------------------------
+    // Fast order status: optimistic rows, per-order guards, undo and the
+    // in-page confirmation (no native confirm/alert in the order flow).
+    // ---------------------------------------------------------------
+    {
+      const orderPage = page(adminHtml, '/admin', {
+        fetchImpl: (url) => String(url).includes('/api/admin/me')
+          ? Promise.resolve({ ok: false, status: 401, json: async () => ({}) })
+          : fetch(origin + String(url))
+      });
+      windows.push(orderPage);
+      for (let i = 0; i < 40 && orderPage.window.document.getElementById('loginPage').style.display !== 'flex'; i++) await wait(25);
+      const ow = orderPage.window, od = orderPage.window.document;
+      const seed = [
+        { id: 101, order_number: 'KAGE-OPT101', customer_name: 'Optimistic Buyer', phone: '03001110001', email: 'opt@kage.test', status: 'pending', total: 1000, items: [], created_at: '2026-11-24 20:00:00', payment_method: 'cod', payment_verified: 0, cod_confirmed: 0, shipping_pending: 1 },
+        { id: 102, order_number: 'KAGE-OPT102', customer_name: 'Second Buyer', phone: '03001110002', email: 'opt2@kage.test', status: 'shipped', total: 2000, items: [], created_at: '2026-11-24 19:00:00', payment_method: 'bank', payment_verified: 0, cod_confirmed: 0 }
+      ];
+      ow.eval('document.getElementById("orderStatusFilter").value = ""; allOrders = ' + JSON.stringify(seed) + '; orderTotal = 2; orderHasMore = false; filterOrders()');
+      const row101 = () => od.querySelector('.order-row[data-order-id="101"]');
+      const row102 = () => od.querySelector('.order-row[data-order-id="102"]');
+      assert.match(row101().querySelector('.next-step-btn').textContent, /Confirm/);
+      assert.match(row102().querySelector('.next-step-btn').textContent, /Mark delivered/);
+      const dropdown = row101().querySelector('.status-dropdown-btn');
+      assert.equal(dropdown.getAttribute('aria-expanded'), 'false', 'the status dropdown advertises its state');
+      dropdown.click();
+      assert.equal(dropdown.getAttribute('aria-expanded'), 'true');
+      assert.ok(row101().querySelector('.status-dropdown-menu').classList.contains('open'));
+      od.dispatchEvent(new ow.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      assert.equal(dropdown.getAttribute('aria-expanded'), 'false', 'Escape closes the dropdown');
+
+      const calls = [];
+      const resolvers = new Map();
+      let nativeDialogs = 0;
+      ow.confirm = () => { nativeDialogs++; return false; };
+      ow.alert = () => { nativeDialogs++; };
+      ow.fetch = (url, options = {}) => {
+        const body = JSON.parse(options.body || '{}');
+        calls.push({ url: String(url), body });
+        if (/\/(10[1-4])\/status/.test(String(url))) {
+          return new Promise((resolve, reject) => resolvers.set(calls.length - 1, { resolve, reject }));
+        }
+        return Promise.resolve({ ok: false, status: 500, json: async () => ({}) });
+      };
+      const flush = () => new Promise(r => setTimeout(r, 0));
+      const clickNext = (id) => od.querySelector(`.order-row[data-order-id="${id}"] .next-step-btn`).click();
+
+      clickNext(101);
+      assert.match(row101().querySelector('.status-badge').textContent, /Confirmed/, 'the badge changes before the request settles');
+      assert.equal(ow.eval('allOrders.find(o => o.id === 101).status'), 'confirmed');
+      assert.equal(row101().getAttribute('data-pending'), 'true', 'only the pending row shows the spinner');
+      assert.equal(nativeDialogs, 0, 'forward transitions never open a native dialog');
+      clickNext(101);
+      await flush();
+      assert.equal(calls.length, 1, 'the same order cannot be submitted twice while in flight');
+      clickNext(102);
+      await flush();
+      assert.equal(calls.length, 2, 'a second order is not blocked by the first');
+      assert.deepEqual(calls[1].body, { status: 'delivered', silent: false }, 'normal transitions allow the email');
+      resolvers.get(0).resolve({ ok: false, status: 500, json: async () => ({ error: 'Stock changed meanwhile' }) });
+      await flush(); await flush();
+      assert.match(row101().querySelector('.status-badge').textContent, /Pending/, 'a failed PATCH rolls the row back');
+      assert.equal(row101().hasAttribute('data-pending'), false);
+      assert.match(od.getElementById('adminToasts').textContent, /Stock changed meanwhile/, 'the server error appears in a toast');
+      assert.equal(nativeDialogs, 0, 'errors use a toast, not alert()');
+
+      resolvers.get(1).resolve({ ok: true, status: 200, json: async () => ({ ...seed[1], status: 'delivered', items: [] }) });
+      await flush(); await flush();
+      assert.match(row102().querySelector('.status-badge').textContent, /Delivered/);
+      const undo = [...od.querySelectorAll('#adminToasts button')].find(b => b.textContent === 'Undo');
+      assert.ok(undo, 'a successful forward transition offers Undo');
+      undo.click();
+      await flush();
+      assert.equal(calls.length, 3, 'Undo issues a reverse PATCH');
+      assert.deepEqual(calls[2].body, { status: 'shipped', silent: true }, 'Undo is silent so the customer is not emailed twice');
+      resolvers.get(2).resolve({ ok: true, status: 200, json: async () => ({ ...seed[1], status: 'shipped', items: [] }) });
+      await flush(); await flush();
+
+      // Cancel is the one transition that asks first — in the admin's own modal.
+      ow.eval('allOrders.push({id:103,order_number:"KAGE-OPT103",customer_name:"Cancel Buyer",status:"confirmed",total:500,items:[],created_at:"2026-11-24 18:00:00",payment_method:"cod"}); filterOrders()');
+      const cancelButton = od.querySelector('.order-row[data-order-id="103"] [data-action="order-status"][data-status="cancelled"]');
+      assert.ok(cancelButton, 'the dropdown still exposes Cancel');
+      cancelButton.click();
+      assert.equal(nativeDialogs, 0, 'Cancel must not use window.confirm');
+      assert.equal(od.getElementById('orderConfirmModal').hidden, false, 'Cancel opens the in-page dialog');
+      od.querySelector('[data-action="accept-order-confirm"]').click();
+      await flush();
+      assert.equal(calls.length, 4);
+      assert.deepEqual(calls[3].body, { status: 'cancelled', silent: false });
+      assert.equal(od.getElementById('orderConfirmModal').hidden, true);
+      resolvers.get(3).resolve({ ok: true, status: 200, json: async () => ({ id: 103, order_number: 'KAGE-OPT103', status: 'cancelled', items: [] }) });
+      await flush(); await flush();
+
+      // A refused reactivation (409 stock shortage) must roll back as well.
+      ow.eval('allOrders.push({id:104,order_number:"KAGE-OPT104",customer_name:"Short Buyer",status:"cancelled",total:700,items:[],created_at:"2026-11-24 17:00:00",payment_method:"cod"}); filterOrders()');
+      od.querySelector('.order-row[data-order-id="104"] [data-action="order-status"][data-status="pending"]').click();
+      assert.equal(od.getElementById('orderConfirmModal').hidden, false, 'reactivating a cancelled order asks first');
+      od.querySelector('[data-action="accept-order-confirm"]').click();
+      await flush();
+      resolvers.get(4).resolve({ ok: false, status: 409, json: async () => ({ error: 'Cannot reactivate: not enough stock. Nothing was changed.' }) });
+      await flush(); await flush();
+      assert.match(od.querySelector('.order-row[data-order-id="104"] .status-badge').textContent, /Cancelled/, '409 rolls the optimistic change back');
+      assert.match(od.getElementById('adminToasts').textContent, /not enough stock/i);
+
+      // Load more appends a page instead of refetching the whole list, and
+      // search is debounced then sent to the server once there are more pages.
+      const listUrls = [];
+      ow.fetch = (url) => {
+        const value = String(url);
+        listUrls.push(value);
+        if (!value.startsWith('/api/orders?')) return Promise.resolve({ ok: false, status: 500, json: async () => ({}) });
+        const params = new URLSearchParams(value.split('?')[1]);
+        const rows = params.get('offset') === '2'
+          ? [{ id: 106, order_number: 'KAGE-PAGE106', status: 'pending', items: [], total: 1, created_at: '2026-11-24 16:00:00' }]
+          : [
+              { id: 105, order_number: 'KAGE-PAGE105', status: 'pending', items: [], total: 1, created_at: '2026-11-24 18:30:00' },
+              { id: 107, order_number: 'KAGE-PAGE107', status: 'pending', items: [], total: 1, created_at: '2026-11-24 18:20:00' }
+            ];
+        return Promise.resolve({ ok: true, json: async () => ({ orders: rows, total: 3, limit: 50, offset: Number(params.get('offset')) }) });
+      };
+      ow.eval('allOrders = []; orderTotal = 0; orderHasMore = false; orderOffset = 0;');
+      await ow.eval('loadOrders()');
+      assert.equal(listUrls.length, 1);
+      assert.match(listUrls[0], /limit=50&offset=0/);
+      assert.equal(od.querySelectorAll('.order-row').length, 2);
+      assert.equal(od.getElementById('loadMoreOrders').hidden, false);
+      od.getElementById('loadMoreOrders').click();
+      await flush(); await flush();
+      assert.equal(listUrls.length, 2);
+      assert.match(listUrls[1], /offset=2/);
+      assert.equal(od.querySelectorAll('.order-row').length, 3, 'Load more appends the next page');
+      assert.equal(od.getElementById('loadMoreOrders').hidden, true);
+      ow.eval('orderPageSize = 2; orderTotal = 3; orderHasMore = true;');
+      od.getElementById('orderSearch').value = 'KAGE-PAGE105';
+      od.getElementById('orderSearch').dispatchEvent(new ow.Event('input', { bubbles: true }));
+      assert.equal(listUrls.length, 2, 'typing does not request on every keystroke');
+      for (let i = 0; i < 40 && listUrls.length < 3; i++) await new Promise(r => setTimeout(r, 25));
+      assert.equal(listUrls.length, 3, 'search is debounced once');
+      assert.match(listUrls[2], /search=KAGE-PAGE105/, 'search happens on the server when more than one page exists');
+
+      const bundle = readFileSync(join(__dirname, '..', 'public', 'admin.js'), 'utf8');
+      const orderFlowBundle = bundle.slice(bundle.indexOf('// ORDERS'), bundle.indexOf('// PRODUCT SEARCH / FILTER'));
+      assert.doesNotMatch(orderFlowBundle, /confirm\(['"]/, 'the old native status confirm is gone');
+      assert.doesNotMatch(orderFlowBundle, /alert\(/, 'status errors no longer call alert()');
+      assert.match(bundle, /inFlightOrders\.add\(id\)/, 'the per-order guard is retained');
+      console.log('✅ Admin status changes are optimistic, per-order and undoable without native dialogs');
+    }
+
+    // Order detail drawer and segmented status filters: focus in/out, live
+    // counts, a real filter request and announced toasts.
+    {
+      const detailPage = page(adminHtml, '/admin', {
+        fetchImpl: (url) => String(url).includes('/api/admin/me')
+          ? Promise.resolve({ ok: false, status: 401, json: async () => ({}) })
+          : fetch(origin + String(url))
+      });
+      windows.push(detailPage);
+      for (let i = 0; i < 40 && detailPage.window.document.getElementById('loginPage').style.display !== 'flex'; i++) await wait(25);
+      const dw = detailPage.window, dd = detailPage.window.document;
+      const flush = () => new Promise(r => setTimeout(r, 0));
+      const detailOrders = [
+        { id: 201, order_number: 'KAGE-DRAW201', customer_name: 'Drawer Buyer', phone: '03001110201', email: 'drawer@kage.test', status: 'pending', total: 1500, items: [{ name: 'Wrath Silhouette', size: 'L', qty: 1, unit: 1500, total: 1500 }], created_at: '2026-11-24 19:30:00', payment_method: 'bank', payment_verified: 0, shipping_pending: 1 },
+        { id: 202, order_number: 'KAGE-DRAW202', customer_name: 'Shipped Buyer', phone: '03001110202', email: 'shipped@kage.test', status: 'shipped', total: 900, items: [], created_at: '2026-11-23 11:00:00', payment_method: 'cod', cod_confirmed: 1 }
+      ];
+      dw.eval('allOrders = ' + JSON.stringify(detailOrders) + '; orderTotal = 2; orderHasMore = false; orderStatusCounts = {pending:1, shipped:1}; filterOrders()');
+      assert.equal(dd.querySelector('.order-tab[data-status=""] .order-tab-count').textContent, '2');
+      assert.equal(dd.querySelector('.order-tab[data-status="pending"] .order-tab-count').textContent, '1');
+      assert.equal(dd.querySelector('.order-tab[data-status=""]').getAttribute('aria-pressed'), 'true');
+      const opener = dd.querySelector('#ordersList .order-number-btn');
+      assert.ok(opener, 'order numbers open the detail drawer');
+      opener.focus();
+      opener.click();
+      const drawer = dd.getElementById('orderDrawer');
+      assert.equal(drawer.hidden, false);
+      assert.equal(dd.activeElement.className, 'drawer-close', 'focus moves into the drawer');
+      assert.match(dd.getElementById('orderDrawerBody').textContent, /Wrath Silhouette/);
+      assert.match(dd.getElementById('orderDrawerBody').textContent, /Fulfilment progress/);
+      assert.match(dd.getElementById('orderDrawerBody').textContent, /Bank Transfer/);
+      dd.dispatchEvent(new dw.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      assert.equal(drawer.hidden, true, 'Escape closes the drawer');
+      assert.equal(dd.activeElement, opener, 'focus returns to the order that was opened');
+
+      const filterUrls = [];
+      dw.fetch = async (url) => {
+        filterUrls.push(String(url));
+        return { ok: true, json: async () => ({ orders: [detailOrders[1]], total: 1, limit: 50, offset: 0 }) };
+      };
+      dd.querySelector('.order-tab[data-status="shipped"]').click();
+      await new Promise(r => setTimeout(r, 120)); // let the tab's server filter finish
+      assert.equal(dd.getElementById('orderStatusFilter').value, 'shipped');
+      assert.equal(dd.querySelector('.order-tab[data-status="shipped"]').getAttribute('aria-pressed'), 'true');
+      assert.equal(dd.querySelector('.order-tab[data-status=""]').getAttribute('aria-pressed'), 'false');
+      assert.ok(filterUrls.some(u => u.includes('status=shipped')), 'the tab filters on the server');
+      dw.eval('showAdminToast("Order shipped.", "success")');
+      const toast = dd.querySelector('#adminToasts .admin-toast');
+      assert.equal(toast.getAttribute('role'), 'status');
+      assert.match(toast.textContent, /Order shipped/);
+      console.log('✅ Admin drawer, status tabs and toasts are keyboard-aware and announced');
+    }
+
+    // Settings danger zone: count + backup gate + typed phrase + password,
+    // then the cached order page is dropped so empty states are truthful.
+    {
+      const settingsPage = page(adminHtml, '/admin', {
+        fetchImpl: (url) => String(url).includes('/api/admin/me')
+          ? Promise.resolve({ ok: false, status: 401, json: async () => ({}) })
+          : fetch(origin + String(url))
+      });
+      windows.push(settingsPage);
+      for (let i = 0; i < 40 && settingsPage.window.document.getElementById('loginPage').style.display !== 'flex'; i++) await wait(25);
+      const sw = settingsPage.window, sd = settingsPage.window.document;
+      const calls = [];
+      sw.fetch = async (url, options = {}) => {
+        const u = String(url);
+        calls.push({ u, body: JSON.parse(options.body || '{}') });
+        if (u.includes('/api/admin/orders/count')) return { ok: true, json: async () => ({ count: 2 }) };
+        if (u === '/api/orders/all') return { ok: true, json: async () => ({ cleared: 2, restoredOrders: 1, restoredLines: 2, backups: { csv: 'orders.csv', json: 'orders.json' } }) };
+        return { ok: true, json: async () => ({}) };
+      };
+      sw.eval('allOrders = [{id:301,order_number:"KAGE-SETTINGS301",status:"pending",items:[],total:5}]; orderTotal = 1; orderHasMore = false; filterOrders()');
+      const settingsNav = sd.querySelector('.sidebar-item[data-section="settings"]');
+      assert.ok(settingsNav, 'Settings is reachable from the grouped sidebar');
+      settingsNav.click();
+      assert.equal(sd.getElementById('tab-settings').classList.contains('active'), true);
+      assert.equal(sd.getElementById('sectionTitle').textContent, 'Settings');
+      const opener = sd.querySelector('[data-action="open-clear-orders"]');
+      opener.focus();
+      opener.click();
+      const modal = sd.getElementById('clearOrdersModal');
+      assert.equal(modal.hidden, false);
+      assert.equal(sd.activeElement.id, 'clearOrdersPhrase', 'focus moves to the typed confirmation');
+      await new Promise(r => setTimeout(r, 40));
+      assert.match(sd.getElementById('clearOrdersCount').textContent, /delete 2 order/);
+      assert.equal(sd.getElementById('clearOrdersSubmit').disabled, true, 'the delete button starts disabled');
+      sd.dispatchEvent(new sw.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      assert.equal(modal.hidden, true, 'Escape closes with no deletion');
+      assert.equal(sd.activeElement, opener, 'focus returns to the danger-zone button');
+      assert.equal(calls.filter(c => c.u === '/api/orders/all').length, 0);
+
+      opener.click();
+      await new Promise(r => setTimeout(r, 40));
+      const phrase = sd.getElementById('clearOrdersPhrase');
+      phrase.value = 'delete all orders';
+      phrase.dispatchEvent(new sw.Event('input', { bubbles: true }));
+      assert.equal(sd.getElementById('clearOrdersSubmit').disabled, true, 'the phrase is case-sensitive');
+      phrase.value = 'DELETE ALL ORDERS';
+      phrase.dispatchEvent(new sw.Event('input', { bubbles: true }));
+      assert.equal(sd.getElementById('clearOrdersSubmit').disabled, false);
+      sd.getElementById('clearOrdersSubmit').click();
+      assert.equal(sd.getElementById('clearOrdersError').textContent, 'Enter your admin password.', 'password is re-prompted');
+      assert.equal(calls.filter(c => c.u === '/api/orders/all').length, 0);
+      sd.getElementById('clearOrdersPassword').value = 'admin-secret';
+      sd.getElementById('clearOrdersSubmit').click();
+      await new Promise(r => setTimeout(r, 120));
+      const deletion = calls.find(c => c.u === '/api/orders/all');
+      assert.ok(deletion, 'the guarded DELETE is issued only after both gates pass');
+      assert.deepEqual(deletion.body, { phrase: 'DELETE ALL ORDERS', password: 'admin-secret' });
+      assert.equal(modal.hidden, true);
+      assert.equal(sw.eval('allOrders.length'), 0, 'the cached order page is cleared');
+      assert.equal(sw.eval('orderTotal'), 0);
+      assert.match(sd.getElementById('adminToasts').textContent, /Cleared 2 order/);
+      const bundle = readFileSync(join(__dirname, '..', 'public', 'admin.js'), 'utf8');
+      assert.match(bundle, /type: 'bar'/, 'the P&L chart uses bars');
+      assert.match(bundle, /borderRadius: 6/, 'bars have rounded corners');
+      assert.match(bundle, /titleFont: \{ family: 'Archivo'/, 'tooltips use the admin font');
+      assert.match(bundle, /grid: \{ color: gridColor/, 'gridlines come from theme tokens');
+      console.log('✅ Settings danger zone gates the wipe with count, phrase, password and cache reset');
+    }
 
     // Shared nav order/routes, mobile panel contract, and admin entry points.
     const navLinks = [...d.querySelectorAll('#navLinks > li > a')];
